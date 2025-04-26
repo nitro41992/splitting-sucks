@@ -9,12 +9,15 @@ class MockData {
     ReceiptItem(name: 'Fries', price: 4.99, quantity: 2),
     ReceiptItem(name: 'Soda', price: 2.99, quantity: 3),
     ReceiptItem(name: 'Salad', price: 8.99, quantity: 1),
+    ReceiptItem(name: 'Rice Bowl', price: 8.99, quantity: 1),
+    ReceiptItem(name: 'Dessert', price: 8.99, quantity: 1),
+    ReceiptItem(name: 'Soba', price: 8.99, quantity: 1),
   ];
 
   static final List<String> people = ['John', 'Alice', 'Bob', 'Carol'];
   
   static final Map<String, List<ReceiptItem>> assignments = {
-    'John': [items[0], items[1]],
+    'John': [items[0], items[1], items[4]],
     'Alice': [items[2]],
     'Bob': [items[3]],
     'Carol': [],
@@ -51,19 +54,47 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   // Controllers for editable fields
   late List<TextEditingController> _itemPriceControllers;
+  late TextEditingController _taxController; // Controller for Tax TextField
   late List<ReceiptItem> _editableItems; // Keep a mutable copy
+  late ScrollController _itemsScrollController; // Controller for review list scroll
+
+  // Add a flag to track FAB visibility
+  bool _isFabVisible = true;
+
+  // For tracking scroll direction
+  double _lastScrollPosition = 0;
 
   @override
   void initState() {
     super.initState();
     _initializeEditableItems();
+    _taxController = TextEditingController(text: _taxPercentage.toStringAsFixed(3));
+    _itemsScrollController = ScrollController();
+
+    // Add scroll listener to control FAB visibility
+    _itemsScrollController.addListener(_onScroll);
+
+    // Add listener to update tax percentage state when text field changes
+    _taxController.addListener(() {
+      final newTax = double.tryParse(_taxController.text);
+      if (newTax != null && newTax != _taxPercentage) {
+        // Use addPostFrameCallback to avoid calling setState during build
+         WidgetsBinding.instance.addPostFrameCallback((_) {
+           if (mounted) { // Check if widget is still mounted
+              setState(() {
+                _taxPercentage = newTax;
+              });
+           }
+         });
+      }
+    });
   }
 
   void _initializeEditableItems() {
-    _editableItems = List.from(MockData.items.map((item) => 
+    _editableItems = List.from(MockData.items.map((item) =>
       ReceiptItem(name: item.name, price: item.price, quantity: item.quantity)
     ));
-    _itemPriceControllers = _editableItems.map((item) => 
+    _itemPriceControllers = _editableItems.map((item) =>
       TextEditingController(text: item.price.toStringAsFixed(2))).toList();
 
     // Add listeners only for price controllers
@@ -84,9 +115,27 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     }
   }
 
+  // Method to handle scroll events and update FAB visibility
+  void _onScroll() {
+    // Determine if scrolling down by comparing current position to previous position
+    final currentPosition = _itemsScrollController.position.pixels;
+    final bool isScrollingDown = currentPosition > _lastScrollPosition;
+    _lastScrollPosition = currentPosition;
+    
+    // Only update state if visibility changed
+    if (isScrollingDown != !_isFabVisible) {
+      setState(() {
+        _isFabVisible = !isScrollingDown;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _itemPriceControllers.forEach((controller) => controller.dispose());
+    _taxController.dispose();
+    _itemsScrollController.removeListener(_onScroll); // Remove listener before disposing
+    _itemsScrollController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -170,9 +219,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     ];
 
     return Scaffold(
+      backgroundColor: colorScheme.background,
       appBar: AppBar(
         title: Text('Receipt Splitter - Step ${_currentStep + 1} of 5'),
-        backgroundColor: colorScheme.primaryContainer,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -199,6 +248,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         currentIndex: _currentStep,
         onTap: _navigateToPage,
         type: BottomNavigationBarType.fixed,
+        backgroundColor: colorScheme.surface,
+        selectedItemColor: colorScheme.primary,
+        unselectedItemColor: colorScheme.onSurfaceVariant,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.receipt_long),
@@ -222,15 +274,18 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           ),
         ],
       ),
-       floatingActionButton: _currentStep < 4 ? FloatingActionButton.extended(
-         onPressed: () => _navigateToPage(_currentStep + 1),
-         label: const Text('Next'),
-         icon: const Icon(Icons.arrow_forward),
-       ) : null,
+       floatingActionButton: _currentStep < 4 && (_currentStep != 1 || _isFabVisible) ? 
+        FloatingActionButton.extended(
+          onPressed: () => _navigateToPage(_currentStep + 1),
+          label: const Text('Next'),
+          icon: const Icon(Icons.arrow_forward),
+        ) : null,
     );
   }
 
   Widget _buildReceiptUploadStep(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    
     return Card(
       elevation: 2.0,
       margin: const EdgeInsets.symmetric(vertical: 8.0),
@@ -256,11 +311,11 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
               Column(
                  mainAxisAlignment: MainAxisAlignment.center,
                  children: [
-                   Icon(Icons.image_search, size: 80, color: Theme.of(context).colorScheme.primary.withOpacity(0.7)),
+                   Icon(Icons.image_search, size: 80, color: colorScheme.primary.withOpacity(0.7)),
                    const SizedBox(height: 20),
                    Text(
                      'Upload Receipt',
-                     style: Theme.of(context).textTheme.headlineSmall,
+                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: colorScheme.primary),
                    ),
                    const SizedBox(height: 10),
                     Text(
@@ -309,12 +364,30 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   }
 
   void _showFullImage(File imageFile) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    
     showDialog(
       context: context,
       builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: colorScheme.surface,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Receipt Image', style: Theme.of(context).textTheme.titleMedium),
+                  IconButton(
+                    icon: Icon(Icons.close, color: colorScheme.primary),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Divider(),
             InteractiveViewer(
               panEnabled: true,
               boundaryMargin: EdgeInsets.all(20),
@@ -322,9 +395,21 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
               maxScale: 4.0,
               child: Image.file(imageFile),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.zoom_out_map, size: 16, color: colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Pinch to zoom, drag to move',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -334,169 +419,206 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   Widget _buildParsedReceiptStep(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-         Padding(
-           padding: const EdgeInsets.only(bottom: 16.0),
-           child: Text('Review & Edit Items', style: textTheme.headlineSmall),
-         ),
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-        Expanded(
-          child: ListView.builder(
-            itemCount: _editableItems.length,
-            itemBuilder: (context, index) {
-               final item = _editableItems[index];
-              if (index >= _itemPriceControllers.length) return SizedBox.shrink();
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 6.0),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                  child: Row(
+    // Rebuild this step completely as a single scrollable list
+    return Scrollbar(
+      controller: _itemsScrollController,
+      thumbVisibility: true,
+      child: ListView(
+        controller: _itemsScrollController,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: Text(
+              'Review & Edit Items',
+              style: textTheme.headlineSmall?.copyWith(color: colorScheme.primary),
+            ),
+          ),
+
+          // Totals Section (now at the top)
+          Card(
+            elevation: 2.0,
+            margin: const EdgeInsets.only(bottom: 16.0),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Receipt Summary', 
+                    style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Text('Subtotal:', style: textTheme.bodyLarge),
+                      Text('\$${_calculateSubtotal().toStringAsFixed(2)}', style: textTheme.bodyLarge),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Tax Input Row (TextField)
+                  Row(
+                    children: [
+                      Text('Tax:', style: textTheme.bodyLarge),
+                      const SizedBox(width: 16),
                       Expanded(
-                        child: Text(item.name, style: textTheme.titleMedium)
-                      ),
-                      SizedBox(
-                        width: 80,
                         child: TextField(
-                          controller: _itemPriceControllers[index],
+                          controller: _taxController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: const InputDecoration(
-                            prefixText: '\$ ',
+                            suffixText: '%',
                             isDense: true,
                             border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           ),
                           textAlign: TextAlign.right,
-                           style: textTheme.bodyMedium,
+                          style: textTheme.bodyLarge,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                       Row(
-                         mainAxisSize: MainAxisSize.min,
-                         children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle),
-                              iconSize: 22,
-                              color: Theme.of(context).colorScheme.secondary,
-                              tooltip: 'Decrease Quantity',
-                              onPressed: () {
-                                if (item.quantity > 1) {
-                                  setState(() {
-                                    item.quantity--;
-                                  });
-                                }
-                              },
-                            ),
-                            SizedBox(
-                               width: 24,
-                               child: Text(
-                                 '${item.quantity}',
-                                 style: textTheme.titleMedium,
-                                 textAlign: TextAlign.center,
-                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle),
-                              iconSize: 22,
-                              color: Theme.of(context).colorScheme.secondary,
-                              tooltip: 'Increase Quantity',
-                              onPressed: () {
-                                setState(() {
-                                  item.quantity++;
-                                });
-                              },
-                            ),
-                         ],
-                       ),
-                       const SizedBox(width: 8),
-                       IconButton(
-                        icon: Icon(Icons.delete_sweep_outlined, color: Theme.of(context).colorScheme.error),
-                         iconSize: 22,
-                        tooltip: 'Remove Item',
-                        onPressed: () => _removeItem(index),
                       ),
                     ],
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-         const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
-        Card(
-          elevation: 2.0,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Subtotal:', style: textTheme.titleMedium),
-                    Text('\$${_calculateSubtotal().toStringAsFixed(2)}', style: textTheme.titleMedium),
-                  ],
-                ),
-                 const Divider(height: 24),
-
-                Row(
-                  children: [
-                    Text('Tax:', style: textTheme.bodyLarge),
-                    Expanded(
-                      child: Slider(
-                        value: _taxPercentage,
-                        min: 0,
-                        max: 20,
-                        label: '${_taxPercentage.toStringAsFixed(2)}%',
-                        onChanged: (value) {
-                          setState(() { _taxPercentage = value; });
-                        },
+                  // Tip Input Row (Slider)
+                  Text('Tip:', style: textTheme.bodyLarge),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Slider(
+                          value: _tipPercentage,
+                          min: 0,
+                          max: 50,
+                          divisions: 50,
+                          label: '${_tipPercentage.round()}%',
+                          onChanged: (value) {
+                            setState(() { _tipPercentage = value; });
+                          },
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                       width: 70,
-                       child: Text('${_taxPercentage.toStringAsFixed(2)}%', textAlign: TextAlign.right, style: textTheme.bodyLarge),
-                    ),
-                  ],
-                ),
-
-                Row(
-                   children: [
-                    Text('Tip:', style: textTheme.bodyLarge),
-                    Expanded(
-                      child: Slider(
-                        value: _tipPercentage,
-                        min: 0,
-                        max: 50,
-                        divisions: 50,
-                        label: '${_tipPercentage.round()}%',
-                        onChanged: (value) {
-                          setState(() { _tipPercentage = value; });
-                        },
+                      SizedBox(
+                        width: 70,
+                        child: Text('${_tipPercentage.toStringAsFixed(1)}%', 
+                          textAlign: TextAlign.right, 
+                          style: textTheme.bodyLarge
+                        ),
                       ),
-                    ),
-                     SizedBox(
-                       width: 70,
-                       child: Text('${_tipPercentage.toStringAsFixed(1)}%', textAlign: TextAlign.right, style: textTheme.bodyLarge),
-                    ),
-                  ],
-                ),
-                 const Divider(height: 24),
-
-                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Total:', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                    Text('\$${_calculateTotal().toStringAsFixed(2)}', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                  
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Total:', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                      Text('\$${_calculateTotal().toStringAsFixed(2)}', 
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold, 
+                          color: colorScheme.primary
+                        )
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+          
+          // Items Section Header
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(
+              'Items',
+              style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+            ),
+          ),
+          
+          // List of Items (now below the totals)
+          ...List.generate(_editableItems.length, (index) {
+            final item = _editableItems[index];
+            if (index >= _itemPriceControllers.length) return const SizedBox.shrink();
+            
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(item.name, style: textTheme.titleMedium)
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: TextField(
+                        controller: _itemPriceControllers[index],
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          prefixText: '\$ ',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        ),
+                        textAlign: TextAlign.right,
+                        style: textTheme.bodyMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle),
+                          iconSize: 22,
+                          color: colorScheme.secondary,
+                          tooltip: 'Decrease Quantity',
+                          onPressed: () {
+                            if (item.quantity > 1) {
+                              setState(() {
+                                item.quantity--;
+                              });
+                            }
+                          },
+                        ),
+                        SizedBox(
+                          width: 24,
+                          child: Text(
+                            '${item.quantity}',
+                            style: textTheme.titleMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle),
+                          iconSize: 22,
+                          color: colorScheme.secondary,
+                          tooltip: 'Increase Quantity',
+                          onPressed: () {
+                            setState(() {
+                              item.quantity++;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
+                      iconSize: 22,
+                      tooltip: 'Remove Item',
+                      onPressed: () => _removeItem(index),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          
+          // Bottom padding to ensure last items are fully visible
+          const SizedBox(height: 80),
+        ],
+      ),
     );
   }
 
@@ -770,7 +892,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
 
   void _resetState() {
+    // Dispose existing controllers first if they exist
     _itemPriceControllers.forEach((controller) => controller.dispose());
+    // Don't dispose _taxController here as we re-initialize right after
 
     setState(() {
       _currentStep = 0;
@@ -779,7 +903,11 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       _taxPercentage = 8.876;
       _tipPercentage = 15.0;
       _isRecording = false;
+      // Re-initialize items and controllers from mock data
       _initializeEditableItems();
+      // Reset tax controller text to default
+      _taxController.text = _taxPercentage.toStringAsFixed(3);
+      // TODO: Reset actual assignment data when implemented
     });
   }
 } 
