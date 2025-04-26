@@ -42,6 +42,7 @@ class ReceiptSplitterUI extends StatefulWidget {
 
 class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   int _currentStep = 0;
+  final PageController _pageController = PageController();
   bool _isRecording = false;
   double _tipPercentage = 15.0;
   double _taxPercentage = 8.876; // Default NYC tax
@@ -86,6 +87,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   @override
   void dispose() {
     _itemPriceControllers.forEach((controller) => controller.dispose());
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -100,7 +102,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         setState(() {
           _imageFile = File(photo.path);
         });
-        // _moveToNextStep(); // REMOVED: Do not automatically move to next step
       }
     } catch (e) {
       print('Error taking picture: $e');
@@ -120,7 +121,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         setState(() {
           _imageFile = File(image.path);
         });
-        // _moveToNextStep(); // REMOVED: Do not automatically move to next step
       }
     } catch (e) {
       print('Error picking image: $e');
@@ -146,20 +146,33 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     );
   }
 
-  void _moveToNextStep() {
-    if (_currentStep < 4) {
-      setState(() {
-        _currentStep += 1;
-      });
+  void _navigateToPage(int page) {
+    if (page >= 0 && page < 5) {
+      _pageController.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
+
+    final List<Widget> pages = [
+      _buildReceiptUploadStep(context),
+      _buildParsedReceiptStep(context),
+      _buildVoiceAssignmentStep(context),
+      _buildAssignmentReviewStep(context),
+      _buildFinalSummaryStep(context),
+    ];
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Receipt Splitter'),
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        title: Text('Receipt Splitter - Step ${_currentStep + 1} of 5'),
+        backgroundColor: colorScheme.primaryContainer,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -168,190 +181,239 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           ),
         ],
       ),
-      body: Stepper(
-        currentStep: _currentStep,
-        onStepContinue: () {
-          if (_currentStep < 4) {
-            setState(() {
-              _currentStep += 1;
-            });
-          }
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentStep = index;
+          });
         },
-        onStepCancel: () {
-          if (_currentStep > 0) {
-            setState(() {
-              _currentStep -= 1;
-            });
-          }
-        },
-        steps: [
-          // Step 1: Receipt Input
-          Step(
-            title: const Text('Upload Receipt'),
-            content: _buildReceiptUploadStep(),
-            isActive: _currentStep >= 0,
+        children: pages.map((page) {
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: page,
+          );
+        }).toList(),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentStep,
+        onTap: _navigateToPage,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_long),
+            label: 'Upload',
           ),
-          // Step 2: Parsed Receipt Review
-          Step(
-            title: const Text('Review Items'),
-            content: _buildParsedReceiptStep(),
-            isActive: _currentStep >= 1,
+          BottomNavigationBarItem(
+            icon: Icon(Icons.edit_document),
+            label: 'Review',
           ),
-          // Step 3: Voice Assignment
-          Step(
-            title: const Text('Assign Items'),
-            content: _buildVoiceAssignmentStep(),
-            isActive: _currentStep >= 2,
+          BottomNavigationBarItem(
+            icon: Icon(Icons.mic),
+            label: 'Assign',
           ),
-          // Step 4: Review Assignments
-          Step(
-            title: const Text('Review Assignments'),
-            content: _buildAssignmentReviewStep(),
-            isActive: _currentStep >= 3,
+           BottomNavigationBarItem(
+            icon: Icon(Icons.people),
+            label: 'Split',
           ),
-          // Step 5: Final Summary
-          Step(
-            title: const Text('Final Summary'),
-            content: _buildFinalSummaryStep(),
-            isActive: _currentStep >= 4,
+           BottomNavigationBarItem(
+            icon: Icon(Icons.summarize),
+            label: 'Summary',
           ),
         ],
+      ),
+       floatingActionButton: _currentStep < 4 ? FloatingActionButton.extended(
+         onPressed: () => _navigateToPage(_currentStep + 1),
+         label: const Text('Next'),
+         icon: const Icon(Icons.arrow_forward),
+       ) : null,
+    );
+  }
+
+  Widget _buildReceiptUploadStep(BuildContext context) {
+    return Card(
+      elevation: 2.0,
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_imageFile != null)
+              GestureDetector(
+                onTap: () => _showFullImage(_imageFile!),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    _imageFile!,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              )
+            else
+              Column(
+                 mainAxisAlignment: MainAxisAlignment.center,
+                 children: [
+                   Icon(Icons.image_search, size: 80, color: Theme.of(context).colorScheme.primary.withOpacity(0.7)),
+                   const SizedBox(height: 20),
+                   Text(
+                     'Upload Receipt',
+                     style: Theme.of(context).textTheme.headlineSmall,
+                   ),
+                   const SizedBox(height: 10),
+                    Text(
+                     'Take a picture or select one from your gallery.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                   ),
+                 ],
+              ),
+
+            const SizedBox(height: 30),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _takePicture,
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Camera'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.photo_library),
+                  label: const Text('Gallery'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+             if (_imageFile != null) ...[
+                const SizedBox(height: 20),
+                Text(
+                 'Tap image to view full size. Use buttons to change.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+             ]
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildReceiptUploadStep() {
-    return Container(
-      height: 300,
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (_imageFile != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                _imageFile!,
-                height: 150,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            )
-          else
-            const Icon(Icons.cloud_upload, size: 64, color: Colors.blue),
-          const SizedBox(height: 16),
-          const Text(
-            'Upload Receipt Image',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text('Take a picture or select from gallery'),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ElevatedButton.icon(
-                onPressed: _takePicture,
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Take Picture'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
-              const SizedBox(width: 16),
-              ElevatedButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Gallery'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
-            ],
-          ),
-        ],
+  void _showFullImage(File imageFile) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              boundaryMargin: EdgeInsets.all(20),
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.file(imageFile),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildParsedReceiptStep() {
+  Widget _buildParsedReceiptStep(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Review & Edit Items', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Container(
-          height: MediaQuery.of(context).size.height * 0.3,
+         Padding(
+           padding: const EdgeInsets.only(bottom: 16.0),
+           child: Text('Review & Edit Items', style: textTheme.headlineSmall),
+         ),
+
+        Expanded(
           child: ListView.builder(
             itemCount: _editableItems.length,
             itemBuilder: (context, index) {
-              final item = _editableItems[index];
-              // Ensure controllers are available for this index
-              if (index >= _itemPriceControllers.length) return SizedBox.shrink(); 
+               final item = _editableItems[index];
+              if (index >= _itemPriceControllers.length) return SizedBox.shrink();
               return Card(
-                margin: const EdgeInsets.symmetric(vertical: 4.0),
+                margin: const EdgeInsets.symmetric(vertical: 6.0),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
                   child: Row(
                     children: [
-                      Expanded(child: Text(item.name)),
-                      // Price TextField
+                      Expanded(
+                        child: Text(item.name, style: textTheme.titleMedium)
+                      ),
                       SizedBox(
-                        width: 70, // Slightly wider for price
+                        width: 80,
                         child: TextField(
                           controller: _itemPriceControllers[index],
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: const InputDecoration(
-                            prefixText: '\$',
+                            prefixText: '\$ ',
                             isDense: true,
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                           ),
                           textAlign: TextAlign.right,
-                           style: TextStyle(fontSize: 14), // Smaller font
+                           style: textTheme.bodyMedium,
                         ),
                       ),
-                      const SizedBox(width: 8), // Spacing
-                      // Quantity Buttons
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
-                        iconSize: 20,
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        tooltip: 'Decrease Quantity',
-                        onPressed: () {
-                          if (item.quantity > 1) {
-                            setState(() {
-                              item.quantity--;
-                              // Optional: Update controller if needed, though it's removed
-                            });
-                          } else {
-                            // Optionally remove item if quantity reaches 0
-                            // _removeItem(index);
-                          }
-                        },
-                      ),
-                      Text('${item.quantity}', style: TextStyle(fontSize: 16)),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        iconSize: 20,
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        tooltip: 'Increase Quantity',
-                        onPressed: () {
-                          setState(() {
-                            item.quantity++;
-                             // Optional: Update controller if needed
-                          });
-                        },
-                      ),
-                       // Remove Item Button
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                         iconSize: 20,
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
+                      const SizedBox(width: 12),
+                       Row(
+                         mainAxisSize: MainAxisSize.min,
+                         children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle),
+                              iconSize: 22,
+                              color: Theme.of(context).colorScheme.secondary,
+                              tooltip: 'Decrease Quantity',
+                              onPressed: () {
+                                if (item.quantity > 1) {
+                                  setState(() {
+                                    item.quantity--;
+                                  });
+                                }
+                              },
+                            ),
+                            SizedBox(
+                               width: 24,
+                               child: Text(
+                                 '${item.quantity}',
+                                 style: textTheme.titleMedium,
+                                 textAlign: TextAlign.center,
+                               ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle),
+                              iconSize: 22,
+                              color: Theme.of(context).colorScheme.secondary,
+                              tooltip: 'Increase Quantity',
+                              onPressed: () {
+                                setState(() {
+                                  item.quantity++;
+                                });
+                              },
+                            ),
+                         ],
+                       ),
+                       const SizedBox(width: 8),
+                       IconButton(
+                        icon: Icon(Icons.delete_sweep_outlined, color: Theme.of(context).colorScheme.error),
+                         iconSize: 22,
                         tooltip: 'Remove Item',
                         onPressed: () => _removeItem(index),
                       ),
@@ -362,50 +424,47 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             },
           ),
         ),
-        const SizedBox(height: 16),
+         const SizedBox(height: 16),
+
         Card(
-          margin: EdgeInsets.zero,
+          elevation: 2.0,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                Row(
+                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Subtotal:'),
-                    Text('\$${_calculateSubtotal().toStringAsFixed(2)}'),
+                    Text('Subtotal:', style: textTheme.titleMedium),
+                    Text('\$${_calculateSubtotal().toStringAsFixed(2)}', style: textTheme.titleMedium),
                   ],
                 ),
-                const SizedBox(height: 8),
-                // Tax Slider
+                 const Divider(height: 24),
+
                 Row(
                   children: [
-                    const Text('Tax:'),
+                    Text('Tax:', style: textTheme.bodyLarge),
                     Expanded(
                       child: Slider(
                         value: _taxPercentage,
-                        min: 0,    // Min US tax is 0%
-                        max: 15,   // Max common US tax ~11-12%, allow some buffer
-                        // divisions: 1500, // ~0.01% precision if needed, or remove for continuous
-                        label: '${_taxPercentage.toStringAsFixed(3)}%', // Show more precision
+                        min: 0,
+                        max: 20,
+                        label: '${_taxPercentage.toStringAsFixed(2)}%',
                         onChanged: (value) {
-                          setState(() {
-                            _taxPercentage = value;
-                          });
+                          setState(() { _taxPercentage = value; });
                         },
                       ),
                     ),
-                    // Consider Text Field for precise tax input if slider is too coarse
                     SizedBox(
-                      width: 70,
-                      child: Text('${_taxPercentage.toStringAsFixed(3)}%', textAlign: TextAlign.right),
+                       width: 70,
+                       child: Text('${_taxPercentage.toStringAsFixed(2)}%', textAlign: TextAlign.right, style: textTheme.bodyLarge),
                     ),
                   ],
                 ),
-                // Tip Slider
+
                 Row(
                    children: [
-                    const Text('Tip:'),
+                    Text('Tip:', style: textTheme.bodyLarge),
                     Expanded(
                       child: Slider(
                         value: _tipPercentage,
@@ -414,24 +473,23 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                         divisions: 50,
                         label: '${_tipPercentage.round()}%',
                         onChanged: (value) {
-                          setState(() {
-                            _tipPercentage = value;
-                          });
+                          setState(() { _tipPercentage = value; });
                         },
                       ),
                     ),
                      SizedBox(
-                      width: 70,
-                      child: Text('${_tipPercentage.toStringAsFixed(1)}%', textAlign: TextAlign.right),
+                       width: 70,
+                       child: Text('${_tipPercentage.toStringAsFixed(1)}%', textAlign: TextAlign.right, style: textTheme.bodyLarge),
                     ),
                   ],
                 ),
-                const Divider(),
-                Row(
+                 const Divider(height: 24),
+
+                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text('\$${_calculateTotal().toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Total:', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                    Text('\$${_calculateTotal().toStringAsFixed(2)}', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
@@ -442,143 +500,218 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     );
   }
 
-  Widget _buildVoiceAssignmentStep() {
+  Widget _buildVoiceAssignmentStep(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Icon(Icons.mic, size: 64, color: Colors.blue),
-        const SizedBox(height: 16),
-        const Text(
-          'Voice Assignment',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Speak clearly to assign items to people\nExample: "John ordered the burger and fries"',
+        Icon(Icons.mic_none, size: 100, color: _isRecording ? colorScheme.error : colorScheme.primary),
+        const SizedBox(height: 24),
+        Text(
+          'Assign Items via Voice',
+          style: textTheme.headlineSmall,
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 12),
+        Text(
+          'Tap the button and speak clearly.\nExample: "John ordered the burger and fries"',
+          textAlign: TextAlign.center,
+          style: textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 40),
         ElevatedButton.icon(
           onPressed: () {
-            setState(() {
-              _isRecording = !_isRecording;
-            });
+            setState(() { _isRecording = !_isRecording; });
           },
-          icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+          icon: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic),
           label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: _isRecording ? Colors.red : Colors.blue,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            backgroundColor: _isRecording ? colorScheme.errorContainer : colorScheme.primaryContainer,
+            foregroundColor: _isRecording ? colorScheme.onErrorContainer : colorScheme.onPrimaryContainer,
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+            textStyle: textTheme.titleMedium,
           ),
         ),
         if (_isRecording) ...[
-          const SizedBox(height: 16),
-          const CircularProgressIndicator(),
+          const SizedBox(height: 24),
+          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 8),
+           Text('Listening...', style: textTheme.bodySmall, textAlign: TextAlign.center),
+        ] else ... [
+          const SizedBox(height: 32),
         ],
       ],
     );
   }
 
-  Widget _buildAssignmentReviewStep() {
-    return Column(
+ Widget _buildAssignmentReviewStep(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    final assignments = MockData.assignments;
+    final people = MockData.people;
+    final sharedItems = MockData.sharedItems;
+
+    return ListView(
       children: [
-        // Individual Assignments
-        const Text('Individual Items',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        Expanded(
-          child: ListView.builder(
-            itemCount: MockData.assignments.length,
-            itemBuilder: (context, index) {
-              final person = MockData.people[index];
-              final assignedMockItems = MockData.assignments[person] ?? [];
-              // Filter _editableItems based on assignedMockItems names for display (Simple approach)
-              final currentAssignedItems = _editableItems.where((editItem) => 
-                  assignedMockItems.any((mockItem) => mockItem.name == editItem.name)).toList();
-              
-              return ExpansionTile(
-                title: Text(person),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Text('Assigned Items', style: textTheme.headlineSmall),
+        ),
+
+        ...people.map((person) {
+          final assignedMockItems = assignments[person] ?? [];
+          final currentAssignedItems = _editableItems.where((editItem) =>
+              assignedMockItems.any((mockItem) => mockItem.name == editItem.name)).toList();
+
+          if (currentAssignedItems.isEmpty) {
+             return Card(
+                 margin: const EdgeInsets.symmetric(vertical: 6.0),
+                 child: ListTile(
+                   title: Text(person),
+                   subtitle: Text('No items assigned yet.', style: TextStyle(color: Colors.grey[600])),
+                 )
+             );
+          }
+
+          return Card(
+             margin: const EdgeInsets.symmetric(vertical: 6.0),
+             child: ExpansionTile(
+                title: Text(person, style: textTheme.titleLarge),
+                tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0).copyWith(top: 0),
                 children: currentAssignedItems.map((item) {
                   return ListTile(
-                    title: Text(item.name),
-                    subtitle: Text('\$${item.price.toStringAsFixed(2)}'),
-                    trailing: Text('x${item.quantity}'),
+                    title: Text(item.name, style: textTheme.titleMedium),
+                    trailing: Text(
+                        '\$${item.price.toStringAsFixed(2)} x ${item.quantity}',
+                         style: textTheme.bodyLarge,
+                      ),
+                    contentPadding: EdgeInsets.zero,
                   );
                 }).toList(),
-              );
-            },
-          ),
+              ),
+          );
+        }).toList(),
+
+        const SizedBox(height: 24),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Text('Shared Items', style: textTheme.headlineSmall),
         ),
-        // Shared Items
-        const Text('Shared Items',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: MockData.sharedItems.length,
-          itemBuilder: (context, index) {
-            final item = MockData.sharedItems[index];
-             // Find corresponding editable item if exists (or just display mock data)
-             final editableSharedItem = _editableItems.firstWhere((editItem) => editItem.name == item.name, orElse: () => item);
-            return Card(
+
+        ...sharedItems.map((item) {
+          final editableSharedItem = _editableItems.firstWhere(
+              (editItem) => editItem.name == item.name, orElse: () => item);
+
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 6.0),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ListTile(
-                    title: Text(editableSharedItem.name),
-                    subtitle: Text('\$${editableSharedItem.price.toStringAsFixed(2)}'),
+                  Text(
+                    '${editableSharedItem.name} (\$${editableSharedItem.price.toStringAsFixed(2)})',
+                     style: textTheme.titleMedium,
                   ),
+                  const SizedBox(height: 12),
+                  Text('Shared by:', style: textTheme.labelMedium),
+                  const SizedBox(height: 8),
                   Wrap(
-                    spacing: 8,
-                    children: MockData.people.map((person) {
+                    spacing: 8.0,
+                    runSpacing: 4.0,
+                    children: people.map((person) {
+                      bool isSelected = true;
                       return FilterChip(
                         label: Text(person),
-                        selected: true, // TODO: Needs state for selection
+                        selected: isSelected,
                         onSelected: (bool selected) {
-                          // TODO: Implement shared item selection logic
+                          setState(() {
+                          });
                         },
+                        selectedColor: colorScheme.primaryContainer,
+                        checkmarkColor: colorScheme.onPrimaryContainer,
                       );
                     }).toList(),
                   ),
                 ],
               ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFinalSummaryStep() {
-    return Column(
-      children: [
-        const Text('Final Amounts',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 16),
-        ...MockData.people.map((person) {
-          return Card(
-            child: ListTile(
-              title: Text(person),
-              trailing: Text(
-                '\$${_calculatePersonTotal(person).toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
             ),
           );
         }).toList(),
+
+        if (sharedItems.isEmpty)
+           Padding(
+             padding: const EdgeInsets.symmetric(vertical: 8.0),
+             child: Center(child: Text('No items marked as shared.', style: textTheme.bodyMedium)),
+           ),
+      ],
+    );
+  }
+
+
+   Widget _buildFinalSummaryStep(BuildContext context) {
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    final people = MockData.people;
+
+    return ListView(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Text('Final Split', style: textTheme.headlineSmall, textAlign: TextAlign.center),
+        ),
         const SizedBox(height: 16),
-        ElevatedButton(
-          onPressed: () {
-            // TODO: Implement payment processing
-          },
-          child: const Text('Complete Split'),
+
+        ...people.map((person) {
+          double personTotal = _calculatePersonTotal(person);
+
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 6.0),
+            child: ListTile(
+              leading: CircleAvatar(
+                 backgroundColor: colorScheme.secondaryContainer,
+                 child: Text(person.substring(0, 1), style: TextStyle(color: colorScheme.onSecondaryContainer)),
+              ),
+              title: Text(person, style: textTheme.titleLarge),
+              trailing: Text(
+                '\$${personTotal.toStringAsFixed(2)}',
+                style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            ),
+          );
+        }).toList(),
+
+        const SizedBox(height: 32),
+
+        Center(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.check_circle_outline),
+            label: const Text('Complete & Share'),
+            onPressed: () {
+               ScaffoldMessenger.of(context).showSnackBar(
+                 const SnackBar(content: Text('Split finalized (sharing not implemented yet).')),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+              textStyle: textTheme.titleMedium,
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ),
+          ),
         ),
       ],
     );
   }
 
-  // Helper methods for calculations
   double _calculateSubtotal() {
     return _editableItems.fold(0,
         (sum, item) => sum + (item.price * item.quantity));
@@ -597,25 +730,20 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   }
 
   double _calculatePersonTotal(String person) {
-    // TODO: This calculation needs to be completely revised based on _editableItems and actual assignments
-    // Mock calculation remains for now
     return _calculateTotal() / MockData.people.length;
   }
 
-  // Helper function to remove item and controllers safely
   void _removeItem(int index) {
     setState(() {
       _editableItems.removeAt(index);
       _itemPriceControllers.removeAt(index).dispose();
-      // No quantity controller to remove anymore
-      // _itemQuantityControllers.removeAt(index).dispose(); 
     });
   }
 
-  void _showStartOverConfirmationDialog() {
+   void _showStartOverConfirmationDialog() {
     showDialog(
       context: context,
-      builder: (BuildContext dialogContext) { // Use a different context name
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Start Over?'),
           content: const Text('Are you sure you want to start over? All current progress will be lost.'),
@@ -623,14 +751,15 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             TextButton(
               child: const Text('Cancel'),
               onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close the dialog
+                Navigator.of(dialogContext).pop();
               },
             ),
             TextButton(
               child: const Text('Confirm'),
+               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
               onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close the dialog
-                _resetState(); // Call the reset function
+                Navigator.of(dialogContext).pop();
+                _resetState();
               },
             ),
           ],
@@ -639,18 +768,18 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     );
   }
 
+
   void _resetState() {
-     // Dispose existing controllers before creating new ones
     _itemPriceControllers.forEach((controller) => controller.dispose());
-    // _itemQuantityControllers.forEach((controller) => controller.dispose()); // Already removed
 
     setState(() {
       _currentStep = 0;
+      _pageController.jumpToPage(0);
       _imageFile = null;
-      _taxPercentage = 8.876; // Reset to default
-      _tipPercentage = 15.0; // Reset to default
-      // Re-initialize items and controllers from mock data
-      _initializeEditableItems(); 
+      _taxPercentage = 8.876;
+      _tipPercentage = 15.0;
+      _isRecording = false;
+      _initializeEditableItems();
     });
   }
 } 
