@@ -199,83 +199,185 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   Widget _buildReceiptUploadStep(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
     
     return Card(
-      elevation: 2.0,
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_imageFile != null)
-              Column(
-                children: [
-                  GestureDetector(
-                    onTap: () => _showFullImage(_imageFile!),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        _imageFile!,
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.contain,
+              Expanded(
+                child: Stack(
+                  children: [
+                    // Image Preview
+                    Center(
+                      child: GestureDetector(
+                        onTap: () => _showFullImage(_imageFile!),
+                        child: Container(
+                          margin: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.file(
+                              _imageFile!,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_isLoading)
-                    const CircularProgressIndicator()
-                  else
-                    ElevatedButton(
-                      onPressed: _parseReceipt,
-                      child: const Text('Parse Receipt'),
+                    // Overlay with actions
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              colorScheme.surface,
+                              colorScheme.surface.withOpacity(0),
+                            ],
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            if (_isLoading)
+                              const CircularProgressIndicator()
+                            else ...[
+                              ElevatedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _imageFile = null;
+                                  });
+                                },
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Retry'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: colorScheme.errorContainer,
+                                  foregroundColor: colorScheme.onErrorContainer,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: _parseReceipt,
+                                icon: const Icon(Icons.check_circle_outline),
+                                label: const Text('Use This'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: colorScheme.primary,
+                                  foregroundColor: colorScheme.onPrimary,
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                ],
+                  ],
+                ),
               )
             else
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.image_search, size: 80, color: colorScheme.primary.withOpacity(0.7)),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Upload Receipt',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: colorScheme.primary),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Take a picture or select one from your gallery.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 200,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer.withOpacity(0.3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.camera_alt_outlined,
+                        size: 80,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Text(
+                      'Upload Receipt',
+                      style: textTheme.headlineSmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Take a picture or select one from your gallery',
+                      textAlign: TextAlign.center,
+                      style: textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildUploadButton(
+                          context,
+                          icon: Icons.camera_alt,
+                          label: 'Camera',
+                          onPressed: _takePicture,
+                          colorScheme: colorScheme,
+                        ),
+                        const SizedBox(width: 16),
+                        _buildUploadButton(
+                          context,
+                          icon: Icons.photo_library,
+                          label: 'Gallery',
+                          onPressed: _pickImage,
+                          colorScheme: colorScheme,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-
-            const SizedBox(height: 30),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _takePicture,
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('Camera'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _pickImage,
-                  icon: const Icon(Icons.photo_library),
-                  label: const Text('Gallery'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                ),
-              ],
-            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    required ColorScheme colorScheme,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colorScheme.primaryContainer,
+        foregroundColor: colorScheme.onPrimaryContainer,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
     );
