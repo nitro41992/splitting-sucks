@@ -15,22 +15,46 @@ class SplitView extends StatefulWidget {
 class _SplitViewState extends State<SplitView> {
   int _selectedIndex = 0;
   bool _isFabVisible = true;
-  final ScrollController _scrollController = ScrollController();
+  final ScrollController _peopleScrollController = ScrollController();
+  final ScrollController _sharedScrollController = ScrollController();
+  final ScrollController _unassignedScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
+    _peopleScrollController.addListener(_onScroll);
+    _sharedScrollController.addListener(_onScroll);
+    _unassignedScrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _peopleScrollController.dispose();
+    _sharedScrollController.dispose();
+    _unassignedScrollController.dispose();
     super.dispose();
   }
 
   void _onScroll() {
-    final isScrollingDown = _scrollController.position.userScrollDirection == ScrollDirection.reverse;
+    ScrollController activeController;
+    
+    switch (_selectedIndex) {
+      case 0:
+        activeController = _peopleScrollController;
+        break;
+      case 1:
+        activeController = _sharedScrollController;
+        break;
+      case 2:
+        activeController = _unassignedScrollController;
+        break;
+      default:
+        return;
+    }
+    
+    if (!activeController.hasClients) return;
+    
+    final isScrollingDown = activeController.position.userScrollDirection == ScrollDirection.reverse;
     if (isScrollingDown != !_isFabVisible) {
       setState(() {
         _isFabVisible = !isScrollingDown;
@@ -203,7 +227,7 @@ class _SplitViewState extends State<SplitView> {
 
   Widget _buildPeopleList(BuildContext context, SplitManager splitManager) {
     return ListView.builder(
-      controller: _scrollController,
+      controller: _peopleScrollController,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
       itemCount: splitManager.people.length,
       itemBuilder: (context, index) {
@@ -215,7 +239,7 @@ class _SplitViewState extends State<SplitView> {
 
   Widget _buildSharedItemsList(BuildContext context, SplitManager splitManager) {
     return ListView.builder(
-      controller: _scrollController,
+      controller: _sharedScrollController,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
       itemCount: splitManager.sharedItems.length,
       itemBuilder: (context, index) {
@@ -227,7 +251,7 @@ class _SplitViewState extends State<SplitView> {
 
   Widget _buildUnassignedItemsList(BuildContext context, SplitManager splitManager) {
     return ListView.builder(
-      controller: _scrollController,
+      controller: _unassignedScrollController,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
       itemCount: splitManager.unassignedItems.length,
       itemBuilder: (context, index) {
@@ -352,9 +376,10 @@ class _UnassignedItemCard extends StatelessWidget {
                   onChanged: (newPrice) => item.updatePrice(newPrice),
                 ),
                 const SizedBox(width: 16),
-                _QuantitySelector(
-                  quantity: item.quantity,
-                  onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
+                // Display quantity but don't allow changing it
+                Text(
+                  'Qty: ${item.quantity}',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ],
             ),
@@ -402,6 +427,7 @@ class _UnassignedItemCard extends StatelessWidget {
                     _showAssignToPersonDialog(context, splitManager, item);
                   },
                 ),
+                const SizedBox(width: 16),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.group),
                   label: const Text('Share'),
@@ -425,69 +451,218 @@ class _UnassignedItemCard extends StatelessWidget {
   }
 
   void _showAssignToPersonDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
+    // Create a stateful value to track the quantity
+    int selectedQuantity = item.quantity;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Assign to Person'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: splitManager.people.length,
-            itemBuilder: (context, index) {
-              final person = splitManager.people[index];
-              return ListTile(
-                leading: CircleAvatar(child: Text(person.name[0])),
-                title: Text(person.name),
-                onTap: () {
-                  splitManager.removeUnassignedItem(item);
-                  splitManager.assignItemToPerson(item, person);
-                  Navigator.pop(context);
-                },
-              );
-            },
-          ),
-        ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Assign to Person'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Quantity selector that matches the app's design
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Quantity: '),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle),
+                        onPressed: selectedQuantity > 1 ? () {
+                          setState(() {
+                            selectedQuantity--;
+                          });
+                        } : null,
+                      ),
+                      SizedBox(
+                        width: 24,
+                        child: Text(
+                          selectedQuantity.toString(),
+                          style: Theme.of(context).textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle),
+                        onPressed: selectedQuantity < item.quantity ? () {
+                          setState(() {
+                            selectedQuantity++;
+                          });
+                        } : null,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.maxFinite,
+                    height: 300,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: splitManager.people.length,
+                      itemBuilder: (context, index) {
+                        final person = splitManager.people[index];
+                        return ListTile(
+                          leading: CircleAvatar(child: Text(person.name[0])),
+                          title: Text(person.name),
+                          onTap: () {
+                            if (selectedQuantity <= 0 || selectedQuantity > item.quantity) return;
+                            
+                            // Create a new item with the specified quantity
+                            final newItem = ReceiptItem(
+                              name: item.name,
+                              price: item.price,
+                              quantity: selectedQuantity,
+                            );
+                            
+                            // First assign the new item
+                            splitManager.assignItemToPerson(newItem, person);
+                            
+                            // Then handle the source item's quantity reduction
+                            if (selectedQuantity >= item.quantity) {
+                              splitManager.removeUnassignedItem(item);
+                            } else {
+                              item.updateQuantity(item.quantity - selectedQuantity);
+                            }
+                            
+                            Navigator.pop(context);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   void _showShareDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
+    // Create a stateful value to track the quantity
+    int selectedQuantity = item.quantity;
+    final List<Person> selectedPeople = [];
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Share Item'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Select people to share with:'),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: splitManager.people.map((person) {
-                return FilterChip(
-                  label: Text(person.name),
-                  selected: false,
-                  onSelected: (selected) {
-                    if (selected) {
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            return AlertDialog(
+              title: const Text('Share Item'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Quantity selector that matches the app's design
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Quantity: '),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle),
+                          onPressed: selectedQuantity > 1 ? () {
+                            setState(() {
+                              selectedQuantity--;
+                            });
+                          } : null,
+                        ),
+                        SizedBox(
+                          width: 24,
+                          child: Text(
+                            selectedQuantity.toString(),
+                            style: Theme.of(context).textTheme.titleMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle),
+                          onPressed: selectedQuantity < item.quantity ? () {
+                            setState(() {
+                              selectedQuantity++;
+                            });
+                          } : null,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Select people to share with:'),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 200,
+                      width: double.maxFinite,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: splitManager.people.map((person) {
+                          final isSelected = selectedPeople.contains(person);
+                          return FilterChip(
+                            label: Text(person.name),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  selectedPeople.add(person);
+                                } else {
+                                  selectedPeople.remove(person);
+                                }
+                              });
+                            },
+                            selectedColor: Theme.of(context).colorScheme.primaryContainer,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedPeople.isEmpty ? null : () {
+                    if (selectedQuantity <= 0 || selectedQuantity > item.quantity) return;
+                    
+                    // Create a new item with the specified quantity
+                    final newItem = ReceiptItem(
+                      name: item.name,
+                      price: item.price,
+                      quantity: selectedQuantity,
+                    );
+                    
+                    // First add the item to shared section
+                    splitManager.addItemToShared(newItem, selectedPeople);
+                    
+                    // Then handle the source item's quantity reduction
+                    if (selectedQuantity >= item.quantity) {
                       splitManager.removeUnassignedItem(item);
-                      splitManager.addItemToShared(item, [person]);
-                      Navigator.pop(context);
+                    } else {
+                      item.updateQuantity(item.quantity - selectedQuantity);
                     }
+                    
+                    Navigator.pop(dialogContext);
                   },
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+                  child: const Text('Share'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -524,7 +699,7 @@ class _SharedItemCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 _QuantitySelector(
-                  quantity: item.quantity,
+                  item: item,
                   onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
                 ),
               ],
@@ -535,7 +710,9 @@ class _SharedItemCard extends StatelessWidget {
               children: [
                 Text(
                   'Total: \$${item.total.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
                 ),
               ],
             ),
@@ -611,7 +788,7 @@ class _ItemRow extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           _QuantitySelector(
-            quantity: item.quantity,
+            item: item,
             onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
           ),
         ],
@@ -732,30 +909,38 @@ class _EditablePrice extends StatelessWidget {
 }
 
 class _QuantitySelector extends StatelessWidget {
-  final int quantity;
-  final ValueChanged<int> onChanged;
+  final ReceiptItem item;
+  final Function(int) onChanged;
 
   const _QuantitySelector({
-    required this.quantity,
+    required this.item,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
+    final splitManager = context.watch<SplitManager>();
+    final originalQuantity = splitManager.getOriginalQuantity(item);
+    final availableQuantity = splitManager.getAvailableQuantity(item);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          icon: const Icon(Icons.remove),
-          onPressed: quantity > 1 ? () => onChanged(quantity - 1) : null,
+          icon: const Icon(Icons.remove_circle),
+          onPressed: item.quantity > 1 ? () => onChanged(item.quantity - 1) : null,
         ),
-        Text(
-          quantity.toString(),
-          style: Theme.of(context).textTheme.titleMedium,
+        SizedBox(
+          width: 24,
+          child: Text(
+            item.quantity.toString(),
+            style: Theme.of(context).textTheme.titleMedium,
+            textAlign: TextAlign.center,
+          ),
         ),
         IconButton(
-          icon: const Icon(Icons.add),
-          onPressed: () => onChanged(quantity + 1),
+          icon: const Icon(Icons.add_circle),
+          onPressed: item.quantity < availableQuantity ? () => onChanged(item.quantity + 1) : null,
         ),
       ],
     );

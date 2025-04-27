@@ -322,6 +322,12 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         _itemPriceControllers = _editableItems.map((item) =>
           TextEditingController(text: item.price.toStringAsFixed(2))).toList();
 
+        // Set original quantities in SplitManager
+        final splitManager = context.read<SplitManager>();
+        for (var item in _editableItems) {
+          splitManager.setOriginalQuantity(item, item.quantity);
+        }
+
         _isUploadComplete = true;
         _isLoading = false;
         _navigateToPage(1);
@@ -1487,6 +1493,17 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           splitManager.addPerson(personName);
         }
 
+        // Set original quantities for all mock items
+        for (final item in MockDataService.mockItems) {
+          splitManager.setOriginalQuantity(item, item.quantity);
+        }
+        for (final item in MockDataService.mockSharedItems) {
+          splitManager.setOriginalQuantity(item, item.quantity);
+        }
+        for (final item in MockDataService.mockUnassignedItems) {
+          splitManager.setOriginalQuantity(item, item.quantity);
+        }
+
         // Add assigned items from mock data
         MockDataService.mockAssignments.forEach((personName, items) {
           final person = splitManager.people.firstWhere((p) => p.name == personName);
@@ -1504,8 +1521,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             .where((p) => p.name == "John" || p.name == "Sarah")
             .toList();
         splitManager.addItemToShared(appetizerItem, johnAndSarah); // Assign Appetizer to John & Sarah
-        // Add any other specific shared item assignments here if MockDataService changes
-        // ---
 
         // Add unassigned items from mock data
         for (final item in MockDataService.mockUnassignedItems) {
@@ -1562,6 +1577,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           quantity: order['quantity'] as int,
         );
         
+        // Set original quantity before assigning
+        splitManager.setOriginalQuantity(item, item.quantity);
         splitManager.assignItemToPerson(item, person);
       }
 
@@ -1573,6 +1590,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           price: (itemData['price'] as num).toDouble(),
           quantity: itemData['quantity'] as int,
         );
+        
+        // Set original quantity before adding to shared
+        splitManager.setOriginalQuantity(item, item.quantity);
         
         final peopleNames = (itemData['people'] as List).cast<String>();
         final people = splitManager.people.where((p) => peopleNames.contains(p.name)).toList();
@@ -1588,6 +1608,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           price: (itemData['price'] as num).toDouble(),
           quantity: itemData['quantity'] as int,
         );
+        
+        // Set original quantity before adding to unassigned
+        splitManager.setOriginalQuantity(item, item.quantity);
         
         splitManager.addUnassignedItem(item);
       }

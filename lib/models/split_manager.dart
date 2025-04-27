@@ -6,6 +6,7 @@ class SplitManager extends ChangeNotifier {
   List<Person> _people;
   List<ReceiptItem> _sharedItems;
   List<ReceiptItem> _unassignedItems;
+  Map<String, int> _originalQuantities;  // Track original quantities from review
 
   SplitManager({
     List<Person>? people,
@@ -13,7 +14,8 @@ class SplitManager extends ChangeNotifier {
     List<ReceiptItem>? unassignedItems,
   })  : _people = people ?? [],
         _sharedItems = sharedItems ?? [],
-        _unassignedItems = unassignedItems ?? [];
+        _unassignedItems = unassignedItems ?? [],
+        _originalQuantities = {};
 
   List<Person> get people => List.unmodifiable(_people);
   List<ReceiptItem> get sharedItems => List.unmodifiable(_sharedItems);
@@ -58,6 +60,18 @@ class SplitManager extends ChangeNotifier {
   }
 
   void assignItemToPerson(ReceiptItem item, Person person) {
+    // Check if the person already has this item
+    for (int i = 0; i < person.assignedItems.length; i++) {
+      if (person.assignedItems[i].isSameItem(item)) {
+        // Person already has this item, update the quantity
+        int newQuantity = person.assignedItems[i].quantity + item.quantity;
+        person.assignedItems[i].updateQuantity(newQuantity);
+        notifyListeners();
+        return;
+      }
+    }
+    
+    // If we get here, the person doesn't have this item yet
     person.addAssignedItem(item);
     notifyListeners();
   }
@@ -89,6 +103,10 @@ class SplitManager extends ChangeNotifier {
 
   void addUnassignedItem(ReceiptItem item) {
     if (!_unassignedItems.contains(item)) {
+      // If this item doesn't have an original quantity set, set it to its current quantity
+      if (!_originalQuantities.containsKey(item.name)) {
+        setOriginalQuantity(item, item.quantity);
+      }
       _unassignedItems.add(item);
       notifyListeners();
     }
@@ -138,9 +156,130 @@ class SplitManager extends ChangeNotifier {
     notifyListeners(); // Notify SplitManager listeners
   }
 
-  // Add method to update item quantity
+  // Method to set original quantity from review page
+  void setOriginalQuantity(ReceiptItem item, int quantity) {
+    _originalQuantities[item.name] = quantity;
+  }
+
+  // Method to get original quantity
+  int getOriginalQuantity(ReceiptItem item) {
+    return _originalQuantities[item.name] ?? item.quantity;
+  }
+
+  // Get total quantity currently used for an item across all sections
+  int getTotalUsedQuantity(String itemName) {
+    int total = 0;
+    
+    // Check unassigned items
+    for (var item in _unassignedItems) {
+      if (item.name == itemName) {
+        total += item.quantity;
+      }
+    }
+    
+    // Check shared items
+    for (var item in _sharedItems) {
+      if (item.name == itemName) {
+        total += item.quantity;
+      }
+    }
+    
+    // Check assigned items in all people
+    for (var person in _people) {
+      for (var item in person.assignedItems) {
+        if (item.name == itemName) {
+          total += item.quantity;
+        }
+      }
+    }
+    
+    return total;
+  }
+
+  // Get remaining available quantity for an item
+  int getAvailableQuantity(ReceiptItem item) {
+    final originalQuantity = getOriginalQuantity(item);
+    final usedQuantity = getTotalUsedQuantity(item.name);
+    return originalQuantity - usedQuantity + item.quantity; // Add back the item's own quantity
+  }
+
+  // Update the quantity management method
   void updateItemQuantity(ReceiptItem item, int newQuantity) {
+    final availableQuantity = getAvailableQuantity(item);
+    
+    // Cannot increase beyond available quantity
+    if (newQuantity > availableQuantity) {
+      return;
+    }
+    
+    // Minimum quantity is 1
+    if (newQuantity < 1) {
+      return;
+    }
+
+    if (newQuantity < item.quantity) {
+      // If decreasing quantity, move the decremented amount to unassigned
+      final decrementedAmount = item.quantity - newQuantity;
+      
+      // Check if there's already an unassigned item with the same name and price
+      bool foundExistingItem = false;
+      
+      for (int i = 0; i < _unassignedItems.length; i++) {
+        if (_unassignedItems[i].isSameItem(item)) {
+          // Found an existing item, increase its quantity
+          int updatedQuantity = _unassignedItems[i].quantity + decrementedAmount;
+          _unassignedItems[i].updateQuantity(updatedQuantity);
+          foundExistingItem = true;
+          break;
+        }
+      }
+      
+      // If no existing item was found, create a new one
+      if (!foundExistingItem) {
+        final unassignedItem = item.copyWithQuantity(decrementedAmount);
+        addUnassignedItem(unassignedItem);
+      }
+    }
+
     item.updateQuantity(newQuantity);
-    notifyListeners(); // Notify SplitManager listeners to update totals
+    notifyListeners();
+  }
+
+  // Process quantity changes when an item is moved between sections
+  void transferItemQuantity(ReceiptItem sourceItem, int quantityToTransfer) {
+    if (quantityToTransfer <= 0 || quantityToTransfer > sourceItem.quantity) {
+      return;
+    }
+    
+    // Update the source item quantity
+    sourceItem.updateQuantity(sourceItem.quantity - quantityToTransfer);
+    
+    // If source item quantity is 0, remove it
+    if (sourceItem.quantity == 0) {
+      // Remove from appropriate section
+      if (_unassignedItems.contains(sourceItem)) {
+        removeUnassignedItem(sourceItem);
+      } else if (_sharedItems.contains(sourceItem)) {
+        removeSharedItem(sourceItem);
+      } else {
+        // Check if it's in someone's assigned items
+        for (var person in _people) {
+          if (person.assignedItems.contains(sourceItem)) {
+            unassignItemFromPerson(sourceItem, person);
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  // Get matching unassigned item by name and price, or null if not found
+  ReceiptItem? findMatchingUnassignedItem(String name, double price) {
+    for (var item in _unassignedItems) {
+      if (item.name == name && item.price == price) {
+        return item;
+      }
+    }
+    return null;
   }
 } 
