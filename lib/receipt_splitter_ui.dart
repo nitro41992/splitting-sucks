@@ -46,13 +46,13 @@ class ReceiptSplitterUI extends StatefulWidget {
 
 class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   // Default values
-  static const double DEFAULT_TAX_RATE = 8.875; // Default NYC tax rate
+  static const double DEFAULT_TAX_RATE = 8.876; // Default NYC tax rate
 
   // State variables
   int _currentStep = 0;
   final PageController _pageController = PageController();
   bool _isRecording = false;
-  double _tipPercentage = 15.0;
+  double _tipPercentage = 20.0;
   double _taxPercentage = DEFAULT_TAX_RATE; // Mutable tax rate
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
@@ -479,17 +479,20 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                   Text('Receipt Summary', 
                     style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+                  
+                  // Subtotal Row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Subtotal:', style: textTheme.bodyLarge),
-                      Text('\$${_calculateSubtotal().toStringAsFixed(2)}', style: textTheme.bodyLarge),
+                      Text('\$${_calculateSubtotal().toStringAsFixed(2)}', 
+                        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
                     ],
                   ),
                   const SizedBox(height: 12),
 
-                  // Tax Input Row (TextField)
+                  // Tax Input Row
                   Row(
                     children: [
                       Text('Tax:', style: textTheme.bodyLarge),
@@ -512,7 +515,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                             if (newTax != null) {
                               setState(() {
                                 _taxPercentage = newTax;
-                                print('Updated tax rate to: ${_taxPercentage.toStringAsFixed(3)}%');
                               });
                             }
                           },
@@ -521,10 +523,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: Text(
-                          'Pre-tip Total: \$${(_calculateSubtotal() + _calculateTax()).toStringAsFixed(2)}',
-                          style: textTheme.bodyLarge?.copyWith(
-                            color: colorScheme.primary,
-                          ),
+                          '\$${_calculateTax().toStringAsFixed(2)}',
+                          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
                           textAlign: TextAlign.right,
                         ),
                       ),
@@ -532,44 +532,136 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Tip Input Row (Slider)
-                  Text('Tip:', style: textTheme.bodyLarge),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Slider(
-                          value: _tipPercentage,
-                          min: 0,
-                          max: 50,
-                          divisions: 50,
-                          label: '${_tipPercentage.round()}%',
-                          onChanged: (value) {
-                            setState(() { _tipPercentage = value; });
-                          },
+                  // Pre-tip Total Row (highlighted)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Pre-tip Total:', 
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 70,
-                        child: Text('${_tipPercentage.toStringAsFixed(1)}%', 
-                          textAlign: TextAlign.right, 
-                          style: textTheme.bodyLarge
+                        Text(
+                          '\$${(_calculateSubtotal() + _calculateTax()).toStringAsFixed(2)}',
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Tip Section
+                  Text('Tip:', style: textTheme.bodyLarge),
+                  const SizedBox(height: 8),
+                  
+                  // Tip Percentage Display
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${_tipPercentage.toStringAsFixed(1)}%',
+                        style: textTheme.titleLarge?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
-                  
-                  const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  const SizedBox(height: 8),
+
+                  // Tip Slider with Quick Select Buttons
+                  Column(
                     children: [
-                      Text('Total:', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                      Text('\$${_calculateTotal().toStringAsFixed(2)}', 
-                        style: textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold, 
-                          color: colorScheme.primary
-                        )
+                      // Quick select buttons for common tip percentages
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [15, 18, 20, 25].map((percentage) {
+                          return ElevatedButton(
+                            onPressed: () {
+                              setState(() { _tipPercentage = percentage.toDouble(); });
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _tipPercentage == percentage 
+                                ? colorScheme.primary 
+                                : colorScheme.surfaceVariant,
+                              foregroundColor: _tipPercentage == percentage 
+                                ? colorScheme.onPrimary 
+                                : colorScheme.onSurfaceVariant,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            child: Text('$percentage%'),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      // Fine-tune slider
+                      Slider(
+                        value: _tipPercentage,
+                        min: 0,
+                        max: 30,
+                        divisions: 60,
+                        label: '${_tipPercentage.toStringAsFixed(1)}%',
+                        onChanged: (value) {
+                          setState(() { _tipPercentage = value; });
+                        },
                       ),
                     ],
+                  ),
+                  
+                  // Tip Amount
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Tip Amount: ',
+                        style: textTheme.bodyLarge,
+                      ),
+                      Text(
+                        '\$${_calculateTip().toStringAsFixed(2)}',
+                        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  
+                  const Divider(height: 32),
+                  
+                  // Final Total
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Total:',
+                          style: textTheme.titleLarge?.copyWith(
+                            color: colorScheme.onPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '\$${_calculateTotal().toStringAsFixed(2)}',
+                          style: textTheme.titleLarge?.copyWith(
+                            color: colorScheme.onPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -942,7 +1034,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   double _calculateTax() {
     final subtotal = _calculateSubtotal();
-    final tax = subtotal * (_taxPercentage / 100);
+    final tax = (subtotal * (_taxPercentage / 100) * 100).ceil() / 100;
     print('Tax calculation: \$${subtotal.toStringAsFixed(2)} × ${_taxPercentage.toStringAsFixed(3)}% = \$${tax.toStringAsFixed(2)}');
     return tax;
   }
@@ -1006,7 +1098,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       _currentStep = 0;
       _pageController.jumpToPage(0);
       _imageFile = null;
-      _tipPercentage = 15.0;
+      _tipPercentage = 20.0;
       _taxPercentage = DEFAULT_TAX_RATE; // Reset to default tax rate
       _taxController.text = DEFAULT_TAX_RATE.toStringAsFixed(3);
       _isRecording = false;
