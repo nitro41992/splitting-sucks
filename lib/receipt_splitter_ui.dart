@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'services/receipt_parser_service.dart';
 
 // Mock data for demonstration
 class MockData {
@@ -63,6 +64,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   // For tracking scroll direction
   double _lastScrollPosition = 0;
+
+  // Add loading state
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -140,71 +144,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     super.dispose();
   }
 
-  Future<void> _takePicture() async {
-    try {
-      final XFile? photo = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 100,
-        preferredCameraDevice: CameraDevice.rear,
-      );
-      if (photo != null) {
-        setState(() {
-          _imageFile = File(photo.path);
-        });
-      }
-    } catch (e) {
-      print('Error taking picture: $e');
-      if (mounted) {
-        _showErrorDialog('Failed to take picture. Please check camera permissions and try again.');
-      }
-    }
-  }
-
-  Future<void> _pickImage() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 100,
-      );
-      if (image != null) {
-        setState(() {
-          _imageFile = File(image.path);
-        });
-      }
-    } catch (e) {
-      print('Error picking image: $e');
-      if (mounted) {
-        _showErrorDialog('Failed to pick image. Please check storage permissions and try again.');
-      }
-    }
-  }
-
-  void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Error'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _navigateToPage(int page) {
-    if (page >= 0 && page < 5) {
-      _pageController.animateToPage(
-        page,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
@@ -264,22 +203,16 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             icon: Icon(Icons.mic),
             label: 'Assign',
           ),
-           BottomNavigationBarItem(
+          BottomNavigationBarItem(
             icon: Icon(Icons.people),
             label: 'Split',
           ),
-           BottomNavigationBarItem(
+          BottomNavigationBarItem(
             icon: Icon(Icons.summarize),
             label: 'Summary',
           ),
         ],
       ),
-       floatingActionButton: _currentStep < 4 && (_currentStep != 1 || _isFabVisible) ? 
-        FloatingActionButton.extended(
-          onPressed: () => _navigateToPage(_currentStep + 1),
-          label: const Text('Next'),
-          icon: const Icon(Icons.arrow_forward),
-        ) : null,
     );
   }
 
@@ -295,35 +228,47 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_imageFile != null)
-              GestureDetector(
-                onTap: () => _showFullImage(_imageFile!),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    _imageFile!,
-                    height: 200,
-                    width: double.infinity,
-                    fit: BoxFit.contain,
+              Column(
+                children: [
+                  GestureDetector(
+                    onTap: () => _showFullImage(_imageFile!),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        _imageFile!,
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 16),
+                  if (_isLoading)
+                    const CircularProgressIndicator()
+                  else
+                    ElevatedButton(
+                      onPressed: _parseReceipt,
+                      child: const Text('Parse Receipt'),
+                    ),
+                ],
               )
             else
               Column(
-                 mainAxisAlignment: MainAxisAlignment.center,
-                 children: [
-                   Icon(Icons.image_search, size: 80, color: colorScheme.primary.withOpacity(0.7)),
-                   const SizedBox(height: 20),
-                   Text(
-                     'Upload Receipt',
-                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: colorScheme.primary),
-                   ),
-                   const SizedBox(height: 10),
-                    Text(
-                     'Take a picture or select one from your gallery.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                   ),
-                 ],
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.image_search, size: 80, color: colorScheme.primary.withOpacity(0.7)),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Upload Receipt',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: colorScheme.primary),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Take a picture or select one from your gallery.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ),
 
             const SizedBox(height: 30),
@@ -349,18 +294,102 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                 ),
               ],
             ),
-             if (_imageFile != null) ...[
-                const SizedBox(height: 20),
-                Text(
-                 'Tap image to view full size. Use buttons to change.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-             ]
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _takePicture() async {
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 100,
+      );
+      if (photo != null) {
+        setState(() {
+          _imageFile = File(photo.path);
+          _isLoading = false; // Reset loading state
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error taking picture: $e')),
+      );
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 100,
+      );
+      if (image != null) {
+        setState(() {
+          _imageFile = File(image.path);
+          _isLoading = false; // Reset loading state
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking image: $e')),
+      );
+    }
+  }
+
+  Future<void> _parseReceipt() async {
+    if (_imageFile == null) return;
+
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      final result = await ReceiptParserService.parseReceipt(_imageFile!);
+      
+      setState(() {
+        _editableItems = (result['items'] as List).map((item) => ReceiptItem(
+          name: item['item'],
+          price: item['price'].toDouble(),
+          quantity: item['quantity'],
+        )).toList();
+
+        _taxPercentage = result['tax'];
+        _taxController.text = _taxPercentage.toStringAsFixed(3);
+
+        // Update price controllers
+        _itemPriceControllers = _editableItems.map((item) =>
+          TextEditingController(text: item.price.toStringAsFixed(2))).toList();
+
+        // Navigate to the next step after successful parsing
+        _navigateToPage(1);
+      });
+    } catch (e) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Error Parsing Receipt'),
+            content: SingleChildScrollView(
+              child: Text(e.toString()),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _showFullImage(File imageFile) {
@@ -909,5 +938,15 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       _taxController.text = _taxPercentage.toStringAsFixed(3);
       // TODO: Reset actual assignment data when implemented
     });
+  }
+
+  void _navigateToPage(int page) {
+    if (page >= 0 && page < 5) {
+      _pageController.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 } 
