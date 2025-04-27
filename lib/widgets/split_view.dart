@@ -6,7 +6,9 @@ import '../models/person.dart';
 import '../models/receipt_item.dart';
 
 class SplitView extends StatefulWidget {
-  const SplitView({super.key});
+  const SplitView({
+    super.key,
+  });
 
   @override
   State<SplitView> createState() => _SplitViewState();
