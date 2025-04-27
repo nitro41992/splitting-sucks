@@ -98,25 +98,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     _editableItems = List.from(MockData.items.map((item) =>
       ReceiptItem(name: item.name, price: item.price, quantity: item.quantity)
     ));
+    
+    // Initialize price controllers with current values
     _itemPriceControllers = _editableItems.map((item) =>
       TextEditingController(text: item.price.toStringAsFixed(2))).toList();
-
-    // Add listeners only for price controllers
-    for (int i = 0; i < _editableItems.length; i++) {
-      _itemPriceControllers[i].addListener(() {
-        final newPrice = double.tryParse(_itemPriceControllers[i].text);
-        // Prevent updating state during build if controller clears itself
-        if (newPrice != null && _itemPriceControllers[i].text.isNotEmpty && newPrice != _editableItems[i].price) {
-           WidgetsBinding.instance.addPostFrameCallback((_) {
-              if(mounted) { // Check if widget is still in the tree
-                setState(() {
-                  _editableItems[i].price = newPrice;
-                });
-              }
-            });
-        }
-      });
-    }
   }
 
   // Method to handle scroll events and update FAB visibility
@@ -349,14 +334,38 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       final result = await ReceiptParserService.parseReceipt(_imageFile!);
       
       setState(() {
-        _editableItems = (result['items'] as List).map((item) => ReceiptItem(
-          name: item['item'],
-          price: item['price'].toDouble(),
-          quantity: item['quantity'],
-        )).toList();
+        // Parse items with detailed logging
+        _editableItems = (result['items'] as List).map((item) {
+          final name = item['item'] as String;
+          final price = item['price'].toDouble();
+          final quantity = item['quantity'] as int;
+          
+          print('Parsing item: $name, Price: \$$price, Quantity: $quantity');
+          
+          return ReceiptItem(
+            name: name,
+            price: price,
+            quantity: quantity,
+          );
+        }).toList();
 
+        // Log all items after parsing
+        print('\nAll parsed items:');
+        for (var item in _editableItems) {
+          final itemTotal = item.price * item.quantity;
+          print('${item.name}: \$${item.price} × ${item.quantity} = \$${itemTotal.toStringAsFixed(2)}');
+        }
+
+        // Parse tax and tip
         _taxPercentage = result['tax'];
         _taxController.text = _taxPercentage.toStringAsFixed(3);
+
+        // Calculate and verify subtotal
+        final calculatedSubtotal = _calculateSubtotal();
+        final expectedSubtotal = result['subtotal']?.toDouble() ?? 0.0;
+        print('\nSubtotal verification:');
+        print('Calculated subtotal: \$${calculatedSubtotal.toStringAsFixed(2)}');
+        print('Expected subtotal: \$${expectedSubtotal.toStringAsFixed(2)}');
 
         // Update price controllers
         _itemPriceControllers = _editableItems.map((item) =>
@@ -591,6 +600,20 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                         ),
                         textAlign: TextAlign.right,
                         style: textTheme.bodyMedium,
+                        onChanged: (value) {
+                          final newPrice = double.tryParse(value);
+                          if (newPrice != null) {
+                            setState(() {
+                              _editableItems[index].price = newPrice;
+                              print('Updated price for ${_editableItems[index].name} to \$${newPrice.toStringAsFixed(2)}');
+                              print('New item total: \$${(newPrice * _editableItems[index].quantity).toStringAsFixed(2)}');
+                              
+                              // Recalculate and print the new subtotal
+                              final newSubtotal = _calculateSubtotal();
+                              print('New subtotal after price update: \$${newSubtotal.toStringAsFixed(2)}');
+                            });
+                          }
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -606,6 +629,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                             if (item.quantity > 1) {
                               setState(() {
                                 item.quantity--;
+                                print('Decreased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
                               });
                             }
                           },
@@ -626,6 +650,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                           onPressed: () {
                             setState(() {
                               item.quantity++;
+                              print('Increased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
                             });
                           },
                         ),
@@ -864,16 +889,29 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   }
 
   double _calculateSubtotal() {
-    return _editableItems.fold(0,
-        (sum, item) => sum + (item.price * item.quantity));
+    double total = 0.0;
+    print('\nCalculating subtotal:');
+    for (var item in _editableItems) {
+      double itemTotal = item.price * item.quantity;
+      print('${item.name}: \$${item.price.toStringAsFixed(2)} × ${item.quantity} = \$${itemTotal.toStringAsFixed(2)}');
+      total += itemTotal;
+    }
+    print('Final Subtotal: \$${total.toStringAsFixed(2)}\n');
+    return total;
   }
 
   double _calculateTax() {
-    return _calculateSubtotal() * (_taxPercentage / 100);
+    final subtotal = _calculateSubtotal();
+    final tax = subtotal * (_taxPercentage / 100);
+    print('Tax calculation: \$${subtotal.toStringAsFixed(2)} × ${_taxPercentage.toStringAsFixed(2)}% = \$${tax.toStringAsFixed(2)}');
+    return tax;
   }
 
   double _calculateTip() {
-    return _calculateSubtotal() * (_tipPercentage / 100);
+    final subtotal = _calculateSubtotal();
+    final tip = subtotal * (_tipPercentage / 100);
+    print('Tip calculation: \$${subtotal.toStringAsFixed(2)} × ${_tipPercentage.toStringAsFixed(2)}% = \$${tip.toStringAsFixed(2)}');
+    return tip;
   }
 
   double _calculateTotal() {
