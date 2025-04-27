@@ -1,114 +1,238 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import '../models/split_manager.dart';
 import '../models/person.dart';
 import '../models/receipt_item.dart';
 
-class SplitView extends StatelessWidget {
+class SplitView extends StatefulWidget {
   const SplitView({super.key});
+
+  @override
+  State<SplitView> createState() => _SplitViewState();
+}
+
+class _SplitViewState extends State<SplitView> {
+  int _selectedIndex = 0;
+  bool _isFabVisible = true;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final isScrollingDown = _scrollController.position.userScrollDirection == ScrollDirection.reverse;
+    if (isScrollingDown != !_isFabVisible) {
+      setState(() {
+        _isFabVisible = !isScrollingDown;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<SplitManager>(
       builder: (context, splitManager, child) {
-        return CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              floating: true,
-              title: const Text('Split Bill'),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.person_add),
-                  onPressed: () => _showAddPersonDialog(context, splitManager),
+        final ColorScheme colorScheme = Theme.of(context).colorScheme;
+        final TextTheme textTheme = Theme.of(context).textTheme;
+        
+        return Scaffold(
+          body: Column(
+            children: [
+              // Integrated tab bar with totals
+              Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Total Amount: \$${splitManager.totalAmount.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    // Total amount display
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Total: ',
+                            style: textTheme.headlineSmall,
+                          ),
+                          Text(
+                            '\$${splitManager.totalAmount.toStringAsFixed(2)}',
+                            style: textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Shared Items: \$${splitManager.sharedItemsTotal.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    if (splitManager.unassignedItems.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Unassigned Items: \$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
+                    
+                    // Custom tab selector
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Container(
+                        width: double.infinity,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            // People Tab
+                            Expanded(
+                              child: _buildTabItem(
+                                context: context,
+                                colorScheme: colorScheme,
+                                textTheme: textTheme,
+                                index: 0,
+                                label: 'People',
+                              ),
+                            ),
+                            
+                            // Shared Tab
+                            Expanded(
+                              child: _buildTabItem(
+                                context: context,
+                                colorScheme: colorScheme,
+                                textTheme: textTheme,
+                                index: 1,
+                                label: 'Shared',
+                              ),
+                            ),
+                            
+                            // Unassigned Tab
+                            Expanded(
+                              child: _buildTabItem(
+                                context: context,
+                                colorScheme: colorScheme,
+                                textTheme: textTheme,
+                                index: 2,
+                                label: 'Unassigned',
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
-            ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final person = splitManager.people[index];
-                  return _PersonCard(person: person);
-                },
-                childCount: splitManager.people.length,
-              ),
-            ),
-            if (splitManager.unassignedItems.isNotEmpty) ...[
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text(
-                    'Unassigned Items',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
-                  ),
-                ),
-              ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final item = splitManager.unassignedItems[index];
-                    return _UnassignedItemCard(item: item);
-                  },
-                  childCount: splitManager.unassignedItems.length,
+              
+              // Content area
+              Expanded(
+                child: IndexedStack(
+                  index: _selectedIndex,
+                  children: [
+                    // People list
+                    _buildPeopleList(context, splitManager),
+                    
+                    // Shared items list
+                    _buildSharedItemsList(context, splitManager),
+                    
+                    // Unassigned items list
+                    _buildUnassignedItemsList(context, splitManager),
+                  ],
                 ),
               ),
             ],
-            if (splitManager.sharedItems.isNotEmpty) ...[
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text(
-                    'Shared Items',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+          ),
+          floatingActionButton: AnimatedSlide(
+            duration: const Duration(milliseconds: 200),
+            offset: _isFabVisible ? Offset.zero : const Offset(0, 2),
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _isFabVisible ? 1.0 : 0.0,
+              child: FloatingActionButton(
+                onPressed: () => _showAddPersonDialog(context, splitManager),
+                child: const Icon(Icons.person_add),
               ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final item = splitManager.sharedItems[index];
-                    return _SharedItemCard(item: item);
-                  },
-                  childCount: splitManager.sharedItems.length,
-                ),
-              ),
-            ],
-          ],
+            ),
+          ),
         );
+      },
+    );
+  }
+  
+  Widget _buildTabItem({
+    required BuildContext context,
+    required ColorScheme colorScheme,
+    required TextTheme textTheme,
+    required int index,
+    required String label,
+  }) {
+    final bool isSelected = _selectedIndex == index;
+    
+    return InkWell(
+      onTap: () => setState(() => _selectedIndex = index),
+      child: Container(
+        height: 48,
+        decoration: BoxDecoration(
+          color: isSelected ? colorScheme.primaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: textTheme.titleMedium?.copyWith(
+            color: isSelected 
+              ? colorScheme.onPrimaryContainer
+              : colorScheme.onSurfaceVariant,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeopleList(BuildContext context, SplitManager splitManager) {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
+      itemCount: splitManager.people.length,
+      itemBuilder: (context, index) {
+        final person = splitManager.people[index];
+        return _PersonCard(person: person);
+      },
+    );
+  }
+
+  Widget _buildSharedItemsList(BuildContext context, SplitManager splitManager) {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
+      itemCount: splitManager.sharedItems.length,
+      itemBuilder: (context, index) {
+        final item = splitManager.sharedItems[index];
+        return _SharedItemCard(item: item);
+      },
+    );
+  }
+
+  Widget _buildUnassignedItemsList(BuildContext context, SplitManager splitManager) {
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
+      itemCount: splitManager.unassignedItems.length,
+      itemBuilder: (context, index) {
+        final item = splitManager.unassignedItems[index];
+        return _UnassignedItemCard(item: item);
       },
     );
   }
@@ -155,7 +279,11 @@ class _PersonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      margin: const EdgeInsets.only(bottom: 12.0),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         children: [
           ListTile(
@@ -167,25 +295,24 @@ class _PersonCard extends StatelessWidget {
               onChanged: (newName) {
                 context.read<SplitManager>().updatePersonName(person, newName);
               },
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             trailing: Text(
               '\$${person.totalAmount.toStringAsFixed(2)}',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
           if (person.assignedItems.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Assigned Items',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  ...person.assignedItems.map((item) => _ItemRow(item: item)),
-                ],
+                children: person.assignedItems.map((item) => _ItemRow(item: item)).toList(),
               ),
             ),
         ],
@@ -465,13 +592,16 @@ class _ItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
         children: [
           Expanded(
             child: _EditableText(
               text: item.name,
               onChanged: (newName) => item.updateName(newName),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -493,10 +623,12 @@ class _ItemRow extends StatelessWidget {
 class _EditableText extends StatelessWidget {
   final String text;
   final ValueChanged<String> onChanged;
+  final TextStyle? style;
 
   const _EditableText({
     required this.text,
     required this.onChanged,
+    this.style,
   });
 
   @override
@@ -505,7 +637,7 @@ class _EditableText extends StatelessWidget {
       onTap: () => _showEditDialog(context),
       child: Text(
         text,
-        style: Theme.of(context).textTheme.titleMedium,
+        style: style ?? Theme.of(context).textTheme.titleMedium,
       ),
     );
   }
