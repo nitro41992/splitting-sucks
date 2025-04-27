@@ -252,6 +252,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       _isUploadComplete = false;
       _isReviewComplete = false;
       _isAssignmentComplete = false;
+      _transcription = null;  // Clear transcription
+      _assignments = null;    // Clear assignments
       _initializeEditableItems();
     });
   }
