@@ -374,7 +374,6 @@ class _SharedItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
     final people = splitManager.people;
-    final sharingPeople = people.where((p) => p.sharedItems.contains(item)).toList();
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -411,13 +410,6 @@ class _SharedItemCard extends StatelessWidget {
                   'Total: \$${item.total.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                if (sharingPeople.isNotEmpty)
-                  Text(
-                    'Shared by ${sharingPeople.length} people',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -426,25 +418,33 @@ class _SharedItemCard extends StatelessWidget {
               runSpacing: 8,
               children: people.map((person) {
                 final isSelected = person.sharedItems.contains(item);
+                final colorScheme = Theme.of(context).colorScheme;
+
                 return FilterChip(
                   label: Text(person.name),
                   selected: isSelected,
                   onSelected: (selected) {
                     if (selected) {
-                      splitManager.addItemToShared(item, [person]);
+                      splitManager.addPersonToSharedItem(item, person);
                     } else {
-                      person.removeSharedItem(item);
-                      if (person.sharedItems.isEmpty) {
+                      splitManager.removePersonFromSharedItem(item, person);
+
+                      final remainingSharers = splitManager.people
+                          .where((p) => p.sharedItems.contains(item))
+                          .toList();
+
+                      if (remainingSharers.isEmpty) {
                         splitManager.removeItemFromShared(item);
+                        splitManager.addUnassignedItem(item);
                       }
                     }
                   },
-                  selectedColor: Theme.of(context).colorScheme.primaryContainer,
-                  checkmarkColor: Theme.of(context).colorScheme.primary,
+                  selectedColor: colorScheme.primaryContainer,
+                  checkmarkColor: colorScheme.primary,
                   labelStyle: TextStyle(
                     color: isSelected
-                        ? Theme.of(context).colorScheme.onPrimaryContainer
-                        : Theme.of(context).colorScheme.onSurface,
+                        ? colorScheme.onPrimaryContainer
+                        : colorScheme.onSurface,
                   ),
                 );
               }).toList(),

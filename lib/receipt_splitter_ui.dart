@@ -1495,10 +1495,17 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           }
         });
 
-        // Add shared items from mock data
-        for (final item in MockDataService.mockSharedItems) {
-          splitManager.addSharedItem(item);
-        }
+        // Add shared items and assign them to the correct people based on MockDataService
+        final friesItem = MockDataService.mockSharedItems[0]; // Assuming Fries is first
+        splitManager.addItemToShared(friesItem, splitManager.people); // Assign Fries to everyone
+
+        final appetizerItem = MockDataService.mockSharedItems[1]; // Assuming Appetizer is second
+        final johnAndSarah = splitManager.people
+            .where((p) => p.name == "John" || p.name == "Sarah")
+            .toList();
+        splitManager.addItemToShared(appetizerItem, johnAndSarah); // Assign Appetizer to John & Sarah
+        // Add any other specific shared item assignments here if MockDataService changes
+        // ---
 
         // Add unassigned items from mock data
         for (final item in MockDataService.mockUnassignedItems) {

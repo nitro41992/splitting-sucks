@@ -39,4 +39,16 @@ class ReceiptItem extends ChangeNotifier {
   }
 
   double get total => _price * _quantity;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ReceiptItem &&
+        other._name == _name &&
+        other._price == _price &&
+        other._quantity == _quantity;
+  }
+
+  @override
+  int get hashCode => Object.hash(_name, _price, _quantity);
 } 

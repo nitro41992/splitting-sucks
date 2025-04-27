@@ -42,12 +42,18 @@ class SplitManager extends ChangeNotifier {
   }
 
   void addSharedItem(ReceiptItem item) {
-    _sharedItems.add(item);
-    notifyListeners();
+    if (!_sharedItems.contains(item)) {
+      _sharedItems.add(item);
+      notifyListeners();
+    }
   }
 
   void removeSharedItem(ReceiptItem item) {
     _sharedItems.remove(item);
+    // Also remove from all people's shared items
+    for (var person in _people) {
+      person.removeSharedItem(item);
+    }
     notifyListeners();
   }
 
@@ -62,24 +68,30 @@ class SplitManager extends ChangeNotifier {
   }
 
   void addItemToShared(ReceiptItem item, List<Person> people) {
-    _sharedItems.add(item);
+    // First add to shared items if not already there
+    if (!_sharedItems.contains(item)) {
+      _sharedItems.add(item);
+    }
+    
+    // Then add to each person's shared items
     for (var person in people) {
-      person.addSharedItem(item);
+      if (!person.sharedItems.contains(item)) {
+        person.addSharedItem(item);
+      }
     }
     notifyListeners();
   }
 
   void removeItemFromShared(ReceiptItem item) {
     _sharedItems.remove(item);
-    for (var person in _people) {
-      person.removeSharedItem(item);
-    }
     notifyListeners();
   }
 
   void addUnassignedItem(ReceiptItem item) {
-    _unassignedItems.add(item);
-    notifyListeners();
+    if (!_unassignedItems.contains(item)) {
+      _unassignedItems.add(item);
+      notifyListeners();
+    }
   }
 
   void removeUnassignedItem(ReceiptItem item) {
@@ -102,5 +114,27 @@ class SplitManager extends ChangeNotifier {
 
   double get unassignedItemsTotal {
     return _unassignedItems.fold(0, (sum, item) => sum + item.total);
+  }
+
+  // New method to add a single person to an existing shared item
+  void addPersonToSharedItem(ReceiptItem item, Person person) {
+    // Ensure the item is in the main shared list first (should usually be true)
+    if (!_sharedItems.contains(item)) {
+      _sharedItems.add(item);
+    }
+    // Add item to the specific person's shared list
+    if (!person.sharedItems.contains(item)) {
+      person.addSharedItem(item); // This should call notifyListeners in Person
+    }
+    notifyListeners(); // Notify SplitManager listeners
+  }
+
+  // New method to remove a single person from a shared item
+  void removePersonFromSharedItem(ReceiptItem item, Person person) {
+    // Remove item from the specific person's shared list
+    if (person.sharedItems.contains(item)) {
+      person.removeSharedItem(item); // This should call notifyListeners in Person
+    }
+    notifyListeners(); // Notify SplitManager listeners
   }
 } 
