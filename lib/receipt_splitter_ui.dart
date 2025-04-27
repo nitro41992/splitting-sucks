@@ -764,111 +764,119 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                     if (index >= _itemPriceControllers.length) return const SizedBox.shrink();
                     
                     return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(item.name, style: textTheme.titleMedium)
-                                ),
-                                SizedBox(
-                                  width: 80,
-                                  child: TextField(
-                                    controller: _itemPriceControllers[index],
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    decoration: const InputDecoration(
-                                      prefixText: '\$ ',
-                                      isDense: true,
-                                      border: OutlineInputBorder(),
-                                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                    ),
-                                    textAlign: TextAlign.right,
-                                    style: textTheme.bodyMedium,
-                                    onChanged: (value) {
-                                      final newPrice = double.tryParse(value);
-                                      if (newPrice != null) {
-                                        setState(() {
-                                          _editableItems[index].updatePrice(newPrice);
-                                        });
-                                      }
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove_circle),
-                                      iconSize: 22,
-                                      color: colorScheme.secondary,
-                                      tooltip: 'Decrease Quantity',
-                                      onPressed: () {
-                                        if (item.quantity > 0) {
-                                          setState(() {
-                                            item.updateQuantity(item.quantity - 1);
-                                          });
-                                        }
-                                      },
-                                    ),
-                                    SizedBox(
-                                      width: 24,
-                                      child: Text(
-                                        '${item.quantity}',
-                                        style: textTheme.titleMedium,
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.add_circle),
-                                      iconSize: 22,
-                                      color: colorScheme.secondary,
-                                      tooltip: 'Increase Quantity',
-                                      onPressed: () {
-                                        setState(() {
-                                          item.updateQuantity(item.quantity + 1);
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  icon: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
-                                  iconSize: 22,
-                                  tooltip: 'Remove Item',
-                                  onPressed: () => _removeItem(index),
-                                ),
-                              ],
-                            ),
-                            // Add total price row
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
+                      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colorScheme.outlineVariant),
+                      ),
+                      child: InkWell(
+                        onTap: () => _showEditDialog(context, item),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  Text(
-                                    item.quantity > 0
-                                        ? '\$${item.price.toStringAsFixed(2)} × ${item.quantity} = '
-                                        : '',
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          style: textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: colorScheme.surfaceVariant,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                '${item.quantity}x',
+                                                style: textTheme.bodySmall?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: colorScheme.onSurfaceVariant,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              '\$${item.price.toStringAsFixed(2)} each',
+                                              style: textTheme.bodyMedium?.copyWith(
+                                                color: colorScheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  Text(
-                                    '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                                    style: textTheme.titleMedium?.copyWith(
-                                      color: colorScheme.primary,
-                                      fontWeight: FontWeight.bold,
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                                      style: textTheme.titleMedium?.copyWith(
+                                        color: colorScheme.onPrimaryContainer,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  IconButton(
+                                    onPressed: () {
+                                      if (item.quantity > 0) {
+                                        setState(() {
+                                          item.updateQuantity(item.quantity - 1);
+                                        });
+                                      }
+                                    },
+                                    icon: const Icon(Icons.remove_circle_outline),
+                                    tooltip: 'Decrease quantity',
+                                  ),
+                                  Text(
+                                    '${item.quantity}',
+                                    style: textTheme.titleMedium,
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        item.updateQuantity(item.quantity + 1);
+                                      });
+                                    },
+                                    icon: const Icon(Icons.add_circle_outline),
+                                    tooltip: 'Increase quantity',
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: Icon(Icons.delete_outline),
+                                    tooltip: 'Remove Item',
+                                    onPressed: () => _removeItem(index),
+                                    style: IconButton.styleFrom(
+                                      foregroundColor: colorScheme.error,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -1733,25 +1741,102 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: colorScheme.secondaryContainer,
-                child: Text(person.name.substring(0, 1).toUpperCase(), 
-                  style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold)),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: colorScheme.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: colorScheme.secondaryContainer,
+                        child: Text(
+                          person.name.substring(0, 1).toUpperCase(), 
+                          style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          person.name, 
+                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '\$${personFinalTotal.toStringAsFixed(2)}',
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Items',
+                          style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '\$${personSubtotal.toStringAsFixed(2)}',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: colorScheme.tertiaryContainer,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Tax+Tip',
+                          style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onTertiaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '\$${(personTax + personTip).toStringAsFixed(2)}',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              title: Text(person.name, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-              subtitle: Text(
-                'Items: \$${personSubtotal.toStringAsFixed(2)} + Tax: \$${personTax.toStringAsFixed(2)} + Tip: \$${personTip.toStringAsFixed(2)}',
-                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-              ),
-              trailing: Text(
-                '\$${personFinalTotal.toStringAsFixed(2)}',
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold, 
-                  color: colorScheme.primary
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             ),
           );
         }).toList(),
@@ -1763,27 +1848,67 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Text('Unassigned Items', 
-              style: textTheme.titleMedium?.copyWith(color: colorScheme.primary)),
+              style: textTheme.titleMedium?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.bold)),
           ),
           const SizedBox(height: 8),
           Card(
             margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: colorScheme.surfaceVariant,
-                child: Icon(Icons.question_mark, color: colorScheme.onSurfaceVariant),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: colorScheme.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: colorScheme.surfaceVariant,
+                        child: Icon(Icons.question_mark, color: colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Unassigned', 
+                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '\$${splitManager.unassignedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity)).toStringAsFixed(2)}',
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.onErrorContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${splitManager.unassignedItems.length} items',
+                      style: textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              title: Text('Unassigned', style: textTheme.titleMedium),
-              subtitle: Text('${splitManager.unassignedItems.length} items', 
-                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-              trailing: Text(
-                '\$${splitManager.unassignedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity)).toStringAsFixed(2)}',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold, 
-                  color: colorScheme.primary
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             ),
           ),
         ],
@@ -1872,6 +1997,60 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           ],
         );
       },
+    );
+  }
+
+  void _showEditDialog(BuildContext context, ReceiptItem item) {
+    final nameController = TextEditingController(text: item.name);
+    final priceController = TextEditingController(text: item.price.toStringAsFixed(2));
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Item'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Item Name',
+              ),
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: priceController,
+              decoration: const InputDecoration(
+                labelText: 'Price',
+                prefixText: '\$ ',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newName = nameController.text.trim();
+              final newPrice = double.tryParse(priceController.text);
+              
+              if (newName.isNotEmpty && newPrice != null && newPrice > 0) {
+                setState(() {
+                  item.updateName(newName);
+                  item.updatePrice(newPrice);
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 }
