@@ -73,6 +73,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   late AudioTranscriptionService _transcriptionService;
 
+  // Add a flag to track subtotal collapse
+  bool _isSubtotalCollapsed = false;
+
   @override
   void initState() {
     super.initState();
@@ -710,191 +713,172 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       );
     }
 
-    // Rebuild this step completely as a single scrollable list
+    // Rebuild this step with CustomScrollView for better header handling
     return Stack(
       children: [
-        Scrollbar(
-          controller: _itemsScrollController,
-          thumbVisibility: true,
-          child: ListView(
+        NotificationListener<ScrollNotification>(
+          onNotification: (scrollNotification) {
+            if (scrollNotification is ScrollUpdateNotification) {
+              setState(() {
+                _isSubtotalCollapsed = scrollNotification.metrics.pixels > 50;
+                _isFabVisible = !_isSubtotalCollapsed;
+                _isContinueButtonVisible = !_isSubtotalCollapsed;
+              });
+            }
+            return true;
+          },
+          child: CustomScrollView(
             controller: _itemsScrollController,
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: Text(
-                  'Review & Edit Items',
-                  style: textTheme.headlineSmall?.copyWith(color: colorScheme.primary),
+            slivers: [
+              // Pinned, collapsible subtotal header
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _SubtotalHeaderDelegate(
+                  minHeight: 60,
+                  maxHeight: 120,
+                  isCollapsed: _isSubtotalCollapsed,
+                  subtotal: _calculateSubtotal(),
+                  colorScheme: colorScheme,
+                  textTheme: textTheme,
                 ),
               ),
 
-              // Enhanced Totals Section (now focusing on Subtotal)
-              Card(
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(vertical: 8.0),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                color: colorScheme.surfaceVariant.withOpacity(0.6), // Slightly different background
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row( // Group icon and label
-                        children: [
-                          Icon(
-                            Icons.calculate_outlined, // Or Icons.receipt, Icons.functions
-                            color: colorScheme.primary,
-                            size: 30, 
-                          ),
-                          const SizedBox(width: 16),
-                          Text(
-                            'Subtotal',
-                            style: textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurfaceVariant, // Adjusted color
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '\$${_calculateSubtotal().toStringAsFixed(2)}',
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary, // Highlight value
-                        ),
-                      ),
-                    ],
+              // Items List
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                sliver: SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text(
+                      'Items',
+                      style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+                    ),
                   ),
                 ),
               ),
 
-              // Items Section Header
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(
-                  'Items',
-                  style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
-                ),
-              ),
-              
-              // List of Items (now below the totals)
-              ...List.generate(_editableItems.length, (index) {
-                final item = _editableItems[index];
-                if (index >= _itemPriceControllers.length) return const SizedBox.shrink();
-                
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                    child: Column(
-                      children: [
-                        Row(
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final item = _editableItems[index];
+                    if (index >= _itemPriceControllers.length) return const SizedBox.shrink();
+                    
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                        child: Column(
                           children: [
-                            Expanded(
-                              child: Text(item.name, style: textTheme.titleMedium)
-                            ),
-                            SizedBox(
-                              width: 80,
-                              child: TextField(
-                                controller: _itemPriceControllers[index],
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(
-                                  prefixText: '\$ ',
-                                  isDense: true,
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                ),
-                                textAlign: TextAlign.right,
-                                style: textTheme.bodyMedium,
-                                onChanged: (value) {
-                                  final newPrice = double.tryParse(value);
-                                  if (newPrice != null) {
-                                    setState(() {
-                                      _editableItems[index].updatePrice(newPrice);
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
                             Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.remove_circle),
-                                  iconSize: 22,
-                                  color: colorScheme.secondary,
-                                  tooltip: 'Decrease Quantity',
-                                  onPressed: () {
-                                    if (item.quantity > 1) {
-                                      setState(() {
-                                        item.updateQuantity(item.quantity - 1);
-                                      });
-                                    }
-                                  },
+                                Expanded(
+                                  child: Text(item.name, style: textTheme.titleMedium)
                                 ),
                                 SizedBox(
-                                  width: 24,
-                                  child: Text(
-                                    '${item.quantity}',
-                                    style: textTheme.titleMedium,
-                                    textAlign: TextAlign.center,
+                                  width: 80,
+                                  child: TextField(
+                                    controller: _itemPriceControllers[index],
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    decoration: const InputDecoration(
+                                      prefixText: '\$ ',
+                                      isDense: true,
+                                      border: OutlineInputBorder(),
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    ),
+                                    textAlign: TextAlign.right,
+                                    style: textTheme.bodyMedium,
+                                    onChanged: (value) {
+                                      final newPrice = double.tryParse(value);
+                                      if (newPrice != null) {
+                                        setState(() {
+                                          _editableItems[index].updatePrice(newPrice);
+                                        });
+                                      }
+                                    },
                                   ),
                                 ),
+                                const SizedBox(width: 12),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.remove_circle),
+                                      iconSize: 22,
+                                      color: colorScheme.secondary,
+                                      tooltip: 'Decrease Quantity',
+                                      onPressed: () {
+                                        if (item.quantity > 1) {
+                                          setState(() {
+                                            item.updateQuantity(item.quantity - 1);
+                                          });
+                                        }
+                                      },
+                                    ),
+                                    SizedBox(
+                                      width: 24,
+                                      child: Text(
+                                        '${item.quantity}',
+                                        style: textTheme.titleMedium,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.add_circle),
+                                      iconSize: 22,
+                                      color: colorScheme.secondary,
+                                      tooltip: 'Increase Quantity',
+                                      onPressed: () {
+                                        setState(() {
+                                          item.updateQuantity(item.quantity + 1);
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(width: 8),
                                 IconButton(
-                                  icon: const Icon(Icons.add_circle),
+                                  icon: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
                                   iconSize: 22,
-                                  color: colorScheme.secondary,
-                                  tooltip: 'Increase Quantity',
-                                  onPressed: () {
-                                    setState(() {
-                                      item.updateQuantity(item.quantity + 1);
-                                    });
-                                  },
+                                  tooltip: 'Remove Item',
+                                  onPressed: () => _removeItem(index),
                                 ),
                               ],
                             ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
-                              iconSize: 22,
-                              tooltip: 'Remove Item',
-                              onPressed: () => _removeItem(index),
+                            // Add total price row
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    item.quantity > 1
+                                        ? '\$${item.price.toStringAsFixed(2)} × ${item.quantity} = '
+                                        : '',
+                                    style: textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                                    style: textTheme.titleMedium?.copyWith(
+                                      color: colorScheme.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                        // Add total price row
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Text(
-                                item.quantity > 1
-                                    ? '\$${item.price.toStringAsFixed(2)} × ${item.quantity} = '
-                                    : '',
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              Text(
-                                '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                                style: textTheme.titleMedium?.copyWith(
-                                  color: colorScheme.primary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-              
+                      ),
+                    );
+                  },
+                  childCount: _editableItems.length,
+                ),
+              ),
+
               // Bottom padding to ensure last items are fully visible
-              const SizedBox(height: 80),
+              const SliverToBoxAdapter(child: SizedBox(height: 80)),
             ],
           ),
         ),
@@ -1889,5 +1873,119 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         );
       },
     );
+  }
+}
+
+class _SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double minHeight;
+  final double maxHeight;
+  final bool isCollapsed;
+  final double subtotal;
+  final ColorScheme colorScheme;
+  final TextTheme textTheme;
+
+  _SubtotalHeaderDelegate({
+    required this.minHeight,
+    required this.maxHeight,
+    required this.isCollapsed,
+    required this.subtotal,
+    required this.colorScheme,
+    required this.textTheme,
+  });
+
+  @override
+  double get minExtent => minHeight;
+  
+  @override
+  double get maxExtent => maxHeight;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    // Calculate the percentage of shrinking (0.0 to 1.0)
+    final double shrinkPercentage = shrinkOffset / (maxExtent - minExtent);
+    final bool shouldCollapse = shrinkPercentage > 0.5 || isCollapsed;
+    
+    // Calculate the current height based on shrink percentage
+    // Ensure it's never less than minHeight
+    final double currentHeight = (maxHeight - (shrinkOffset)).clamp(minHeight, maxHeight);
+    
+    return SizedBox(
+      height: currentHeight,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: currentHeight,
+        decoration: BoxDecoration(
+          color: shouldCollapse ? colorScheme.surface.withOpacity(0.9) : colorScheme.surfaceVariant.withOpacity(0.6),
+          borderRadius: BorderRadius.circular(shouldCollapse ? 0 : 12),
+          boxShadow: shouldCollapse 
+            ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))]
+            : null,
+        ),
+        child: shouldCollapse 
+          // Collapsed view - just the subtotal
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Subtotal',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '\$${subtotal.toStringAsFixed(2)}',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          // Expanded view - full card with icon
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.calculate_outlined,
+                        color: colorScheme.primary,
+                        size: 30,
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Subtotal',
+                        style: textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '\$${subtotal.toStringAsFixed(2)}',
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _SubtotalHeaderDelegate oldDelegate) {
+    return isCollapsed != oldDelegate.isCollapsed || 
+           subtotal != oldDelegate.subtotal ||
+           maxHeight != oldDelegate.maxHeight ||
+           minHeight != oldDelegate.minHeight;
   }
 } 
