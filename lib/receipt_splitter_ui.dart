@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'services/receipt_parser_service.dart';
 import 'services/audio_transcription_service.dart';
+import 'services/mock_data_service.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:typed_data';
+import 'widgets/split_view.dart';
+import 'package:provider/provider.dart';
+import 'models/split_manager.dart';
+import 'models/receipt_item.dart';
 
 // Mock data for demonstration
 class MockData {
@@ -31,14 +37,6 @@ class MockData {
   static final List<ReceiptItem> sharedItems = [
     ReceiptItem(name: 'Appetizer', price: 15.99, quantity: 1),
   ];
-}
-
-class ReceiptItem {
-  final String name;
-  double price;
-  int quantity;
-
-  ReceiptItem({required this.name, required this.price, required this.quantity});
 }
 
 class ReceiptSplitterUI extends StatefulWidget {
@@ -89,7 +87,27 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   @override
   void initState() {
     super.initState();
-    _initializeEditableItems();
+    
+    // Check if we should use mock data
+    final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+    
+    if (useMockData) {
+      // Initialize with mock data
+      _editableItems = List.from(MockDataService.mockItems);
+      _itemPriceControllers = _editableItems.map((item) =>
+        TextEditingController(text: item.price.toStringAsFixed(2))).toList();
+      
+      // Start at the first step
+      _currentStep = 0;
+      
+      // Initialize completion flags as false
+      _isUploadComplete = false;
+      _isReviewComplete = false;
+      _isAssignmentComplete = false;
+    } else {
+      _initializeEditableItems();
+    }
+    
     _taxController = TextEditingController(text: DEFAULT_TAX_RATE.toStringAsFixed(3));
     _itemsScrollController = ScrollController();
     _itemsScrollController.addListener(_onScroll);
@@ -221,9 +239,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   }
 
   bool _canNavigateToStep(int step) {
+    // In mock mode, we still need to follow the step order
     switch (step) {
       case 0: // Upload
-        return true;
+        return true; // Always allow going back to upload
       case 1: // Review
         return _isUploadComplete;
       case 2: // Assign
@@ -261,6 +280,25 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   Future<void> _parseReceipt() async {
     if (_imageFile == null) return;
 
+    // Check if we should use mock data - do this BEFORE setting loading state
+    final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+    print('DEBUG: In _parseReceipt, useMockData = $useMockData');
+    print('DEBUG: USE_MOCK_DATA env value = ${dotenv.env['USE_MOCK_DATA']}');
+    
+    if (useMockData) {
+      print('DEBUG: Using mock data in _parseReceipt');
+      // Use mock data immediately without any loading state
+      setState(() {
+        _editableItems = List.from(MockDataService.mockItems);
+        _itemPriceControllers = _editableItems.map((item) =>
+          TextEditingController(text: item.price.toStringAsFixed(2))).toList();
+        _isUploadComplete = true;
+        _navigateToPage(1);
+      });
+      return;
+    }
+
+    print('DEBUG: Making API call in _parseReceipt');
     try {
       setState(() {
         _isLoading = true;
@@ -285,37 +323,24 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           TextEditingController(text: item.price.toStringAsFixed(2))).toList();
 
         _isUploadComplete = true;
+        _isLoading = false;
         _navigateToPage(1);
       });
     } catch (e) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Error Parsing Receipt'),
-            content: SingleChildScrollView(
-              child: Text(e.toString()),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error parsing receipt: ${e.toString()}')),
+      );
     }
   }
 
   void _navigateToPage(int page) {
     if (_canNavigateToStep(page)) {
+      setState(() {
+        _currentStep = page;
+      });
       _pageController.animateToPage(
         page,
         duration: const Duration(milliseconds: 300),
@@ -935,7 +960,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                   final newPrice = double.tryParse(value);
                                   if (newPrice != null) {
                                     setState(() {
-                                      _editableItems[index].price = newPrice;
+                                      _editableItems[index].updatePrice(newPrice);
                                     });
                                   }
                                 },
@@ -953,7 +978,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                   onPressed: () {
                                     if (item.quantity > 1) {
                                       setState(() {
-                                        item.quantity--;
+                                        item.updateQuantity(item.quantity - 1);
                                       });
                                     }
                                   },
@@ -973,7 +998,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                   tooltip: 'Increase Quantity',
                                   onPressed: () {
                                     setState(() {
-                                      item.quantity++;
+                                      item.updateQuantity(item.quantity + 1);
                                     });
                                   },
                                 ),
@@ -1343,6 +1368,30 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   }
 
   Future<void> _toggleRecording() async {
+    // Check if we should use mock data - do this BEFORE any recording logic
+    final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+    print('DEBUG: In _toggleRecording, useMockData = $useMockData');
+    print('DEBUG: USE_MOCK_DATA env value = ${dotenv.env['USE_MOCK_DATA']}');
+    
+    if (useMockData) {
+      print('DEBUG: Using mock data in _toggleRecording');
+      // Simulate a delay to mimic recording
+      setState(() {
+        _isLoading = true;
+      });
+      
+      // Simulate processing delay
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Use mock transcription
+      setState(() {
+        _transcription = "John ordered the burger and fries. Sarah got the soda. Mike had the salad. Emma took the pizza. The fries are shared between everyone.";
+        _isLoading = false;
+      });
+      return;
+    }
+
+    print('DEBUG: Using real recording in _toggleRecording');
     if (!_isRecording) {
       final hasPermission = await _recorder.hasPermission();
       if (!hasPermission) {
@@ -1421,6 +1470,47 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     try {
       setState(() => _isLoading = true);
 
+      // Check if we should use mock data - do this BEFORE any recording logic
+      final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+      print('DEBUG: In _processTranscription, useMockData = $useMockData');
+      
+      if (useMockData) {
+        print('DEBUG: Using mock data in _processTranscription');
+        // Use mock data instead of making API call
+        final splitManager = context.read<SplitManager>();
+        
+        // Reset the split manager
+        splitManager.reset();
+        
+        // Add people from mock data
+        for (final personName in MockDataService.mockPeople) {
+          splitManager.addPerson(personName);
+        }
+
+        // Add assigned items from mock data
+        MockDataService.mockAssignments.forEach((personName, items) {
+          final person = splitManager.people.firstWhere((p) => p.name == personName);
+          for (final item in items) {
+            splitManager.assignItemToPerson(item, person);
+          }
+        });
+
+        // Add shared items from mock data
+        for (final item in MockDataService.mockSharedItems) {
+          splitManager.addSharedItem(item);
+        }
+
+        setState(() {
+          _isAssignmentComplete = true;
+          _isLoading = false;
+        });
+
+        // Navigate to the next step
+        _navigateToPage(3);
+        return;
+      }
+
+      print('DEBUG: Making API call in _processTranscription');
       // Convert editable items to a format suitable for the assignment service
       final jsonReceipt = {
         'items': _editableItems.map((item) => {
@@ -1436,8 +1526,50 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         jsonReceipt,
       );
 
+      // Update the SplitManager with the assignments
+      final splitManager = context.read<SplitManager>();
+      
+      // Clear existing data
+      splitManager.people.clear();
+      splitManager.sharedItems.clear();
+
+      // Add people
+      final people = List<Map<String, dynamic>>.from(assignments['people'] ?? []);
+      for (var personData in people) {
+        splitManager.addPerson(personData['name'] as String);
+      }
+
+      // Add assigned items
+      final orders = List<Map<String, dynamic>>.from(assignments['orders'] ?? []);
+      for (var order in orders) {
+        final personName = order['person'] as String;
+        final person = splitManager.people.firstWhere((p) => p.name == personName);
+        
+        final item = ReceiptItem(
+          name: order['item'] as String,
+          price: (order['price'] as num).toDouble(),
+          quantity: order['quantity'] as int,
+        );
+        
+        splitManager.assignItemToPerson(item, person);
+      }
+
+      // Add shared items
+      final sharedItems = List<Map<String, dynamic>>.from(assignments['shared_items'] ?? []);
+      for (var itemData in sharedItems) {
+        final item = ReceiptItem(
+          name: itemData['item'] as String,
+          price: (itemData['price'] as num).toDouble(),
+          quantity: itemData['quantity'] as int,
+        );
+        
+        final peopleNames = (itemData['people'] as List).cast<String>();
+        final people = splitManager.people.where((p) => peopleNames.contains(p.name)).toList();
+        
+        splitManager.addItemToShared(item, people);
+      }
+
       setState(() {
-        _assignments = assignments;
         _isAssignmentComplete = true;
         _isLoading = false;
       });
@@ -1453,144 +1585,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   }
 
   Widget _buildAssignmentReviewStep(BuildContext context) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
-    // Check if items have been assigned
-    if (_assignments == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.people_outline,
-                size: 60,
-                color: colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'No Items Assigned',
-              style: textTheme.headlineSmall?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Please assign items to people first',
-              textAlign: TextAlign.center,
-              style: textTheme.bodyLarge?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton.icon(
-              onPressed: () => _navigateToPage(2),
-              icon: const Icon(Icons.mic),
-              label: const Text('Assign Items'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorScheme.primary,
-                foregroundColor: colorScheme.onPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final orders = List<Map<String, dynamic>>.from(_assignments!['orders'] ?? []);
-    final sharedItems = List<Map<String, dynamic>>.from(_assignments!['shared_items'] ?? []);
-    final people = List<Map<String, dynamic>>.from(_assignments!['people'] ?? []);
-
-    return ListView(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Text('Assigned Items', style: textTheme.headlineSmall),
-        ),
-
-        ...people.map((person) {
-          final personName = person['name'] as String;
-          final personOrders = orders.where((order) => order['person'] == personName).toList();
-
-          if (personOrders.isEmpty) {
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 6.0),
-              child: ListTile(
-                title: Text(personName),
-                subtitle: Text('No items assigned yet.', style: TextStyle(color: Colors.grey[600])),
-              ),
-            );
-          }
-
-          return Card(
-            margin: const EdgeInsets.symmetric(vertical: 6.0),
-            child: ExpansionTile(
-              title: Text(personName, style: textTheme.titleLarge),
-              tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0).copyWith(top: 0),
-              children: personOrders.map((order) {
-                return ListTile(
-                  title: Text(order['item'] as String, style: textTheme.titleMedium),
-                  trailing: Text(
-                    '\$${(order['price'] as num).toStringAsFixed(2)} x ${order['quantity']}',
-                    style: textTheme.bodyLarge,
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                );
-              }).toList(),
-            ),
-          );
-        }).toList(),
-
-        if (sharedItems.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Text('Shared Items', style: textTheme.headlineSmall),
-          ),
-          ...sharedItems.map((item) {
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 6.0),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item['item'] as String,
-                      style: textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Shared by: ${(item['people'] as List).join(', ')}',
-                      style: textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${(item['price'] as num).toStringAsFixed(2)} x ${item['quantity']}',
-                      style: textTheme.bodyLarge,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ],
-      ],
-    );
+    return const SplitView();
   }
 
   Widget _buildFinalSummaryStep(BuildContext context) {
