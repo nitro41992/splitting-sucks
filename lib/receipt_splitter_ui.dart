@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'services/receipt_parser_service.dart';
+import 'services/audio_transcription_service.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:typed_data';
 
 // Mock data for demonstration
 class MockData {
@@ -57,6 +61,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
+  final AudioTranscriptionService _audioService = AudioTranscriptionService();
+  final _recorder = AudioRecorder();
+  String? _transcription;
+  Map<String, dynamic>? _assignments;
 
   // Step completion tracking
   bool _isUploadComplete = false;
@@ -76,6 +84,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   // For tracking scroll direction
   double _lastScrollPosition = 0;
 
+  late AudioTranscriptionService _transcriptionService;
+
   @override
   void initState() {
     super.initState();
@@ -93,6 +103,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         });
       }
     });
+
+    _transcriptionService = AudioTranscriptionService();
   }
 
   void _initializeEditableItems() {
@@ -116,9 +128,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   @override
   void dispose() {
+    _recorder.dispose();
     _itemPriceControllers.forEach((controller) => controller.dispose());
     _taxController.dispose();
-    _itemsScrollController.removeListener(_onScroll); // Remove listener before disposing
+    _itemsScrollController.removeListener(_onScroll);
     _itemsScrollController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -1237,47 +1250,204 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       );
     }
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Icon(Icons.mic_none, size: 100, color: _isRecording ? colorScheme.error : colorScheme.primary),
-        const SizedBox(height: 24),
-        Text(
-          'Assign Items via Voice',
-          style: textTheme.headlineSmall,
-          textAlign: TextAlign.center,
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(
+              Icons.mic_none, 
+              size: 100, 
+              color: _isRecording ? colorScheme.error : colorScheme.primary
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Assign Items via Voice',
+              style: textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Tap the button and speak clearly.\nExample: "John ordered the burger and fries"',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton.icon(
+              onPressed: _isLoading ? null : _toggleRecording,
+              icon: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic),
+              label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isRecording ? colorScheme.errorContainer : colorScheme.primaryContainer,
+                foregroundColor: _isRecording ? colorScheme.onErrorContainer : colorScheme.onPrimaryContainer,
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                textStyle: textTheme.titleMedium,
+              ),
+            ),
+            if (_isLoading) ...[
+              const SizedBox(height: 24),
+              const Center(child: CircularProgressIndicator()),
+              const SizedBox(height: 8),
+              Text('Processing...', style: textTheme.bodySmall, textAlign: TextAlign.center),
+            ] else if (_transcription != null) ...[
+              const SizedBox(height: 24),
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Transcription:',
+                        style: textTheme.titleMedium?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _transcription!,
+                        style: textTheme.bodyLarge,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ElevatedButton.icon(
+                  onPressed: _processTranscription,
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Process Assignment'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    textStyle: textTheme.titleMedium,
+                  ),
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 32),
+            ],
+          ],
         ),
-        const SizedBox(height: 12),
-        Text(
-          'Tap the button and speak clearly.\nExample: "John ordered the burger and fries"',
-          textAlign: TextAlign.center,
-          style: textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 40),
-        ElevatedButton.icon(
-          onPressed: () {
-            setState(() { _isRecording = !_isRecording; });
-          },
-          icon: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic),
-          label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _isRecording ? colorScheme.errorContainer : colorScheme.primaryContainer,
-            foregroundColor: _isRecording ? colorScheme.onErrorContainer : colorScheme.onPrimaryContainer,
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-            textStyle: textTheme.titleMedium,
-          ),
-        ),
-        if (_isRecording) ...[
-          const SizedBox(height: 24),
-          const Center(child: CircularProgressIndicator()),
-          const SizedBox(height: 8),
-           Text('Listening...', style: textTheme.bodySmall, textAlign: TextAlign.center),
-        ] else ... [
-          const SizedBox(height: 32),
-        ],
-      ],
+      ),
     );
+  }
+
+  Future<void> _toggleRecording() async {
+    if (!_isRecording) {
+      final hasPermission = await _recorder.hasPermission();
+      if (!hasPermission) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission is required for voice assignment')),
+        );
+        return;
+      }
+
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final path = '${tempDir.path}/audio_recording.wav';
+        
+        await _recorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.wav,
+            numChannels: 1,
+            sampleRate: 16000,
+          ),
+          path: path,
+        );
+
+        setState(() {
+          _isRecording = true;
+          _isLoading = false;
+        });
+      } catch (e) {
+        print('Error starting recording: $e');
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error starting recording: $e')),
+        );
+      }
+    } else {
+      try {
+        final path = await _recorder.stop();
+        setState(() {
+          _isRecording = false;
+          _isLoading = true;
+        });
+
+        if (path != null) {
+          // Read the audio file as bytes
+          final File audioFile = File(path);
+          final Uint8List audioBytes = await audioFile.readAsBytes();
+          
+          // Get transcription from the service
+          final transcription = await _transcriptionService.getTranscription(audioBytes);
+          
+          setState(() {
+            _transcription = transcription;
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        print('Error stopping recording: $e');
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error processing recording: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _processTranscription() async {
+    if (_transcription == null) return;
+
+    try {
+      setState(() => _isLoading = true);
+
+      // Convert editable items to a format suitable for the assignment service
+      final jsonReceipt = {
+        'items': _editableItems.map((item) => {
+          'name': item.name,
+          'price': item.price,
+          'quantity': item.quantity,
+        }).toList(),
+      };
+
+      // Get assignments from the service
+      final assignments = await _audioService.assignPeopleToItems(
+        _transcription!,
+        jsonReceipt,
+      );
+
+      setState(() {
+        _assignments = assignments;
+        _isAssignmentComplete = true;
+        _isLoading = false;
+      });
+
+      // Navigate to the next step
+      _navigateToPage(3);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error processing assignment: ${e.toString()}')),
+      );
+    }
   }
 
   Widget _buildAssignmentReviewStep(BuildContext context) {
@@ -1285,7 +1455,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     // Check if items have been assigned
-    if (_editableItems.isEmpty) {
+    if (_assignments == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1338,9 +1508,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       );
     }
 
-    final assignments = MockData.assignments;
-    final people = MockData.people;
-    final sharedItems = MockData.sharedItems;
+    final orders = List<Map<String, dynamic>>.from(_assignments!['orders'] ?? []);
+    final sharedItems = List<Map<String, dynamic>>.from(_assignments!['shared_items'] ?? []);
+    final people = List<Map<String, dynamic>>.from(_assignments!['people'] ?? []);
 
     return ListView(
       children: [
@@ -1350,93 +1520,73 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         ),
 
         ...people.map((person) {
-          final assignedMockItems = assignments[person] ?? [];
-          final currentAssignedItems = _editableItems.where((editItem) =>
-              assignedMockItems.any((mockItem) => mockItem.name == editItem.name)).toList();
+          final personName = person['name'] as String;
+          final personOrders = orders.where((order) => order['person'] == personName).toList();
 
-          if (currentAssignedItems.isEmpty) {
-             return Card(
-                 margin: const EdgeInsets.symmetric(vertical: 6.0),
-                 child: ListTile(
-                   title: Text(person),
-                   subtitle: Text('No items assigned yet.', style: TextStyle(color: Colors.grey[600])),
-                 )
-             );
+          if (personOrders.isEmpty) {
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 6.0),
+              child: ListTile(
+                title: Text(personName),
+                subtitle: Text('No items assigned yet.', style: TextStyle(color: Colors.grey[600])),
+              ),
+            );
           }
 
           return Card(
-             margin: const EdgeInsets.symmetric(vertical: 6.0),
-             child: ExpansionTile(
-                title: Text(person, style: textTheme.titleLarge),
-                tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0).copyWith(top: 0),
-                children: currentAssignedItems.map((item) {
-                  return ListTile(
-                    title: Text(item.name, style: textTheme.titleMedium),
-                    trailing: Text(
-                        '\$${item.price.toStringAsFixed(2)} x ${item.quantity}',
-                         style: textTheme.bodyLarge,
-                      ),
-                    contentPadding: EdgeInsets.zero,
-                  );
-                }).toList(),
-              ),
-          );
-        }).toList(),
-
-        const SizedBox(height: 24),
-
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Text('Shared Items', style: textTheme.headlineSmall),
-        ),
-
-        ...sharedItems.map((item) {
-          final editableSharedItem = _editableItems.firstWhere(
-              (editItem) => editItem.name == item.name, orElse: () => item);
-
-          return Card(
             margin: const EdgeInsets.symmetric(vertical: 6.0),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${editableSharedItem.name} (\$${editableSharedItem.price.toStringAsFixed(2)})',
-                     style: textTheme.titleMedium,
+            child: ExpansionTile(
+              title: Text(personName, style: textTheme.titleLarge),
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0).copyWith(top: 0),
+              children: personOrders.map((order) {
+                return ListTile(
+                  title: Text(order['item'] as String, style: textTheme.titleMedium),
+                  trailing: Text(
+                    '\$${(order['price'] as num).toStringAsFixed(2)} x ${order['quantity']}',
+                    style: textTheme.bodyLarge,
                   ),
-                  const SizedBox(height: 12),
-                  Text('Shared by:', style: textTheme.labelMedium),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8.0,
-                    runSpacing: 4.0,
-                    children: people.map((person) {
-                      bool isSelected = true;
-                      return FilterChip(
-                        label: Text(person),
-                        selected: isSelected,
-                        onSelected: (bool selected) {
-                          setState(() {
-                          });
-                        },
-                        selectedColor: colorScheme.primaryContainer,
-                        checkmarkColor: colorScheme.onPrimaryContainer,
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
+                  contentPadding: EdgeInsets.zero,
+                );
+              }).toList(),
             ),
           );
         }).toList(),
 
-        if (sharedItems.isEmpty)
-           Padding(
-             padding: const EdgeInsets.symmetric(vertical: 8.0),
-             child: Center(child: Text('No items marked as shared.', style: textTheme.bodyMedium)),
-           ),
+        if (sharedItems.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text('Shared Items', style: textTheme.headlineSmall),
+          ),
+          ...sharedItems.map((item) {
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 6.0),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['item'] as String,
+                      style: textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Shared by: ${(item['people'] as List).join(', ')}',
+                      style: textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '\$${(item['price'] as num).toStringAsFixed(2)} x ${item['quantity']}',
+                      style: textTheme.bodyLarge,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ],
       ],
     );
   }
