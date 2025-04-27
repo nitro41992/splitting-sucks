@@ -38,6 +38,15 @@ class SplitView extends StatelessWidget {
                       'Shared Items: \$${splitManager.sharedItemsTotal.toStringAsFixed(2)}',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    if (splitManager.unassignedItems.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Unassigned Items: \$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -51,6 +60,30 @@ class SplitView extends StatelessWidget {
                 childCount: splitManager.people.length,
               ),
             ),
+            if (splitManager.unassignedItems.isNotEmpty) ...[
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                    'Unassigned Items',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                ),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final item = splitManager.unassignedItems[index];
+                    return _UnassignedItemCard(item: item);
+                  },
+                  childCount: splitManager.unassignedItems.length,
+                ),
+              ),
+            ],
             if (splitManager.sharedItems.isNotEmpty) ...[
               const SliverToBoxAdapter(
                 child: Padding(
@@ -161,13 +194,16 @@ class _PersonCard extends StatelessWidget {
   }
 }
 
-class _SharedItemCard extends StatelessWidget {
+class _UnassignedItemCard extends StatelessWidget {
   final ReceiptItem item;
 
-  const _SharedItemCard({required this.item});
+  const _UnassignedItemCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
+    final splitManager = context.watch<SplitManager>();
+    final people = splitManager.people;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Padding(
@@ -196,9 +232,222 @@ class _SharedItemCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
-              'Total: \$${item.total.toStringAsFixed(2)}',
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total: \$${item.total.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Assign'),
+                  onPressed: () => _showAssignDialog(context, splitManager, item),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAssignDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Assign Item'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Choose how to assign this item:'),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.person),
+                  label: const Text('To Person'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showAssignToPersonDialog(context, splitManager, item);
+                  },
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.group),
+                  label: const Text('Share'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showShareDialog(context, splitManager, item);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAssignToPersonDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Assign to Person'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: splitManager.people.length,
+            itemBuilder: (context, index) {
+              final person = splitManager.people[index];
+              return ListTile(
+                leading: CircleAvatar(child: Text(person.name[0])),
+                title: Text(person.name),
+                onTap: () {
+                  splitManager.removeUnassignedItem(item);
+                  splitManager.assignItemToPerson(item, person);
+                  Navigator.pop(context);
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showShareDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Share Item'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Select people to share with:'),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: splitManager.people.map((person) {
+                return FilterChip(
+                  label: Text(person.name),
+                  selected: false,
+                  onSelected: (selected) {
+                    if (selected) {
+                      splitManager.removeUnassignedItem(item);
+                      splitManager.addItemToShared(item, [person]);
+                      Navigator.pop(context);
+                    }
+                  },
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SharedItemCard extends StatelessWidget {
+  final ReceiptItem item;
+
+  const _SharedItemCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final splitManager = context.watch<SplitManager>();
+    final people = splitManager.people;
+    final sharingPeople = people.where((p) => p.sharedItems.contains(item)).toList();
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _EditableText(
+                    text: item.name,
+                    onChanged: (newName) => item.updateName(newName),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                _EditablePrice(
+                  price: item.price,
+                  onChanged: (newPrice) => item.updatePrice(newPrice),
+                ),
+                const SizedBox(width: 16),
+                _QuantitySelector(
+                  quantity: item.quantity,
+                  onChanged: (newQuantity) => item.updateQuantity(newQuantity),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Total: \$${item.total.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                if (sharingPeople.isNotEmpty)
+                  Text(
+                    'Shared by ${sharingPeople.length} people',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: people.map((person) {
+                final isSelected = person.sharedItems.contains(item);
+                return FilterChip(
+                  label: Text(person.name),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      splitManager.addItemToShared(item, [person]);
+                    } else {
+                      person.removeSharedItem(item);
+                      if (person.sharedItems.isEmpty) {
+                        splitManager.removeItemFromShared(item);
+                      }
+                    }
+                  },
+                  selectedColor: Theme.of(context).colorScheme.primaryContainer,
+                  checkmarkColor: Theme.of(context).colorScheme.primary,
+                  labelStyle: TextStyle(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                );
+              }).toList(),
             ),
           ],
         ),

@@ -10,6 +10,8 @@ class MockDataService {
     ReceiptItem(name: "Soda", price: 2.99, quantity: 3),
     ReceiptItem(name: "Salad", price: 8.99, quantity: 1),
     ReceiptItem(name: "Pizza", price: 15.99, quantity: 1),
+    ReceiptItem(name: "Ice Cream", price: 6.99, quantity: 1),
+    ReceiptItem(name: "Coffee", price: 3.99, quantity: 2),
   ];
 
   static final List<String> mockPeople = [
@@ -20,7 +22,7 @@ class MockDataService {
   ];
 
   static final Map<String, List<ReceiptItem>> mockAssignments = {
-    "John": [mockItems[0], mockItems[1]], // Burger and Fries
+    "John": [mockItems[0]], // Burger
     "Sarah": [mockItems[2]], // Soda
     "Mike": [mockItems[3]], // Salad
     "Emma": [mockItems[4]], // Pizza
@@ -28,6 +30,11 @@ class MockDataService {
 
   static final List<ReceiptItem> mockSharedItems = [
     mockItems[1], // Fries are shared
+  ];
+
+  static final List<ReceiptItem> mockUnassignedItems = [
+    mockItems[5], // Ice Cream
+    mockItems[6], // Coffee
   ];
 
   static SplitManager createMockSplitManager() {
@@ -49,6 +56,15 @@ class MockDataService {
     // Add shared items
     for (final item in mockSharedItems) {
       splitManager.addSharedItem(item);
+      // Add the shared item to all people
+      for (final person in splitManager.people) {
+        person.addSharedItem(item);
+      }
+    }
+
+    // Add unassigned items
+    for (final item in mockUnassignedItems) {
+      splitManager.addUnassignedItem(item);
     }
     
     return splitManager;

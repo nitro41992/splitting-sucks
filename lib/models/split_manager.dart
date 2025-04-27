@@ -5,19 +5,24 @@ import 'receipt_item.dart';
 class SplitManager extends ChangeNotifier {
   List<Person> _people;
   List<ReceiptItem> _sharedItems;
+  List<ReceiptItem> _unassignedItems;
 
   SplitManager({
     List<Person>? people,
     List<ReceiptItem>? sharedItems,
+    List<ReceiptItem>? unassignedItems,
   })  : _people = people ?? [],
-        _sharedItems = sharedItems ?? [];
+        _sharedItems = sharedItems ?? [],
+        _unassignedItems = unassignedItems ?? [];
 
   List<Person> get people => List.unmodifiable(_people);
   List<ReceiptItem> get sharedItems => List.unmodifiable(_sharedItems);
+  List<ReceiptItem> get unassignedItems => List.unmodifiable(_unassignedItems);
 
   void reset() {
     _people = [];
     _sharedItems = [];
+    _unassignedItems = [];
     notifyListeners();
   }
 
@@ -72,15 +77,30 @@ class SplitManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  void addUnassignedItem(ReceiptItem item) {
+    _unassignedItems.add(item);
+    notifyListeners();
+  }
+
+  void removeUnassignedItem(ReceiptItem item) {
+    _unassignedItems.remove(item);
+    notifyListeners();
+  }
+
   double get totalAmount {
     double total = 0;
     for (var person in _people) {
       total += person.totalAmount;
     }
+    total += _unassignedItems.fold(0, (sum, item) => sum + item.total);
     return total;
   }
 
   double get sharedItemsTotal {
     return _sharedItems.fold(0, (sum, item) => sum + item.total);
+  }
+
+  double get unassignedItemsTotal {
+    return _unassignedItems.fold(0, (sum, item) => sum + item.total);
   }
 } 

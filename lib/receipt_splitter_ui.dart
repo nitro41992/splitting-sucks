@@ -1500,6 +1500,11 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           splitManager.addSharedItem(item);
         }
 
+        // Add unassigned items from mock data
+        for (final item in MockDataService.mockUnassignedItems) {
+          splitManager.addUnassignedItem(item);
+        }
+
         setState(() {
           _isAssignmentComplete = true;
           _isLoading = false;
@@ -1530,8 +1535,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       final splitManager = context.read<SplitManager>();
       
       // Clear existing data
-      splitManager.people.clear();
-      splitManager.sharedItems.clear();
+      splitManager.reset();
 
       // Add people
       final people = List<Map<String, dynamic>>.from(assignments['people'] ?? []);
@@ -1567,6 +1571,18 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         final people = splitManager.people.where((p) => peopleNames.contains(p.name)).toList();
         
         splitManager.addItemToShared(item, people);
+      }
+
+      // Add unassigned items
+      final unassignedItems = List<Map<String, dynamic>>.from(assignments['unassigned_items'] ?? []);
+      for (var itemData in unassignedItems) {
+        final item = ReceiptItem(
+          name: itemData['item'] as String,
+          price: (itemData['price'] as num).toDouble(),
+          quantity: itemData['quantity'] as int,
+        );
+        
+        splitManager.addUnassignedItem(item);
       }
 
       setState(() {
