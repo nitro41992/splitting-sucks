@@ -89,19 +89,98 @@ class _SplitViewState extends State<SplitView> {
                     // Total amount display
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Column(
                         children: [
-                          Text(
-                            'Total: ',
-                            style: textTheme.headlineSmall,
+                          // Individual Items Total
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Individual Items: ',
+                                style: textTheme.titleMedium,
+                              ),
+                              Text(
+                                '\$${splitManager.people.fold(0.0, (sum, person) => sum + person.totalAssignedAmount).toStringAsFixed(2)}',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            '\$${splitManager.totalAmount.toStringAsFixed(2)}',
-                            style: textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.primary,
-                            ),
+                          const SizedBox(height: 8),
+                          // Shared Items Total
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Shared Items: ',
+                                style: textTheme.titleMedium,
+                              ),
+                              Text(
+                                '\$${splitManager.sharedItemsTotal.toStringAsFixed(2)}',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // Combined Assigned Total
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Assigned Total: ',
+                                style: textTheme.titleMedium,
+                              ),
+                              Text(
+                                '\$${(splitManager.people.fold(0.0, (sum, person) => sum + person.totalAssignedAmount) + splitManager.sharedItemsTotal).toStringAsFixed(2)}',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Unassigned: ',
+                                style: textTheme.titleMedium?.copyWith(
+                                  color: colorScheme.error,
+                                ),
+                              ),
+                              Text(
+                                '\$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.error,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Subtotal: ',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '\$${(splitManager.people.fold(0.0, (sum, person) => sum + person.totalAssignedAmount) + splitManager.sharedItemsTotal + splitManager.unassignedItemsTotal).toStringAsFixed(2)}',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -302,6 +381,9 @@ class _PersonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
       elevation: 1,
@@ -312,21 +394,22 @@ class _PersonCard extends StatelessWidget {
         children: [
           ListTile(
             leading: CircleAvatar(
-              child: Text(person.name[0]),
+              backgroundColor: colorScheme.secondaryContainer,
+              child: Text(person.name[0], style: TextStyle(color: colorScheme.onSecondaryContainer)),
             ),
             title: _EditableText(
               text: person.name,
               onChanged: (newName) {
                 context.read<SplitManager>().updatePersonName(person, newName);
               },
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             trailing: Text(
-              '\$${person.totalAmount.toStringAsFixed(2)}',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
+              '\$${person.totalAssignedAmount.toStringAsFixed(2)}',
+              style: textTheme.titleLarge?.copyWith(
+                color: colorScheme.primary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -354,6 +437,7 @@ class _UnassignedItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
     final people = splitManager.people;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -390,7 +474,7 @@ class _UnassignedItemCard extends StatelessWidget {
                 Text(
                   'Total: \$${item.total.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
+                    color: colorScheme.primary,
                   ),
                 ),
                 TextButton.icon(
@@ -676,6 +760,7 @@ class _SharedItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
     final people = splitManager.people;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -711,7 +796,7 @@ class _SharedItemCard extends StatelessWidget {
                 Text(
                   'Total: \$${item.total.toStringAsFixed(2)}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
+                    color: colorScheme.primary,
                   ),
                 ),
               ],
@@ -722,7 +807,6 @@ class _SharedItemCard extends StatelessWidget {
               runSpacing: 8,
               children: people.map((person) {
                 final isSelected = person.sharedItems.contains(item);
-                final colorScheme = Theme.of(context).colorScheme;
 
                 return FilterChip(
                   label: Text(person.name),

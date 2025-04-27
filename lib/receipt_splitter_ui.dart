@@ -15,28 +15,17 @@ import 'models/receipt_item.dart';
 
 // Mock data for demonstration
 class MockData {
-  static final List<ReceiptItem> items = [
-    ReceiptItem(name: 'Burger', price: 12.99, quantity: 1),
-    ReceiptItem(name: 'Fries', price: 4.99, quantity: 2),
-    ReceiptItem(name: 'Soda', price: 2.99, quantity: 3),
-    ReceiptItem(name: 'Salad', price: 8.99, quantity: 1),
-    ReceiptItem(name: 'Rice Bowl', price: 8.99, quantity: 1),
-    ReceiptItem(name: 'Dessert', price: 8.99, quantity: 1),
-    ReceiptItem(name: 'Soba', price: 8.99, quantity: 1),
-  ];
+  // Use same mock items as MockDataService for consistency
+  static final List<ReceiptItem> items = MockDataService.mockItems;
 
-  static final List<String> people = ['John', 'Alice', 'Bob', 'Carol'];
+  // Use same mock people as MockDataService for consistency
+  static final List<String> people = MockDataService.mockPeople;
   
-  static final Map<String, List<ReceiptItem>> assignments = {
-    'John': [items[0], items[1], items[4]],
-    'Alice': [items[2]],
-    'Bob': [items[3]],
-    'Carol': [],
-  };
+  // Use same mock assignments as MockDataService for consistency
+  static final Map<String, List<ReceiptItem>> assignments = MockDataService.mockAssignments;
 
-  static final List<ReceiptItem> sharedItems = [
-    ReceiptItem(name: 'Appetizer', price: 15.99, quantity: 1),
-  ];
+  // Use same mock shared items as MockDataService for consistency
+  static final List<ReceiptItem> sharedItems = MockDataService.mockSharedItems;
 }
 
 class ReceiptSplitterUI extends StatefulWidget {
@@ -92,8 +81,16 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
     
     if (useMockData) {
-      // Initialize with mock data
-      _editableItems = List.from(MockDataService.mockItems);
+      // Initialize with ALL mock data - include regular items, shared items and unassigned items
+      _editableItems = [
+        ...List.from(MockDataService.mockItems),
+        ...List.from(MockDataService.mockSharedItems),
+        ...List.from(MockDataService.mockUnassignedItems),
+      ];
+      
+      // Remove duplicates (since unassigned items may be references to mockItems)
+      _editableItems = _editableItems.toSet().toList();
+      
       _itemPriceControllers = _editableItems.map((item) =>
         TextEditingController(text: item.price.toStringAsFixed(2))).toList();
       
@@ -289,7 +286,15 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       print('DEBUG: Using mock data in _parseReceipt');
       // Use mock data immediately without any loading state
       setState(() {
-        _editableItems = List.from(MockDataService.mockItems);
+        // Use the same comprehensive list as initState
+        _editableItems = [
+          ...List.from(MockDataService.mockItems),
+          ...List.from(MockDataService.mockSharedItems),
+          ...List.from(MockDataService.mockUnassignedItems),
+        ];
+        // Remove duplicates (important if unassigned/shared reference base items)
+        _editableItems = _editableItems.toSet().toList();
+
         _itemPriceControllers = _editableItems.map((item) =>
           TextEditingController(text: item.price.toStringAsFixed(2))).toList();
         _isUploadComplete = true;
@@ -1513,14 +1518,14 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         });
 
         // Add shared items and assign them to the correct people based on MockDataService
-        final friesItem = MockDataService.mockSharedItems[0]; // Assuming Fries is first
-        splitManager.addItemToShared(friesItem, splitManager.people); // Assign Fries to everyone
-
-        final appetizerItem = MockDataService.mockSharedItems[1]; // Assuming Appetizer is second
+        final appetizerItem = MockDataService.mockSharedItems[0]; // Appetizer
         final johnAndSarah = splitManager.people
             .where((p) => p.name == "John" || p.name == "Sarah")
             .toList();
-        splitManager.addItemToShared(appetizerItem, johnAndSarah); // Assign Appetizer to John & Sarah
+        splitManager.addSharedItem(appetizerItem);
+        for (final person in johnAndSarah) {
+          person.addSharedItem(appetizerItem);
+        }
 
         // Add unassigned items from mock data
         for (final item in MockDataService.mockUnassignedItems) {
@@ -1637,6 +1642,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   Widget _buildFinalSummaryStep(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final splitManager = context.watch<SplitManager>();
 
     // Check if items have been assigned
     if (_editableItems.isEmpty) {
@@ -1692,7 +1698,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       );
     }
 
-    final people = MockData.people;
+    final people = splitManager.people;
 
     return ListView(
       children: [
@@ -1702,25 +1708,107 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         ),
         const SizedBox(height: 16),
 
-        ...people.map((person) {
-          double personTotal = _calculatePersonTotal(person);
+        // Individual Items Section
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text('Individual Items', 
+            style: textTheme.titleMedium?.copyWith(color: colorScheme.primary)),
+        ),
+        const SizedBox(height: 8),
 
+        ...people.map((person) {
+          double individualTotal = person.assignedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+          
           return Card(
-            margin: const EdgeInsets.symmetric(vertical: 6.0),
+            margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
             child: ListTile(
               leading: CircleAvatar(
-                 backgroundColor: colorScheme.secondaryContainer,
-                 child: Text(person.substring(0, 1), style: TextStyle(color: colorScheme.onSecondaryContainer)),
+                backgroundColor: colorScheme.secondaryContainer,
+                child: Text(person.name.substring(0, 1), 
+                  style: TextStyle(color: colorScheme.onSecondaryContainer)),
               ),
-              title: Text(person, style: textTheme.titleLarge),
+              title: Text(person.name, style: textTheme.titleMedium),
+              subtitle: Text('Individual Items', 
+                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
               trailing: Text(
-                '\$${personTotal.toStringAsFixed(2)}',
-                style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary),
+                '\$${individualTotal.toStringAsFixed(2)}',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold, 
+                  color: colorScheme.primary
+                ),
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             ),
           );
         }).toList(),
+
+        const SizedBox(height: 24),
+
+        // Shared Items Section
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text('Shared Items', 
+            style: textTheme.titleMedium?.copyWith(color: colorScheme.primary)),
+        ),
+        const SizedBox(height: 8),
+
+        ...people.map((person) {
+          double sharedTotal = person.sharedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity / splitManager.getPeopleForSharedItem(item).length));
+          
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: colorScheme.secondaryContainer,
+                child: Text(person.name.substring(0, 1), 
+                  style: TextStyle(color: colorScheme.onSecondaryContainer)),
+              ),
+              title: Text(person.name, style: textTheme.titleMedium),
+              subtitle: Text('Shared Items', 
+                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
+              trailing: Text(
+                '\$${sharedTotal.toStringAsFixed(2)}',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold, 
+                  color: colorScheme.primary
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            ),
+          );
+        }).toList(),
+
+        const SizedBox(height: 24),
+
+        // Unassigned Items Section
+        if (splitManager.unassignedItems.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Text('Unassigned Items', 
+              style: textTheme.titleMedium?.copyWith(color: colorScheme.primary)),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: colorScheme.surfaceVariant,
+                child: Icon(Icons.question_mark, color: colorScheme.onSurfaceVariant),
+              ),
+              title: Text('Unassigned', style: textTheme.titleMedium),
+              subtitle: Text('${splitManager.unassignedItems.length} items', 
+                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
+              trailing: Text(
+                '\$${splitManager.unassignedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity)).toStringAsFixed(2)}',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold, 
+                  color: colorScheme.primary
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            ),
+          ),
+        ],
 
         const SizedBox(height: 32),
 
@@ -1729,8 +1817,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             icon: const Icon(Icons.check_circle_outline),
             label: const Text('Complete & Share'),
             onPressed: () {
-               ScaffoldMessenger.of(context).showSnackBar(
-                 const SnackBar(content: Text('Split finalized (sharing not implemented yet).')),
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Split finalized (sharing not implemented yet).')),
               );
             },
             style: ElevatedButton.styleFrom(

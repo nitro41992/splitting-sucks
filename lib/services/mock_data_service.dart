@@ -29,11 +29,11 @@ class MockDataService {
   };
 
   static final List<ReceiptItem> mockSharedItems = [
-    mockItems[1], // Fries are shared by everyone
     ReceiptItem(name: "Appetizer", price: 15.99, quantity: 1), // Appetizer shared by John and Sarah only
   ];
 
   static final List<ReceiptItem> mockUnassignedItems = [
+    mockItems[1], // Fries
     mockItems[5], // Ice Cream
     mockItems[6], // Coffee
   ];
@@ -55,17 +55,11 @@ class MockDataService {
     });
     
     // Add shared items
-    // First shared item (Fries) - shared by everyone
+    // Appetizer - shared by John and Sarah only
     splitManager.addSharedItem(mockSharedItems[0]);
-    for (final person in splitManager.people) {
-      person.addSharedItem(mockSharedItems[0]);
-    }
-
-    // Second shared item (Appetizer) - shared by John and Sarah only
-    splitManager.addSharedItem(mockSharedItems[1]);
     final johnAndSarah = splitManager.people.where((p) => p.name == "John" || p.name == "Sarah").toList();
     for (final person in johnAndSarah) {
-      person.addSharedItem(mockSharedItems[1]);
+      person.addSharedItem(mockSharedItems[0]);
     }
 
     // Add unassigned items

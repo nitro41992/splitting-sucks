@@ -282,4 +282,9 @@ class SplitManager extends ChangeNotifier {
     }
     return null;
   }
+
+  // Get people who are sharing a specific item
+  List<Person> getPeopleForSharedItem(ReceiptItem item) {
+    return _people.where((person) => person.sharedItems.contains(item)).toList();
+  }
 } 
