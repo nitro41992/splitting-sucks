@@ -1723,67 +1723,46 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         ),
         const SizedBox(height: 16),
 
-        // Individual Items Section
+        // Split per Person Section
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text('Individual Items', 
-            style: textTheme.titleMedium?.copyWith(color: colorScheme.primary)),
+          child: Text('Split per Person', 
+            style: textTheme.titleMedium?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 8),
 
         ...people.map((person) {
-          double individualTotal = person.assignedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+          // Calculate person's subtotal (individual + shared)
+          double personAssignedTotal = person.assignedItems.fold(0.0, (sum, item) => sum + item.total);
+          double personSharedTotal = person.sharedItems.fold(0.0, (sum, item) {
+            final sharers = splitManager.getPeopleForSharedItem(item).length;
+            return sum + (sharers > 0 ? item.total / sharers : 0);
+          });
+          double personSubtotal = personAssignedTotal + personSharedTotal;
+
+          // Calculate person's tax and tip based on their subtotal and the overall percentages
+          // Ensure tax calculation mirrors the main _calculateTax (ceiling)
+          double personTax = (personSubtotal * (_taxPercentage / 100) * 100).ceil() / 100;
+          double personTip = personSubtotal * (_tipPercentage / 100);
+
+          double personFinalTotal = personSubtotal + personTax + personTip;
           
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: colorScheme.secondaryContainer,
-                child: Text(person.name.substring(0, 1), 
-                  style: TextStyle(color: colorScheme.onSecondaryContainer)),
+                child: Text(person.name.substring(0, 1).toUpperCase(), 
+                  style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold)),
               ),
-              title: Text(person.name, style: textTheme.titleMedium),
-              subtitle: Text('Individual Items', 
-                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
+              title: Text(person.name, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              subtitle: Text(
+                'Items: \$${personSubtotal.toStringAsFixed(2)} + Tax: \$${personTax.toStringAsFixed(2)} + Tip: \$${personTip.toStringAsFixed(2)}',
+                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+              ),
               trailing: Text(
-                '\$${individualTotal.toStringAsFixed(2)}',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold, 
-                  color: colorScheme.primary
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            ),
-          );
-        }).toList(),
-
-        const SizedBox(height: 24),
-
-        // Shared Items Section
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text('Shared Items', 
-            style: textTheme.titleMedium?.copyWith(color: colorScheme.primary)),
-        ),
-        const SizedBox(height: 8),
-
-        ...people.map((person) {
-          double sharedTotal = person.sharedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity / splitManager.getPeopleForSharedItem(item).length));
-          
-          return Card(
-            margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: colorScheme.secondaryContainer,
-                child: Text(person.name.substring(0, 1), 
-                  style: TextStyle(color: colorScheme.onSecondaryContainer)),
-              ),
-              title: Text(person.name, style: textTheme.titleMedium),
-              subtitle: Text('Shared Items', 
-                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-              trailing: Text(
-                '\$${sharedTotal.toStringAsFixed(2)}',
-                style: textTheme.titleMedium?.copyWith(
+                '\$${personFinalTotal.toStringAsFixed(2)}',
+                style: textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold, 
                   color: colorScheme.primary
                 ),
