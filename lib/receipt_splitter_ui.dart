@@ -45,19 +45,24 @@ class ReceiptSplitterUI extends StatefulWidget {
 }
 
 class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
+  // Default values
+  static const double DEFAULT_TAX_RATE = 8.875; // Default NYC tax rate
+
+  // State variables
   int _currentStep = 0;
   final PageController _pageController = PageController();
   bool _isRecording = false;
   double _tipPercentage = 15.0;
-  double _taxPercentage = 8.876; // Default NYC tax
+  double _taxPercentage = DEFAULT_TAX_RATE; // Mutable tax rate
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
 
-  // Controllers for editable fields
+  // Controllers
   late List<TextEditingController> _itemPriceControllers;
-  late TextEditingController _taxController; // Controller for Tax TextField
-  late List<ReceiptItem> _editableItems; // Keep a mutable copy
-  late ScrollController _itemsScrollController; // Controller for review list scroll
+  late TextEditingController _taxController;
+  late List<ReceiptItem> _editableItems;
+  late ScrollController _itemsScrollController;
 
   // Add a flag to track FAB visibility
   bool _isFabVisible = true;
@@ -65,31 +70,22 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   // For tracking scroll direction
   double _lastScrollPosition = 0;
 
-  // Add loading state
-  bool _isLoading = false;
-
   @override
   void initState() {
     super.initState();
     _initializeEditableItems();
-    _taxController = TextEditingController(text: _taxPercentage.toStringAsFixed(3));
+    _taxController = TextEditingController(text: DEFAULT_TAX_RATE.toStringAsFixed(3));
     _itemsScrollController = ScrollController();
-
-    // Add scroll listener to control FAB visibility
     _itemsScrollController.addListener(_onScroll);
 
-    // Add listener to update tax percentage state when text field changes
+    // Add listener for tax changes
     _taxController.addListener(() {
       final newTax = double.tryParse(_taxController.text);
-      if (newTax != null && newTax != _taxPercentage) {
-        // Use addPostFrameCallback to avoid calling setState during build
-         WidgetsBinding.instance.addPostFrameCallback((_) {
-           if (mounted) { // Check if widget is still mounted
-              setState(() {
-                _taxPercentage = newTax;
-              });
-           }
-         });
+      if (newTax != null && _taxController.text.isNotEmpty) {
+        setState(() {
+          _taxPercentage = newTax;
+          print('Updated tax rate to: ${_taxPercentage.toStringAsFixed(3)}%');
+        });
       }
     });
   }
@@ -356,10 +352,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           print('${item.name}: \$${item.price} × ${item.quantity} = \$${itemTotal.toStringAsFixed(2)}');
         }
 
-        // Parse tax and tip
-        _taxPercentage = result['tax'];
-        _taxController.text = _taxPercentage.toStringAsFixed(3);
-
         // Calculate and verify subtotal
         final calculatedSubtotal = _calculateSubtotal();
         final expectedSubtotal = result['subtotal']?.toDouble() ?? 0.0;
@@ -502,7 +494,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                     children: [
                       Text('Tax:', style: textTheme.bodyLarge),
                       const SizedBox(width: 16),
-                      Expanded(
+                      SizedBox(
+                        width: 100,
                         child: TextField(
                           controller: _taxController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -514,6 +507,25 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                           ),
                           textAlign: TextAlign.right,
                           style: textTheme.bodyLarge,
+                          onChanged: (value) {
+                            final newTax = double.tryParse(value);
+                            if (newTax != null) {
+                              setState(() {
+                                _taxPercentage = newTax;
+                                print('Updated tax rate to: ${_taxPercentage.toStringAsFixed(3)}%');
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          'Pre-tip Total: \$${(_calculateSubtotal() + _calculateTax()).toStringAsFixed(2)}',
+                          style: textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.primary,
+                          ),
+                          textAlign: TextAlign.right,
                         ),
                       ),
                     ],
@@ -582,86 +594,114 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
               margin: const EdgeInsets.symmetric(vertical: 4.0),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                child: Row(
+                child: Column(
                   children: [
-                    Expanded(
-                      child: Text(item.name, style: textTheme.titleMedium)
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: TextField(
-                        controller: _itemPriceControllers[index],
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          prefixText: '\$ ',
-                          isDense: true,
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        ),
-                        textAlign: TextAlign.right,
-                        style: textTheme.bodyMedium,
-                        onChanged: (value) {
-                          final newPrice = double.tryParse(value);
-                          if (newPrice != null) {
-                            setState(() {
-                              _editableItems[index].price = newPrice;
-                              print('Updated price for ${_editableItems[index].name} to \$${newPrice.toStringAsFixed(2)}');
-                              print('New item total: \$${(newPrice * _editableItems[index].quantity).toStringAsFixed(2)}');
-                              
-                              // Recalculate and print the new subtotal
-                              final newSubtotal = _calculateSubtotal();
-                              print('New subtotal after price update: \$${newSubtotal.toStringAsFixed(2)}');
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
                     Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle),
-                          iconSize: 22,
-                          color: colorScheme.secondary,
-                          tooltip: 'Decrease Quantity',
-                          onPressed: () {
-                            if (item.quantity > 1) {
-                              setState(() {
-                                item.quantity--;
-                                print('Decreased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
-                              });
-                            }
-                          },
+                        Expanded(
+                          child: Text(item.name, style: textTheme.titleMedium)
                         ),
                         SizedBox(
-                          width: 24,
-                          child: Text(
-                            '${item.quantity}',
-                            style: textTheme.titleMedium,
-                            textAlign: TextAlign.center,
+                          width: 80,
+                          child: TextField(
+                            controller: _itemPriceControllers[index],
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              prefixText: '\$ ',
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            ),
+                            textAlign: TextAlign.right,
+                            style: textTheme.bodyMedium,
+                            onChanged: (value) {
+                              final newPrice = double.tryParse(value);
+                              if (newPrice != null) {
+                                setState(() {
+                                  _editableItems[index].price = newPrice;
+                                  print('Updated price for ${_editableItems[index].name} to \$${newPrice.toStringAsFixed(2)}');
+                                  print('New item total: \$${(newPrice * _editableItems[index].quantity).toStringAsFixed(2)}');
+                                  
+                                  // Recalculate and print the new subtotal
+                                  final newSubtotal = _calculateSubtotal();
+                                  print('New subtotal after price update: \$${newSubtotal.toStringAsFixed(2)}');
+                                });
+                              }
+                            },
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove_circle),
+                              iconSize: 22,
+                              color: colorScheme.secondary,
+                              tooltip: 'Decrease Quantity',
+                              onPressed: () {
+                                if (item.quantity > 1) {
+                                  setState(() {
+                                    item.quantity--;
+                                    print('Decreased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
+                                  });
+                                }
+                              },
+                            ),
+                            SizedBox(
+                              width: 24,
+                              child: Text(
+                                '${item.quantity}',
+                                style: textTheme.titleMedium,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle),
+                              iconSize: 22,
+                              color: colorScheme.secondary,
+                              tooltip: 'Increase Quantity',
+                              onPressed: () {
+                                setState(() {
+                                  item.quantity++;
+                                  print('Increased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
                         IconButton(
-                          icon: const Icon(Icons.add_circle),
+                          icon: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
                           iconSize: 22,
-                          color: colorScheme.secondary,
-                          tooltip: 'Increase Quantity',
-                          onPressed: () {
-                            setState(() {
-                              item.quantity++;
-                              print('Increased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
-                            });
-                          },
+                          tooltip: 'Remove Item',
+                          onPressed: () => _removeItem(index),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
-                      iconSize: 22,
-                      tooltip: 'Remove Item',
-                      onPressed: () => _removeItem(index),
+                    // Add total price row
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            item.quantity > 1
+                                ? '\$${item.price.toStringAsFixed(2)} × ${item.quantity} = '
+                                : '',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          Text(
+                            '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                            style: textTheme.titleMedium?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -903,7 +943,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   double _calculateTax() {
     final subtotal = _calculateSubtotal();
     final tax = subtotal * (_taxPercentage / 100);
-    print('Tax calculation: \$${subtotal.toStringAsFixed(2)} × ${_taxPercentage.toStringAsFixed(2)}% = \$${tax.toStringAsFixed(2)}');
+    print('Tax calculation: \$${subtotal.toStringAsFixed(2)} × ${_taxPercentage.toStringAsFixed(3)}% = \$${tax.toStringAsFixed(2)}');
     return tax;
   }
 
@@ -961,20 +1001,17 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   void _resetState() {
     // Dispose existing controllers first if they exist
     _itemPriceControllers.forEach((controller) => controller.dispose());
-    // Don't dispose _taxController here as we re-initialize right after
-
+    
     setState(() {
       _currentStep = 0;
       _pageController.jumpToPage(0);
       _imageFile = null;
-      _taxPercentage = 8.876;
       _tipPercentage = 15.0;
+      _taxPercentage = DEFAULT_TAX_RATE; // Reset to default tax rate
+      _taxController.text = DEFAULT_TAX_RATE.toStringAsFixed(3);
       _isRecording = false;
       // Re-initialize items and controllers from mock data
       _initializeEditableItems();
-      // Reset tax controller text to default
-      _taxController.text = _taxPercentage.toStringAsFixed(3);
-      // TODO: Reset actual assignment data when implemented
     });
   }
 
