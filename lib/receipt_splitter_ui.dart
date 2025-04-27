@@ -72,6 +72,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   double _lastScrollPosition = 0;
 
   late AudioTranscriptionService _transcriptionService;
+  late TextEditingController _transcriptionController;
 
   // Add a flag to track subtotal collapse
   bool _isSubtotalCollapsed = false;
@@ -109,6 +110,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     }
     
     _taxController = TextEditingController(text: DEFAULT_TAX_RATE.toStringAsFixed(3));
+    _transcriptionController = TextEditingController();
     _itemsScrollController = ScrollController();
     _itemsScrollController.addListener(_onScroll);
 
@@ -152,6 +154,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     _recorder.dispose();
     _itemPriceControllers.forEach((controller) => controller.dispose());
     _taxController.dispose();
+    _transcriptionController.dispose();
     _itemsScrollController.removeListener(_onScroll);
     _itemsScrollController.dispose();
     _pageController.dispose();
@@ -1152,8 +1155,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
+              side: BorderSide(color: colorScheme.outlineVariant),
             ),
             child: Container(
+              width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
               decoration: BoxDecoration(
                 color: colorScheme.surface,
@@ -1217,36 +1222,146 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             const SizedBox(height: 16),
             Card(
               margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: BorderSide(color: colorScheme.outlineVariant),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.shadow.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.transcribe, color: colorScheme.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Transcription',
-                          style: textTheme.titleMedium?.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.bold,
+                    // Header with icon and title
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 16.0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.transcribe,
+                              color: colorScheme.onPrimaryContainer,
+                              size: 24,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Transcription',
+                                  style: textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'Edit the transcription if needed',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _transcription!,
-                      style: textTheme.bodyLarge,
+                    
+                    // Divider
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: colorScheme.outlineVariant,
                     ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _processTranscription,
-                      icon: const Icon(Icons.check_circle_outline),
-                      label: const Text('Process Assignment'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 48),
+                    
+                    // Transcription text field
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceVariant.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: colorScheme.outlineVariant),
+                            ),
+                            child: Stack(
+                              children: [
+                                TextField(
+                                  controller: _transcriptionController,
+                                  maxLines: 8,
+                                  minLines: 5,
+                                  decoration: InputDecoration(
+                                    hintText: 'Edit transcription if needed...',
+                                    hintStyle: textTheme.bodyLarge?.copyWith(
+                                      color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.all(16),
+                                  ),
+                                  style: textTheme.bodyLarge?.copyWith(
+                                    height: 1.5,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.edit,
+                                      size: 16,
+                                      color: colorScheme.onPrimaryContainer,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Action buttons
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24.0, 0.0, 24.0, 24.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _processTranscription,
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: const Text('Process Assignment'),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 48),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -1378,9 +1493,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       // Simulate processing delay
       await Future.delayed(const Duration(seconds: 2));
       
-      // Use mock transcription
+      // Use mock transcription with more detailed content
       setState(() {
-        _transcription = "John ordered the burger and fries. Sarah got the soda. Mike had the salad. Emma took the pizza. The fries are shared between everyone.";
+        _transcription = "John ordered the burger and chicken wings. Sarah got the soda and milkshake. Mike had the salad and caesar salad. Emma took the pizza and nachos. The appetizer is shared between John and Sarah. The garlic bread is shared between everyone. The fries, ice cream, and coffee are still unassigned.";
+        _transcriptionController.text = _transcription!;  // Update controller
         _isLoading = false;
       });
       return;
@@ -1444,6 +1560,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           
           setState(() {
             _transcription = transcription;
+            _transcriptionController.text = transcription;  // Update controller
             _isLoading = false;
           });
         }
@@ -1464,6 +1581,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
     try {
       setState(() => _isLoading = true);
+
+      // Use the edited transcription from the controller
+      final editedTranscription = _transcriptionController.text;
 
       // Check if we should use mock data - do this BEFORE any recording logic
       final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
@@ -1541,7 +1661,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
       // Get assignments from the service
       final assignments = await _audioService.assignPeopleToItems(
-        _transcription!,
+        editedTranscription,
         jsonReceipt,
       );
 
