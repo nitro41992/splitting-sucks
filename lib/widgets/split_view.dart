@@ -470,39 +470,80 @@ class _PersonCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     
     return Card(
-      margin: const EdgeInsets.only(bottom: 8.0),
-      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 12.0),
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant),
       ),
       child: Column(
         children: [
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            leading: CircleAvatar(
-              backgroundColor: colorScheme.secondaryContainer,
-              child: Text(person.name[0], style: TextStyle(color: colorScheme.onSecondaryContainer)),
-            ),
-            title: _EditableText(
-              text: person.name,
-              onChanged: (newName) {
-                context.read<SplitManager>().updatePersonName(person, newName);
-              },
-              style: textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            trailing: Text(
-              '\$${person.totalAssignedAmount.toStringAsFixed(2)}',
-              style: textTheme.titleLarge?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w500,
-              ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: colorScheme.secondaryContainer,
+                  child: Text(
+                    person.name[0],
+                    style: textTheme.titleMedium?.copyWith(
+                      color: colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _EditableText(
+                        text: person.name,
+                        onChanged: (newName) {
+                          context.read<SplitManager>().updatePersonName(person, newName);
+                        },
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (person.assignedItems.isNotEmpty)
+                        Text(
+                          '${person.assignedItems.length} items',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '\$${person.totalAssignedAmount.toStringAsFixed(2)}',
+                    style: textTheme.titleMedium?.copyWith(
+                      color: colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           if (person.assignedItems.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceVariant.withOpacity(0.3),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: person.assignedItems.map((item) => _ItemRow(item: item)).toList(),
@@ -522,53 +563,72 @@ class _UnassignedItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
-    final people = splitManager.people;
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      margin: const EdgeInsets.only(bottom: 12.0),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Expanded(
-                  child: _EditableText(
-                    text: item.name,
-                    onChanged: (newName) => item.updateName(newName),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _EditableText(
+                        text: item.name,
+                        onChanged: (newName) => item.updateName(newName),
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Qty: ${item.quantity}',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),
-                _EditablePrice(
-                  price: item.price,
-                  onChanged: (newPrice) => item.updatePrice(newPrice),
-                ),
-                const SizedBox(width: 16),
-                // Display quantity but don't allow changing it
-                Text(
-                  'Qty: ${item.quantity}',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _EditablePrice(
+                      price: item.price,
+                      onChanged: (newPrice) => item.updatePrice(newPrice),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Total: \$${item.total.toStringAsFixed(2)}',
+                      style: textTheme.titleMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total: \$${item.total.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colorScheme.primary,
-                  ),
-                ),
-                TextButton.icon(
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Assign'),
-                  onPressed: () => _showAssignDialog(context, splitManager, item),
-                ),
-              ],
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _showAssignDialog(context, splitManager, item),
+              icon: const Icon(Icons.person_add),
+              label: const Text('Assign Item'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 40),
+              ),
             ),
           ],
         ),
@@ -847,47 +907,80 @@ class _SharedItemCard extends StatelessWidget {
     final splitManager = context.watch<SplitManager>();
     final people = splitManager.people;
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      margin: const EdgeInsets.only(bottom: 12.0),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Expanded(
-                  child: _EditableText(
-                    text: item.name,
-                    onChanged: (newName) => item.updateName(newName),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _EditableText(
+                        text: item.name,
+                        onChanged: (newName) => item.updateName(newName),
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(
+                            'Qty: ${item.quantity}',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _QuantitySelector(
+                            item: item,
+                            onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),
-                _EditablePrice(
-                  price: item.price,
-                  onChanged: (newPrice) => item.updatePrice(newPrice),
-                ),
-                const SizedBox(width: 16),
-                _QuantitySelector(
-                  item: item,
-                  onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total: \$${item.total.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colorScheme.primary,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _EditablePrice(
+                      price: item.price,
+                      onChanged: (newPrice) => item.updatePrice(newPrice),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Total: \$${item.total.toStringAsFixed(2)}',
+                      style: textTheme.titleMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 16),
+            Text(
+              'Shared with:',
+              style: textTheme.titleSmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -920,6 +1013,14 @@ class _SharedItemCard extends StatelessWidget {
                         ? colorScheme.onPrimaryContainer
                         : colorScheme.onSurface,
                   ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(
+                      color: isSelected
+                          ? colorScheme.primaryContainer
+                          : colorScheme.outlineVariant,
+                    ),
+                  ),
                 );
               }).toList(),
             ),
@@ -938,6 +1039,9 @@ class _ItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -946,8 +1050,8 @@ class _ItemRow extends StatelessWidget {
             child: _EditableText(
               text: item.name,
               onChanged: (newName) => item.updateName(newName),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface,
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurface,
               ),
             ),
           ),
@@ -1090,25 +1194,61 @@ class _QuantitySelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
-    final originalQuantity = splitManager.getOriginalQuantity(item);
-    final availableQuantity = splitManager.getAvailableQuantity(item);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.remove_circle),
-          onPressed: item.quantity > 0 ? () => onChanged(item.quantity - 1) : null,
+    return Tooltip(
+      message: 'Reduce quantity',
+      child: Container(
+        height: 36,
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceVariant.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(18),
         ),
-        SizedBox(
-          width: 24,
-          child: Text(
-            item.quantity.toString(),
-            style: Theme.of(context).textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Decrease button
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: item.quantity > 0 ? () => onChanged(item.quantity - 1) : null,
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: item.quantity > 0 
+                      ? colorScheme.primaryContainer
+                      : Colors.transparent,
+                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
+                  ),
+                  child: Icon(
+                    Icons.remove_circle_outline,
+                    size: 22,
+                    color: item.quantity > 0 
+                      ? colorScheme.onPrimaryContainer
+                      : colorScheme.onSurfaceVariant.withOpacity(0.38),
+                  ),
+                ),
+              ),
+            ),
+            // Quantity display
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              child: Text(
+                item.quantity.toString(),
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
