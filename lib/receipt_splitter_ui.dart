@@ -151,6 +151,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       ),
       body: PageView(
         controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(),
         onPageChanged: (index) {
           // Only allow navigation to completed steps or the next available step
           if (index <= _currentStep || _canNavigateToStep(index)) {
