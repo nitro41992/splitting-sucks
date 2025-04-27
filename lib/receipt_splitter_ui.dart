@@ -58,6 +58,11 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
 
+  // Step completion tracking
+  bool _isUploadComplete = false;
+  bool _isReviewComplete = false;
+  bool _isAssignmentComplete = false;
+
   // Controllers
   late List<TextEditingController> _itemPriceControllers;
   late TextEditingController _taxController;
@@ -84,30 +89,22 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       if (newTax != null && _taxController.text.isNotEmpty) {
         setState(() {
           _taxPercentage = newTax;
-          print('Updated tax rate to: ${_taxPercentage.toStringAsFixed(3)}%');
         });
       }
     });
   }
 
   void _initializeEditableItems() {
-    _editableItems = List.from(MockData.items.map((item) =>
-      ReceiptItem(name: item.name, price: item.price, quantity: item.quantity)
-    ));
-    
-    // Initialize price controllers with current values
-    _itemPriceControllers = _editableItems.map((item) =>
-      TextEditingController(text: item.price.toStringAsFixed(2))).toList();
+    _editableItems = [];
+    _itemPriceControllers = [];
   }
 
   // Method to handle scroll events and update FAB visibility
   void _onScroll() {
-    // Determine if scrolling down by comparing current position to previous position
     final currentPosition = _itemsScrollController.position.pixels;
     final bool isScrollingDown = currentPosition > _lastScrollPosition;
     _lastScrollPosition = currentPosition;
     
-    // Only update state if visibility changed
     if (isScrollingDown != !_isFabVisible) {
       setState(() {
         _isFabVisible = !isScrollingDown;
@@ -153,9 +150,15 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       body: PageView(
         controller: _pageController,
         onPageChanged: (index) {
-          setState(() {
-            _currentStep = index;
-          });
+          // Only allow navigation to completed steps or the next available step
+          if (index <= _currentStep || _canNavigateToStep(index)) {
+            setState(() {
+              _currentStep = index;
+            });
+          } else {
+            // Return to the current step
+            _pageController.jumpToPage(_currentStep);
+          }
         },
         children: pages.map((page) {
           return Padding(
@@ -166,11 +169,15 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentStep,
-        onTap: _navigateToPage,
+        onTap: (index) {
+          if (_canNavigateToStep(index)) {
+            _navigateToPage(index);
+          }
+        },
         type: BottomNavigationBarType.fixed,
         backgroundColor: colorScheme.surface,
         selectedItemColor: colorScheme.primary,
-        unselectedItemColor: colorScheme.onSurfaceVariant,
+        unselectedItemColor: colorScheme.onSurfaceVariant.withOpacity(0.5),
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.receipt_long),
@@ -195,6 +202,122 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         ],
       ),
     );
+  }
+
+  bool _canNavigateToStep(int step) {
+    switch (step) {
+      case 0: // Upload
+        return true;
+      case 1: // Review
+        return _isUploadComplete;
+      case 2: // Assign
+        return _isReviewComplete;
+      case 3: // Split
+        return _isAssignmentComplete;
+      case 4: // Summary
+        return _isAssignmentComplete;
+      default:
+        return false;
+    }
+  }
+
+  void _resetState() {
+    // Dispose existing controllers first if they exist
+    _itemPriceControllers.forEach((controller) => controller.dispose());
+    
+    setState(() {
+      _currentStep = 0;
+      _pageController.jumpToPage(0);
+      _imageFile = null;
+      _tipPercentage = 20.0;
+      _taxPercentage = DEFAULT_TAX_RATE;
+      _taxController.text = DEFAULT_TAX_RATE.toStringAsFixed(3);
+      _isRecording = false;
+      _isUploadComplete = false;
+      _isReviewComplete = false;
+      _isAssignmentComplete = false;
+      _initializeEditableItems();
+    });
+  }
+
+  Future<void> _parseReceipt() async {
+    if (_imageFile == null) return;
+
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      final result = await ReceiptParserService.parseReceipt(_imageFile!);
+      
+      setState(() {
+        _editableItems = (result['items'] as List).map((item) {
+          final name = item['item'] as String;
+          final price = item['price'].toDouble();
+          final quantity = item['quantity'] as int;
+          
+          return ReceiptItem(
+            name: name,
+            price: price,
+            quantity: quantity,
+          );
+        }).toList();
+
+        _itemPriceControllers = _editableItems.map((item) =>
+          TextEditingController(text: item.price.toStringAsFixed(2))).toList();
+
+        _isUploadComplete = true;
+        _navigateToPage(1);
+      });
+    } catch (e) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Error Parsing Receipt'),
+            content: SingleChildScrollView(
+              child: Text(e.toString()),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _navigateToPage(int page) {
+    if (_canNavigateToStep(page)) {
+      _pageController.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  // Add a method to mark review as complete
+  void _markReviewComplete() {
+    setState(() {
+      _isReviewComplete = true;
+    });
+  }
+
+  // Add a method to mark assignment as complete
+  void _markAssignmentComplete() {
+    setState(() {
+      _isAssignmentComplete = true;
+    });
   }
 
   Widget _buildReceiptUploadStep(BuildContext context) {
@@ -421,80 +544,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     }
   }
 
-  Future<void> _parseReceipt() async {
-    if (_imageFile == null) return;
-
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-
-      final result = await ReceiptParserService.parseReceipt(_imageFile!);
-      
-      setState(() {
-        // Parse items with detailed logging
-        _editableItems = (result['items'] as List).map((item) {
-          final name = item['item'] as String;
-          final price = item['price'].toDouble();
-          final quantity = item['quantity'] as int;
-          
-          print('Parsing item: $name, Price: \$$price, Quantity: $quantity');
-          
-          return ReceiptItem(
-            name: name,
-            price: price,
-            quantity: quantity,
-          );
-        }).toList();
-
-        // Log all items after parsing
-        print('\nAll parsed items:');
-        for (var item in _editableItems) {
-          final itemTotal = item.price * item.quantity;
-          print('${item.name}: \$${item.price} × ${item.quantity} = \$${itemTotal.toStringAsFixed(2)}');
-        }
-
-        // Calculate and verify subtotal
-        final calculatedSubtotal = _calculateSubtotal();
-        final expectedSubtotal = result['subtotal']?.toDouble() ?? 0.0;
-        print('\nSubtotal verification:');
-        print('Calculated subtotal: \$${calculatedSubtotal.toStringAsFixed(2)}');
-        print('Expected subtotal: \$${expectedSubtotal.toStringAsFixed(2)}');
-
-        // Update price controllers
-        _itemPriceControllers = _editableItems.map((item) =>
-          TextEditingController(text: item.price.toStringAsFixed(2))).toList();
-
-        // Navigate to the next step after successful parsing
-        _navigateToPage(1);
-      });
-    } catch (e) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Error Parsing Receipt'),
-            content: SingleChildScrollView(
-              child: Text(e.toString()),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   void _showFullImage(File imageFile) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     
@@ -552,6 +601,60 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   Widget _buildParsedReceiptStep(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    // If no image has been parsed, show empty state
+    if (_imageFile == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withOpacity(0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.receipt_long_outlined,
+                size: 60,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'No Receipt Uploaded',
+              style: textTheme.headlineSmall?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Please upload and parse a receipt first',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton.icon(
+              onPressed: () => _navigateToPage(0),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Upload Receipt'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     // Rebuild this step completely as a single scrollable list
     return Stack(
@@ -815,12 +918,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                   if (newPrice != null) {
                                     setState(() {
                                       _editableItems[index].price = newPrice;
-                                      print('Updated price for ${_editableItems[index].name} to \$${newPrice.toStringAsFixed(2)}');
-                                      print('New item total: \$${(newPrice * _editableItems[index].quantity).toStringAsFixed(2)}');
-                                      
-                                      // Recalculate and print the new subtotal
-                                      final newSubtotal = _calculateSubtotal();
-                                      print('New subtotal after price update: \$${newSubtotal.toStringAsFixed(2)}');
                                     });
                                   }
                                 },
@@ -839,7 +936,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                     if (item.quantity > 1) {
                                       setState(() {
                                         item.quantity--;
-                                        print('Decreased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
                                       });
                                     }
                                   },
@@ -860,7 +956,6 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                   onPressed: () {
                                     setState(() {
                                       item.quantity++;
-                                      print('Increased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
                                     });
                                   },
                                 ),
@@ -1028,6 +1123,60 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
+    // Check if items have been parsed
+    if (_editableItems.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withOpacity(0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.mic_none_outlined,
+                size: 60,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'No Items to Assign',
+              style: textTheme.headlineSmall?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Please upload and parse a receipt first',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton.icon(
+              onPressed: () => _navigateToPage(0),
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Upload Receipt'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1071,9 +1220,63 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     );
   }
 
- Widget _buildAssignmentReviewStep(BuildContext context) {
+  Widget _buildAssignmentReviewStep(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    // Check if items have been assigned
+    if (_editableItems.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withOpacity(0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.people_outline,
+                size: 60,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'No Items Assigned',
+              style: textTheme.headlineSmall?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Please assign items to people first',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton.icon(
+              onPressed: () => _navigateToPage(2),
+              icon: const Icon(Icons.mic),
+              label: const Text('Assign Items'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     final assignments = MockData.assignments;
     final people = MockData.people;
@@ -1178,10 +1381,63 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     );
   }
 
-
-   Widget _buildFinalSummaryStep(BuildContext context) {
+  Widget _buildFinalSummaryStep(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    // Check if items have been assigned
+    if (_editableItems.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withOpacity(0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.summarize_outlined,
+                size: 60,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'No Split Summary Available',
+              style: textTheme.headlineSmall?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Please complete the previous steps first',
+              textAlign: TextAlign.center,
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 40),
+            ElevatedButton.icon(
+              onPressed: () => _navigateToPage(2),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Go to Assignments'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     final people = MockData.people;
 
@@ -1238,27 +1494,22 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   double _calculateSubtotal() {
     double total = 0.0;
-    print('\nCalculating subtotal:');
     for (var item in _editableItems) {
       double itemTotal = item.price * item.quantity;
-      print('${item.name}: \$${item.price.toStringAsFixed(2)} × ${item.quantity} = \$${itemTotal.toStringAsFixed(2)}');
       total += itemTotal;
     }
-    print('Final Subtotal: \$${total.toStringAsFixed(2)}\n');
     return total;
   }
 
   double _calculateTax() {
     final subtotal = _calculateSubtotal();
     final tax = (subtotal * (_taxPercentage / 100) * 100).ceil() / 100;
-    print('Tax calculation: \$${subtotal.toStringAsFixed(2)} × ${_taxPercentage.toStringAsFixed(3)}% = \$${tax.toStringAsFixed(2)}');
     return tax;
   }
 
   double _calculateTip() {
     final subtotal = _calculateSubtotal();
     final tip = subtotal * (_tipPercentage / 100);
-    print('Tip calculation: \$${subtotal.toStringAsFixed(2)} × ${_tipPercentage.toStringAsFixed(2)}% = \$${tip.toStringAsFixed(2)}');
     return tip;
   }
 
@@ -1303,33 +1554,5 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         );
       },
     );
-  }
-
-
-  void _resetState() {
-    // Dispose existing controllers first if they exist
-    _itemPriceControllers.forEach((controller) => controller.dispose());
-    
-    setState(() {
-      _currentStep = 0;
-      _pageController.jumpToPage(0);
-      _imageFile = null;
-      _tipPercentage = 20.0;
-      _taxPercentage = DEFAULT_TAX_RATE; // Reset to default tax rate
-      _taxController.text = DEFAULT_TAX_RATE.toStringAsFixed(3);
-      _isRecording = false;
-      // Re-initialize items and controllers from mock data
-      _initializeEditableItems();
-    });
-  }
-
-  void _navigateToPage(int page) {
-    if (page >= 0 && page < 5) {
-      _pageController.animateToPage(
-        page,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
   }
 } 
