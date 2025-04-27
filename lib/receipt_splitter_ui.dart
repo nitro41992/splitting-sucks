@@ -1471,48 +1471,51 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       
       if (useMockData) {
         print('DEBUG: Using mock data in _processTranscription');
-        // Use mock data instead of making API call
+        // Use the MockDataService's createMockSplitManager method instead of manual setup
+        final mockSplitManager = MockDataService.createMockSplitManager();
         final splitManager = context.read<SplitManager>();
         
-        // Reset the split manager
+        // Transfer all data from the mock split manager to the real one
         splitManager.reset();
         
-        // Add people from mock data
-        for (final personName in MockDataService.mockPeople) {
-          splitManager.addPerson(personName);
+        // Add people
+        for (final person in mockSplitManager.people) {
+          splitManager.addPerson(person.name);
         }
-
+        
         // Set original quantities for all mock items
         for (final item in MockDataService.mockItems) {
           splitManager.setOriginalQuantity(item, item.quantity);
         }
-        for (final item in MockDataService.mockSharedItems) {
-          splitManager.setOriginalQuantity(item, item.quantity);
-        }
-        for (final item in MockDataService.mockUnassignedItems) {
-          splitManager.setOriginalQuantity(item, item.quantity);
-        }
-
-        // Add assigned items from mock data
-        MockDataService.mockAssignments.forEach((personName, items) {
-          final person = splitManager.people.firstWhere((p) => p.name == personName);
-          for (final item in items) {
-            splitManager.assignItemToPerson(item, person);
+        
+        // Add assigned items
+        for (int i = 0; i < mockSplitManager.people.length; i++) {
+          final mockPerson = mockSplitManager.people[i];
+          final realPerson = splitManager.people[i]; // Same index as we just added them in same order
+          
+          for (final item in mockPerson.assignedItems) {
+            splitManager.assignItemToPerson(item, realPerson);
           }
-        });
-
-        // Add shared items and assign them to the correct people based on MockDataService
-        final appetizerItem = MockDataService.mockSharedItems[0]; // Appetizer
-        final johnAndSarah = splitManager.people
-            .where((p) => p.name == "John" || p.name == "Sarah")
-            .toList();
-        splitManager.addSharedItem(appetizerItem);
-        for (final person in johnAndSarah) {
-          person.addSharedItem(appetizerItem);
         }
-
-        // Add unassigned items from mock data
-        for (final item in MockDataService.mockUnassignedItems) {
+        
+        // Add shared items
+        for (final sharedItem in mockSplitManager.sharedItems) {
+          splitManager.addSharedItem(sharedItem);
+          
+          // Find which people share this item in the mock manager
+          final peopleWithItem = mockSplitManager.getPeopleForSharedItem(sharedItem);
+          
+          // Assign to the same people in the real manager
+          for (int i = 0; i < peopleWithItem.length; i++) {
+            final personIndex = mockSplitManager.people.indexOf(peopleWithItem[i]);
+            if (personIndex >= 0 && personIndex < splitManager.people.length) {
+              splitManager.people[personIndex].addSharedItem(sharedItem);
+            }
+          }
+        }
+        
+        // Add unassigned items
+        for (final item in mockSplitManager.unassignedItems) {
           splitManager.addUnassignedItem(item);
         }
 

@@ -12,6 +12,12 @@ class MockDataService {
     ReceiptItem(name: "Pizza", price: 15.99, quantity: 1),
     ReceiptItem(name: "Ice Cream", price: 6.99, quantity: 1),
     ReceiptItem(name: "Coffee", price: 3.99, quantity: 2),
+    ReceiptItem(name: "Chicken Wings", price: 13.99, quantity: 1),
+    ReceiptItem(name: "Nachos", price: 11.99, quantity: 1),
+    ReceiptItem(name: "Milkshake", price: 7.99, quantity: 2),
+    ReceiptItem(name: "Garlic Bread", price: 5.99, quantity: 1),
+    ReceiptItem(name: "Caesar Salad", price: 9.99, quantity: 1),
+    ReceiptItem(name: "Appetizer", price: 15.99, quantity: 1),
   ];
 
   static final List<String> mockPeople = [
@@ -22,14 +28,15 @@ class MockDataService {
   ];
 
   static final Map<String, List<ReceiptItem>> mockAssignments = {
-    "John": [mockItems[0]], // Burger
-    "Sarah": [mockItems[2]], // Soda
-    "Mike": [mockItems[3]], // Salad
-    "Emma": [mockItems[4]], // Pizza
+    "John": [mockItems[0], mockItems[7]], // Burger and Chicken Wings
+    "Sarah": [mockItems[2], mockItems[9]], // Soda and Milkshake
+    "Mike": [mockItems[3], mockItems[11]], // Salad and Caesar Salad
+    "Emma": [mockItems[4], mockItems[8]], // Pizza and Nachos
   };
 
   static final List<ReceiptItem> mockSharedItems = [
-    ReceiptItem(name: "Appetizer", price: 15.99, quantity: 1), // Appetizer shared by John and Sarah only
+    mockItems[12], // Appetizer shared by John and Sarah
+    mockItems[10], // Garlic Bread shared by everyone
   ];
 
   static final List<ReceiptItem> mockUnassignedItems = [
@@ -55,11 +62,17 @@ class MockDataService {
     });
     
     // Add shared items
-    // Appetizer - shared by John and Sarah only
+    // Appetizer - shared by John and Sarah
     splitManager.addSharedItem(mockSharedItems[0]);
     final johnAndSarah = splitManager.people.where((p) => p.name == "John" || p.name == "Sarah").toList();
     for (final person in johnAndSarah) {
       person.addSharedItem(mockSharedItems[0]);
+    }
+
+    // Garlic Bread - shared by everyone
+    splitManager.addSharedItem(mockSharedItems[1]);
+    for (final person in splitManager.people) {
+      person.addSharedItem(mockSharedItems[1]);
     }
 
     // Add unassigned items
