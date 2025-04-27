@@ -137,4 +137,10 @@ class SplitManager extends ChangeNotifier {
     }
     notifyListeners(); // Notify SplitManager listeners
   }
+
+  // Add method to update item quantity
+  void updateItemQuantity(ReceiptItem item, int newQuantity) {
+    item.updateQuantity(newQuantity);
+    notifyListeners(); // Notify SplitManager listeners to update totals
+  }
 } 

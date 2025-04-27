@@ -227,7 +227,7 @@ class _UnassignedItemCard extends StatelessWidget {
                 const SizedBox(width: 16),
                 _QuantitySelector(
                   quantity: item.quantity,
-                  onChanged: (newQuantity) => item.updateQuantity(newQuantity),
+                  onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
                 ),
               ],
             ),
@@ -398,7 +398,7 @@ class _SharedItemCard extends StatelessWidget {
                 const SizedBox(width: 16),
                 _QuantitySelector(
                   quantity: item.quantity,
-                  onChanged: (newQuantity) => item.updateQuantity(newQuantity),
+                  onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
                 ),
               ],
             ),
@@ -463,6 +463,7 @@ class _ItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final splitManager = context.watch<SplitManager>();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -481,7 +482,7 @@ class _ItemRow extends StatelessWidget {
           const SizedBox(width: 16),
           _QuantitySelector(
             quantity: item.quantity,
-            onChanged: (newQuantity) => item.updateQuantity(newQuantity),
+            onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
           ),
         ],
       ),
