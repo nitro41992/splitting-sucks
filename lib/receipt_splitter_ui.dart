@@ -46,7 +46,7 @@ class ReceiptSplitterUI extends StatefulWidget {
 
 class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   // Default values
-  static const double DEFAULT_TAX_RATE = 8.876; // Default NYC tax rate
+  static const double DEFAULT_TAX_RATE = 8.875; // Default NYC tax rate
 
   // State variables
   int _currentStep = 0;
@@ -452,359 +452,473 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     // Rebuild this step completely as a single scrollable list
-    return Scrollbar(
-      controller: _itemsScrollController,
-      thumbVisibility: true,
-      child: ListView(
-        controller: _itemsScrollController,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: Text(
-              'Review & Edit Items',
-              style: textTheme.headlineSmall?.copyWith(color: colorScheme.primary),
-            ),
-          ),
+    return Stack(
+      children: [
+        Scrollbar(
+          controller: _itemsScrollController,
+          thumbVisibility: true,
+          child: ListView(
+            controller: _itemsScrollController,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Text(
+                  'Review & Edit Items',
+                  style: textTheme.headlineSmall?.copyWith(color: colorScheme.primary),
+                ),
+              ),
 
-          // Totals Section (now at the top)
-          Card(
-            elevation: 2.0,
-            margin: const EdgeInsets.only(bottom: 16.0),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Receipt Summary', 
-                    style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Subtotal Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // Totals Section (now at the top)
+              Card(
+                elevation: 2.0,
+                margin: const EdgeInsets.only(bottom: 16.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Subtotal:', style: textTheme.bodyLarge),
-                      Text('\$${_calculateSubtotal().toStringAsFixed(2)}', 
-                        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Tax Input Row
-                  Row(
-                    children: [
-                      Text('Tax:', style: textTheme.bodyLarge),
-                      const SizedBox(width: 16),
-                      SizedBox(
-                        width: 100,
-                        child: TextField(
-                          controller: _taxController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: const InputDecoration(
-                            suffixText: '%',
-                            isDense: true,
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
-                          textAlign: TextAlign.right,
-                          style: textTheme.bodyLarge,
-                          onChanged: (value) {
-                            final newTax = double.tryParse(value);
-                            if (newTax != null) {
-                              setState(() {
-                                _taxPercentage = newTax;
-                              });
-                            }
-                          },
-                        ),
+                      Text('Receipt Summary', 
+                        style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          '\$${_calculateTax().toStringAsFixed(2)}',
-                          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Pre-tip Total Row (highlighted)
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Pre-tip Total:', 
-                          style: textTheme.titleMedium?.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '\$${(_calculateSubtotal() + _calculateTax()).toStringAsFixed(2)}',
-                          style: textTheme.titleMedium?.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Tip Section
-                  Text('Tip:', style: textTheme.bodyLarge),
-                  const SizedBox(height: 8),
-                  
-                  // Tip Percentage Display
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${_tipPercentage.toStringAsFixed(1)}%',
-                        style: textTheme.titleLarge?.copyWith(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Tip Slider with Quick Select Buttons
-                  Column(
-                    children: [
-                      // Quick select buttons for common tip percentages
+                      const SizedBox(height: 16),
+                      
+                      // Subtotal Row
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [15, 18, 20, 25].map((percentage) {
-                          return ElevatedButton(
-                            onPressed: () {
-                              setState(() { _tipPercentage = percentage.toDouble(); });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _tipPercentage == percentage 
-                                ? colorScheme.primary 
-                                : colorScheme.surfaceVariant,
-                              foregroundColor: _tipPercentage == percentage 
-                                ? colorScheme.onPrimary 
-                                : colorScheme.onSurfaceVariant,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                            child: Text('$percentage%'),
-                          );
-                        }).toList(),
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Subtotal:', style: textTheme.bodyLarge),
+                          Text('\$${_calculateSubtotal().toStringAsFixed(2)}', 
+                            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
+                        ],
                       ),
                       const SizedBox(height: 12),
-                      
-                      // Fine-tune slider
-                      Slider(
-                        value: _tipPercentage,
-                        min: 0,
-                        max: 30,
-                        divisions: 60,
-                        label: '${_tipPercentage.toStringAsFixed(1)}%',
-                        onChanged: (value) {
-                          setState(() { _tipPercentage = value; });
-                        },
-                      ),
-                    ],
-                  ),
-                  
-                  // Tip Amount
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Tip Amount: ',
-                        style: textTheme.bodyLarge,
-                      ),
-                      Text(
-                        '\$${_calculateTip().toStringAsFixed(2)}',
-                        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-                  
-                  const Divider(height: 32),
-                  
-                  // Final Total
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Total:',
-                          style: textTheme.titleLarge?.copyWith(
-                            color: colorScheme.onPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '\$${_calculateTotal().toStringAsFixed(2)}',
-                          style: textTheme.titleLarge?.copyWith(
-                            color: colorScheme.onPrimary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Items Section Header
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: Text(
-              'Items',
-              style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
-            ),
-          ),
-          
-          // List of Items (now below the totals)
-          ...List.generate(_editableItems.length, (index) {
-            final item = _editableItems[index];
-            if (index >= _itemPriceControllers.length) return const SizedBox.shrink();
-            
-            return Card(
-              margin: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(item.name, style: textTheme.titleMedium)
-                        ),
-                        SizedBox(
-                          width: 80,
-                          child: TextField(
-                            controller: _itemPriceControllers[index],
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(
-                              prefixText: '\$ ',
-                              isDense: true,
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                            ),
-                            textAlign: TextAlign.right,
-                            style: textTheme.bodyMedium,
-                            onChanged: (value) {
-                              final newPrice = double.tryParse(value);
-                              if (newPrice != null) {
-                                setState(() {
-                                  _editableItems[index].price = newPrice;
-                                  print('Updated price for ${_editableItems[index].name} to \$${newPrice.toStringAsFixed(2)}');
-                                  print('New item total: \$${(newPrice * _editableItems[index].quantity).toStringAsFixed(2)}');
-                                  
-                                  // Recalculate and print the new subtotal
-                                  final newSubtotal = _calculateSubtotal();
-                                  print('New subtotal after price update: \$${newSubtotal.toStringAsFixed(2)}');
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle),
-                              iconSize: 22,
-                              color: colorScheme.secondary,
-                              tooltip: 'Decrease Quantity',
-                              onPressed: () {
-                                if (item.quantity > 1) {
+
+                      // Tax Input Row
+                      Row(
+                        children: [
+                          Text('Tax:', style: textTheme.bodyLarge),
+                          const SizedBox(width: 16),
+                          SizedBox(
+                            width: 100,
+                            child: TextField(
+                              controller: _taxController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                suffixText: '%',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              textAlign: TextAlign.right,
+                              style: textTheme.bodyLarge,
+                              onChanged: (value) {
+                                final newTax = double.tryParse(value);
+                                if (newTax != null) {
                                   setState(() {
-                                    item.quantity--;
-                                    print('Decreased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
+                                    _taxPercentage = newTax;
                                   });
                                 }
                               },
                             ),
-                            SizedBox(
-                              width: 24,
-                              child: Text(
-                                '${item.quantity}',
-                                style: textTheme.titleMedium,
-                                textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              '\$${_calculateTax().toStringAsFixed(2)}',
+                              style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Pre-tip Total Row (highlighted)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Pre-tip Total:', 
+                              style: textTheme.titleMedium?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle),
-                              iconSize: 22,
-                              color: colorScheme.secondary,
-                              tooltip: 'Increase Quantity',
-                              onPressed: () {
-                                setState(() {
-                                  item.quantity++;
-                                  print('Increased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
-                                });
-                              },
+                            Text(
+                              '\$${(_calculateSubtotal() + _calculateTax()).toStringAsFixed(2)}',
+                              style: textTheme.titleMedium?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
-                          iconSize: 22,
-                          tooltip: 'Remove Item',
-                          onPressed: () => _removeItem(index),
-                        ),
-                      ],
-                    ),
-                    // Add total price row
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Tip Section
+                      Text('Tip:', style: textTheme.bodyLarge),
+                      const SizedBox(height: 8),
+                      
+                      // Tip Percentage Display
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            item.quantity > 1
-                                ? '\$${item.price.toStringAsFixed(2)} × ${item.quantity} = '
-                                : '',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          Text(
-                            '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                            style: textTheme.titleMedium?.copyWith(
+                            '${_tipPercentage.toStringAsFixed(1)}%',
+                            style: textTheme.titleLarge?.copyWith(
                               color: colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+
+                      // Tip Slider with Quick Select Buttons
+                      Column(
+                        children: [
+                          // Quick select buttons for common tip percentages
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [15, 18, 20, 25].map((percentage) {
+                              return ElevatedButton(
+                                onPressed: () {
+                                  setState(() { _tipPercentage = percentage.toDouble(); });
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _tipPercentage == percentage 
+                                    ? colorScheme.primary 
+                                    : colorScheme.surfaceVariant,
+                                  foregroundColor: _tipPercentage == percentage 
+                                    ? colorScheme.onPrimary 
+                                    : colorScheme.onSurfaceVariant,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                ),
+                                child: Text('$percentage%'),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 12),
+                          
+                          // Fine-tune slider
+                          Slider(
+                            value: _tipPercentage,
+                            min: 0,
+                            max: 30,
+                            divisions: 60,
+                            label: '${_tipPercentage.toStringAsFixed(1)}%',
+                            onChanged: (value) {
+                              setState(() { _tipPercentage = value; });
+                            },
+                          ),
+                        ],
+                      ),
+                      
+                      // Tip Amount
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Tip Amount: ',
+                            style: textTheme.bodyLarge,
+                          ),
+                          Text(
+                            '\$${_calculateTip().toStringAsFixed(2)}',
+                            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                      
+                      const Divider(height: 32),
+                      
+                      // Final Total
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Total:',
+                              style: textTheme.titleLarge?.copyWith(
+                                color: colorScheme.onPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '\$${_calculateTotal().toStringAsFixed(2)}',
+                              style: textTheme.titleLarge?.copyWith(
+                                color: colorScheme.onPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Items Section Header
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Text(
+                  'Items',
+                  style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
+                ),
+              ),
+              
+              // List of Items (now below the totals)
+              ...List.generate(_editableItems.length, (index) {
+                final item = _editableItems[index];
+                if (index >= _itemPriceControllers.length) return const SizedBox.shrink();
+                
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(item.name, style: textTheme.titleMedium)
+                            ),
+                            SizedBox(
+                              width: 80,
+                              child: TextField(
+                                controller: _itemPriceControllers[index],
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(
+                                  prefixText: '\$ ',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                textAlign: TextAlign.right,
+                                style: textTheme.bodyMedium,
+                                onChanged: (value) {
+                                  final newPrice = double.tryParse(value);
+                                  if (newPrice != null) {
+                                    setState(() {
+                                      _editableItems[index].price = newPrice;
+                                      print('Updated price for ${_editableItems[index].name} to \$${newPrice.toStringAsFixed(2)}');
+                                      print('New item total: \$${(newPrice * _editableItems[index].quantity).toStringAsFixed(2)}');
+                                      
+                                      // Recalculate and print the new subtotal
+                                      final newSubtotal = _calculateSubtotal();
+                                      print('New subtotal after price update: \$${newSubtotal.toStringAsFixed(2)}');
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove_circle),
+                                  iconSize: 22,
+                                  color: colorScheme.secondary,
+                                  tooltip: 'Decrease Quantity',
+                                  onPressed: () {
+                                    if (item.quantity > 1) {
+                                      setState(() {
+                                        item.quantity--;
+                                        print('Decreased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
+                                      });
+                                    }
+                                  },
+                                ),
+                                SizedBox(
+                                  width: 24,
+                                  child: Text(
+                                    '${item.quantity}',
+                                    style: textTheme.titleMedium,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add_circle),
+                                  iconSize: 22,
+                                  color: colorScheme.secondary,
+                                  tooltip: 'Increase Quantity',
+                                  onPressed: () {
+                                    setState(() {
+                                      item.quantity++;
+                                      print('Increased quantity for ${item.name} to ${item.quantity}. New item total: ${(item.price * item.quantity).toStringAsFixed(2)}');
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
+                              iconSize: 22,
+                              tooltip: 'Remove Item',
+                              onPressed: () => _removeItem(index),
+                            ),
+                          ],
+                        ),
+                        // Add total price row
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                item.quantity > 1
+                                    ? '\$${item.price.toStringAsFixed(2)} × ${item.quantity} = '
+                                    : '',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              Text(
+                                '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                                style: textTheme.titleMedium?.copyWith(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              
+              // Bottom padding to ensure last items are fully visible
+              const SizedBox(height: 80),
+            ],
+          ),
+        ),
+        if (_isFabVisible)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton(
+              onPressed: () => _showAddItemDialog(context),
+              child: const Icon(Icons.add),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showAddItemDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController priceController = TextEditingController();
+    int quantity = 1;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Add New Item'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Item Name',
+                        hintText: 'Enter item name',
+                      ),
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: priceController,
+                      decoration: const InputDecoration(
+                        labelText: 'Price',
+                        hintText: 'Enter price',
+                        prefixText: '\$ ',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        const Text('Quantity: '),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle),
+                          onPressed: () {
+                            if (quantity > 1) {
+                              setState(() => quantity--);
+                            }
+                          },
+                        ),
+                        Text(
+                          quantity.toString(),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle),
+                          onPressed: () {
+                            setState(() => quantity++);
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final name = nameController.text.trim();
+                    final price = double.tryParse(priceController.text);
+                    
+                    if (name.isNotEmpty && price != null && price > 0) {
+                      setState(() {
+                        _editableItems.add(ReceiptItem(
+                          name: name,
+                          price: price,
+                          quantity: quantity,
+                        ));
+                        _itemPriceControllers.add(
+                          TextEditingController(text: price.toStringAsFixed(2))
+                        );
+                      });
+                      Navigator.pop(context);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a valid name and price'),
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Add'),
+                ),
+              ],
             );
-          }),
-          
-          // Bottom padding to ensure last items are fully visible
-          const SizedBox(height: 80),
-        ],
-      ),
+          },
+        );
+      },
     );
   }
 
