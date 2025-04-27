@@ -212,8 +212,8 @@ class SplitManager extends ChangeNotifier {
       return;
     }
     
-    // Minimum quantity is 1
-    if (newQuantity < 1) {
+    // Allow quantity to be zero (removed minimum of 1)
+    if (newQuantity < 0) {
       return;
     }
 
@@ -241,7 +241,25 @@ class SplitManager extends ChangeNotifier {
       }
     }
 
+    // Update the item's quantity
     item.updateQuantity(newQuantity);
+    
+    // If quantity is now zero, remove the item from its current location
+    if (newQuantity == 0) {
+      // Check if it's in shared items
+      if (_sharedItems.contains(item)) {
+        removeItemFromShared(item);
+      } else {
+        // Check if it's in someone's assigned items
+        for (var person in _people) {
+          if (person.assignedItems.contains(item)) {
+            unassignItemFromPerson(item, person);
+            break;
+          }
+        }
+      }
+    }
+    
     notifyListeners();
   }
 

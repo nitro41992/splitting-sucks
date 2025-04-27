@@ -807,7 +807,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                       color: colorScheme.secondary,
                                       tooltip: 'Decrease Quantity',
                                       onPressed: () {
-                                        if (item.quantity > 1) {
+                                        if (item.quantity > 0) {
                                           setState(() {
                                             item.updateQuantity(item.quantity - 1);
                                           });
@@ -851,7 +851,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   Text(
-                                    item.quantity > 1
+                                    item.quantity > 0
                                         ? '\$${item.price.toStringAsFixed(2)} × ${item.quantity} = '
                                         : '',
                                     style: textTheme.bodySmall?.copyWith(
@@ -1009,7 +1009,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                         IconButton(
                           icon: const Icon(Icons.remove_circle),
                           onPressed: () {
-                            if (quantity > 1) {
+                            if (quantity > 0) {
                               setState(() => quantity--);
                             }
                           },

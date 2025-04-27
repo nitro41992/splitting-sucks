@@ -91,7 +91,7 @@ class _SplitViewState extends State<SplitView> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  height: _isSubtotalCollapsed ? 60 : 180,
+                  height: _isSubtotalCollapsed ? 60 : 220,
                   decoration: BoxDecoration(
                     color: _isSubtotalCollapsed ? colorScheme.surface.withOpacity(0.9) : Colors.transparent,
                     boxShadow: _isSubtotalCollapsed 
@@ -235,25 +235,31 @@ class _SplitViewState extends State<SplitView> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-                                // Subtotal row - always visible
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Subtotal: ',
-                                      style: textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
+                                const SizedBox(height: 12),
+                                // Subtotal row - always visible and more prominent
+                                Divider(height: 1, thickness: 1),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Subtotal: ',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
                                       ),
-                                    ),
-                                    Text(
-                                      '\$${subtotal.toStringAsFixed(2)}',
-                                      style: textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.primary,
+                                      Text(
+                                        '\$${subtotal.toStringAsFixed(2)}',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: colorScheme.primary,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -636,7 +642,7 @@ class _UnassignedItemCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.remove_circle),
-                        onPressed: selectedQuantity > 1 ? () {
+                        onPressed: selectedQuantity > 0 ? () {
                           setState(() {
                             selectedQuantity--;
                           });
@@ -737,7 +743,7 @@ class _UnassignedItemCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         IconButton(
                           icon: const Icon(Icons.remove_circle),
-                          onPressed: selectedQuantity > 1 ? () {
+                          onPressed: selectedQuantity > 0 ? () {
                             setState(() {
                               selectedQuantity--;
                             });
@@ -1092,7 +1098,7 @@ class _QuantitySelector extends StatelessWidget {
       children: [
         IconButton(
           icon: const Icon(Icons.remove_circle),
-          onPressed: item.quantity > 1 ? () => onChanged(item.quantity - 1) : null,
+          onPressed: item.quantity > 0 ? () => onChanged(item.quantity - 1) : null,
         ),
         SizedBox(
           width: 24,
@@ -1101,10 +1107,6 @@ class _QuantitySelector extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.add_circle),
-          onPressed: item.quantity < availableQuantity ? () => onChanged(item.quantity + 1) : null,
         ),
       ],
     );
@@ -1265,25 +1267,31 @@ class _TotalsHeaderDelegate extends SliverPersistentHeaderDelegate {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    // Subtotal row - always visible
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Subtotal: ',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                    const SizedBox(height: 12),
+                    // Subtotal row - always visible and more prominent
+                    Divider(height: 1, thickness: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Subtotal: ',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '\$${subtotal.toStringAsFixed(2)}',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.primary,
+                          Text(
+                            '\$${subtotal.toStringAsFixed(2)}',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: colorScheme.primary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
