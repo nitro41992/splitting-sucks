@@ -71,6 +71,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   // Add a flag to track FAB visibility
   bool _isFabVisible = true;
+  bool _isContinueButtonVisible = true;
 
   // For tracking scroll direction
   double _lastScrollPosition = 0;
@@ -108,6 +109,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     if (isScrollingDown != !_isFabVisible) {
       setState(() {
         _isFabVisible = !isScrollingDown;
+        _isContinueButtonVisible = !isScrollingDown;
       });
     }
   }
@@ -1005,15 +1007,72 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             ],
           ),
         ),
-        if (_isFabVisible)
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: FloatingActionButton(
-              onPressed: () => _showAddItemDialog(context),
-              child: const Icon(Icons.add),
-            ),
+        // Bottom buttons
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 16,
+          child: Row(
+            children: [
+              // FAB for adding items
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: _isFabVisible ? 1.0 : 0.0,
+                child: FloatingActionButton(
+                  onPressed: () => _showAddItemDialog(context),
+                  child: const Icon(Icons.add),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Confirmation button
+              Expanded(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 300),
+                  opacity: _isContinueButtonVisible ? 1.0 : 0.0,
+                  child: SizedBox(
+                    height: 56.0,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          _markReviewComplete();
+                          _navigateToPage(2);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 1,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 20,
+                              color: colorScheme.onPrimary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Continue',
+                              style: textTheme.titleSmall?.copyWith(
+                                color: colorScheme.onPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
+        ),
       ],
     );
   }
