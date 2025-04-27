@@ -136,7 +136,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     final bool isScrollingDown = currentPosition > _lastScrollPosition;
     _lastScrollPosition = currentPosition;
     
-    if (isScrollingDown != !_isFabVisible) {
+    // Show buttons when scrolling up, hide when scrolling down
+    // Use a small threshold to make it more sensitive
+    final scrollThreshold = 5.0;
+    if ((currentPosition - _lastScrollPosition).abs() > scrollThreshold) {
       setState(() {
         _isFabVisible = !isScrollingDown;
         _isContinueButtonVisible = !isScrollingDown;
@@ -196,7 +199,12 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         },
         children: pages.map((page) {
           return Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: EdgeInsets.only(
+              left: 16.0,
+              right: 16.0,
+              top: _currentStep == 2 ? 16.0 : 16.0, // Add top padding for assign view
+              bottom: 16.0,
+            ),
             child: page,
           );
         }).toList(),
@@ -899,7 +907,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             children: [
               // FAB for adding items
               AnimatedOpacity(
-                duration: const Duration(milliseconds: 300),
+                duration: const Duration(milliseconds: 150), // Faster animation
                 opacity: _isFabVisible ? 1.0 : 0.0,
                 child: FloatingActionButton(
                   onPressed: () => _showAddItemDialog(context),
@@ -910,7 +918,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
               // Confirmation button
               Expanded(
                 child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 300),
+                  duration: const Duration(milliseconds: 150), // Faster animation
                   opacity: _isContinueButtonVisible ? 1.0 : 0.0,
                   child: SizedBox(
                     height: 56.0,
@@ -1135,93 +1143,222 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       );
     }
 
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(
-              Icons.mic_none, 
-              size: 100, 
-              color: _isRecording ? colorScheme.error : colorScheme.primary
+    return Column(
+      children: [
+        // Recording Controls Section
+        Card(
+          margin: EdgeInsets.zero,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24.0, 32.0, 24.0, 24.0),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: colorScheme.shadow.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            Text(
-              'Assign Items via Voice',
-              style: textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Tap the button and speak clearly.\nExample: "John ordered the burger and fries"',
-              textAlign: TextAlign.center,
-              style: textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton.icon(
-              onPressed: _isLoading ? null : _toggleRecording,
-              icon: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic),
-              label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isRecording ? colorScheme.errorContainer : colorScheme.primaryContainer,
-                foregroundColor: _isRecording ? colorScheme.onErrorContainer : colorScheme.onPrimaryContainer,
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                textStyle: textTheme.titleMedium,
-              ),
-            ),
-            if (_isLoading) ...[
-              const SizedBox(height: 24),
-              const Center(child: CircularProgressIndicator()),
-              const SizedBox(height: 8),
-              Text('Processing...', style: textTheme.bodySmall, textAlign: TextAlign.center),
-            ] else if (_transcription != null) ...[
-              const SizedBox(height: 24),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Transcription:',
-                        style: textTheme.titleMedium?.copyWith(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _transcription!,
-                        style: textTheme.bodyLarge,
-                      ),
-                    ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.mic_none, 
+                  size: 48, 
+                  color: _isRecording ? colorScheme.error : colorScheme.primary
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Assign Items via Voice',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ElevatedButton.icon(
-                  onPressed: _processTranscription,
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('Process Assignment'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
+                const SizedBox(height: 8),
+                Text(
+                  'Tap the button and speak clearly.\nExample: "John ordered the burger and fries"',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: _isLoading ? null : _toggleRecording,
+                  icon: Icon(_isRecording ? Icons.stop_circle_outlined : Icons.mic),
+                  label: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _isRecording ? colorScheme.error : colorScheme.primary,
+                    foregroundColor: _isRecording ? colorScheme.onError : colorScheme.onPrimary,
                     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                     textStyle: textTheme.titleMedium,
                   ),
                 ),
-              ),
-            ] else ...[
-              const SizedBox(height: 32),
-            ],
-          ],
+                if (_isLoading) ...[
+                  const SizedBox(height: 16),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 8),
+                  Text('Processing...', style: textTheme.bodySmall),
+                ],
+              ],
+            ),
+          ),
         ),
-      ),
+
+        // Transcription Section (if available)
+        if (_transcription != null) ...[
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.transcribe, color: colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Transcription',
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _transcription!,
+                      style: textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _processTranscription,
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Process Assignment'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+
+        // Receipt Summary Section
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: colorScheme.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.receipt_long_outlined, color: colorScheme.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Receipt Summary',
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceVariant.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: _editableItems.map((item) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      '${item.quantity}x',
+                                      style: textTheme.bodySmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.onPrimaryContainer,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      item.name,
+                                      style: textTheme.bodyMedium,
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Total',
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '\$${_calculateSubtotal().toStringAsFixed(2)}',
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
