@@ -174,22 +174,59 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
     );
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.check_circle, color: Theme.of(dialogContext).colorScheme.primary),
-            const SizedBox(width: 8),
-            const Text('Receipt Copied!'),
-          ],
-        ),
-        content: const Text('The receipt summary has been copied to your clipboard. You can now paste it anywhere!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), // Modern rounded corners
+          icon: Icon(Icons.celebration_rounded, color: colorScheme.primary, size: 36), // Fun icon
+          title: const Text('Receipt Copied! 🎉'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min, // Prevent excessive vertical space
+            children: [
+              const Text(
+                'Your summary is ready to paste! ✨',
+                 textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container( // Container for subtle background
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  'Keeping the magic alive (and the AI fed!) costs a little. If Billfie made your day easier, consider fueling future features!',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSecondaryContainer,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+          actionsAlignment: MainAxisAlignment.center, // Center the buttons
+          actionsPadding: const EdgeInsets.only(bottom: 16, left: 16, right: 16), // Add padding
+          actions: [
+            // Use FilledButton for primary action (support)
+            FilledButton.icon(
+              icon: const Icon(Icons.coffee_outlined),
+              label: const Text('Support the App'),
+              onPressed: () {
+                Navigator.pop(dialogContext); // Close dialog first
+                _launchBuyMeACoffee(context); // Launch link
+              },
+              style: FilledButton.styleFrom(
+                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+            // Use TextButton for secondary action (close)
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Maybe Later'),
+            ),
+          ],
+        );
+      },
     );
   }
 
