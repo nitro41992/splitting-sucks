@@ -802,6 +802,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                           style: textTheme.titleMedium?.copyWith(
                                             fontWeight: FontWeight.bold,
                                           ),
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
                                         ),
                                         const SizedBox(height: 4),
                                         Row(
@@ -849,9 +851,28 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                                 ],
                               ),
                               const SizedBox(height: 12),
+                              // Add divider for visual separation
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: colorScheme.outlineVariant.withOpacity(0.5),
+                              ),
+                              const SizedBox(height: 12),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
+                                  // Edit name button - now just an icon button
+                                  IconButton(
+                                    onPressed: () => _showEditDialog(context, item),
+                                    icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
+                                      padding: const EdgeInsets.all(8),
+                                    ),
+                                    tooltip: 'Edit item name',
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Quantity controls
                                   IconButton(
                                     onPressed: () {
                                       if (item.quantity > 0) {
@@ -1062,6 +1083,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController priceController = TextEditingController();
     int quantity = 1;
+    const int maxNameLength = 15; // Same limit as in edit dialog
 
     showDialog(
       context: context,
@@ -1082,7 +1104,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Item name field with character counter
                     TextField(
                       controller: nameController,
                       decoration: InputDecoration(
@@ -1092,10 +1116,25 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
+                        counterText: '${nameController.text.length}/$maxNameLength',
                       ),
+                      maxLength: maxNameLength,
                       textCapitalization: TextCapitalization.words,
+                      onChanged: (value) {
+                        // Force rebuild to update counter
+                        (context as Element).markNeedsBuild();
+                      },
+                      autofocus: true,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Maximum $maxNameLength characters',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 16),
+                    // Price field
                     TextField(
                       controller: priceController,
                       decoration: InputDecoration(
@@ -1108,8 +1147,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                         ),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 24),
+                    // Quantity selector
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -1189,7 +1230,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                     final name = nameController.text.trim();
                     final price = double.tryParse(priceController.text);
                     
-                    if (name.isNotEmpty && price != null && price > 0) {
+                    if (name.isNotEmpty && name.length <= maxNameLength && price != null && price > 0) {
                       setState(() {
                         _editableItems.add(ReceiptItem(
                           name: name,
@@ -2431,43 +2472,80 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   void _showEditDialog(BuildContext context, ReceiptItem item) {
     final nameController = TextEditingController(text: item.name);
     final priceController = TextEditingController(text: item.price.toStringAsFixed(2));
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    const int maxNameLength = 15;
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Item'),
+        title: Row(
+          children: [
+            Icon(Icons.edit, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Edit Item'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Item Name',
+                hintText: 'Enter item name',
+                prefixIcon: const Icon(Icons.fastfood_outlined),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                counterText: '${nameController.text.length}/$maxNameLength',
               ),
+              maxLength: maxNameLength,
               textCapitalization: TextCapitalization.words,
+              onChanged: (value) {
+                // Force rebuild to update counter
+                (context as Element).markNeedsBuild();
+              },
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Maximum $maxNameLength characters',
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: priceController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Price',
                 prefixText: '\$ ',
+                prefixIcon: const Icon(Icons.attach_money),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: textTheme.bodyLarge,
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.error),
+            ),
           ),
-          FilledButton(
+          FilledButton.icon(
             onPressed: () {
               final newName = nameController.text.trim();
               final newPrice = double.tryParse(priceController.text);
               
-              if (newName.isNotEmpty && newPrice != null && newPrice > 0) {
+              if (newName.isNotEmpty && newName.length <= maxNameLength && newPrice != null && newPrice > 0) {
                 setState(() {
                   item.updateName(newName);
                   item.updatePrice(newPrice);
@@ -2475,7 +2553,12 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Save'),
+            icon: const Icon(Icons.check),
+            label: const Text('Save'),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ),
           ),
         ],
       ),

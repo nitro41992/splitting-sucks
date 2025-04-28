@@ -427,31 +427,73 @@ class _SplitViewState extends State<SplitView> {
 
   void _showAddPersonDialog(BuildContext context, SplitManager splitManager) {
     final controller = TextEditingController();
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Person'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Name',
-            hintText: 'Enter person\'s name',
-          ),
-          autofocus: true,
+        title: Row(
+          children: [
+            Icon(Icons.person_add, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Add Person'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                labelText: 'Name',
+                hintText: 'Enter person\'s name',
+                prefixIcon: const Icon(Icons.person_outline),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                counterText: '${controller.text.length}/${_PersonCard.maxNameLength}',
+              ),
+              maxLength: _PersonCard.maxNameLength,
+              textCapitalization: TextCapitalization.words,
+              autofocus: true,
+              onChanged: (value) {
+                // Force rebuild to update counter
+                (context as Element).markNeedsBuild();
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Maximum ${_PersonCard.maxNameLength} characters',
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.error),
+            ),
           ),
-          TextButton(
+          FilledButton.icon(
             onPressed: () {
-              if (controller.text.isNotEmpty) {
-                splitManager.addPerson(controller.text);
+              final newName = controller.text.trim();
+              if (newName.isNotEmpty && newName.length <= _PersonCard.maxNameLength) {
+                splitManager.addPerson(newName);
                 Navigator.pop(context);
               }
             },
-            child: const Text('Add'),
+            icon: const Icon(Icons.check),
+            label: const Text('Add'),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ),
           ),
         ],
       ),
@@ -461,6 +503,7 @@ class _SplitViewState extends State<SplitView> {
 
 class _PersonCard extends StatelessWidget {
   final Person person;
+  static const int maxNameLength = 9;
 
   const _PersonCard({required this.person});
 
@@ -498,14 +541,28 @@ class _PersonCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _EditableText(
-                        text: person.name,
-                        onChanged: (newName) {
-                          context.read<SplitManager>().updatePersonName(person, newName);
-                        },
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              person.name,
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => _showEditNameDialog(context, person),
+                            icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
+                            style: IconButton.styleFrom(
+                              backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
+                              padding: const EdgeInsets.all(8),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            tooltip: 'Edit name',
+                          ),
+                        ],
                       ),
                       if (person.assignedItems.isNotEmpty)
                         Text(
@@ -517,6 +574,7 @@ class _PersonCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -553,6 +611,82 @@ class _PersonCard extends StatelessWidget {
       ),
     );
   }
+
+  void _showEditNameDialog(BuildContext context, Person person) {
+    final controller = TextEditingController(text: person.name);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.edit, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Edit Name'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                labelText: 'Name',
+                hintText: 'Enter name',
+                prefixIcon: const Icon(Icons.person_outline),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                counterText: '${controller.text.length}/$maxNameLength',
+              ),
+              style: textTheme.bodyLarge,
+              textCapitalization: TextCapitalization.words,
+              maxLength: maxNameLength,
+              autofocus: true,
+              onChanged: (value) {
+                // Force rebuild to update counter
+                (context as Element).markNeedsBuild();
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Maximum $maxNameLength characters',
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.error),
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              final newName = controller.text.trim();
+              if (newName.isNotEmpty && newName.length <= maxNameLength) {
+                context.read<SplitManager>().updatePersonName(person, newName);
+                Navigator.pop(context);
+              }
+            },
+            icon: const Icon(Icons.check),
+            label: const Text('Save'),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _UnassignedItemCard extends StatelessWidget {
@@ -584,9 +718,8 @@ class _UnassignedItemCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _EditableText(
-                        text: item.name,
-                        onChanged: (newName) => item.updateName(newName),
+                      Text(
+                        item.name,
                         style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -905,9 +1038,9 @@ class _SharedItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
-    final people = splitManager.people;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final people = splitManager.people;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
@@ -927,9 +1060,8 @@ class _SharedItemCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _EditableText(
-                        text: item.name,
-                        onChanged: (newName) => item.updateName(newName),
+                      Text(
+                        item.name,
                         style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -1047,9 +1179,8 @@ class _ItemRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: _EditableText(
-              text: item.name,
-              onChanged: (newName) => item.updateName(newName),
+            child: Text(
+              item.name,
               style: textTheme.bodyLarge?.copyWith(
                 color: colorScheme.onSurface,
               ),
@@ -1084,41 +1215,78 @@ class _EditableText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return InkWell(
       onTap: () => _showEditDialog(context),
-      child: Text(
-        text,
-        style: style ?? Theme.of(context).textTheme.titleMedium,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              text,
+              style: style ?? Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Icon(
+            Icons.edit_outlined,
+            size: 16,
+            color: colorScheme.primary.withOpacity(0.8),
+          ),
+        ],
       ),
     );
   }
 
   void _showEditDialog(BuildContext context) {
     final controller = TextEditingController(text: text);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Name'),
+        title: Row(
+          children: [
+            Icon(Icons.edit, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Edit Name'),
+          ],
+        ),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Name',
+            hintText: 'Enter name',
+            prefixIcon: const Icon(Icons.person_outline),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
+          style: textTheme.bodyLarge,
+          textCapitalization: TextCapitalization.words,
           autofocus: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.error),
+            ),
           ),
-          TextButton(
+          FilledButton.icon(
             onPressed: () {
-              if (controller.text.isNotEmpty) {
-                onChanged(controller.text);
+              if (controller.text.trim().isNotEmpty) {
+                onChanged(controller.text.trim());
                 Navigator.pop(context);
               }
             },
-            child: const Text('Save'),
+            icon: const Icon(Icons.check),
+            label: const Text('Save'),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ),
           ),
         ],
       ),
