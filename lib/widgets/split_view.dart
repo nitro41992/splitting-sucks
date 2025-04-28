@@ -42,6 +42,24 @@ class _SplitViewState extends State<SplitView> {
   @override
   void initState() {
     super.initState();
+
+    // Read initial tab index from SplitManager
+    // Use WidgetsBinding.instance.addPostFrameCallback to safely interact with context
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final splitManager = context.read<SplitManager>();
+      final initialIndex = splitManager.initialSplitViewTabIndex;
+      if (initialIndex != null && initialIndex >= 0 && initialIndex <= 2) { // Check bounds (0, 1, 2)
+        if (mounted) { // Check if the widget is still in the tree
+          setState(() {
+            _selectedIndex = initialIndex;
+          });
+        }
+        // Reset the value in SplitManager so it doesn't persist
+        splitManager.initialSplitViewTabIndex = null;
+      }
+    });
+
+    // Add scroll listeners
     _peopleScrollController.addListener(_onScroll);
     _sharedScrollController.addListener(_onScroll);
     _unassignedScrollController.addListener(_onScroll);

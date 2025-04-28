@@ -7,6 +7,7 @@ class SplitManager extends ChangeNotifier {
   List<ReceiptItem> _sharedItems;
   List<ReceiptItem> _unassignedItems;
   Map<String, int> _originalQuantities;  // Track original quantities from review
+  int? initialSplitViewTabIndex; // Index for initial tab in SplitView
 
   SplitManager({
     List<Person>? people,

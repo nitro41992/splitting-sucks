@@ -578,67 +578,95 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                   ],
                 ),
               ),
-              Card(
-                 elevation: 1,
-                 shadowColor: colorScheme.shadow.withOpacity(0.2),
-                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                 shape: RoundedRectangleBorder(
-                   borderRadius: BorderRadius.circular(24),
-                 ),
-                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                       Row(
-                         children: [
-                            CircleAvatar(
-                              backgroundColor: colorScheme.errorContainer.withOpacity(0.5),
-                              child: Icon(Icons.question_mark, color: colorScheme.onErrorContainer),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Unclaimed',
-                                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              // Wrap the Card with InkWell for tappable navigation
+              InkWell(
+                onTap: () {
+                  // Set the initial tab index before navigating
+                  context.read<SplitManager>().initialSplitViewTabIndex = 2; // 2 = Unassigned tab
+                  // Notify the parent PageView controller to navigate
+                  NavigateToPageNotification(3).dispatch(context); // Go to Split View (index 3)
+                },
+                borderRadius: BorderRadius.circular(24), // Match the Card's border radius for ripple effect
+                child: Card(
+                   elevation: 1,
+                   shadowColor: colorScheme.shadow.withOpacity(0.2),
+                   margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                   shape: RoundedRectangleBorder(
+                     borderRadius: BorderRadius.circular(24),
+                     // Add a subtle border using the theme's outline color
+                     side: BorderSide(
+                       color: colorScheme.outlineVariant.withOpacity(0.5),
+                       width: 1.0,
+                     ),
+                   ),
+                   child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                         Row(
+                           children: [
+                              CircleAvatar(
+                                backgroundColor: colorScheme.errorContainer.withOpacity(0.5),
+                                child: Icon(Icons.question_mark, color: colorScheme.onErrorContainer),
                               ),
-                            ),
-                            // Total cost of unassigned items (subtotal only)
-                            Container(
-                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                               decoration: BoxDecoration(
-                                 color: colorScheme.errorContainer,
-                                 borderRadius: BorderRadius.circular(20),
-                               ),
-                               child: Text(
-                                '\$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}', // Show subtotal here
-                                style: textTheme.titleMedium?.copyWith(
-                                  color: colorScheme.onErrorContainer,
-                                  fontWeight: FontWeight.bold,
+                              const SizedBox(width: 16),
+                              // Title and Subtitle
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Unclaimed',
+                                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                    ),
+                                    Text(
+                                      'Tap to assign these items',
+                                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Total cost
+                              Container(
+                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                 decoration: BoxDecoration(
+                                   color: colorScheme.errorContainer,
+                                   borderRadius: BorderRadius.circular(20),
                                  ),
-                               ),
+                                 child: Text(
+                                  '\$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}', // Show subtotal here
+                                  style: textTheme.titleMedium?.copyWith(
+                                    color: colorScheme.onErrorContainer,
+                                    fontWeight: FontWeight.bold,
+                                   ),
+                                 ),
+                              ),
+                              // Add a trailing icon to indicate clickability
+                              const SizedBox(width: 8),
+                              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+                            ],
+                         ),
+                         const SizedBox(height: 16),
+                         _buildItemList(context, 'Items:', splitManager.unassignedItems),
+                         const SizedBox(height: 12),
+                         Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.3)),
+                         Padding(
+                            padding: const EdgeInsets.only(top: 12.0),
+                            child: Column(
+                               children: [
+                                  // Show the tax/tip associated with these items for clarity
+                                  _buildDetailRow(context, 'Tax (${_taxPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * taxRate),
+                                  const SizedBox(height: 4),
+                                  _buildDetailRow(context, 'Tip (${_tipPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * tipRate),
+                               ],
                             ),
-                          ],
-                       ),
-                       const SizedBox(height: 16),
-                       _buildItemList(context, 'Items:', splitManager.unassignedItems),
-                       const SizedBox(height: 12),
-                       Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.3)),
-                       Padding(
-                          padding: const EdgeInsets.only(top: 12.0),
-                          child: Column(
-                             children: [
-                                // Show the tax/tip associated with these items for clarity
-                                _buildDetailRow(context, 'Tax (${_taxPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * taxRate),
-                                const SizedBox(height: 4),
-                                _buildDetailRow(context, 'Tip (${_tipPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * tipRate),
-                             ],
-                          ),
-                       ),
-                     ],
-                  ),
+                         ),
+                       ],
+                    ),
+                   ),
                  ),
-              ),
+              ), // End of InkWell wrapper
             ],
 
              // Add some extra space at the bottom
