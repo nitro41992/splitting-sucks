@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/receipt_item.dart';
 import '../../models/split_manager.dart';
+import '../../theme/app_colors.dart';
 
 class QuantitySelector extends StatelessWidget {
   final ReceiptItem item;
@@ -41,7 +42,7 @@ class QuantitySelector extends StatelessWidget {
                   height: 36,
                   decoration: BoxDecoration(
                     color: item.quantity > 0
-                        ? colorScheme.primaryContainer
+                        ? AppColors.puce
                         : Colors.transparent,
                     borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
                   ),
@@ -49,7 +50,7 @@ class QuantitySelector extends StatelessWidget {
                     Icons.remove_circle_outline,
                     size: 22,
                     color: item.quantity > 0
-                        ? colorScheme.onPrimaryContainer
+                        ? Colors.white
                         : colorScheme.onSurfaceVariant.withOpacity(0.38),
                   ),
                 ),
