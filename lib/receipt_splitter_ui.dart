@@ -52,6 +52,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   final _recorder = AudioRecorder();
   String? _transcription;
   Map<String, dynamic>? _assignments;
+  List<ReceiptItem> _deletedItems = []; // Track deleted items
 
   // Step completion tracking
   bool _isUploadComplete = false;
@@ -896,6 +897,76 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                 ),
               ),
 
+              // Deleted Items Section (if any items are deleted)
+              if (_deletedItems.isNotEmpty) ...[
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  sliver: SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outlined, color: colorScheme.error, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Deleted Items',
+                            style: textTheme.titleMedium?.copyWith(color: colorScheme.error),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final item = _deletedItems[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: colorScheme.outlineVariant),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          title: Text(
+                            item.name,
+                            style: textTheme.titleMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${item.quantity}x \$${item.price.toStringAsFixed(2)} each',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                            ),
+                          ),
+                          trailing: TextButton.icon(
+                            icon: const Icon(Icons.restore),
+                            label: const Text('Restore'),
+                            onPressed: () {
+                              setState(() {
+                                final restoredItem = _deletedItems.removeAt(index);
+                                _editableItems.add(restoredItem);
+                                _itemPriceControllers.add(
+                                  TextEditingController(text: restoredItem.price.toStringAsFixed(2))
+                                );
+                              });
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: _deletedItems.length,
+                  ),
+                ),
+              ],
+
               // Bottom padding to ensure last items are fully visible
               const SliverToBoxAdapter(child: SizedBox(height: 80)),
             ],
@@ -997,53 +1068,110 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setState) {
+            final colorScheme = Theme.of(context).colorScheme;
+            final textTheme = Theme.of(context).textTheme;
+
             return AlertDialog(
-              title: const Text('Add New Item'),
+              title: Row(
+                children: [
+                  Icon(Icons.add_shopping_cart, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  const Text('Add New Item'),
+                ],
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
                       controller: nameController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Item Name',
                         hintText: 'Enter item name',
+                        prefixIcon: const Icon(Icons.shopping_bag_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: priceController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Price',
                         hintText: 'Enter price',
                         prefixText: '\$ ',
+                        prefixIcon: const Icon(Icons.attach_money),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        const Text('Quantity: '),
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle),
-                          onPressed: () {
-                            if (quantity > 0) {
-                              setState(() => quantity--);
-                            }
-                          },
-                        ),
-                        Text(
-                          quantity.toString(),
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle),
-                          onPressed: () {
-                            setState(() => quantity++);
-                          },
-                        ),
-                      ],
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceVariant.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: colorScheme.outlineVariant),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Quantity',
+                            style: textTheme.titleSmall?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton.filled(
+                                onPressed: () {
+                                  if (quantity > 1) {
+                                    setState(() => quantity--);
+                                  }
+                                },
+                                icon: const Icon(Icons.remove),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: colorScheme.primaryContainer,
+                                  foregroundColor: colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                              Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 16),
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: colorScheme.outlineVariant),
+                                ),
+                                child: Text(
+                                  quantity.toString(),
+                                  style: textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              IconButton.filled(
+                                onPressed: () {
+                                  setState(() => quantity++);
+                                },
+                                icon: const Icon(Icons.add),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: colorScheme.primaryContainer,
+                                  foregroundColor: colorScheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1051,9 +1179,12 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: colorScheme.error),
+                  ),
                 ),
-                TextButton(
+                FilledButton.icon(
                   onPressed: () {
                     final name = nameController.text.trim();
                     final price = double.tryParse(priceController.text);
@@ -1070,15 +1201,28 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                         );
                       });
                       Navigator.pop(context);
+                      
+                      // Show success snackbar
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Added $name to the receipt'),
+                          behavior: SnackBarBehavior.floating,
+                          backgroundColor: colorScheme.primaryContainer,
+                          showCloseIcon: true,
+                        ),
+                      );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter a valid name and price'),
+                        SnackBar(
+                          content: const Text('Please enter a valid name and price'),
+                          backgroundColor: colorScheme.error,
+                          behavior: SnackBarBehavior.floating,
                         ),
                       );
                     }
                   },
-                  child: const Text('Add'),
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Add Item'),
                 ),
               ],
             );
@@ -2227,8 +2371,32 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   void _removeItem(int index) {
     setState(() {
+      // Move the item to deleted items list
+      _deletedItems.add(_editableItems[index]);
       _editableItems.removeAt(index);
       _itemPriceControllers.removeAt(index).dispose();
+
+      // Show a snackbar with undo option
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Item moved to deleted items'),
+          action: SnackBarAction(
+            label: 'UNDO',
+            onPressed: () {
+              setState(() {
+                // Move the item back
+                final item = _deletedItems.removeLast();
+                _editableItems.insert(index, item);
+                _itemPriceControllers.insert(
+                  index,
+                  TextEditingController(text: item.price.toStringAsFixed(2))
+                );
+              });
+            },
+          ),
+        ),
+      );
     });
   }
 
