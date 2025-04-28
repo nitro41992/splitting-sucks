@@ -10,6 +10,14 @@ import 'cards/person_card.dart';
 import 'cards/shared_item_card.dart';
 import 'cards/unassigned_item_card.dart';
 import '../theme/app_colors.dart';
+import '../receipt_splitter_ui.dart';
+
+// Define a notification class to request navigation
+class NavigateToPageNotification extends Notification {
+  final int pageIndex;
+  
+  NavigateToPageNotification(this.pageIndex);
+}
 
 class SplitView extends StatefulWidget {
   const SplitView({
@@ -360,11 +368,31 @@ class _SplitViewState extends State<SplitView> {
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 200),
               opacity: _isFabVisible ? 1.0 : 0.0,
-              child: FloatingActionButton(
-                onPressed: () => _showAddPersonDialog(context, splitManager),
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                child: const Icon(Icons.person_add),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Add Person button
+                  FloatingActionButton(
+                    onPressed: () => _showAddPersonDialog(context, splitManager),
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    heroTag: 'addPersonBtn',
+                    child: const Icon(Icons.person_add),
+                  ),
+                  const SizedBox(width: 16),
+                  // Go to Summary button
+                  FloatingActionButton.extended(
+                    onPressed: () {
+                      // Use notification pattern to request navigation to summary page
+                      NavigateToPageNotification(4).dispatch(context);
+                    },
+                    backgroundColor: colorScheme.secondaryContainer,
+                    foregroundColor: colorScheme.onSecondaryContainer,
+                    heroTag: 'goToSummaryBtn',
+                    label: const Text('Go to Summary'),
+                    icon: const Icon(Icons.summarize),
+                  ),
+                ],
               ),
             ),
           ),
@@ -380,7 +408,7 @@ class _SplitViewState extends State<SplitView> {
   }) {
     return ListView(
       controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 72),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120), // Increased bottom padding for two FABs
       children: [
         builder(context),
       ],
@@ -478,8 +506,8 @@ class _SplitViewState extends State<SplitView> {
                 ),
                 const SizedBox(height: 8),
                 Align(
-                   alignment: Alignment.centerRight,
-                   child: Text(
+                  alignment: Alignment.centerRight,
+                  child: Text(
                     '${controller.text.length}/$personMaxNameLength',
                     style: textTheme.bodySmall?.copyWith(
                       color: controller.text.length > personMaxNameLength

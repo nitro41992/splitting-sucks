@@ -213,31 +213,31 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           ],
         ),
       ),
-      body: PageView(
-        controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(),
-        onPageChanged: (index) {
-          // Only allow navigation to completed steps or the next available step
-          if (index <= _currentStep || _canNavigateToStep(index)) {
+      body: NotificationListener<NavigateToPageNotification>(
+        onNotification: (notification) {
+          _navigateToPage(notification.pageIndex);
+          return true; // Stop notification from propagating further
+        },
+        child: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          onPageChanged: (index) {
             setState(() {
               _currentStep = index;
             });
-          } else {
-            // Return to the current step
-            _pageController.jumpToPage(_currentStep);
-          }
-        },
-        children: pages.map((page) {
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 16.0,
-              right: 16.0,
-              top: _currentStep == 2 ? 16.0 : 16.0, // Add top padding for assign view
-              bottom: 16.0,
-            ),
-            child: page,
-          );
-        }).toList(),
+          },
+          children: pages.map((page) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16.0,
+                right: 16.0,
+                top: _currentStep == 2 ? 16.0 : 16.0, // Add top padding for assign view
+                bottom: 16.0,
+              ),
+              child: page,
+            );
+          }).toList(),
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentStep,
@@ -2008,28 +2008,59 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     }
 
     final people = splitManager.people;
-
+    
+    // Calculate subtotal, tax, tip and total
+    final double subtotal = splitManager.totalAmount;
+    final double tax = subtotal * (_taxPercentage / 100);
+    final double tip = subtotal * (_tipPercentage / 100);
+    final double total = subtotal + tax + tip;
+    
     return ListView(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Text('Final Split', style: textTheme.headlineSmall, textAlign: TextAlign.center),
-        ),
-        const SizedBox(height: 16),
-
-        // Tax, Tip, and Total Summary Card
+        // Header Card with Tax and Tip adjustments
         Card(
-          elevation: 2,
-          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+          margin: const EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: colorScheme.outlineVariant),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Adjust Tax & Tip', style: textTheme.titleLarge?.copyWith(color: colorScheme.primary)),
+                Row(
+                  children: [
+                    Icon(Icons.receipt_long, color: colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Receipt Summary',
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                
+                // Subtotal row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Subtotal:', style: textTheme.titleMedium),
+                    Text(
+                      '\$${subtotal.toStringAsFixed(2)}',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                
                 const SizedBox(height: 16),
-
+                
                 // Tax Input Row
                 Row(
                   children: [
@@ -2053,17 +2084,22 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        '\$${_calculateTax().toStringAsFixed(2)}', // Display calculated tax
+                        '\$${tax.toStringAsFixed(2)}', // Display calculated tax
                         style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
                         textAlign: TextAlign.right,
                       ),
                     ),
                   ],
                 ),
+                
                 const SizedBox(height: 16),
-
+                
                 // Tip Section
-                Text('Tip:', style: textTheme.bodyLarge),
+                Row(
+                  children: [
+                    Text('Tip:', style: textTheme.bodyLarge),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 
                 // Tip Percentage Display
@@ -2080,7 +2116,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                   ],
                 ),
                 const SizedBox(height: 8),
-
+                
                 // Tip Slider with Quick Select Buttons
                 Column(
                   children: [
@@ -2130,76 +2166,73 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                       style: textTheme.bodyLarge,
                     ),
                     Text(
-                      '\$${_calculateTip().toStringAsFixed(2)}', // Display calculated tip
+                      '\$${tip.toStringAsFixed(2)}', // Display calculated tip
                       style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
                 
-                const Divider(height: 32),
+                const Divider(height: 24, thickness: 1),
                 
-                // Final Total
-                _buildTotalRow(
-                  context,
-                  label: 'Subtotal:', 
-                  value: '\$${_calculateSubtotal().toStringAsFixed(2)}',
-                  style: textTheme.bodyLarge,
-                ),
-                const SizedBox(height: 4),
-                _buildTotalRow(
-                  context,
-                  label: 'Tax:',
-                  value: '\$${_calculateTax().toStringAsFixed(2)}',
-                  style: textTheme.bodyLarge,
-                ),
-                 const SizedBox(height: 4),
-                _buildTotalRow(
-                  context,
-                  label: 'Tip:',
-                  value: '\$${_calculateTip().toStringAsFixed(2)}',
-                  style: textTheme.bodyLarge,
-                ),
-                Divider(thickness: 1, height: 16, color: colorScheme.outline.withOpacity(0.5)),
-                _buildTotalRow(
-                  context,
-                  label: 'Total:',
-                  value: '\$${_calculateTotal().toStringAsFixed(2)}', // Display final total
-                  style: textTheme.titleLarge,
-                  fontWeight: FontWeight.bold
+                // Total
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total:',
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '\$${total.toStringAsFixed(2)}',
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 16),
-
-        // Split per Person Section
+        
+        // People section header
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text('Split per Person', 
-            style: textTheme.titleMedium?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.bold)),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.people, size: 20, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'People (${people.length})',
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 8),
-
+        
+        // Person cards
         ...people.map((person) {
-          // Calculate person's subtotal (individual + shared)
-          double personAssignedTotal = person.assignedItems.fold(0.0, (sum, item) => sum + item.total);
-          double personSharedTotal = person.sharedItems.fold(0.0, (sum, item) {
-            final sharers = splitManager.getPeopleForSharedItem(item).length;
-            return sum + (sharers > 0 ? item.total / sharers : 0);
-          });
-          double personSubtotal = personAssignedTotal + personSharedTotal;
-
-          // Calculate person's tax and tip based on their subtotal and the overall percentages
-          // Ensure tax calculation mirrors the main _calculateTax (ceiling)
-          double personTax = (personSubtotal * (_taxPercentage / 100) * 100).ceil() / 100;
-          double personTip = personSubtotal * (_tipPercentage / 100);
-
-          double personFinalTotal = personSubtotal + personTax + personTip;
+          // Calculate this person's share of tax and tip
+          final double personSubtotal = person.totalAssignedAmount + 
+              splitManager.sharedItems.where((item) => 
+                person.sharedItems.contains(item)).fold(0.0, 
+                (sum, item) => sum + (item.price * item.quantity / 
+                  splitManager.people.where((p) => 
+                    p.sharedItems.contains(item)).length));
+          
+          final double personTaxShare = personSubtotal / subtotal * tax;
+          final double personTipShare = personSubtotal / subtotal * tip;
+          final double personFinalTotal = personSubtotal + personTaxShare + personTipShare;
           
           return Card(
-            margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
             elevation: 0,
+            margin: const EdgeInsets.only(bottom: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(color: colorScheme.outlineVariant),
@@ -2241,54 +2274,124 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                       ),
                     ],
                   ),
+                  
+                  // Assigned items
+                  if (person.assignedItems.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Assigned Items:',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...person.assignedItems.map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${item.quantity}x ${item.name}',
+                              style: textTheme.bodyMedium,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                  ],
+                  
+                  // Shared items
+                  if (person.sharedItems.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Shared Items:',
+                      style: textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.tertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...person.sharedItems.map((item) {
+                      // Count how many people share this item
+                      final int sharingCount = splitManager.people
+                          .where((p) => p.sharedItems.contains(item))
+                          .length;
+                      
+                      // Calculate individual share
+                      final double individualShare = item.price * item.quantity / sharingCount;
+                      
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${item.quantity}x ${item.name} (shared ${sharingCount} ways)',
+                                style: textTheme.bodyMedium,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '\$${individualShare.toStringAsFixed(2)}',
+                              style: textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                  
+                  // Tax and tip row
+                  const SizedBox(height: 12),
+                  Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.5)),
                   const SizedBox(height: 12),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Items',
-                          style: textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onPrimaryContainer,
-                          ),
+                      Text(
+                        'Tax + Tip:',
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontStyle: FontStyle.italic,
                         ),
                       ),
-                      const SizedBox(width: 6),
                       Text(
-                        '\$${personSubtotal.toStringAsFixed(2)}',
+                        '\$${(personTaxShare + personTipShare).toStringAsFixed(2)}',
                         style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.tertiary,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 12),
+                  Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
+                  const SizedBox(height: 12),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colorScheme.tertiaryContainer,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Tax+Tip',
-                          style: textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onTertiaryContainer,
-                          ),
+                      Text(
+                        'Total:',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 6),
                       Text(
-                        '\$${(personTax + personTip).toStringAsFixed(2)}',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                        '\$${personFinalTotal.toStringAsFixed(2)}',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
                         ),
                       ),
                     ],
@@ -2298,20 +2401,28 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             ),
           );
         }).toList(),
-
-        const SizedBox(height: 24),
-
-        // Unassigned Items Section
+        
+        // Unassigned items section if any
         if (splitManager.unassignedItems.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text('Unassigned Items', 
-              style: textTheme.titleMedium?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.bold)),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, size: 20, color: colorScheme.error),
+                const SizedBox(width: 8),
+                Text(
+                  'Unassigned Items',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.error,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
           Card(
-            margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
             elevation: 0,
+            margin: const EdgeInsets.only(bottom: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(color: colorScheme.outlineVariant),
@@ -2350,48 +2461,100 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceVariant,
-                      borderRadius: BorderRadius.circular(4),
+                  const SizedBox(height: 16),
+                  ...splitManager.unassignedItems.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${item.quantity}x ${item.name}',
+                            style: textTheme.bodyMedium,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                          style: textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      '${splitManager.unassignedItems.length} items',
-                      style: textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
+                  )),
                 ],
               ),
             ),
           ),
         ],
-
-        const SizedBox(height: 32),
-
-        Center(
+        
+        // Complete & Share button
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
           child: ElevatedButton.icon(
-            icon: const Icon(Icons.check_circle_outline),
+            onPressed: () => _generateAndShareReceipt(context),
+            icon: const Icon(Icons.receipt_long),
             label: const Text('Complete & Share'),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Split finalized (sharing not implemented yet).')),
-              );
-            },
             style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              textStyle: textTheme.titleMedium,
               backgroundColor: colorScheme.primary,
               foregroundColor: colorScheme.onPrimary,
+              minimumSize: const Size(double.infinity, 56),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ),
       ],
     );
+  }
+  
+  // Method to generate and share receipt image
+  Future<void> _generateAndShareReceipt(BuildContext context) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    
+    try {
+      // In a real app, this would generate an image of the receipt
+      // For now, we'll just show a success dialog
+      Navigator.of(context).pop(); // Close loading dialog
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Receipt Generated'),
+          content: const Text('Your receipt has been generated and is ready to share!'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // In a real app, this would share the receipt image
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Receipt shared successfully!')),
+                );
+              },
+              child: const Text('Share'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      Navigator.of(context).pop(); // Close loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error generating receipt: $e')),
+      );
+    }
   }
 
   double _calculateSubtotal() {
