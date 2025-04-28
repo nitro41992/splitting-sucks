@@ -15,6 +15,7 @@ import 'models/receipt_item.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_colors.dart';  // Added import for AppColors
 import 'package:flutter/services.dart';  // Add this import for clipboard
+import 'package:url_launcher/url_launcher.dart'; // Add this import for launching URLs
 
 // Mock data for demonstration
 class MockData {
@@ -2668,22 +2669,55 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             ],
           ],
         ),
-        // Floating share button
+        // Floating share button and Buy Me a Coffee button
         Positioned(
           right: 16,
           bottom: 16,
-          child: FloatingActionButton.extended(
-            onPressed: () => _generateAndShareReceipt(context),
-            icon: const Icon(Icons.share),
-            label: const Text('Share'),
-            backgroundColor: colorScheme.primary,
-            foregroundColor: colorScheme.onPrimary,
+          child: Row( // Change Column to Row
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              FloatingActionButton.extended(
+                heroTag: 'buyMeACoffeeButton', // Add unique heroTag
+                onPressed: () => _launchBuyMeACoffee(context),
+                icon: const Icon(Icons.coffee), // Coffee icon
+                label: const Text('Buy me a coffee'),
+                backgroundColor: AppColors.secondary, // Use a distinct color
+                foregroundColor: Colors.white,
+              ),
+              const SizedBox(width: 12), // Spacing between buttons
+              FloatingActionButton.extended(
+                heroTag: 'shareButton', // Add unique heroTag
+                onPressed: () => _generateAndShareReceipt(context),
+                icon: const Icon(Icons.share),
+                label: const Text('Share'),
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+              ),
+            ],
           ),
         ),
       ],
     );
   }
-  
+
+  // Method to launch the Buy Me a Coffee link
+  Future<void> _launchBuyMeACoffee(BuildContext context) async {
+    final String? buyMeACoffeeLink = dotenv.env['BUY_ME_A_COFFEE_LINK'];
+    if (buyMeACoffeeLink == null || buyMeACoffeeLink.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Buy Me a Coffee link is not configured.')),
+      );
+      return;
+    }
+
+    final Uri url = Uri.parse(buyMeACoffeeLink);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not launch $buyMeACoffeeLink')),
+      );
+    }
+  }
+
   // Method to generate and share receipt
   Future<void> _generateAndShareReceipt(BuildContext context) async {
     final splitManager = context.read<SplitManager>();
