@@ -178,7 +178,51 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     return Scaffold(
       backgroundColor: colorScheme.background,
       appBar: AppBar(
-        title: Text('Receipt Splitter - Step ${_currentStep + 1} of 5'),
+        backgroundColor: colorScheme.surface,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.receipt_long,
+                color: colorScheme.primary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Receipt Splitter',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: List.generate(5, (index) => Container(
+                    width: 24,
+                    height: 3,
+                    margin: EdgeInsets.only(right: index < 4 ? 4 : 0),
+                    decoration: BoxDecoration(
+                      color: index <= _currentStep 
+                        ? colorScheme.primary
+                        : colorScheme.surfaceVariant,
+                      borderRadius: BorderRadius.circular(1.5),
+                    ),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

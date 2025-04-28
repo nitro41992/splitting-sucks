@@ -113,7 +113,7 @@ class UnassignedItemCard extends StatelessWidget {
                     backgroundColor: colorScheme.primaryContainer,
                   ),
                 ),
-                // const SizedBox(width: 16),
+                const SizedBox(width: 24),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.group),
                   label: const Text('Share'),
