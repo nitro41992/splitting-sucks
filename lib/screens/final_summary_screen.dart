@@ -102,12 +102,14 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
     // Build receipt text
     StringBuffer receipt = StringBuffer();
     receipt.writeln('🧾 RECEIPT SUMMARY');
-    receipt.writeln('═══════════════════\\n');
+    receipt.writeln('═══════════════════');
+    receipt.writeln('');
     receipt.writeln('📊 TOTALS');
     receipt.writeln('Subtotal: \$${subtotal.toStringAsFixed(2)}');
     receipt.writeln('Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${tax.toStringAsFixed(2)}');
     receipt.writeln('Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${tip.toStringAsFixed(2)}');
-    receipt.writeln('TOTAL: \$${total.toStringAsFixed(2)}\\n');
+    receipt.writeln('TOTAL: \$${total.toStringAsFixed(2)}');
+    receipt.writeln('');
     receipt.writeln('👥 INDIVIDUAL BREAKDOWNS');
     receipt.writeln('═══════════════════');
 
@@ -123,34 +125,38 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
       final double personTip = personSubtotal * tipRate;
       final double personTotal = personSubtotal + personTax + personTip;
 
-      receipt.writeln('\\n👤 ${person.name.toUpperCase()} → YOU OWE: \$${personTotal.toStringAsFixed(2)}');
+      receipt.writeln('');
+      receipt.writeln('👤 ${person.name.toUpperCase()} → YOU OWE: \$${personTotal.toStringAsFixed(2)}');
       receipt.writeln('───────────────');
 
       if (person.assignedItems.isNotEmpty) {
         receipt.writeln('Individual Items:');
         for (var item in person.assignedItems) {
-          receipt.writeln('  • ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
+          receipt.writeln('• ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
         }
       }
 
       if (person.sharedItems.isNotEmpty) {
-        receipt.writeln('\\nShared Items:');
+        receipt.writeln('');
+        receipt.writeln('Shared Items:');
         for (var item in person.sharedItems) {
           final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
           final individualShare = sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0;
-          receipt.writeln('  • ${item.quantity}x ${item.name} (${sharingCount}-way split: \$${individualShare.toStringAsFixed(2)})');
+          receipt.writeln('• ${item.quantity}x ${item.name} (${sharingCount}-way split: \$${individualShare.toStringAsFixed(2)})');
         }
       }
 
-      receipt.writeln('\\nDetails:');
-      receipt.writeln('  Subtotal: \$${personSubtotal.toStringAsFixed(2)}');
-      receipt.writeln('  + Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${personTax.toStringAsFixed(2)}');
-      receipt.writeln('  + Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${personTip.toStringAsFixed(2)}');
-      receipt.writeln('  = Total: \$${personTotal.toStringAsFixed(2)}');
+      receipt.writeln('');
+      receipt.writeln('Details:');
+      receipt.writeln('Subtotal: \$${personSubtotal.toStringAsFixed(2)}');
+      receipt.writeln('+ Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${personTax.toStringAsFixed(2)}');
+      receipt.writeln('+ Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${personTip.toStringAsFixed(2)}');
+      // receipt.writeln('= Total: \$${personTotal.toStringAsFixed(2)}');
     }
 
     if (splitManager.unassignedItems.isNotEmpty) {
-      receipt.writeln('\\n⚠️ UNASSIGNED ITEMS');
+      receipt.writeln('');
+      receipt.writeln('⚠️ UNASSIGNED ITEMS');
       receipt.writeln('═══════════════════');
       for (var item in splitManager.unassignedItems) {
         receipt.writeln('• ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
@@ -159,7 +165,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
       final double unassignedTax = unassignedSubtotal * taxRate;
       final double unassignedTip = unassignedSubtotal * tipRate;
       final double unassignedTotal = unassignedSubtotal + unassignedTax + unassignedTip;
-      receipt.writeln('\\nUnassigned Total (inc. tax/tip): \$${unassignedTotal.toStringAsFixed(2)}');
+      receipt.writeln('');
+      receipt.writeln('Unassigned Total (inc. tax/tip): \$${unassignedTotal.toStringAsFixed(2)}');
     }
 
     await Clipboard.setData(ClipboardData(text: receipt.toString()));
