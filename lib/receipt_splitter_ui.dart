@@ -163,8 +163,41 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           ],
         ),
         actions: [
-          // IconButton for reset (conditionally shown or handled differently)
-          // Consider adding a reset button/option within specific screens or keeping it here.
+          // Reset Button
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Start Over',
+            onPressed: () async {
+              final bool? confirmReset = await showDialog<bool>(
+                context: context,
+                builder: (BuildContext dialogContext) {
+                  return AlertDialog(
+                    title: const Text('Start Over?'),
+                    content: const Text('Are you sure you want to discard all progress and start over?'),
+                    actions: <Widget>[
+                      TextButton(
+                        child: const Text('Cancel'),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop(false); // Return false
+                        },
+                      ),
+                      TextButton(
+                        child: Text('Reset', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop(true); // Return true
+                        },
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              // If the user confirmed, call _resetState
+              if (confirmReset == true) {
+                _resetState();
+              }
+            },
+          ),
         ],
       ),
       body: NotificationListener<NavigateToPageNotification>(
