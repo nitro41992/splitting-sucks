@@ -28,17 +28,17 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.example.splitting_sucks"
+    namespace "com.example.billfie"
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = '11'
+        jvmTarget = '1.8'
     }
 
     sourceSets {
@@ -46,7 +46,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.splitting_sucks"
+        applicationId "com.example.billfie"
         minSdkVersion 23
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()

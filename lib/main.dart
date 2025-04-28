@@ -25,10 +25,21 @@ class MyApp extends StatelessWidget {
           ? MockDataService.createMockSplitManager() 
           : SplitManager(),
       child: MaterialApp(
-        title: 'Receipt Splitter',
+        title: 'Billfie',
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF2196F3), // Primary blue color
+            primary: const Color(0xFF2196F3),
+            secondary: const Color(0xFF4CAF50), // Secondary green color
+            surface: Colors.white,
+            background: const Color(0xFFF5F5F5),
+          ),
           useMaterial3: true,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Colors.white,
+            elevation: 2,
+            centerTitle: false,
+          ),
         ),
         home: const ReceiptSplitterUI(),
       ),

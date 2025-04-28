@@ -183,53 +183,33 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         scrolledUnderElevation: 1,
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.receipt_long,
-                color: colorScheme.primary,
-                size: 24,
-              ),
+            Image.asset(
+              'logo.png',
+              height: 40,
+              fit: BoxFit.contain,
             ),
             const SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Receipt Splitter',
+                  'Billfie',
                   style: textTheme.titleMedium?.copyWith(
+                    color: colorScheme.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: List.generate(5, (index) => Container(
-                    width: 24,
-                    height: 3,
-                    margin: EdgeInsets.only(right: index < 4 ? 4 : 0),
-                    decoration: BoxDecoration(
-                      color: index <= _currentStep 
-                        ? colorScheme.primary
-                        : colorScheme.surfaceVariant,
-                      borderRadius: BorderRadius.circular(1.5),
-                    ),
-                  )).toList(),
+                Text(
+                  'Smart Bill Splitting',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.secondary,
+                  ),
                 ),
               ],
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Start Over',
-            onPressed: _showStartOverConfirmationDialog,
-          ),
-        ],
       ),
       body: PageView(
         controller: _pageController,

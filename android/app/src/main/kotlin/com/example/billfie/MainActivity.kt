@@ -1,4 +1,4 @@
-package com.example.splitting_sucks
+package com.example.billfie
 
 import io.flutter.embedding.android.FlutterActivity
 
