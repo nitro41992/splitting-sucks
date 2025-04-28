@@ -17,7 +17,7 @@ class SplitView extends StatefulWidget {
 class _SplitViewState extends State<SplitView> {
   int _selectedIndex = 0;
   bool _isFabVisible = true;
-  bool _isSubtotalCollapsed = false;
+  bool _isSubtotalCollapsed = true;
   final ScrollController _peopleScrollController = ScrollController();
   final ScrollController _sharedScrollController = ScrollController();
   final ScrollController _unassignedScrollController = ScrollController();

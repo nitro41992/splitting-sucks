@@ -75,7 +75,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   late TextEditingController _transcriptionController;
 
   // Add a flag to track subtotal collapse
-  bool _isSubtotalCollapsed = false;
+  bool _isSubtotalCollapsed = true;
 
   @override
   void initState() {
