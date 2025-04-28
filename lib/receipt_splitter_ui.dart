@@ -351,17 +351,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     try {
       final result = await ReceiptParserService.parseReceipt(_imageFile!);
       setState(() {
-        _editableItems = (result['items'] as List).map((item) {
-          final name = item['item'] as String;
-          final price = item['price']?.toDouble() ?? 0.0; // Handle potential null price
-          final quantity = item['quantity'] as int? ?? 1; // Handle potential null quantity
-
-          return ReceiptItem(
-            name: name,
-            price: price,
-            quantity: quantity,
-          );
-        }).toList();
+        // Use the getReceiptItems helper method to convert raw data to ReceiptItem objects
+        _editableItems = result.getReceiptItems();
         _isUploadComplete = true;
         _isLoading = false;
       });

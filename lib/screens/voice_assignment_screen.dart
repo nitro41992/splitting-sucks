@@ -187,10 +187,13 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
             'quantity': item.quantity,
           }).toList(),
         };
-        assignmentsData = await _audioService.assignPeopleToItems(
+        final result = await _audioService.assignPeopleToItems(
           editedTranscription,
           jsonReceipt,
         );
+        
+        // Convert the structured result to the Map format expected by the parent widget
+        assignmentsData = result.toJson();
       }
 
       // Pass the raw assignment data back to the parent widget

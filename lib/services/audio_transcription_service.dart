@@ -3,6 +3,132 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+// Model classes for structured validation
+class Order {
+  final String person;
+  final String item;
+  final double price;
+  final int quantity;
+
+  Order({
+    required this.person,
+    required this.item,
+    required this.price,
+    required this.quantity,
+  });
+
+  factory Order.fromJson(Map<String, dynamic> json) {
+    return Order(
+      person: json['person'] as String,
+      item: json['item'] as String,
+      price: (json['price'] is int)
+          ? (json['price'] as int).toDouble()
+          : json['price'] as double,
+      quantity: json['quantity'] as int,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'person': person,
+        'item': item,
+        'price': price,
+        'quantity': quantity,
+      };
+}
+
+class SharedItem {
+  final String item;
+  final double price;
+  final int quantity;
+  final List<String> people;
+
+  SharedItem({
+    required this.item,
+    required this.price,
+    required this.quantity,
+    required this.people,
+  });
+
+  factory SharedItem.fromJson(Map<String, dynamic> json) {
+    return SharedItem(
+      item: json['item'] as String,
+      price: (json['price'] is int)
+          ? (json['price'] as int).toDouble()
+          : json['price'] as double,
+      quantity: json['quantity'] as int,
+      people: (json['people'] as List).map((e) => e as String).toList(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'item': item,
+        'price': price,
+        'quantity': quantity,
+        'people': people,
+      };
+}
+
+class Person {
+  final String name;
+
+  Person({required this.name});
+
+  factory Person.fromJson(Map<String, dynamic> json) {
+    return Person(name: json['name'] as String);
+  }
+
+  Map<String, dynamic> toJson() => {'name': name};
+}
+
+class AssignmentResult {
+  final List<dynamic> orders;
+  final List<dynamic> sharedItems;
+  final List<dynamic> people;
+  final List<dynamic>? unassignedItems;
+
+  AssignmentResult({
+    required this.orders,
+    required this.sharedItems,
+    required this.people,
+    this.unassignedItems,
+  });
+
+  factory AssignmentResult.fromJson(Map<String, dynamic> json) {
+    return AssignmentResult(
+      orders: json['orders'] as List,
+      sharedItems: json['shared_items'] as List,
+      people: json['people'] as List,
+      unassignedItems: json['unassigned_items'] as List?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'orders': orders,
+        'shared_items': sharedItems,
+        'people': people,
+        if (unassignedItems != null) 'unassigned_items': unassignedItems,
+      };
+
+  // Helper methods to convert raw data to typed objects
+  List<Order> getOrders() {
+    return orders
+        .map((item) => Order.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  List<SharedItem> getSharedItems() {
+    return sharedItems
+        .map((item) => SharedItem.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  List<Person> getPeople() {
+    return people
+        .map((item) => Person.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+}
+
 class AudioTranscriptionService {
   final String _apiKey;
   final String _baseUrl = 'https://api.openai.com/v1';
@@ -38,7 +164,7 @@ class AudioTranscriptionService {
     }
   }
 
-  Future<Map<String, dynamic>> assignPeopleToItems(String transcription, Map<String, dynamic> receipt) async {
+  Future<AssignmentResult> assignPeopleToItems(String transcription, Map<String, dynamic> receipt) async {
     try {
       final url = Uri.parse('$_baseUrl/chat/completions');
       final response = await http.post(
@@ -66,8 +192,16 @@ class AudioTranscriptionService {
                 "people": [
                   {"name": "name1"},
                   {"name": "name2"}
+                ],
+                "unassigned_items": [
+                  {"item": "item_name", "price": price, "quantity": quantity}
                 ]
-              }''',
+              }
+              
+              Pay close attention to:
+              1. Include ALL people mentioned in the transcription
+              2. Make sure all items are assigned to someone or marked as shared
+              3. Ensure quantities and prices match the receipt''',
             },
             {
               'role': 'user',
@@ -88,7 +222,8 @@ class AudioTranscriptionService {
         throw Exception('No response from OpenAI');
       }
 
-      return jsonDecode(content) as Map<String, dynamic>;
+      final Map<String, dynamic> parsedJson = jsonDecode(content);
+      return AssignmentResult.fromJson(parsedJson);
     } catch (e) {
       print('Error assigning items: $e');
       rethrow;
