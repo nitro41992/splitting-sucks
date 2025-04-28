@@ -12,6 +12,8 @@ import 'widgets/split_view.dart';
 import 'package:provider/provider.dart';
 import 'models/split_manager.dart';
 import 'models/receipt_item.dart';
+import 'theme/app_theme.dart';
+import 'theme/app_colors.dart';  // Added import for AppColors
 
 // Mock data for demonstration
 class MockData {
@@ -1563,6 +1565,8 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                               icon: const Icon(Icons.check_circle_outline),
                               label: const Text('Process Assignment'),
                               style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.secondary,  // Using puce color
+                                foregroundColor: Colors.white,
                                 minimumSize: const Size(double.infinity, 48),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
