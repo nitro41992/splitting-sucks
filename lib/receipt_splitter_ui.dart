@@ -2321,6 +2321,14 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                           style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ),
+                      Text(
+                        'Total:',
+                        style: textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
@@ -2416,7 +2424,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                     }),
                   ],
                   
-                  // Tax and tip row
+                  // Tax and tip rows
                   const SizedBox(height: 12),
                   Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.5)),
                   const SizedBox(height: 12),
@@ -2457,27 +2465,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Total:',
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        '\$${personFinalTotal.toStringAsFixed(2)}',
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
+                  // Remove the final divider and total row
                 ],
               ),
             ),
