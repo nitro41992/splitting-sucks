@@ -32,71 +32,102 @@ class ReceiptItemCard extends StatelessWidget {
       child: InkWell(
         onTap: () => onEdit(item, index),
         borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0), // Slightly reduce vertical padding
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center, // Center align vertically
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.name,
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '\$${item.price.toStringAsFixed(2)} each',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Quantity Stepper
-              Row(
-                mainAxisSize: MainAxisSize.min,
+        child: Stack(
+          children: [
+            // Main content
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 35.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  IconButton(
-                    icon: Icon(Icons.remove_circle_outline, color: item.quantity > 1 ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.4)),
-                    onPressed: item.quantity > 1 ? () => onQuantityChanged(index, item.quantity - 1) : null,
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0), // Padding around quantity number
-                    child: Text(
-                      '${item.quantity}',
-                      style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '\$${item.price.toStringAsFixed(2)} each',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(width: 16),
+                  // Quantity Stepper
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.remove_circle_outline, color: item.quantity > 1 ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.4)),
+                        onPressed: item.quantity > 1 ? () => onQuantityChanged(index, item.quantity - 1) : null,
+                        visualDensity: VisualDensity.comfortable,
+                        padding: EdgeInsets.zero,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0), // Padding around quantity number
+                        child: Text(
+                          '${item.quantity}',
+                          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.add_circle_outline, color: colorScheme.primary),
+                        onPressed: () => onQuantityChanged(index, item.quantity + 1),
+                        visualDensity: VisualDensity.comfortable,
+                        padding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 10), // Spacing before delete
+                  // Delete Button
                   IconButton(
-                    icon: Icon(Icons.add_circle_outline, color: colorScheme.primary),
-                    onPressed: () => onQuantityChanged(index, item.quantity + 1),
-                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
+                    onPressed: () => onDelete(index),
+                    tooltip: 'Delete Item',
+                    visualDensity: VisualDensity.comfortable,
                     padding: EdgeInsets.zero,
                   ),
                 ],
               ),
-               const SizedBox(width: 8), // Spacing before delete
-              // Delete Button
-              IconButton(
-                icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
-                onPressed: () => onDelete(index),
-                 tooltip: 'Delete Item',
-                 visualDensity: VisualDensity.compact,
-                 padding: EdgeInsets.zero,
+            ),
+            // Total price badge in top right corner
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(20.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '\$${item.total.toStringAsFixed(2)}',
+                  style: textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onPrimaryContainer,
+                  ),
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
