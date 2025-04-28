@@ -165,7 +165,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         actions: [
           // Reset Button
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh, color: colorScheme.onSurface),
             tooltip: 'Start Over',
             onPressed: () async {
               final bool? confirmReset = await showDialog<bool>(
