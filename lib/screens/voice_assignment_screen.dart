@@ -253,6 +253,110 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                             ],
                           ),
                           const SizedBox(height: 16),
+                          // Voice Input Guide
+                          Container(
+                            decoration: BoxDecoration(
+                              color: colorScheme.secondaryContainer.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: colorScheme.secondary.withOpacity(0.3)),
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.tips_and_updates_outlined,
+                                      color: colorScheme.onSecondaryContainer,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'Tips for better voice recognition:',
+                                        style: textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.onSecondaryContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.people,
+                                      size: 18,
+                                      color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Start by saying everyone\'s name (including yours).',
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: colorScheme.onSecondaryContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.restaurant_menu,
+                                      size: 18,
+                                      color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Describe what each person ordered using item names from the list below.',
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: colorScheme.onSecondaryContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.share,
+                                      size: 18,
+                                      color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Mention shared items like: "Alex and Jamie shared the fries and we all had the salad."',
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          color: colorScheme.onSecondaryContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Example: "Hey, Sam here. Alex got the burger. Jamie got the pasta. I had the salad. We all shared the garlic bread."',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    fontStyle: FontStyle.italic,
+                                    color: colorScheme.onSecondaryContainer.withOpacity(0.9),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          
                           Center(
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
