@@ -14,6 +14,7 @@ import 'models/split_manager.dart';
 import 'models/receipt_item.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_colors.dart';  // Added import for AppColors
+import 'package:flutter/services.dart';  // Add this import for clipboard
 
 // Mock data for demonstration
 class MockData {
@@ -2107,580 +2108,656 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     // Check if totals match (allowing for small floating point differences)
     final bool totalsMatch = (total - sumOfIndividualTotals).abs() < 0.01;
 
-    return ListView(
+    return Stack(
       children: [
-        // Show warning if totals don't match
-        if (!totalsMatch)
-          Card(
-            elevation: 0,
-            margin: const EdgeInsets.only(bottom: 16),
-            color: colorScheme.errorContainer,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: colorScheme.error),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Warning: Individual totals (${sumOfIndividualTotals.toStringAsFixed(2)}) ' +
-                      'don\'t match overall total (${total.toStringAsFixed(2)})',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onErrorContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-        // Header Card with Tax and Tip adjustments
-        Card(
-          elevation: 0,
-          margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: colorScheme.outlineVariant),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.receipt_long, color: colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Receipt Summary',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                
-                // Subtotal row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Subtotal:', style: textTheme.titleMedium),
-                    Text(
-                      '\$${subtotal.toStringAsFixed(2)}',
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Tax Input Row
-                Row(
-                  children: [
-                    Text('Tax:', style: textTheme.bodyLarge),
-                    const SizedBox(width: 16),
-                    SizedBox(
-                      width: 100,
-                      child: TextField(
-                        controller: _taxController, // Use the existing controller
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          suffixText: '%',
-                          isDense: true,
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                        textAlign: TextAlign.right,
-                        // Listener is already set in initState to update _taxPercentage
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        '\$${tax.toStringAsFixed(2)}', // Display calculated tax
-                        style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Tip Section
-                Row(
-                  children: [
-                    Text('Tip:', style: textTheme.bodyLarge),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                
-                // Tip Percentage Display
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '${_tipPercentage.toStringAsFixed(1)}%',
-                      style: textTheme.titleLarge?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                
-                // Tip Slider with Quick Select Buttons
-                Column(
-                  children: [
-                    // Quick select buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [15, 18, 20, 25].map((percentage) {
-                        return ElevatedButton(
-                          onPressed: () {
-                            setState(() { _tipPercentage = percentage.toDouble(); });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _tipPercentage == percentage.toDouble() 
-                              ? colorScheme.primary 
-                              : colorScheme.surfaceVariant,
-                            foregroundColor: _tipPercentage == percentage.toDouble() 
-                              ? colorScheme.onPrimary 
-                              : colorScheme.onSurfaceVariant,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          ),
-                          child: Text('$percentage%'),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    // Fine-tune slider
-                    Slider(
-                      value: _tipPercentage,
-                      min: 0,
-                      max: 30,
-                      divisions: 60,
-                      label: '${_tipPercentage.toStringAsFixed(1)}%',
-                      onChanged: (value) {
-                        setState(() { _tipPercentage = value; });
-                      },
-                    ),
-                  ],
-                ),
-                
-                // Tip Amount
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Tip Amount: ',
-                      style: textTheme.bodyLarge,
-                    ),
-                    Text(
-                      '\$${tip.toStringAsFixed(2)}', // Display calculated tip
-                      style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-                
-                const Divider(height: 24, thickness: 1),
-                
-                // Total
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Total:',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '\$${total.toStringAsFixed(2)}',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        
-        // People section header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: Row(
-            children: [
-              Icon(Icons.people, size: 20, color: colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                'People (${people.length})',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        
-        // Person cards
-        ...people.map((person) {
-          // Calculate person's subtotal (assigned + shared items)
-          final double personSubtotal = person.totalAssignedAmount + 
-              splitManager.sharedItems.where((item) => 
-                person.sharedItems.contains(item)).fold(0.0, 
-                (sum, item) => sum + (item.price * item.quantity / 
-                  splitManager.people.where((p) => 
-                    p.sharedItems.contains(item)).length));
-          
-          // Calculate tax and tip directly from person's subtotal
-          final double personTax = personSubtotal * taxRate;
-          final double personTip = personSubtotal * tipRate;
-          final double personFinalTotal = personSubtotal + personTax + personTip;
-
-          return Card(
-            elevation: 0,
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: colorScheme.outlineVariant),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+        ListView(
+          children: [
+            // Show warning if totals don't match
+            if (!totalsMatch)
+              Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 16),
+                color: colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
                     children: [
-                      CircleAvatar(
-                        backgroundColor: colorScheme.secondaryContainer,
-                        child: Text(
-                          person.name.substring(0, 1).toUpperCase(), 
-                          style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
+                      Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          person.name, 
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      Text(
-                        'Total:',
-                        style: textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '\$${personFinalTotal.toStringAsFixed(2)}',
-                          style: textTheme.titleMedium?.copyWith(
-                            color: colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
+                          'Warning: Individual totals (${sumOfIndividualTotals.toStringAsFixed(2)}) ' +
+                          'don\'t match overall total (${total.toStringAsFixed(2)})',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onErrorContainer,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  
-                  // Assigned items
-                  if (person.assignedItems.isNotEmpty) ...[
+                ),
+              ),
+
+            // Header Card with Tax and Tip adjustments
+            Card(
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: colorScheme.outlineVariant),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.receipt_long, color: colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Receipt Summary',
+                          style: textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Subtotal row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Subtotal:', style: textTheme.titleMedium),
+                        Text(
+                          '\$${subtotal.toStringAsFixed(2)}',
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
                     const SizedBox(height: 16),
-                    Text(
-                      'Assigned Items:',
-                      style: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.primary,
-                      ),
+                    
+                    // Tax Input Row
+                    Row(
+                      children: [
+                        Text('Tax:', style: textTheme.bodyLarge),
+                        const SizedBox(width: 16),
+                        SizedBox(
+                          width: 100,
+                          child: TextField(
+                            controller: _taxController, // Use the existing controller
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(
+                              suffixText: '%',
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            textAlign: TextAlign.right,
+                            // Listener is already set in initState to update _taxPercentage
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            '\$${tax.toStringAsFixed(2)}', // Display calculated tax
+                            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Tip Section
+                    Row(
+                      children: [
+                        Text('Tip:', style: textTheme.bodyLarge),
+                      ],
                     ),
                     const SizedBox(height: 8),
-                    ...person.assignedItems.map((item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    
+                    // Tip Percentage Display
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${_tipPercentage.toStringAsFixed(1)}%',
+                          style: textTheme.titleLarge?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Tip Slider with Quick Select Buttons
+                    Column(
+                      children: [
+                        // Quick select buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [15, 18, 20, 25].map((percentage) {
+                            return ElevatedButton(
+                              onPressed: () {
+                                setState(() { _tipPercentage = percentage.toDouble(); });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _tipPercentage == percentage.toDouble() 
+                                  ? colorScheme.primary 
+                                  : colorScheme.surfaceVariant,
+                                foregroundColor: _tipPercentage == percentage.toDouble() 
+                                  ? colorScheme.onPrimary 
+                                  : colorScheme.onSurfaceVariant,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              child: Text('$percentage%'),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+                        
+                        // Fine-tune slider
+                        Slider(
+                          value: _tipPercentage,
+                          min: 0,
+                          max: 30,
+                          divisions: 60,
+                          label: '${_tipPercentage.toStringAsFixed(1)}%',
+                          onChanged: (value) {
+                            setState(() { _tipPercentage = value; });
+                          },
+                        ),
+                      ],
+                    ),
+                    
+                    // Tip Amount
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Tip Amount: ',
+                          style: textTheme.bodyLarge,
+                        ),
+                        Text(
+                          '\$${tip.toStringAsFixed(2)}', // Display calculated tip
+                          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                    
+                    const Divider(height: 24, thickness: 1),
+                    
+                    // Total
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Total:',
+                          style: textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '\$${total.toStringAsFixed(2)}',
+                          style: textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            // People section header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.people, size: 20, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'People (${people.length})',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Person cards
+            ...people.map((person) {
+              // Calculate person's subtotal (assigned + shared items)
+              final double personSubtotal = person.totalAssignedAmount + 
+                  splitManager.sharedItems.where((item) => 
+                    person.sharedItems.contains(item)).fold(0.0, 
+                    (sum, item) => sum + (item.price * item.quantity / 
+                      splitManager.people.where((p) => 
+                        p.sharedItems.contains(item)).length));
+              
+              // Calculate tax and tip directly from person's subtotal
+              final double personTax = personSubtotal * taxRate;
+              final double personTip = personSubtotal * tipRate;
+              final double personFinalTotal = personSubtotal + personTax + personTip;
+
+              return Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: colorScheme.outlineVariant),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
+                          CircleAvatar(
+                            backgroundColor: colorScheme.secondaryContainer,
+                            child: Text(
+                              person.name.substring(0, 1).toUpperCase(), 
+                              style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              '${item.quantity}x ${item.name}',
-                              style: textTheme.bodyMedium,
-                              overflow: TextOverflow.ellipsis,
+                              person.name, 
+                              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ),
                           Text(
-                            '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                            style: textTheme.bodyMedium?.copyWith(
+                            'Total:',
+                            style: textTheme.titleMedium?.copyWith(
+                              color: colorScheme.onSurface,
                               fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '\$${personFinalTotal.toStringAsFixed(2)}',
+                              style: textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                    )),
-                  ],
-                  
-                  // Shared items
-                  if (person.sharedItems.isNotEmpty) ...[
-                    const SizedBox(height: 16),
+                      
+                      // Assigned items
+                      if (person.assignedItems.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Assigned Items:',
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...person.assignedItems.map((item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${item.quantity}x ${item.name}',
+                                  style: textTheme.bodyMedium,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(
+                                '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                                style: textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                      ],
+                      
+                      // Shared items
+                      if (person.sharedItems.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Shared Items:',
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.tertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...person.sharedItems.map((item) {
+                          // Count how many people share this item
+                          final int sharingCount = splitManager.people
+                              .where((p) => p.sharedItems.contains(item))
+                              .length;
+                          
+                          // Calculate individual share
+                          final double individualShare = item.price * item.quantity / sharingCount;
+                          
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${item.quantity}x ${item.name} (shared ${sharingCount} ways)',
+                                    style: textTheme.bodyMedium,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Text(
+                                  '\$${individualShare.toStringAsFixed(2)}',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                      
+                      // Tax and tip rows
+                      const SizedBox(height: 12),
+                      Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.5)),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Tax (${_taxPercentage.toStringAsFixed(1)}%):',
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          Text(
+                            '\$${personTax.toStringAsFixed(2)}',
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.tertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Tip (${_tipPercentage.toStringAsFixed(1)}%):',
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                          Text(
+                            '\$${personTip.toStringAsFixed(2)}',
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.tertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Remove the final divider and total row
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+            
+            // Unassigned items section if any
+            if (splitManager.unassignedItems.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 20, color: colorScheme.error),
+                    const SizedBox(width: 8),
                     Text(
-                      'Shared Items:',
-                      style: textTheme.titleSmall?.copyWith(
+                      'Unassigned Items',
+                      style: textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: colorScheme.tertiary,
+                        color: colorScheme.error,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    ...person.sharedItems.map((item) {
-                      // Count how many people share this item
-                      final int sharingCount = splitManager.people
-                          .where((p) => p.sharedItems.contains(item))
-                          .length;
-                      
-                      // Calculate individual share
-                      final double individualShare = item.price * item.quantity / sharingCount;
-                      
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
+                  ],
+                ),
+              ),
+              Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: colorScheme.outlineVariant),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: colorScheme.surfaceVariant,
+                            child: Icon(Icons.question_mark, color: colorScheme.onSurfaceVariant),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Unassigned', 
+                              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: colorScheme.errorContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '\$${splitManager.unassignedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity)).toStringAsFixed(2)}',
+                              style: textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onErrorContainer,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ...splitManager.unassignedItems.map((item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Expanded(
                               child: Text(
-                                '${item.quantity}x ${item.name} (shared ${sharingCount} ways)',
+                                '${item.quantity}x ${item.name}',
                                 style: textTheme.bodyMedium,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             Text(
-                              '\$${individualShare.toStringAsFixed(2)}',
+                              '\$${(item.price * item.quantity).toStringAsFixed(2)}',
                               style: textTheme.bodyMedium?.copyWith(
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
-                      );
-                    }),
-                  ],
-                  
-                  // Tax and tip rows
-                  const SizedBox(height: 12),
-                  Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.5)),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Tax (${_taxPercentage.toStringAsFixed(1)}%):',
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                      Text(
-                        '\$${personTax.toStringAsFixed(2)}',
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.tertiary,
-                        ),
-                      ),
+                      )),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Tip (${_tipPercentage.toStringAsFixed(1)}%):',
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                      Text(
-                        '\$${personTip.toStringAsFixed(2)}',
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.tertiary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Remove the final divider and total row
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-        
-        // Unassigned items section if any
-        if (splitManager.unassignedItems.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, size: 20, color: colorScheme.error),
-                const SizedBox(width: 8),
-                Text(
-                  'Unassigned Items',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.error,
                   ),
                 ),
-              ],
-            ),
-          ),
-          Card(
-            elevation: 0,
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: colorScheme.outlineVariant),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: colorScheme.surfaceVariant,
-                        child: Icon(Icons.question_mark, color: colorScheme.onSurfaceVariant),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Unassigned', 
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '\$${splitManager.unassignedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity)).toStringAsFixed(2)}',
-                          style: textTheme.titleMedium?.copyWith(
-                            color: colorScheme.onErrorContainer,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  ...splitManager.unassignedItems.map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${item.quantity}x ${item.name}',
-                            style: textTheme.bodyMedium,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                          style: textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )),
-                ],
               ),
-            ),
-          ),
-        ],
-        
-        // Complete & Share button
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: ElevatedButton.icon(
+            ],
+          ],
+        ),
+        // Floating share button
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton.extended(
             onPressed: () => _generateAndShareReceipt(context),
-            icon: const Icon(Icons.receipt_long),
-            label: const Text('Complete & Share'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colorScheme.primary,
-              foregroundColor: colorScheme.onPrimary,
-              minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+            icon: const Icon(Icons.share),
+            label: const Text('Share'),
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
           ),
         ),
       ],
     );
   }
   
-  // Method to generate and share receipt image
+  // Method to generate and share receipt
   Future<void> _generateAndShareReceipt(BuildContext context) async {
-    // Show loading indicator
+    final splitManager = context.read<SplitManager>();
+    final people = splitManager.people;
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Calculate totals
+    final double subtotal = splitManager.totalAmount;
+    final double taxRate = _taxPercentage / 100;
+    final double tipRate = _tipPercentage / 100;
+    final double tax = subtotal * taxRate;
+    final double tip = subtotal * tipRate;
+    final double total = subtotal + tax + tip;
+
+    // Build receipt text
+    StringBuffer receipt = StringBuffer();
+    
+    // Header
+    receipt.writeln('🧾 RECEIPT SUMMARY');
+    receipt.writeln('═══════════════════\n');
+    
+    // Totals section
+    receipt.writeln('📊 TOTALS');
+    receipt.writeln('Subtotal: \$${subtotal.toStringAsFixed(2)}');
+    receipt.writeln('Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${tax.toStringAsFixed(2)}');
+    receipt.writeln('Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${tip.toStringAsFixed(2)}');
+    receipt.writeln('TOTAL: \$${total.toStringAsFixed(2)}\n');
+    
+    // Individual breakdowns
+    receipt.writeln('👥 INDIVIDUAL BREAKDOWNS');
+    receipt.writeln('═══════════════════');
+    
+    for (var person in people) {
+      // Calculate person's totals
+      final double personSubtotal = person.totalAssignedAmount + 
+          splitManager.sharedItems.where((item) => 
+            person.sharedItems.contains(item)).fold(0.0, 
+            (sum, item) => sum + (item.price * item.quantity / 
+              splitManager.people.where((p) => 
+                p.sharedItems.contains(item)).length));
+      
+      final double personTax = personSubtotal * taxRate;
+      final double personTip = personSubtotal * tipRate;
+      final double personTotal = personSubtotal + personTax + personTip;
+      
+      receipt.writeln('\n👤 ${person.name.toUpperCase()} → YOU OWE: \$${personTotal.toStringAsFixed(2)}');
+      receipt.writeln('───────────────');
+      
+      // Assigned items
+      if (person.assignedItems.isNotEmpty) {
+        receipt.writeln('Individual Items:');
+        for (var item in person.assignedItems) {
+          receipt.writeln('  • ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
+        }
+      }
+      
+      // Shared items
+      if (person.sharedItems.isNotEmpty) {
+        receipt.writeln('\nShared Items:');
+        for (var item in person.sharedItems) {
+          final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
+          final individualShare = item.price * item.quantity / sharingCount;
+          receipt.writeln('  • ${item.quantity}x ${item.name} (${sharingCount}-way split: \$${individualShare.toStringAsFixed(2)})');
+        }
+      }
+      
+      // Breakdown at the bottom in smaller detail
+      receipt.writeln('\nDetails:');
+      receipt.writeln('  Subtotal: \$${personSubtotal.toStringAsFixed(2)}');
+      receipt.writeln('  + Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${personTax.toStringAsFixed(2)}');
+      receipt.writeln('  + Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${personTip.toStringAsFixed(2)}');
+      receipt.writeln('  = Total: \$${personTotal.toStringAsFixed(2)}');
+    }
+    
+    // Unassigned items section if any
+    if (splitManager.unassignedItems.isNotEmpty) {
+      receipt.writeln('\n⚠️ UNASSIGNED ITEMS');
+      receipt.writeln('═══════════════════');
+      for (var item in splitManager.unassignedItems) {
+        receipt.writeln('• ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
+      }
+      final double unassignedSubtotal = splitManager.unassignedItemsTotal;
+      final double unassignedTax = unassignedSubtotal * taxRate;
+      final double unassignedTip = unassignedSubtotal * tipRate;
+      final double unassignedTotal = unassignedSubtotal + unassignedTax + unassignedTip;
+      receipt.writeln('\nUnassigned Total: \$${unassignedTotal.toStringAsFixed(2)}');
+    }
+
+    // Copy to clipboard
+    await Clipboard.setData(ClipboardData(text: receipt.toString()));
+
+    // Show success dialog
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-    
-    try {
-      // In a real app, this would generate an image of the receipt
-      // For now, we'll just show a success dialog
-      Navigator.of(context).pop(); // Close loading dialog
-      
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Receipt Generated'),
-          content: const Text('Your receipt has been generated and is ready to share!'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // In a real app, this would share the receipt image
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Receipt shared successfully!')),
-                );
-              },
-              child: const Text('Share'),
-            ),
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Receipt Copied!'),
           ],
         ),
-      );
-    } catch (e) {
-      Navigator.of(context).pop(); // Close loading dialog
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error generating receipt: $e')),
-      );
-    }
+        content: const Text('The receipt summary has been copied to your clipboard. You can now paste it anywhere!'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+
+    // Show snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Receipt copied to clipboard!'),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'OK',
+          onPressed: () {},
+        ),
+      ),
+    );
   }
 
   double _calculateSubtotal() {
