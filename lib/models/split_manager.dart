@@ -119,9 +119,13 @@ class SplitManager extends ChangeNotifier {
 
   double get totalAmount {
     double total = 0;
+    // Sum individual assigned items only (not shared items)
     for (var person in _people) {
-      total += person.totalAmount;
+      total += person.totalAssignedAmount; // Only count individually assigned items
     }
+    // Add shared items (counted only once)
+    total += _sharedItems.fold(0, (sum, item) => sum + item.total);
+    // Add unassigned items
     total += _unassignedItems.fold(0, (sum, item) => sum + item.total);
     return total;
   }

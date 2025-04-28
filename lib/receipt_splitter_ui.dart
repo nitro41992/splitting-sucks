@@ -2011,12 +2011,74 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     
     // Calculate subtotal, tax, tip and total
     final double subtotal = splitManager.totalAmount;
-    final double tax = subtotal * (_taxPercentage / 100);
-    final double tip = subtotal * (_tipPercentage / 100);
+    final double taxRate = _taxPercentage / 100;
+    final double tipRate = _tipPercentage / 100;
+    final double tax = subtotal * taxRate;
+    final double tip = subtotal * tipRate;
     final double total = subtotal + tax + tip;
     
+    // Calculate sum of individual totals for verification
+    double sumOfIndividualTotals = 0.0;
+    List<double> personTotals = [];
+
+    // Calculate each person's total and sum them
+    for (var person in people) {
+      // Calculate person's subtotal (assigned + shared items)
+      final double personSubtotal = person.totalAssignedAmount + 
+          splitManager.sharedItems.where((item) => 
+            person.sharedItems.contains(item)).fold(0.0, 
+            (sum, item) => sum + (item.price * item.quantity / 
+              splitManager.people.where((p) => 
+                p.sharedItems.contains(item)).length));
+      
+      // Calculate tax and tip directly from person's subtotal
+      final double personTax = personSubtotal * taxRate;
+      final double personTip = personSubtotal * tipRate;
+      final double personFinalTotal = personSubtotal + personTax + personTip;
+      
+      personTotals.add(personFinalTotal);
+      sumOfIndividualTotals += personFinalTotal;
+    }
+
+    // Add unassigned items total if any
+    if (splitManager.unassignedItems.isNotEmpty) {
+      final double unassignedSubtotal = splitManager.unassignedItemsTotal;
+      final double unassignedTax = unassignedSubtotal * taxRate;
+      final double unassignedTip = unassignedSubtotal * tipRate;
+      sumOfIndividualTotals += unassignedSubtotal + unassignedTax + unassignedTip;
+    }
+
+    // Check if totals match (allowing for small floating point differences)
+    final bool totalsMatch = (total - sumOfIndividualTotals).abs() < 0.01;
+
     return ListView(
       children: [
+        // Show warning if totals don't match
+        if (!totalsMatch)
+          Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 16),
+            color: colorScheme.errorContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Warning: Individual totals (${sumOfIndividualTotals.toStringAsFixed(2)}) ' +
+                      'don\'t match overall total (${total.toStringAsFixed(2)})',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
         // Header Card with Tax and Tip adjustments
         Card(
           elevation: 0,
@@ -2218,7 +2280,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         
         // Person cards
         ...people.map((person) {
-          // Calculate this person's share of tax and tip
+          // Calculate person's subtotal (assigned + shared items)
           final double personSubtotal = person.totalAssignedAmount + 
               splitManager.sharedItems.where((item) => 
                 person.sharedItems.contains(item)).fold(0.0, 
@@ -2226,10 +2288,11 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                   splitManager.people.where((p) => 
                     p.sharedItems.contains(item)).length));
           
-          final double personTaxShare = personSubtotal / subtotal * tax;
-          final double personTipShare = personSubtotal / subtotal * tip;
-          final double personFinalTotal = personSubtotal + personTaxShare + personTipShare;
-          
+          // Calculate tax and tip directly from person's subtotal
+          final double personTax = personSubtotal * taxRate;
+          final double personTip = personSubtotal * tipRate;
+          final double personFinalTotal = personSubtotal + personTax + personTip;
+
           return Card(
             elevation: 0,
             margin: const EdgeInsets.only(bottom: 16),
@@ -2361,13 +2424,32 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Tax + Tip:',
+                        'Tax (${_taxPercentage.toStringAsFixed(1)}%):',
                         style: textTheme.bodyMedium?.copyWith(
                           fontStyle: FontStyle.italic,
                         ),
                       ),
                       Text(
-                        '\$${(personTaxShare + personTipShare).toStringAsFixed(2)}',
+                        '\$${personTax.toStringAsFixed(2)}',
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.tertiary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Tip (${_tipPercentage.toStringAsFixed(1)}%):',
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                      Text(
+                        '\$${personTip.toStringAsFixed(2)}',
                         style: textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: colorScheme.tertiary,
@@ -2558,6 +2640,13 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   }
 
   double _calculateSubtotal() {
+    // Use the SplitManager's totalAmount calculation for consistency
+    final splitManager = context.read<SplitManager>();
+    if (splitManager.people.isNotEmpty || splitManager.unassignedItems.isNotEmpty) {
+      return splitManager.totalAmount;
+    }
+    
+    // Fall back to summing _editableItems when SplitManager is not populated
     double total = 0.0;
     for (var item in _editableItems) {
       double itemTotal = item.price * item.quantity;
