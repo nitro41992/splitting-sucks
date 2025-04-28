@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/receipt_item.dart';
 import '../widgets/receipt_review/subtotal_header.dart'; // Import the header
+import '../widgets/receipt_review/receipt_item_card.dart'; // Import the new card
 import '../widgets/dialogs/add_item_dialog.dart'; // Import Add dialog
 import '../widgets/dialogs/edit_item_dialog.dart'; // Import Edit dialog
 
@@ -82,6 +83,13 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
     return total;
   }
 
+  void _updateItemQuantity(int index, int newQuantity) {
+    if (newQuantity <= 0) return; // Prevent quantity from going below 1
+    setState(() {
+      _editableItems[index].updateQuantity(newQuantity);
+    });
+  }
+
   void _addItem() async {
     final newItem = await showAddItemDialog(context);
     if (newItem != null) {
@@ -105,6 +113,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
       setState(() {
         _editableItems[index].updateName(result.name);
         _editableItems[index].updatePrice(result.price);
+        // Quantity is handled separately by the card now
       });
     }
   }
@@ -180,148 +189,13 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final item = _editableItems[index];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: colorScheme.outlineVariant),
-                    ),
-                    child: InkWell(
-                      onTap: () => _editItem(item, index), // Use the extracted edit dialog
-                      borderRadius: BorderRadius.circular(16),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start, // Align top for text wrap
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.name,
-                                        style: textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: colorScheme.surfaceVariant,
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              '${item.quantity}x',
-                                              style: textTheme.bodySmall?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: colorScheme.onSurfaceVariant,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Expanded( // Allow price text to wrap if needed
-                                            child: Text(
-                                              '\$${item.price.toStringAsFixed(2)} each',
-                                              style: textTheme.bodyMedium?.copyWith(
-                                                color: colorScheme.onSurfaceVariant,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12), // Spacing before total price
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.primaryContainer,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                                    style: textTheme.titleMedium?.copyWith(
-                                      color: colorScheme.onPrimaryContainer,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Divider(
-                              height: 1,
-                              thickness: 1,
-                              color: colorScheme.outlineVariant.withOpacity(0.5),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                IconButton(
-                                  onPressed: () => _editItem(item, index), // Use the extracted edit dialog
-                                  icon: Icon(Icons.edit_outlined, color: colorScheme.primary, size: 20),
-                                  style: IconButton.styleFrom(
-                                    // backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
-                                    padding: const EdgeInsets.all(8),
-                                  ),
-                                  tooltip: 'Edit item name/price',
-                                ),
-                                const SizedBox(width: 4),
-                                IconButton(
-                                  onPressed: () {
-                                    if (item.quantity > 0) { // Allow quantity to be zero temporarily
-                                      setState(() {
-                                        item.updateQuantity(item.quantity - 1);
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                  tooltip: 'Decrease quantity',
-                                ),
-                                Container(
-                                  constraints: const BoxConstraints(minWidth: 24), // Ensure space for number
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '${item.quantity}',
-                                    style: textTheme.titleMedium,
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      item.updateQuantity(item.quantity + 1);
-                                    });
-                                  },
-                                  icon: const Icon(Icons.add_circle_outline, size: 20),
-                                  tooltip: 'Increase quantity',
-                                ),
-                                const SizedBox(width: 4),
-                                IconButton(
-                                  icon: Icon(Icons.delete_outline, size: 20),
-                                  tooltip: 'Remove Item',
-                                  onPressed: () => _removeItem(index),
-                                  style: IconButton.styleFrom(
-                                    foregroundColor: colorScheme.error,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  return ReceiptItemCard(
+                    key: ValueKey(item.hashCode), // Use a unique key for animations
+                    item: item,
+                    index: index,
+                    onEdit: _editItem,
+                    onDelete: _removeItem,
+                    onQuantityChanged: _updateItemQuantity, // Pass the new handler
                   );
                 },
                 childCount: _editableItems.length,

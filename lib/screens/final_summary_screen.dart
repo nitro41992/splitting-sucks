@@ -8,6 +8,7 @@ import '../models/split_manager.dart';
 import '../models/receipt_item.dart'; // Ensure ReceiptItem is available if needed for calculations/display
 import '../theme/app_colors.dart'; // Ensure AppColors is correctly defined or replace with Theme colors
 import '../widgets/split_view.dart'; // Import to get NavigateToPageNotification
+import '../widgets/final_summary/person_summary_card.dart'; // Import the new card
 
 class FinalSummaryScreen extends StatefulWidget {
   const FinalSummaryScreen({
@@ -506,110 +507,21 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
             ),
 
             // Individual Person Cards
-            ...people.map((person) {
-              // Calculate person's subtotal (assigned + shared items)
-              final double personSubtotal = person.totalAssignedAmount +
-                  splitManager.sharedItems.where((item) =>
-                    person.sharedItems.contains(item)).fold(0.0,
-                    (sum, item) {
-                      final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
-                      // Handle division by zero if sharingCount is somehow 0
-                      return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
-                  });
-
-              // Calculate tax and tip based on *this person's subtotal*
-              final double personTax = personSubtotal * taxRate;
-              final double personTip = personSubtotal * tipRate;
-              final double personFinalTotal = personSubtotal + personTax + personTip;
-
-              return Card(
-                elevation: 1, // Subtle elevation
-                shadowColor: colorScheme.shadow.withOpacity(0.2),
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4), // Vertical margin
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                 // side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.5)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Person Header Row
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: colorScheme.secondaryContainer,
-                            child: Text(
-                              person.name.isNotEmpty ? person.name.substring(0, 1).toUpperCase() : '?', // Handle empty name
-                              style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold, fontSize: 18),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              person.name,
-                              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          // Person's Total Amount (Highlight)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: colorScheme.tertiaryContainer, // Use tertiary for contrast
-                              borderRadius: BorderRadius.circular(20), // Pill shape
-                            ),
-                            child: Text(
-                              '\$${personFinalTotal.toStringAsFixed(2)}',
-                              style: textTheme.titleMedium?.copyWith(
-                                color: colorScheme.onTertiaryContainer,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16), // Spacer
-
-                      // Assigned items list (if any)
-                      if (person.assignedItems.isNotEmpty) ...[
-                        _buildItemList(context, 'Assigned Items:', person.assignedItems),
-                         const SizedBox(height: 12),
-                      ],
-
-                      // Shared items list (if any)
-                      if (person.sharedItems.isNotEmpty) ...[
-                         _buildItemList(context, 'Shared Items (Your Share):', person.sharedItems, splitManager: splitManager),
-                         const SizedBox(height: 12),
-                      ],
-
-                      // Divider before tax/tip breakdown
-                      if (person.assignedItems.isNotEmpty || person.sharedItems.isNotEmpty)
-                         Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.3)),
-
-                      // Person's Tax and Tip Breakdown
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12.0), // Padding above tax/tip
-                        child: Column(
-                           children: [
-                              _buildDetailRow(context, 'Subtotal (Items)', personSubtotal),
-                              const SizedBox(height: 4),
-                              _buildDetailRow(context, 'Tax (${_taxPercentage.toStringAsFixed(1)}%)', personTax),
-                              const SizedBox(height: 4),
-                              _buildDetailRow(context, 'Tip (${_tipPercentage.toStringAsFixed(1)}%)', personTip),
-                              const SizedBox(height: 8),
-                              // Final total row (already shown in header, maybe omit here or style differently)
-                              // Divider(height: 1, thickness: 1),
-                              //_buildDetailRow(context, 'Total Due', personFinalTotal, isBold: true),
-                           ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: splitManager.people.length,
+              itemBuilder: (context, index) {
+                final person = splitManager.people[index];
+                return PersonSummaryCard(
+                  key: ValueKey(person.name), // Use person's name as key (assuming unique)
+                  person: person,
+                  splitManager: splitManager,
+                  taxPercentage: _taxPercentage,
+                  tipPercentage: _tipPercentage,
+                );
+              },
+            ),
 
             // Unassigned items section (if any)
             if (splitManager.unassignedItems.isNotEmpty) ...[
@@ -634,8 +546,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                  shadowColor: colorScheme.shadow.withOpacity(0.2),
                  margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                  shape: RoundedRectangleBorder(
-                   borderRadius: BorderRadius.circular(16),
-                   // side: BorderSide(color: colorScheme.error.withOpacity(0.5)), // Error border
+                   borderRadius: BorderRadius.circular(24),
                  ),
                  child: Padding(
                   padding: const EdgeInsets.all(16.0),
