@@ -440,15 +440,91 @@ class _SplitViewState extends State<SplitView> {
   }
 
   Widget _buildSharedItemsList(BuildContext context, SplitManager splitManager) {
-    return Column(
-      children: splitManager.sharedItems.map((item) => SharedItemCard(item: item)).toList(),
-    );
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    if (splitManager.sharedItems.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.group_off_outlined, // Icon indicating no sharing
+                size: 60,
+                color: colorScheme.secondary, // Use secondary color for distinction
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Nothing Shared Yet!',
+                textAlign: TextAlign.center,
+                style: textTheme.headlineSmall?.copyWith(
+                  color: colorScheme.secondary, // Use secondary color
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Assign items to multiple people to share them.',
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return Column(
+        children: splitManager.sharedItems.map((item) => SharedItemCard(item: item)).toList(),
+      );
+    }
   }
 
   Widget _buildUnassignedItemsList(BuildContext context, SplitManager splitManager) {
-    return Column(
-      children: splitManager.unassignedItems.map((item) => UnassignedItemCard(item: item)).toList(),
-    );
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    if (splitManager.unassignedItems.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+               Icon(
+                Icons.celebration_rounded, // Fun icon
+                size: 60,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'All Items Assigned!',
+                textAlign: TextAlign.center,
+                style: textTheme.headlineSmall?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Everything\'s assigned, nothing to see here.',
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return Column(
+        children: splitManager.unassignedItems.map((item) => UnassignedItemCard(item: item)).toList(),
+      );
+    }
   }
 
   Widget _buildTabItem({
@@ -499,42 +575,46 @@ class _SplitViewState extends State<SplitView> {
         ),
         content: StatefulBuilder( // Use StatefulBuilder for the counter
           builder: (context, setStateDialog) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: controller,
-                  decoration: InputDecoration(
-                    labelText: 'Name',
-                    hintText: 'Enter person\'s name',
-                    prefixIcon: const Icon(Icons.person_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+            // Wrap the Column in a Container to provide width constraints
+            return Container(
+              width: double.infinity, // Use available width
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: InputDecoration(
+                      labelText: 'Name',
+                      hintText: 'Enter person\'s name',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      counterText: '', // Remove default counter
                     ),
-                    counterText: '', // Remove default counter
+                    maxLength: personMaxNameLength,
+                    textCapitalization: TextCapitalization.words,
+                    autofocus: true,
+                    onChanged: (value) {
+                      // Force rebuild to update counter
+                      setStateDialog(() {});
+                    },
                   ),
-                  maxLength: personMaxNameLength,
-                  textCapitalization: TextCapitalization.words,
-                  autofocus: true,
-                  onChanged: (value) {
-                    // Force rebuild to update counter
-                    setStateDialog(() {});
-                  },
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '${controller.text.length}/$personMaxNameLength',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: controller.text.length > personMaxNameLength
-                        ? colorScheme.error
-                        : colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      '${controller.text.length}/$personMaxNameLength',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: controller.text.length > personMaxNameLength
+                          ? colorScheme.error
+                          : colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           }
         ),

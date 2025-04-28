@@ -145,99 +145,216 @@ class UnassignedItemCard extends StatelessWidget {
     int selectedQuantity = item.quantity; // Track quantity within the dialog state
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-
-    showDialog(
+    
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) { // Use a different name for dialog's setState
-          return AlertDialog(
-            title: const Text('Assign to Person'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Quantity selector
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+        builder: (context, setStateDialog) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Assign to Person',
+                        style: textTheme.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(width: 48), // Balance the header
+                  ],
+                ),
+                const Divider(),
+                
+                // Item info
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  child: Card(
+                    color: colorScheme.surface,
+                    elevation: 1,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.name,
+                              style: textTheme.titleMedium,
+                            ),
+                          ),
+                          Text(
+                            '\$${item.price.toStringAsFixed(2)}',
+                            style: textTheme.titleMedium?.copyWith(
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Quantity selector
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
                     children: [
-                      Text('Quantity: ', style: textTheme.titleMedium),
-                      IconButton(
-                        icon: Icon(Icons.remove_circle_outline, color: selectedQuantity > 0 ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.38)),
-                        tooltip: 'Decrease quantity',
-                        onPressed: selectedQuantity > 0
-                            ? () => setStateDialog(() => selectedQuantity--)
-                            : null,
-                      ),
-                      SizedBox(
-                        width: 24,
-                        child: Text(
-                          selectedQuantity.toString(),
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
+                      Text('Quantity:', style: textTheme.titleMedium),
+                      const Spacer(),
+                      Material(
+                        color: colorScheme.surfaceVariant,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove),
+                              onPressed: selectedQuantity > 1
+                                  ? () => setStateDialog(() => selectedQuantity--)
+                                  : null,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            SizedBox(
+                              width: 32,
+                              child: Text(
+                                selectedQuantity.toString(),
+                                style: textTheme.titleMedium,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add),
+                              onPressed: selectedQuantity < item.quantity
+                                  ? () => setStateDialog(() => selectedQuantity++)
+                                  : null,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
                         ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.add_circle_outline, color: selectedQuantity < item.quantity ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.38)),
-                        tooltip: 'Increase quantity',
-                        onPressed: selectedQuantity < item.quantity
-                            ? () => setStateDialog(() => selectedQuantity++)
-                            : null,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  // Person list
-                  if (splitManager.people.isEmpty)
-                    const Text('Add people first using the + button.')
-                  else
-                    SizedBox(
-                      width: double.maxFinite,
-                      height: 300, // Constrain height
-                      child: ListView.builder(
-                        shrinkWrap: true,
+                ),
+
+                const Divider(),
+                
+                // People section title
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Text(
+                    'Select a person:',
+                    style: textTheme.titleMedium,
+                  ),
+                ),
+                
+                // People grid
+                Expanded(
+                  child: splitManager.people.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.people_outline, size: 48, color: colorScheme.outline),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No people added yet',
+                                style: textTheme.titleMedium,
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Add people using the + button first',
+                                style: textTheme.bodyMedium,
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 2.5,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
                         itemCount: splitManager.people.length,
                         itemBuilder: (context, index) {
                           final person = splitManager.people[index];
-                          return ListTile(
-                            leading: CircleAvatar(
-                                child: Text(person.name.isNotEmpty ? person.name[0] : '?')
+                          return Card(
+                            elevation: 1,
+                            color: colorScheme.surface,
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: selectedQuantity > 0 ? () {
+                                // Create a new item with the specified quantity
+                                final newItem = ReceiptItem(
+                                  name: item.name,
+                                  price: item.price,
+                                  quantity: selectedQuantity,
+                                );
+
+                                // Assign the new item
+                                splitManager.assignItemToPerson(newItem, person);
+
+                                // Handle the source item's quantity reduction or removal
+                                if (selectedQuantity >= item.quantity) {
+                                  splitManager.removeUnassignedItem(item);
+                                } else {
+                                  item.updateQuantity(item.quantity - selectedQuantity);
+                                }
+
+                                Navigator.pop(context); // Close the dialog
+                              } : null,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 16,
+                                      backgroundColor: colorScheme.primary,
+                                      child: Text(
+                                        person.name.isNotEmpty ? person.name[0] : '?',
+                                        style: TextStyle(color: colorScheme.onPrimary),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        person.name,
+                                        style: textTheme.bodyLarge?.copyWith(
+                                          color: colorScheme.onSurface,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            title: Text(person.name, overflow: TextOverflow.ellipsis),
-                            onTap: selectedQuantity > 0 ? () {
-                              // Create a new item with the specified quantity
-                              final newItem = ReceiptItem(
-                                name: item.name,
-                                price: item.price,
-                                quantity: selectedQuantity,
-                              );
-
-                              // First assign the new item
-                              splitManager.assignItemToPerson(newItem, person);
-
-                              // Then handle the source item's quantity reduction or removal
-                              if (selectedQuantity >= item.quantity) {
-                                splitManager.removeUnassignedItem(item);
-                              } else {
-                                item.updateQuantity(item.quantity - selectedQuantity);
-                              }
-
-                              Navigator.pop(context); // Close the dialog
-                            } : null, // Disable tap if quantity is 0
                           );
                         },
                       ),
-                    ),
-                ],
-              ),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-            ],
           );
         },
       ),
@@ -250,119 +367,311 @@ class UnassignedItemCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setStateDialog) { // Use a different name for dialog's setState
-            return AlertDialog(
-              title: const Text('Share Item'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Quantity selector
-                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+          builder: (BuildContext context, StateSetter setStateDialog) {
+            // Validation for selected people
+            final bool hasSelectedPeople = selectedPeople.isNotEmpty;
+            final bool hasOnlyOnePerson = selectedPeople.length == 1;
+            final bool isShareValid = hasSelectedPeople && !hasOnlyOnePerson;
+            
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      Expanded(
+                        child: Text(
+                          'Share Item',
+                          style: textTheme.titleLarge,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.check),
+                        onPressed: isShareValid && selectedQuantity > 0 ? () {
+                          // Create a new item with the specified quantity
+                          final newItem = ReceiptItem(
+                            name: item.name,
+                            price: item.price,
+                            quantity: selectedQuantity,
+                          );
+
+                          // Add the item to shared section
+                          splitManager.addItemToShared(newItem, List.from(selectedPeople));
+
+                          // Handle the source item's quantity reduction or removal
+                          if (selectedQuantity >= item.quantity) {
+                            splitManager.removeUnassignedItem(item);
+                          } else {
+                            item.updateQuantity(item.quantity - selectedQuantity);
+                          }
+
+                          Navigator.pop(dialogContext);
+                        } : null,
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  
+                  // Item info
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    child: Card(
+                      color: colorScheme.surface,
+                      elevation: 1,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.name,
+                                style: textTheme.titleMedium,
+                              ),
+                            ),
+                            Text(
+                              '\$${item.price.toStringAsFixed(2)}',
+                              style: textTheme.titleMedium?.copyWith(
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  // Quantity selector
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
                       children: [
-                        Text('Quantity: ', style: textTheme.titleMedium),
-                        IconButton(
-                          icon: Icon(Icons.remove_circle_outline, color: selectedQuantity > 0 ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.38)),
-                          tooltip: 'Decrease quantity',
-                          onPressed: selectedQuantity > 0
-                              ? () => setStateDialog(() => selectedQuantity--)
-                              : null,
-                        ),
-                        SizedBox(
-                          width: 24,
-                          child: Text(
-                            selectedQuantity.toString(),
-                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
+                        Text('Quantity:', style: textTheme.titleMedium),
+                        const Spacer(),
+                        Material(
+                          color: colorScheme.surfaceVariant,
+                          borderRadius: BorderRadius.circular(20),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove),
+                                onPressed: selectedQuantity > 1
+                                    ? () => setStateDialog(() => selectedQuantity--)
+                                    : null,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              SizedBox(
+                                width: 32,
+                                child: Text(
+                                  selectedQuantity.toString(),
+                                  style: textTheme.titleMedium,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add),
+                                onPressed: selectedQuantity < item.quantity
+                                    ? () => setStateDialog(() => selectedQuantity++)
+                                    : null,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
                           ),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.add_circle_outline, color: selectedQuantity < item.quantity ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.38)),
-                          tooltip: 'Increase quantity',
-                          onPressed: selectedQuantity < item.quantity
-                              ? () => setStateDialog(() => selectedQuantity++)
-                              : null,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    const Divider(),
-                    const SizedBox(height: 16),
-                    // People selection
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Select people to share with:',
-                        style: textTheme.titleSmall,
+                  ),
+
+                  const Divider(),
+                  
+                  // Selected people section header with hint - Fix the overflow
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Select multiple people to share with:',
+                          style: textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: colorScheme.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Select at least 2 people',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (selectedPeople.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  '${selectedPeople.length} selected',
+                                  style: textTheme.labelMedium?.copyWith(
+                                    color: colorScheme.onPrimaryContainer,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Validation message for single person selection
+                  if (hasOnlyOnePerson)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: colorScheme.errorContainer.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: colorScheme.error,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'For a single person, use "Assign to Person" instead',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onErrorContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                     if (splitManager.people.isEmpty)
-                      const Text('Add people first using the + button.')
-                     else
-                      SizedBox(
-                        width: double.maxFinite,
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: splitManager.people.map((person) {
-                            final isSelected = selectedPeople.contains(person);
-                            return FilterChip(
-                              label: Text(person.name),
-                              selected: isSelected,
-                              onSelected: (selected) {
-                                setStateDialog(() { // Update dialog state
-                                  if (selected) {
-                                    selectedPeople.add(person);
-                                  } else {
+                  
+                  // People grid
+                  if (splitManager.people.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.people_outline, size: 48, color: colorScheme.outline),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No people added yet',
+                              style: textTheme.titleMedium,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Add people using the + button first',
+                              style: textTheme.bodyMedium,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 2.5,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                        itemCount: splitManager.people.length,
+                        itemBuilder: (context, index) {
+                          final person = splitManager.people[index];
+                          final isSelected = selectedPeople.contains(person);
+                          
+                          return Card(
+                            elevation: 1,
+                            color: isSelected 
+                                ? colorScheme.primaryContainer 
+                                : colorScheme.surface,
+                            child: InkWell(
+                              onTap: () {
+                                setStateDialog(() {
+                                  if (isSelected) {
                                     selectedPeople.remove(person);
+                                  } else {
+                                    selectedPeople.add(person);
                                   }
                                 });
                               },
-                              selectedColor: colorScheme.primaryContainer,
-                              checkmarkColor: colorScheme.onPrimaryContainer,
-                            );
-                          }).toList(),
-                        ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 16,
+                                      backgroundColor: isSelected
+                                          ? colorScheme.primary
+                                          : colorScheme.primary,
+                                      child: isSelected
+                                          ? const Icon(Icons.check, size: 16, color: Colors.white)
+                                          : Text(
+                                              person.name.isNotEmpty ? person.name[0] : '?',
+                                              style: TextStyle(color: colorScheme.onPrimary),
+                                            ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        person.name,
+                                        style: textTheme.bodyLarge?.copyWith(
+                                          color: isSelected
+                                              ? colorScheme.onPrimaryContainer
+                                              : colorScheme.onSurface,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  // Disable if no people selected or quantity is invalid
-                  onPressed: selectedPeople.isEmpty || selectedQuantity <= 0 ? null : () {
-                    // Create a new item with the specified quantity
-                    final newItem = ReceiptItem(
-                      name: item.name,
-                      price: item.price,
-                      quantity: selectedQuantity,
-                    );
-
-                    // First add the item to shared section
-                    splitManager.addItemToShared(newItem, List.from(selectedPeople)); // Pass a copy
-
-                    // Then handle the source item's quantity reduction or removal
-                    if (selectedQuantity >= item.quantity) {
-                      splitManager.removeUnassignedItem(item);
-                    } else {
-                      item.updateQuantity(item.quantity - selectedQuantity);
-                    }
-
-                    Navigator.pop(dialogContext); // Close the dialog
-                  },
-                  child: const Text('Share'),
-                ),
-              ],
             );
           },
         );
