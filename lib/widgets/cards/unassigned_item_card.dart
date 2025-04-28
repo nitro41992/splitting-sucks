@@ -142,7 +142,8 @@ class UnassignedItemCard extends StatelessWidget {
   }
 
   void _showAssignToPersonDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
-    int selectedQuantity = item.quantity; // Track quantity within the dialog state
+    // Initialize with 1 if the item quantity is greater than 1, otherwise use item.quantity
+    int selectedQuantity = item.quantity > 1 ? 1 : item.quantity;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     
@@ -215,36 +216,57 @@ class UnassignedItemCard extends StatelessWidget {
                     children: [
                       Text('Quantity:', style: textTheme.titleMedium),
                       const Spacer(),
-                      Material(
-                        color: colorScheme.surfaceVariant,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove),
-                              onPressed: selectedQuantity > 1
-                                  ? () => setStateDialog(() => selectedQuantity--)
-                                  : null,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            SizedBox(
-                              width: 32,
-                              child: Text(
-                                selectedQuantity.toString(),
-                                style: textTheme.titleMedium,
-                                textAlign: TextAlign.center,
+                      Row(
+                        children: [
+                          // Max button
+                          OutlinedButton(
+                            onPressed: selectedQuantity < item.quantity
+                                ? () => setStateDialog(() => selectedQuantity = item.quantity)
+                                : null,
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(50, 36),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              side: BorderSide(color: colorScheme.primary),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.add),
-                              onPressed: selectedQuantity < item.quantity
-                                  ? () => setStateDialog(() => selectedQuantity++)
-                                  : null,
-                              visualDensity: VisualDensity.compact,
+                            child: Text('Max', style: textTheme.labelMedium),
+                          ),
+                          const SizedBox(width: 8),
+                          // Quantity controls
+                          Material(
+                            color: colorScheme.surfaceVariant,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove),
+                                  onPressed: selectedQuantity > 1
+                                      ? () => setStateDialog(() => selectedQuantity--)
+                                      : null,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                SizedBox(
+                                  width: 32,
+                                  child: Text(
+                                    selectedQuantity.toString(),
+                                    style: textTheme.titleMedium,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add),
+                                  onPressed: selectedQuantity < item.quantity
+                                      ? () => setStateDialog(() => selectedQuantity++)
+                                      : null,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -362,7 +384,8 @@ class UnassignedItemCard extends StatelessWidget {
   }
 
   void _showShareDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
-    int selectedQuantity = item.quantity;
+    // Initialize with 1 if the item quantity is greater than 1, otherwise use item.quantity
+    int selectedQuantity = item.quantity > 1 ? 1 : item.quantity;
     final List<Person> selectedPeople = []; // Track selected people within the dialog
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
@@ -464,36 +487,57 @@ class UnassignedItemCard extends StatelessWidget {
                       children: [
                         Text('Quantity:', style: textTheme.titleMedium),
                         const Spacer(),
-                        Material(
-                          color: colorScheme.surfaceVariant,
-                          borderRadius: BorderRadius.circular(20),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove),
-                                onPressed: selectedQuantity > 1
-                                    ? () => setStateDialog(() => selectedQuantity--)
-                                    : null,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              SizedBox(
-                                width: 32,
-                                child: Text(
-                                  selectedQuantity.toString(),
-                                  style: textTheme.titleMedium,
-                                  textAlign: TextAlign.center,
+                        Row(
+                          children: [
+                            // Max button
+                            OutlinedButton(
+                              onPressed: selectedQuantity < item.quantity
+                                  ? () => setStateDialog(() => selectedQuantity = item.quantity)
+                                  : null,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(50, 36),
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                side: BorderSide(color: colorScheme.primary),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.add),
-                                onPressed: selectedQuantity < item.quantity
-                                    ? () => setStateDialog(() => selectedQuantity++)
-                                    : null,
-                                visualDensity: VisualDensity.compact,
+                              child: Text('Max', style: textTheme.labelMedium),
+                            ),
+                            const SizedBox(width: 8),
+                            // Quantity controls
+                            Material(
+                              color: colorScheme.surfaceVariant,
+                              borderRadius: BorderRadius.circular(20),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.remove),
+                                    onPressed: selectedQuantity > 1
+                                        ? () => setStateDialog(() => selectedQuantity--)
+                                        : null,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  SizedBox(
+                                    width: 32,
+                                    child: Text(
+                                      selectedQuantity.toString(),
+                                      style: textTheme.titleMedium,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add),
+                                    onPressed: selectedQuantity < item.quantity
+                                        ? () => setStateDialog(() => selectedQuantity++)
+                                        : null,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
