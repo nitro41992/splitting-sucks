@@ -1152,20 +1152,19 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                       },
                       autofocus: true,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Maximum $maxNameLength characters',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                    // const SizedBox(height: 8),
+                    // Text(
+                    //   'Maximum $maxNameLength characters',
+                    //   style: textTheme.bodySmall?.copyWith(
+                    //     color: colorScheme.onSurfaceVariant,
+                    //   ),
+                    // ),
                     const SizedBox(height: 16),
                     // Price field
                     TextField(
                       controller: priceController,
                       decoration: InputDecoration(
                         labelText: 'Price',
-                        hintText: 'Enter price',
                         prefixText: '\$ ',
                         prefixIcon: const Icon(Icons.attach_money),
                         border: OutlineInputBorder(
@@ -1175,70 +1174,56 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       style: textTheme.bodyLarge,
                     ),
-                    const SizedBox(height: 24),
-                    // Quantity selector
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceVariant.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colorScheme.outlineVariant),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Quantity',
-                            style: textTheme.titleSmall?.copyWith(
-                              color: colorScheme.primary,
+                    const SizedBox(height: 16),
+                    // Quantity selector - more compact design
+                    Row(
+                      children: [
+                        // Icon(Icons.format_list_numbered, 
+                        //   size: 20, 
+                        //   color: colorScheme.primary
+                        // ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Quantity:',
+                          style: textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        IconButton(
+                          onPressed: () {
+                            if (quantity > 1) {
+                              setState(() => quantity--);
+                            }
+                          },
+                          icon: const Icon(Icons.remove_circle_outline, size: 20),
+                          style: IconButton.styleFrom(
+                            padding: const EdgeInsets.all(4),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceVariant,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            quantity.toString(),
+                            style: textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton.filled(
-                                onPressed: () {
-                                  if (quantity > 1) {
-                                    setState(() => quantity--);
-                                  }
-                                },
-                                icon: const Icon(Icons.remove),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: colorScheme.primaryContainer,
-                                  foregroundColor: colorScheme.onPrimaryContainer,
-                                ),
-                              ),
-                              Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 16),
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surface,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: colorScheme.outlineVariant),
-                                ),
-                                child: Text(
-                                  quantity.toString(),
-                                  style: textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              IconButton.filled(
-                                onPressed: () {
-                                  setState(() => quantity++);
-                                },
-                                icon: const Icon(Icons.add),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: colorScheme.primaryContainer,
-                                  foregroundColor: colorScheme.onPrimaryContainer,
-                                ),
-                              ),
-                            ],
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            setState(() => quantity++);
+                          },
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          style: IconButton.styleFrom(
+                            padding: const EdgeInsets.all(4),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -2537,13 +2522,13 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
               },
               autofocus: true,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Maximum $maxNameLength characters',
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
+            // const SizedBox(height: 8),
+            // Text(
+            //   'Maximum $maxNameLength characters',
+            //   style: textTheme.bodySmall?.copyWith(
+            //     color: colorScheme.onSurfaceVariant,
+            //   ),
+            // ),
             const SizedBox(height: 16),
             TextField(
               controller: priceController,
