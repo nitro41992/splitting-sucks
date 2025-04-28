@@ -213,6 +213,14 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             ),
           ],
         ),
+        actions: [
+          // Add restart button in the app bar
+          IconButton(
+            onPressed: () => _showStartOverConfirmationDialog(),
+            icon: Icon(Icons.refresh_rounded, color: Theme.of(context).colorScheme.primary), // Explicitly set color
+            tooltip: 'Start Over',
+          ),
+        ],
       ),
       body: NotificationListener<NavigateToPageNotification>(
         onNotification: (notification) {
@@ -300,20 +308,61 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     _itemPriceControllers.forEach((controller) => controller.dispose());
     
     setState(() {
+      // Reset step and navigation
       _currentStep = 0;
       _pageController.jumpToPage(0);
+      
+      // Reset image and recording state
       _imageFile = null;
+      _isRecording = false;
+      _transcription = null;
+      _assignments = null;
+      
+      // Reset calculations
       _tipPercentage = 20.0;
       _taxPercentage = DEFAULT_TAX_RATE;
       _taxController.text = DEFAULT_TAX_RATE.toStringAsFixed(3);
-      _isRecording = false;
+      
+      // Reset items and controllers
+      _editableItems = [];
+      _itemPriceControllers = [];
+      _deletedItems = [];
+      
+      // Reset completion flags
       _isUploadComplete = false;
       _isReviewComplete = false;
       _isAssignmentComplete = false;
-      _transcription = null;  // Clear transcription
-      _assignments = null;    // Clear assignments
-      _initializeEditableItems();
+      
+      // Reset visibility flags
+      _isFabVisible = true;
+      _isContinueButtonVisible = true;
+      _isSubtotalCollapsed = true;
+      
+      // Reset scroll position
+      _lastScrollPosition = 0;
+      
+      // Reset transcription
+      _transcriptionController.text = '';
+      
+      // Reset SplitManager state
+      final splitManager = context.read<SplitManager>();
+      splitManager.reset();
     });
+
+    // Show confirmation snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.refresh_rounded, color: Theme.of(context).colorScheme.onPrimary),
+            const SizedBox(width: 12),
+            const Text('Reset complete. Ready to start over!'),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _parseReceipt() async {
@@ -2828,30 +2877,130 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   }
 
    void _showStartOverConfirmationDialog() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Start Over?'),
-          content: const Text('Are you sure you want to start over? All current progress will be lost.'),
-          actions: <Widget>[
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Start Over?',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This will reset all your progress:',
+                style: textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildResetItem(
+                icon: Icons.receipt_long,
+                text: 'Uploaded receipt will be cleared',
+                colorScheme: colorScheme,
+                textTheme: textTheme,
+              ),
+              const SizedBox(height: 8),
+              _buildResetItem(
+                icon: Icons.edit_document,
+                text: 'Item edits will be lost',
+                colorScheme: colorScheme,
+                textTheme: textTheme,
+              ),
+              const SizedBox(height: 8),
+              _buildResetItem(
+                icon: Icons.people,
+                text: 'Assignments will be removed',
+                colorScheme: colorScheme,
+                textTheme: textTheme,
+              ),
+              const SizedBox(height: 8),
+              _buildResetItem(
+                icon: Icons.calculate,
+                text: 'Calculations will be reset',
+                colorScheme: colorScheme,
+                textTheme: textTheme,
+              ),
+            ],
+          ),
+          actions: [
             TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                'Keep Current',
+                style: textTheme.labelLarge?.copyWith(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-            TextButton(
-              child: const Text('Confirm'),
-               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+            FilledButton.icon(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 _resetState();
               },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Start Over'),
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
             ),
           ],
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
         );
       },
+    );
+  }
+
+  Widget _buildResetItem({
+    required IconData icon,
+    required String text,
+    required ColorScheme colorScheme,
+    required TextTheme textTheme,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: colorScheme.errorContainer.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: colorScheme.error,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
