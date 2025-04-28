@@ -9,6 +9,7 @@ import '../models/receipt_item.dart';
 import 'cards/person_card.dart';
 import 'cards/shared_item_card.dart';
 import 'cards/unassigned_item_card.dart';
+import '../theme/app_colors.dart';
 
 class SplitView extends StatefulWidget {
   const SplitView({
@@ -361,6 +362,8 @@ class _SplitViewState extends State<SplitView> {
               opacity: _isFabVisible ? 1.0 : 0.0,
               child: FloatingActionButton(
                 onPressed: () => _showAddPersonDialog(context, splitManager),
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 child: const Icon(Icons.person_add),
               ),
             ),
