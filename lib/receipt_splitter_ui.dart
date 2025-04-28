@@ -401,18 +401,28 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       // Add people
       final peopleData = List<Map<String, dynamic>>.from(assignmentsData['people'] ?? []);
       for (var personData in peopleData) {
-        splitManager.addPerson(personData['name'] as String);
+        final personName = personData['name'] as String?; // Cast as nullable String
+        if (personName != null && personName.isNotEmpty) {
+          splitManager.addPerson(personName);
+        } else {
+          print("WARN: Skipping person with missing or empty name.");
+        }
       }
 
       // Helper to find original item robustly
       ReceiptItem findOriginalItem(String name, double price) {
+         // Check if _editableItems is empty before proceeding
+         if (_editableItems.isEmpty) {
+           throw Exception("Cannot find items because the editable items list is empty.");
+         }
          return _editableItems.firstWhere(
            (item) => item.name == name && (item.price - price).abs() < 0.01,
            orElse: () {
               print("WARN: Item not found via name/price: Name='$name', Price='$price'. Trying name only.");
+              // Find by name only as a fallback
               return _editableItems.firstWhere(
                 (item) => item.name == name,
-                orElse: () => throw Exception("Item '$name' not found in original list.")
+                orElse: () => throw Exception("Item '$name' not found in original list after checking name and price, and name only.")
               );
            }
          );
@@ -421,54 +431,165 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       // Process assigned items ('orders')
       final orders = List<Map<String, dynamic>>.from(assignmentsData['orders'] ?? []);
       for (var order in orders) {
-        final personName = order['person'] as String;
+        final personName = order['person'] as String?; // Cast as nullable String
+        final itemName = order['item'] as String?;     // Cast as nullable String
+        final itemPrice = (order['price'] as num?)?.toDouble(); // Handle nullable num
+        final itemQuantity = order['quantity'] as int?;         // Handle nullable int
+
+        if (personName == null || personName.isEmpty) {
+          print("WARN: Skipping order with missing or empty person name.");
+          continue;
+        }
+        if (itemName == null || itemName.isEmpty) {
+          print("WARN: Skipping order for person '$personName' with missing or empty item name.");
+          continue;
+        }
+        if (itemPrice == null) {
+          print("WARN: Skipping order for person '$personName', item '$itemName' due to missing price.");
+          continue;
+        }
+        if (itemQuantity == null || itemQuantity <= 0) {
+          print("WARN: Skipping order for person '$personName', item '$itemName' due to missing or invalid quantity.");
+          continue;
+        }
+
         final person = splitManager.people.firstWhere(
            (p) => p.name == personName,
-           orElse: () => throw Exception("Person '$personName' not found during assignment processing")
+           orElse: () {
+             print("ERROR: Person '$personName' not found in SplitManager during assignment processing for item '$itemName'. Skipping order.");
+             throw Exception("Person '$personName' not found for item '$itemName'");
+           }
         );
 
-        final itemName = order['item'] as String;
-        final itemPrice = (order['price'] as num).toDouble();
-        final itemQuantity = order['quantity'] as int;
-
-        final originalItem = findOriginalItem(itemName, itemPrice);
-        final assignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
-        splitManager.setOriginalQuantity(assignedItem, originalItem.originalQuantity);
-        splitManager.assignItemToPerson(assignedItem, person);
+        try {
+          final originalItem = findOriginalItem(itemName, itemPrice);
+          final assignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
+          // Ensure original quantity exists before setting
+          if (originalItem.originalQuantity > 0) {
+             splitManager.setOriginalQuantity(assignedItem, originalItem.originalQuantity);
+          } else {
+             // Fallback: use current quantity if original wasn't set/parsed correctly
+             splitManager.setOriginalQuantity(assignedItem, assignedItem.quantity);
+             print("WARN: Original quantity for item '$itemName' was not set or zero. Using current quantity ${assignedItem.quantity}.");
+          }
+          splitManager.assignItemToPerson(assignedItem, person);
+        } catch (e) {
+           print("ERROR: Failed to process assigned item '$itemName' for person '$personName'. Error: $e. Skipping item.");
+        }
       }
 
       // Process shared items
       final sharedItemsData = List<Map<String, dynamic>>.from(assignmentsData['shared_items'] ?? []);
       for (var itemData in sharedItemsData) {
-         final itemName = itemData['item'] as String;
-         final itemPrice = (itemData['price'] as num).toDouble();
-         final itemQuantity = itemData['quantity'] as int;
-         final peopleNames = List<String>.from(itemData['people'] ?? []);
+         final itemName = itemData['item'] as String?;     // Cast as nullable String
+         final itemPrice = (itemData['price'] as num?)?.toDouble(); // Handle nullable num
+         final itemQuantity = itemData['quantity'] as int?;         // Handle nullable int
+         // Ensure list contains only non-null, non-empty strings
+         final peopleNames = (itemData['people'] as List?)
+             ?.map((p) => p as String?)
+             .where((p) => p != null && p.isNotEmpty)
+             .toList() ?? [];
 
-         final originalItem = findOriginalItem(itemName, itemPrice);
-         final sharedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
-         final peopleToShareWith = splitManager.people.where((p) => peopleNames.contains(p.name)).toList();
-         if (peopleToShareWith.isEmpty) {
-            print("WARN: Shared item '$itemName' has no valid people to share with listed.");
-            // Decide: add as unassigned or ignore?
-            splitManager.addUnassignedItem(sharedItem);
+         if (itemName == null || itemName.isEmpty) {
+           print("WARN: Skipping shared item with missing or empty item name.");
+           continue;
+         }
+         if (itemPrice == null) {
+           print("WARN: Skipping shared item '$itemName' due to missing price.");
+           continue;
+         }
+         if (itemQuantity == null || itemQuantity <= 0) {
+           print("WARN: Skipping shared item '$itemName' due to missing or invalid quantity.");
+           continue;
+         }
+         if (peopleNames.isEmpty) {
+            print("WARN: Shared item '$itemName' has no valid people listed or the 'people' list is missing/empty. Adding as unassigned.");
+            // Attempt to add as unassigned only if we can find the original item
+            try {
+               final originalItem = findOriginalItem(itemName, itemPrice);
+               final unassignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
+               // Ensure original quantity exists before setting
+               if (originalItem.originalQuantity > 0) {
+                  splitManager.setOriginalQuantity(unassignedItem, originalItem.originalQuantity);
+               } else {
+                  splitManager.setOriginalQuantity(unassignedItem, unassignedItem.quantity);
+                  print("WARN: Original quantity for unassigned item '$itemName' was not set or zero. Using current quantity ${unassignedItem.quantity}.");
+               }
+               splitManager.addUnassignedItem(unassignedItem);
+            } catch (e) {
+               print("ERROR: Failed to find original item for shared item '$itemName' listed with no people. Cannot add as unassigned. Error: $e. Skipping item.");
+            }
             continue;
          }
-         splitManager.setOriginalQuantity(sharedItem, originalItem.originalQuantity);
-         splitManager.addItemToShared(sharedItem, peopleToShareWith);
+
+         final peopleToShareWith = splitManager.people.where((p) => peopleNames.contains(p.name)).toList();
+
+         if (peopleToShareWith.isEmpty) {
+            print("WARN: Shared item '$itemName' - none of the listed people (${peopleNames.join(', ')}) exist in the SplitManager. Adding as unassigned.");
+            try {
+               final originalItem = findOriginalItem(itemName, itemPrice);
+               final unassignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
+               if (originalItem.originalQuantity > 0) {
+                 splitManager.setOriginalQuantity(unassignedItem, originalItem.originalQuantity);
+               } else {
+                 splitManager.setOriginalQuantity(unassignedItem, unassignedItem.quantity);
+                 print("WARN: Original quantity for unassigned item '$itemName' was not set or zero. Using current quantity ${unassignedItem.quantity}.");
+               }
+               splitManager.addUnassignedItem(unassignedItem);
+            } catch (e) {
+               print("ERROR: Failed to find original item for shared item '$itemName' with non-existent people. Cannot add as unassigned. Error: $e. Skipping item.");
+            }
+            continue;
+         }
+
+         try {
+            final originalItem = findOriginalItem(itemName, itemPrice);
+            final sharedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
+             if (originalItem.originalQuantity > 0) {
+               splitManager.setOriginalQuantity(sharedItem, originalItem.originalQuantity);
+             } else {
+               splitManager.setOriginalQuantity(sharedItem, sharedItem.quantity);
+               print("WARN: Original quantity for shared item '$itemName' was not set or zero. Using current quantity ${sharedItem.quantity}.");
+             }
+            splitManager.addItemToShared(sharedItem, peopleToShareWith);
+         } catch (e) {
+            print("ERROR: Failed to process shared item '$itemName'. Error: $e. Skipping item.");
+         }
       }
 
       // Process unassigned items
       final unassignedItemsData = List<Map<String, dynamic>>.from(assignmentsData['unassigned_items'] ?? []);
       for (var itemData in unassignedItemsData) {
-         final itemName = itemData['item'] as String;
-         final itemPrice = (itemData['price'] as num).toDouble();
-         final itemQuantity = itemData['quantity'] as int;
+         final itemName = itemData['item'] as String?; // Cast as nullable String
+         final itemPrice = (itemData['price'] as num?)?.toDouble(); // Handle nullable num
+         final itemQuantity = itemData['quantity'] as int?;         // Handle nullable int
 
-         final originalItem = findOriginalItem(itemName, itemPrice);
-         final unassignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
-         splitManager.setOriginalQuantity(unassignedItem, originalItem.originalQuantity);
-         splitManager.addUnassignedItem(unassignedItem);
+         if (itemName == null || itemName.isEmpty) {
+           print("WARN: Skipping unassigned item with missing or empty item name.");
+           continue;
+         }
+         if (itemPrice == null) {
+           print("WARN: Skipping unassigned item '$itemName' due to missing price.");
+           continue;
+         }
+         if (itemQuantity == null || itemQuantity <= 0) {
+           print("WARN: Skipping unassigned item '$itemName' due to missing or invalid quantity.");
+           continue;
+         }
+
+         try {
+            final originalItem = findOriginalItem(itemName, itemPrice);
+            final unassignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
+            if (originalItem.originalQuantity > 0) {
+              splitManager.setOriginalQuantity(unassignedItem, originalItem.originalQuantity);
+            } else {
+              splitManager.setOriginalQuantity(unassignedItem, unassignedItem.quantity);
+              print("WARN: Original quantity for unassigned item '$itemName' was not set or zero. Using current quantity ${unassignedItem.quantity}.");
+            }
+            splitManager.addUnassignedItem(unassignedItem);
+         } catch (e) {
+            print("ERROR: Failed to process unassigned item '$itemName'. Error: $e. Skipping item.");
+         }
       }
 
       setState(() {
@@ -478,12 +599,13 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       });
       _navigateToPage(3); // Navigate to Assignment Review (SplitView)
 
-    } catch (e) {
+    } catch (e, stackTrace) { // Add stackTrace for more context
       print("Error processing assignments in SplitManager: $e");
+      print("Stack trace: $stackTrace"); // Print stack trace
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error applying assignments: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(content: Text('Error applying assignments: ${e.toString()}. Check logs for details.'), backgroundColor: Theme.of(context).colorScheme.error),
         );
       }
     }
