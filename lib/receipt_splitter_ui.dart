@@ -419,163 +419,198 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final TextTheme textTheme = Theme.of(context).textTheme;
     
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_imageFile != null)
-              Expanded(
-                child: Stack(
-                  children: [
-                    // Image Preview
-                    Center(
-                      child: GestureDetector(
-                        onTap: () => _showFullImage(_imageFile!),
-                        child: Container(
-                          margin: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Image.file(
-                              _imageFile!,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Overlay with actions
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [
-                              colorScheme.surface,
-                              colorScheme.surface.withOpacity(0),
-                            ],
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            if (_isLoading)
-                              const CircularProgressIndicator()
-                            else ...[
-                              ElevatedButton.icon(
-                                onPressed: () {
-                                  setState(() {
-                                    _imageFile = null;
-                                  });
-                                },
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Retry'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: colorScheme.errorContainer,
-                                  foregroundColor: colorScheme.onErrorContainer,
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                ),
-                              ),
-                              ElevatedButton.icon(
-                                onPressed: _parseReceipt,
-                                icon: const Icon(Icons.check_circle_outline),
-                                label: const Text('Use This'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: colorScheme.primary,
-                                  foregroundColor: colorScheme.onPrimary,
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: Card(
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              )
-            else
-              Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer.withOpacity(0.3),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.camera_alt_outlined,
-                        size: 80,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Text(
-                      'Upload Receipt',
-                      style: textTheme.headlineSmall?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Take a picture or select one from your gallery',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildUploadButton(
-                          context,
-                          icon: Icons.camera_alt,
-                          label: 'Camera',
-                          onPressed: _takePicture,
-                          colorScheme: colorScheme,
+                    if (_imageFile != null)
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AspectRatio(
+                                aspectRatio: 3/4, // Portrait ratio for receipt
+                                child: Container(
+                                  margin: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(24),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.1),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      // Image Preview with Hero tag for smooth transition
+                                      Hero(
+                                        tag: 'receipt_image',
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            onTap: () => _showFullImage(_imageFile!),
+                                            child: Image.file(
+                                              _imageFile!,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Loading indicator overlay
+                                      if (_isLoading)
+                                        Container(
+                                          color: Colors.black.withOpacity(0.3),
+                                          child: Center(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                CircularProgressIndicator(
+                                                  color: colorScheme.onPrimary,
+                                                ),
+                                                const SizedBox(height: 16),
+                                                Text(
+                                                  'Processing Receipt...',
+                                                  style: textTheme.bodyLarge?.copyWith(
+                                                    color: colorScheme.onPrimary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              // Action buttons below the image
+                              Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (!_isLoading) ...[
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          onPressed: () {
+                                            setState(() {
+                                              _imageFile = null;
+                                            });
+                                          },
+                                          icon: const Icon(Icons.refresh),
+                                          label: const Text('Retry'),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: colorScheme.errorContainer,
+                                            foregroundColor: colorScheme.onErrorContainer,
+                                            minimumSize: const Size(0, 48),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          onPressed: _parseReceipt,
+                                          icon: const Icon(Icons.check_circle_outline),
+                                          label: const Text('Use This'),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: colorScheme.primary,
+                                            foregroundColor: colorScheme.onPrimary,
+                                            minimumSize: const Size(0, 48),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 200,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer.withOpacity(0.3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.camera_alt_outlined,
+                                size: 80,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            Text(
+                              'Upload Receipt',
+                              style: textTheme.headlineSmall?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Take a picture or select one from your gallery',
+                              textAlign: TextAlign.center,
+                              style: textTheme.bodyLarge?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 40),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildUploadButton(
+                                  context,
+                                  icon: Icons.camera_alt,
+                                  label: 'Camera',
+                                  onPressed: _takePicture,
+                                  colorScheme: colorScheme,
+                                ),
+                                const SizedBox(width: 16),
+                                _buildUploadButton(
+                                  context,
+                                  icon: Icons.photo_library,
+                                  label: 'Gallery',
+                                  onPressed: _pickImage,
+                                  colorScheme: colorScheme,
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 16),
-                        _buildUploadButton(
-                          context,
-                          icon: Icons.photo_library,
-                          label: 'Gallery',
-                          onPressed: _pickImage,
-                          colorScheme: colorScheme,
-                        ),
-                      ],
-                    ),
+                      ),
                   ],
                 ),
               ),
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -641,50 +676,71 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   void _showFullImage(File imageFile) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
     
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        backgroundColor: colorScheme.surface,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Receipt Image', style: Theme.of(context).textTheme.titleMedium),
-                  IconButton(
-                    icon: Icon(Icons.close, color: colorScheme.primary),
-                    onPressed: () => Navigator.of(context).pop(),
+            // Dismissible background
+            GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(color: Colors.black87),
+            ),
+            // Image viewer
+            Hero(
+              tag: 'receipt_image',
+              child: InteractiveViewer(
+                panEnabled: true,
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Center(
+                  child: Image.file(
+                    imageFile,
+                    fit: BoxFit.contain,
                   ),
-                ],
+                ),
               ),
             ),
-            Divider(),
-            InteractiveViewer(
-              panEnabled: true,
-              boundaryMargin: EdgeInsets.all(20),
-              minScale: 0.5,
-              maxScale: 4.0,
-              child: Image.file(imageFile),
+            // Close button
+            Positioned(
+              top: 40,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.zoom_out_map, size: 16, color: colorScheme.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Pinch to zoom, drag to move',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant
-                    ),
+            // Zoom hint
+            Positioned(
+              bottom: 40,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.zoom_out_map, size: 16, color: Colors.white70),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Pinch to zoom • Drag to move',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],
@@ -2739,51 +2795,53 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             const Text('Edit Item'),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: InputDecoration(
-                labelText: 'Item Name',
-                hintText: 'Enter item name',
-                prefixIcon: const Icon(Icons.fastfood_outlined),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: 'Item Name',
+                  hintText: 'Enter item name',
+                  prefixIcon: const Icon(Icons.fastfood_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  counterText: '${nameController.text.length}/$maxNameLength',
                 ),
-                counterText: '${nameController.text.length}/$maxNameLength',
+                maxLength: maxNameLength,
+                textCapitalization: TextCapitalization.words,
+                onChanged: (value) {
+                  // Force rebuild to update counter
+                  (context as Element).markNeedsBuild();
+                },
+                autofocus: true,
               ),
-              maxLength: maxNameLength,
-              textCapitalization: TextCapitalization.words,
-              onChanged: (value) {
-                // Force rebuild to update counter
-                (context as Element).markNeedsBuild();
-              },
-              autofocus: true,
-            ),
-            // const SizedBox(height: 8),
-            // Text(
-            //   'Maximum $maxNameLength characters',
-            //   style: textTheme.bodySmall?.copyWith(
-            //     color: colorScheme.onSurfaceVariant,
-            //   ),
-            // ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: priceController,
-              decoration: InputDecoration(
-                labelText: 'Price',
-                prefixText: '\$ ',
-                prefixIcon: const Icon(Icons.attach_money),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+              // const SizedBox(height: 8),
+              // Text(
+              //   'Maximum $maxNameLength characters',
+              //   style: textTheme.bodySmall?.copyWith(
+              //     color: colorScheme.onSurfaceVariant,
+              //   ),
+              // ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: priceController,
+                decoration: InputDecoration(
+                  labelText: 'Price',
+                  prefixText: '\$ ',
+                  prefixIcon: const Icon(Icons.attach_money),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: textTheme.bodyLarge,
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: textTheme.bodyLarge,
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
