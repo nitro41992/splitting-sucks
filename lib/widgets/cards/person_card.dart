@@ -29,11 +29,11 @@ class PersonCard extends StatelessWidget {
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: 20,
+                  radius: 24,
                   backgroundColor: colorScheme.secondaryContainer,
                   child: Text(
                     person.name.isNotEmpty ? person.name[0] : '?', // Handle empty name
-                    style: textTheme.titleMedium?.copyWith(
+                    style: textTheme.headlineSmall?.copyWith(
                       color: colorScheme.onSecondaryContainer,
                       fontWeight: FontWeight.bold,
                     ),
@@ -41,41 +41,24 @@ class PersonCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              person.name,
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () => _showEditNameDialog(context, person),
-                            icon: Icon(Icons.edit_outlined, color: colorScheme.primary, size: 20),
-                            style: IconButton.styleFrom(
-                              backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
-                              padding: const EdgeInsets.all(8),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            tooltip: 'Edit name',
-                          ),
-                        ],
-                      ),
-                      if (person.assignedItems.isNotEmpty)
-                        Text(
-                          '${person.assignedItems.length} item${person.assignedItems.length == 1 ? '' : 's'}',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                    ],
+                  child: Text(
+                    person.name,
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ),
+                IconButton(
+                  onPressed: () => _showEditNameDialog(context, person),
+                  icon: Icon(Icons.edit_outlined, color: colorScheme.primary, size: 20),
+                  style: IconButton.styleFrom(
+                    backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
+                    padding: const EdgeInsets.all(8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  tooltip: 'Edit name',
                 ),
                 const SizedBox(width: 8),
                 Container(
