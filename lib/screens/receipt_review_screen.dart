@@ -304,7 +304,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                         color: colorScheme.onPrimary,
                       ),
                       label: Text(
-                        'Confirm Items & Continue',
+                        'Looks Good',
                         style: textTheme.titleSmall?.copyWith(
                           color: colorScheme.onPrimary,
                           fontWeight: FontWeight.bold,

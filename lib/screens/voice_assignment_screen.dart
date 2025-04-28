@@ -458,7 +458,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                   child: FilledButton.icon(
                     onPressed: _processTranscription,
                     icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('Process Assignment'),
+                    label: const Text('Start Splitting'),
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.secondary, // Consider using theme colors
                       foregroundColor: Colors.white,

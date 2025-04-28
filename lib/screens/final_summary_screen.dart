@@ -633,7 +633,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                 heroTag: 'shareButton_final', // Ensure unique heroTag
                 onPressed: () => _generateAndShareReceipt(context),
                 icon: const Icon(Icons.share_outlined), // Share icon
-                label: const Text('Share'),
+                label: const Text('Share Bill'),
                 tooltip: 'Copy summary to clipboard', // Tooltip
                 backgroundColor: colorScheme.primary, // Use primary theme color
                 foregroundColor: colorScheme.onPrimary, // Ensure text is readable
