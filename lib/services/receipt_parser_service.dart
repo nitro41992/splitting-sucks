@@ -7,39 +7,39 @@ import 'package:billfie/models/person.dart';
 
 class ReceiptData {
   final List<dynamic> items;
-  final double tax;
-  final double tip;
-  final List<dynamic> people;
+  // final double tax;
+  // final double tip;
+  // final List<dynamic> people;
   final double subtotal;
-  final double total;
+  // final double total;
 
   ReceiptData({
     required this.items, 
-    required this.tax, 
-    required this.tip, 
-    required this.people, 
+    // required this.tax, 
+    // required this.tip, 
+    // required this.people, 
     required this.subtotal, 
-    required this.total
+    // required this.total
   });
 
   factory ReceiptData.fromJson(Map<String, dynamic> json) {
     return ReceiptData(
       items: json['items'] as List,
-      tax: (json['tax'] is int) ? (json['tax'] as int).toDouble() : json['tax'] as double,
-      tip: (json['tip'] is int) ? (json['tip'] as int).toDouble() : json['tip'] as double,
-      people: json['people'] as List,
+      // tax: (json['tax'] is int) ? (json['tax'] as int).toDouble() : json['tax'] as double,
+      // tip: (json['tip'] is int) ? (json['tip'] as int).toDouble() : json['tip'] as double,
+      // people: json['people'] as List,
       subtotal: (json['subtotal'] is int) ? (json['subtotal'] as int).toDouble() : json['subtotal'] as double,
-      total: (json['total'] is int) ? (json['total'] as int).toDouble() : json['total'] as double,
+      // total: (json['total'] is int) ? (json['total'] as int).toDouble() : json['total'] as double,
     );
   }
 
   Map<String, dynamic> toJson() => {
     'items': items,
-    'tax': tax,
-    'tip': tip,
-    'people': people,
+    // 'tax': tax,
+    // 'tip': tip,
+    // 'people': people,
     'subtotal': subtotal,
-    'total': total,
+    // 'total': total,
   };
   
   // Convert raw API response items to ReceiptItem objects
@@ -61,14 +61,14 @@ class ReceiptData {
     }).toList();
   }
   
-  // Convert raw API response people to Person objects
-  List<Person> getPeople() {
-    return people.map((person) {
-      return Person(
-        name: person['name'] as String,
-      );
-    }).toList();
-  }
+  // // Convert raw API response people to Person objects
+  // List<Person> getPeople() {
+  //   return people.map((person) {
+  //     return Person(
+  //       name: person['name'] as String,
+  //     );
+  //   }).toList();
+  // }
 }
 
 class ReceiptParserService {
@@ -109,20 +109,14 @@ class ReceiptParserService {
                         "price": number
                       }
                     ],
-                    "tax": number,
-                    "tip": number,
-                    "people": [
-                      {
-                        "name": "string"
-                      }
-                    ],
                     "subtotal": number,
-                    "total": number
                   }
 
                   Instructions:
+                  - First, accurately transcribe every item and its listed price exactly as shown on the receipt, before performing any calculations or transformations. Do not assume or infer numbers — copy the listed amount first. Only after verifying transcription, adjust for quantities.
                   - Sometimes, items may have add-ons or modifiers in the receipt. 
                   - Use your intuition to roll up the add-ons into the parent item and sum the prices.
+                  - If an item or line has its own price listed to the far right of it, it must be treated as a separate line item in the JSON, even if it appears visually indented, grouped, or described as part of a larger item. Do not assume bundling unless there is no separate price.
                   - MAKE SURE the price is the individual price for the item and the quantity is accurate based on the receipt. (ex. If the receipt says Quantity of 2 and price is \$10, then the price of the item to provide is \$5, not \$10)
                   - MAKE SURE all items, quantities, and prices are present and accurate in the json'''
                 },

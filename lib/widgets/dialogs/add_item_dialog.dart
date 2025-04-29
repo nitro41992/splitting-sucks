@@ -13,7 +13,7 @@ class _AddItemDialogContentState extends State<_AddItemDialogContent> {
   late final TextEditingController _nameController;
   late final TextEditingController _priceController;
   int _quantity = 1;
-  static const int maxNameLength = 15;
+  static const int maxNameLength = 30;
 
   @override
   void initState() {

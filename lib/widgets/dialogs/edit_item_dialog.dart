@@ -22,7 +22,7 @@ class _EditItemDialogContent extends StatefulWidget {
 class _EditItemDialogContentState extends State<_EditItemDialogContent> {
   late final TextEditingController _nameController;
   late final TextEditingController _priceController;
-  static const int maxNameLength = 15;
+  static const int maxNameLength = 30;
 
   @override
   void initState() {

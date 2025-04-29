@@ -52,7 +52,7 @@ class ReceiptItemCard extends StatelessWidget {
                               Flexible(
                                 child: Text(
                                   item.name,
-                                  style: textTheme.titleLarge?.copyWith(
+                                  style: textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
                                   maxLines: 1,
