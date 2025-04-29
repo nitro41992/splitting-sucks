@@ -200,8 +200,9 @@ class AudioTranscriptionService {
               
               Pay close attention to:
               1. Include ALL people mentioned in the transcription
-              2. Make sure all items are assigned to someone or marked as shared
-              3. Ensure quantities and prices match the receipt''',
+              2. Make sure all items are assigned to someone, marked as shared, or added to the unassigned_items array. Its important to include all items.
+              3. Ensure quantities and prices match the receipt
+              4. If not every instance of an item is mentioned in the transcription, make sure to add the item to the unassigned_items array''',
             },
             {
               'role': 'user',
