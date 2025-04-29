@@ -36,7 +36,7 @@ class ReceiptItemCard extends StatelessWidget {
           children: [
             // Main content
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 30.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 35.0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -59,10 +59,10 @@ class ReceiptItemCard extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 5),
                               Icon(
                                 Icons.edit_outlined,
-                                size: 20,
+                                size: 16,
                                 color: colorScheme.primary,
                               ),
                             ],
@@ -79,7 +79,7 @@ class ReceiptItemCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 20),
                   // Quantity Stepper
                   Row(
                     mainAxisSize: MainAxisSize.min,
