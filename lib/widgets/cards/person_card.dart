@@ -22,77 +22,91 @@ class PersonCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: colorScheme.outlineVariant),
       ),
-      child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: colorScheme.secondaryContainer,
-                  child: Text(
-                    person.name.isNotEmpty ? person.name[0] : '?', // Handle empty name
-                    style: textTheme.headlineSmall?.copyWith(
-                      color: colorScheme.onSecondaryContainer,
-                      fontWeight: FontWeight.bold,
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 40.0, 100.0, 16.0),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: colorScheme.secondaryContainer,
+                      child: Text(
+                        person.name.isNotEmpty ? person.name[0] : '?', // Handle empty name
+                        style: textTheme.headlineSmall?.copyWith(
+                          color: colorScheme.onSecondaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    person.name,
-                    style: textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
+                    const SizedBox(width: 16),
+                    IntrinsicWidth(
+                      child: Row(
+                        children: [
+                          Text(
+                            person.name,
+                            style: textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => _showEditNameDialog(context, person),
+                            icon: Icon(Icons.edit_outlined, color: colorScheme.primary, size: 20),
+                            style: IconButton.styleFrom(
+                              padding: const EdgeInsets.all(5),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            tooltip: 'Edit name',
+                          ),
+                        ],
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                 ),
-                IconButton(
-                  onPressed: () => _showEditNameDialog(context, person),
-                  icon: Icon(Icons.edit_outlined, color: colorScheme.primary, size: 20),
-                  style: IconButton.styleFrom(
-                    backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
-                    padding: const EdgeInsets.all(8),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  tooltip: 'Edit name',
-                ),
-                const SizedBox(width: 8),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
+              ),
+              if (person.assignedItems.isNotEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '\$${person.totalAssignedAmount.toStringAsFixed(2)}',
-                    style: textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
+                    color: colorScheme.surfaceVariant.withOpacity(0.3),
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(16),
+                      bottomRight: Radius.circular(16),
                     ),
                   ),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: person.assignedItems.map((item) => ItemRow(item: item)).toList(),
+                  ),
                 ),
-              ],
+            ],
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '\$${person.totalAssignedAmount.toStringAsFixed(2)}',
+                style: textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
-          if (person.assignedItems.isNotEmpty)
-            Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceVariant.withOpacity(0.3),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-              ),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: person.assignedItems.map((item) => ItemRow(item: item)).toList(),
-              ),
-            ),
         ],
       ),
     );

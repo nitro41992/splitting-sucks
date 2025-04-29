@@ -389,6 +389,7 @@ class UnassignedItemCard extends StatelessWidget {
     final List<Person> selectedPeople = []; // Track selected people within the dialog
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    bool hasAttemptedSubmitWithOnePerson = false; // Track submission attempts with one person
 
     showModalBottomSheet(
       context: context,
@@ -427,25 +428,34 @@ class UnassignedItemCard extends StatelessWidget {
                       ),
                       IconButton(
                         icon: const Icon(Icons.check),
-                        onPressed: isShareValid && selectedQuantity > 0 ? () {
-                          // Create a new item with the specified quantity
-                          final newItem = ReceiptItem(
-                            name: item.name,
-                            price: item.price,
-                            quantity: selectedQuantity,
-                          );
-
-                          // Add the item to shared section
-                          splitManager.addItemToShared(newItem, List.from(selectedPeople));
-
-                          // Handle the source item's quantity reduction or removal
-                          if (selectedQuantity >= item.quantity) {
-                            splitManager.removeUnassignedItem(item);
-                          } else {
-                            item.updateQuantity(item.quantity - selectedQuantity);
+                        onPressed: selectedQuantity > 0 ? () {
+                          if (hasOnlyOnePerson) {
+                            setStateDialog(() {
+                              hasAttemptedSubmitWithOnePerson = true;
+                            });
+                            return;
                           }
+                          
+                          if (isShareValid) {
+                            // Create a new item with the specified quantity
+                            final newItem = ReceiptItem(
+                              name: item.name,
+                              price: item.price,
+                              quantity: selectedQuantity,
+                            );
 
-                          Navigator.pop(dialogContext);
+                            // Add the item to shared section
+                            splitManager.addItemToShared(newItem, List.from(selectedPeople));
+
+                            // Handle the source item's quantity reduction or removal
+                            if (selectedQuantity >= item.quantity) {
+                              splitManager.removeUnassignedItem(item);
+                            } else {
+                              item.updateQuantity(item.quantity - selectedQuantity);
+                            }
+
+                            Navigator.pop(dialogContext);
+                          }
                         } : null,
                       ),
                     ],
@@ -592,7 +602,7 @@ class UnassignedItemCard extends StatelessWidget {
                   ),
                   
                   // Validation message for single person selection
-                  if (hasOnlyOnePerson)
+                  if (hasOnlyOnePerson && hasAttemptedSubmitWithOnePerson)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                       child: Container(
@@ -676,6 +686,8 @@ class UnassignedItemCard extends StatelessWidget {
                                   } else {
                                     selectedPeople.add(person);
                                   }
+                                  // Reset the attempt status when selection changes
+                                  hasAttemptedSubmitWithOnePerson = false;
                                 });
                               },
                               child: Padding(
