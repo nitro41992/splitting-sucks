@@ -74,7 +74,7 @@ class ReceiptData {
 class ReceiptParserService {
   static Future<ReceiptData> parseReceipt(File imageFile) async {
     final apiKey = dotenv.env['OPEN_AI_API_KEY'];
-    final model = dotenv.env['OPEN_AI_MODEL'] ?? 'gpt-4o-mini';
+    final model = dotenv.env['OPEN_AI_MODEL'] ?? 'gpt-4o';
     
     if (apiKey == null) {
       throw Exception('OpenAI API key not found in environment variables');

@@ -174,7 +174,7 @@ class AudioTranscriptionService {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'model': dotenv.env['OPEN_AI_MODEL'] ?? 'gpt-4o-mini',
+          'model': dotenv.env['OPEN_AI_MODEL'] ?? 'gpt-4o',
           'response_format': { 'type': 'json_object' },
           'messages': [
             {
