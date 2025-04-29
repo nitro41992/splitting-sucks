@@ -23,64 +23,80 @@ class UnassignedItemCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: colorScheme.outlineVariant),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Qty: ${item.quantity}',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                Padding(
+                  padding: const EdgeInsets.only(right: 60.0),
+                  child: Text(
+                    item.name,
+                    style: textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
                   ),
                 ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                const SizedBox(height: 20),
+                
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    EditablePrice(
-                      price: item.price,
-                      onChanged: (newPrice) => item.updatePrice(newPrice),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Total: \$${item.total.toStringAsFixed(2)}',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${item.quantity} x \$${item.price.toStringAsFixed(2)} each',
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        )
+                      ],
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
+                const SizedBox(height: 16),
+                
+                FilledButton.icon(
+                  onPressed: () => _showAssignDialog(context, splitManager, item),
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Assign Item'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 40),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => _showAssignDialog(context, splitManager, item),
-              icon: const Icon(Icons.person_add),
-              label: const Text('Assign Item'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(double.infinity, 40),
+          ),
+          
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '\$${item.total.toStringAsFixed(2)}',
+                style: textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
