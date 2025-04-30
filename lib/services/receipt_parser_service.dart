@@ -74,7 +74,8 @@ class ReceiptData {
 class ReceiptParserService {
   static Future<ReceiptData> parseReceipt(File imageFile) async {
     final apiKey = dotenv.env['OPEN_AI_API_KEY'];
-    final model = dotenv.env['OPEN_AI_MODEL'] ?? 'gpt-4o';
+    // Use a model compatible with /v1/responses, potentially gpt-4.1 or a vision-capable one if specified
+    final model = dotenv.env['OPEN_AI_MODEL'] ?? 'gpt-4o'; 
     
     if (apiKey == null) {
       throw Exception('OpenAI API key not found in environment variables');
@@ -85,22 +86,25 @@ class ReceiptParserService {
     final base64Image = base64Encode(bytes);
 
     try {
+      // Use the /v1/responses endpoint
       final response = await http.post(
-        Uri.parse('https://api.openai.com/v1/chat/completions'),
+        Uri.parse('https://api.openai.com/v1/responses'), 
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $apiKey',
         },
+        // Adapt the body structure for the /v1/responses endpoint
         body: jsonEncode({
           'model': model,
-          'response_format': { 'type': 'json_object' },
-          'messages': [
+          // 'max_tokens': 1000, // Parameter might differ or not be supported in /v1/responses
+          'input': [
             {
               'role': 'user',
+              // Content structure for /v1/responses with text and image
               'content': [
                 {
-                  'type': 'text',
-                  'text': '''Parse the image and generate a receipt. Return a JSON object with the following structure:
+                  'type': 'input_text',
+                  'text': '''Parse the image and generate a receipt. Return a JSON object WITHIN YOUR TEXT RESPONSE with the following structure:
                   {
                     "items": [
                       {
@@ -109,7 +113,7 @@ class ReceiptParserService {
                         "price": number
                       }
                     ],
-                    "subtotal": number,
+                    "subtotal": number
                   }
 
                   Instructions:
@@ -121,37 +125,68 @@ class ReceiptParserService {
                   - MAKE SURE all items, quantities, and prices are present and accurate in the json'''
                 },
                 {
-                  'type': 'image_url',
-                  'image_url': {
-                    'url': 'data:image/jpeg;base64,$base64Image'
-                  }
+                  'type': 'input_image', // Use input_image type
+                  'image_url': 'data:image/jpeg;base64,$base64Image'
                 }
               ]
             }
           ],
-          'max_tokens': 1000
+          // Rely on the system prompt for JSON output, as 'response_format' might differ for /v1/responses
+          // 'response_format': { 'type': 'json_object' },
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final content = data['choices'][0]['message']['content'];
+        
+        // Parse the output structure of /v1/responses
+        if (data['output'] == null || (data['output'] as List).isEmpty) {
+            print('Error parsing receipt: /v1/responses output missing "output" field.');
+            throw Exception('Invalid response format from OpenAI /v1/responses: Missing "output" field.');
+        }
+
+        // Find the first message output
+        final messageOutput = (data['output'] as List).firstWhere(
+            (item) => item['type'] == 'message' && item['role'] == 'assistant',
+            orElse: () => null);
+
+        if (messageOutput == null || messageOutput['content'] == null || (messageOutput['content'] as List).isEmpty) {
+            print('Error parsing receipt: /v1/responses output missing assistant message content.');
+            throw Exception('Invalid response format from OpenAI /v1/responses: Missing assistant message content.');
+        }
+
+        // Find the text content within the message
+        final textContent = (messageOutput['content'] as List).firstWhere(
+            (item) => item['type'] == 'output_text',
+            orElse: () => null);
+            
+        if (textContent == null || textContent['text'] == null) {
+          print('Error parsing receipt: /v1/responses output missing "output_text" field in message content.');
+          throw Exception('No text content received from OpenAI /v1/responses');
+        }
+
+        final contentString = textContent['text'] as String;
+        
         try {
-          final Map<String, dynamic> parsedJson = jsonDecode(content);
-          // Use model class to validate and parse the JSON structure
+          // Parse the JSON string contained within the text response
+          final Map<String, dynamic> parsedJson = jsonDecode(contentString);
           return ReceiptData.fromJson(parsedJson);
         } catch (e) {
-          throw Exception('Failed to parse OpenAI response as JSON: $content\nError: $e');
+          // Log the content that failed to parse and the error
+          print('Failed to parse OpenAI response content (from /v1/responses) as JSON: $contentString\\nError: $e');
+          throw Exception('Failed to parse OpenAI response content as JSON: $e');
         }
       } else {
+        // Log detailed error information from the API response
         final errorBody = jsonDecode(response.body);
-        throw Exception('OpenAI API error (${response.statusCode}): ${errorBody['error']?['message'] ?? response.body}');
+        final errorMessage = errorBody['error']?['message'] ?? response.body;
+        print('OpenAI API error (${response.statusCode}) using /v1/responses: $errorMessage');
+        throw Exception('OpenAI API error (${response.statusCode}) using /v1/responses: $errorMessage');
       }
     } catch (e) {
-      if (e is FormatException) {
-        throw Exception('Invalid response format from OpenAI API: $e');
-      }
-      throw Exception('Error communicating with OpenAI API: $e');
+      // Print the error regardless of its type before rethrowing
+      print('Error communicating with OpenAI API (using /v1/responses): $e');
+      rethrow;
     }
   }
 } 
