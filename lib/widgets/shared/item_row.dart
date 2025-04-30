@@ -30,9 +30,11 @@ class ItemRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          EditablePrice(
-            price: item.price,
-            onChanged: (newPrice) => item.updatePrice(newPrice),
+          Text(
+            '\$${item.price.toStringAsFixed(2)}',
+            style: textTheme.titleMedium?.copyWith(
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(width: 16),
           QuantitySelector(
