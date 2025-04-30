@@ -596,7 +596,7 @@ class _SplitViewState extends State<SplitView> {
     } else {
       return Column(
         children: [
-          ...splitManager.unassignedItems.map((item) => UnassignedItemCard(item: item)).toList(),
+          ...splitManager.unassignedItems.reversed.map((item) => UnassignedItemCard(item: item)).toList(),
         ],
       );
     }
