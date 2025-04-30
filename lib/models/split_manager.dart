@@ -11,7 +11,7 @@ class SplitManager extends ChangeNotifier {
 
   // --- EDIT: Add state for tracking edits and original subtotal ---
   bool _unassignedItemsModified = false;
-  double? _originalUnassignedSubtotal; // Store the subtotal from review
+  double? _originalReviewTotal; // Store the total from review tab
   // --- END EDIT ---
 
   SplitManager({
@@ -29,7 +29,8 @@ class SplitManager extends ChangeNotifier {
 
   // --- EDIT: Add getters for new state ---
   bool get unassignedItemsWereModified => _unassignedItemsModified;
-  double? get originalUnassignedSubtotal => _originalUnassignedSubtotal;
+  double? get originalUnassignedSubtotal => _originalReviewTotal; // For backwards compatibility
+  double? get originalReviewTotal => _originalReviewTotal; // New clearer name
   // --- END EDIT ---
 
   void reset() {
@@ -39,7 +40,7 @@ class SplitManager extends ChangeNotifier {
     _originalQuantities = {};
     // --- EDIT: Reset modification state ---
     _unassignedItemsModified = false;
-    _originalUnassignedSubtotal = null;
+    _originalReviewTotal = null;
     // --- END EDIT ---
     notifyListeners();
   }
@@ -328,7 +329,13 @@ class SplitManager extends ChangeNotifier {
 
   // --- EDIT: Add method to store the original subtotal ---
   void setOriginalUnassignedSubtotal(double subtotal) {
-    _originalUnassignedSubtotal = subtotal;
+    _originalReviewTotal = subtotal;
+    // Don't notify listeners here, as it's usually set during initialization
+  }
+
+  // New method with clearer name
+  void setOriginalReviewTotal(double subtotal) {
+    _originalReviewTotal = subtotal;
     // Don't notify listeners here, as it's usually set during initialization
   }
   // --- END EDIT ---

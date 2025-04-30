@@ -119,13 +119,16 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
           // --- EDIT: Initialize SplitManager and store original subtotal ---
           _initializeSplitManager(_editableItems); // Initialize SplitManager state
           
-          // Calculate the initial subtotal of unassigned items
-          // Assuming all items start as unassigned after review for now
-          // TODO: Refine this if initial state can include assigned/shared items
+          // Calculate the total from review stage
           final splitManager = context.read<SplitManager>();
-          final double initialUnassignedSubtotal = splitManager.unassignedItemsTotal; 
-          splitManager.setOriginalUnassignedSubtotal(initialUnassignedSubtotal);
-          print('DEBUG: Stored original unassigned subtotal: $initialUnassignedSubtotal');
+          // Calculate the TOTAL subtotal from all items, not just unassigned
+          final double originalReviewTotal = _editableItems.fold(
+            0.0, 
+            (sum, item) => sum + (item.price * item.quantity)
+          );
+          splitManager.setOriginalUnassignedSubtotal(originalReviewTotal);
+          // --- EDIT: Add more detailed debug print ---
+          print('DEBUG (ReceiptSplitterUI): Stored original review total: $originalReviewTotal (from ${_editableItems.length} items)');
           // --- END EDIT ---
           
           _navigateToPage(2); // Navigate to Voice Assignment
@@ -421,7 +424,18 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
     try {
       final splitManager = context.read<SplitManager>();
+      
+      // Calculate the total from all items BEFORE reset
+      final double originalReviewTotal = _editableItems.fold(
+        0.0, 
+        (sum, item) => sum + (item.price * item.quantity)
+      );
+      
       splitManager.reset(); // Clear previous state in manager
+      
+      // Save the original review total AFTER reset
+      splitManager.setOriginalReviewTotal(originalReviewTotal);
+      print('DEBUG (ReceiptSplitterUI): Stored original review total: $originalReviewTotal (from ${_editableItems.length} items) in assignment processing');
 
       // Add people
       final peopleData = List<Map<String, dynamic>>.from(assignmentsData['people'] ?? []);

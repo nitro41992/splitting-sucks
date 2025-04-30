@@ -114,6 +114,66 @@ class _SplitViewState extends State<SplitView> {
         final double assignedTotal = individualTotal + sharedTotal;
         final double unassignedTotal = splitManager.unassignedItemsTotal;
         final double subtotal = assignedTotal + unassignedTotal;
+
+        // --- EDIT: Create persistent warning widget logic --- 
+        Widget? warningWidget;
+        final originalTotal = splitManager.originalReviewTotal;
+        final currentTotal = subtotal; // Current total in split view
+        final bool totalsMatch = originalTotal == null 
+            ? currentTotal < 0.01 // Only consider a match if current is effectively zero
+            : (currentTotal - originalTotal).abs() < 0.001;
+
+        // --- EDIT: Add debug print for values being compared ---
+        print('DEBUG (SplitView): Checking for total mismatch... Original Review Total: $originalTotal, Current Split Total: $currentTotal, Match: $totalsMatch');
+        // --- END EDIT ---
+
+        // Show warning if totals mismatch
+        if (!totalsMatch) { 
+          // Define puce color (reddish-purple brown)
+          final Color puceColor = Color(0xCC8B5A69); // Semi-transparent puce
+          
+          warningWidget = Padding(
+            padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0), 
+            child: Card(
+              elevation: 0,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: puceColor.withOpacity(0.5), width: 1),
+              ),
+              color: puceColor.withOpacity(0.15),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                child: Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: puceColor.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.warning_amber_rounded, 
+                        color: puceColor,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'The current total (\$${currentTotal.toStringAsFixed(2)}) differs from the receipt total in the Review tab (\$${originalTotal?.toStringAsFixed(2) ?? 'N/A'}).',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: puceColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
         
         return Scaffold(
           body: Column(
@@ -304,6 +364,9 @@ class _SplitViewState extends State<SplitView> {
                 ),
               ),
               
+              // --- INSERT WARNING BELOW SUBTOTAL ---
+              if (warningWidget != null) warningWidget,
+              
               // Custom tab selector
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -487,44 +550,6 @@ class _SplitViewState extends State<SplitView> {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    // --- EDIT: Check for subtotal mismatch ---
-    Widget? warningWidget;
-    final originalSubtotal = splitManager.originalUnassignedSubtotal;
-    final currentSubtotal = splitManager.unassignedItemsTotal;
-    // Use a small tolerance for double comparison
-    final bool subtotalsMatch = originalSubtotal == null 
-        || (currentSubtotal - originalSubtotal).abs() < 0.001; 
-
-    if (splitManager.unassignedItemsWereModified && !subtotalsMatch) {
-      warningWidget = Card(
-        color: colorScheme.errorContainer.withOpacity(0.1), // Use error container
-        margin: const EdgeInsets.only(bottom: 16.0),
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: colorScheme.error), // Use error color for border
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: colorScheme.error), // Use error color for icon
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Unassigned items total (\$${currentSubtotal.toStringAsFixed(2)}) differs from original review total (\$${originalSubtotal?.toStringAsFixed(2) ?? 'N/A'}).',
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onErrorContainer, // Use on error container for text
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    // --- END EDIT ---
-
     if (splitManager.unassignedItems.isEmpty) {
       return Center(
         child: Padding(
@@ -561,9 +586,6 @@ class _SplitViewState extends State<SplitView> {
     } else {
       return Column(
         children: [
-          // --- EDIT: Conditionally add the warning widget ---
-          if (warningWidget != null) warningWidget,
-          // --- END EDIT ---
           ...splitManager.unassignedItems.map((item) => UnassignedItemCard(item: item)).toList(),
         ],
       );
