@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/split_manager.dart';
 import '../models/person.dart';
@@ -461,6 +462,15 @@ class _SplitViewState extends State<SplitView> {
                     child: const Icon(Icons.person_add),
                   ),
                   const SizedBox(width: 16),
+                  // Add Item button 
+                  FloatingActionButton(
+                    onPressed: () => _showAddItemDialog(context, splitManager),
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    heroTag: 'addItemBtn',
+                    child: const Icon(Icons.add_shopping_cart),
+                  ),
+                  const SizedBox(width: 16),
                   // Go to Summary button
                   FloatingActionButton.extended(
                     onPressed: () {
@@ -698,6 +708,139 @@ class _SplitViewState extends State<SplitView> {
                 splitManager.addPerson(newName);
                 Navigator.pop(context);
               }
+            },
+            icon: const Icon(Icons.check),
+            label: const Text('Add'),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddItemDialog(BuildContext context, SplitManager splitManager) {
+    final nameController = TextEditingController();
+    final priceController = TextEditingController();
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    int quantity = 1;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.add_shopping_cart, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Add Item'),
+          ],
+        ),
+        content: StatefulBuilder(
+          builder: (BuildContext context, StateSetter setStateDialog) {
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Name field
+                  TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Item Name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Price field
+                  TextField(
+                    controller: priceController,
+                    decoration: InputDecoration(
+                      labelText: 'Price',
+                      prefixText: '\$',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Quantity selector
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Quantity:', style: textTheme.titleMedium),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: quantity > 1 
+                              ? () => setStateDialog(() => quantity--) 
+                              : null,
+                            color: quantity > 1 ? colorScheme.primary : colorScheme.onSurfaceVariant.withOpacity(0.38),
+                          ),
+                          Text(
+                            quantity.toString(),
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: () => setStateDialog(() => quantity++),
+                            color: colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.error),
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              // Validate and parse inputs
+              final name = nameController.text.trim();
+              if (name.isEmpty) return;
+              
+              double? price = double.tryParse(priceController.text);
+              if (price == null || price <= 0) return;
+              
+              // Create and add the new item
+              final newItem = ReceiptItem(
+                name: name,
+                price: price,
+                quantity: quantity,
+              );
+              
+              splitManager.addUnassignedItem(newItem);
+              Navigator.pop(context);
+              
+              // After adding, switch to the Unassigned tab
+              setState(() {
+                _selectedIndex = 2; // Index for Unassigned tab
+              });
             },
             icon: const Icon(Icons.check),
             label: const Text('Add'),

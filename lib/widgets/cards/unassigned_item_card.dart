@@ -60,15 +60,27 @@ class UnassignedItemCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: IconButton(
-                        icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
-                        tooltip: 'Edit Item Details',
-                        onPressed: () => _showEditDialog(context, splitManager, item),
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Delete button
+                        IconButton(
+                          icon: Icon(Icons.delete_outline, color: colorScheme.error),
+                          tooltip: 'Delete Item',
+                          onPressed: () => _confirmDelete(context, splitManager, item),
+                          constraints: const BoxConstraints(),
+                          padding: EdgeInsets.zero,
+                        ),
+                        const SizedBox(width: 8),
+                        // Edit button
+                        IconButton(
+                          icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
+                          tooltip: 'Edit Item Details',
+                          onPressed: () => _showEditDialog(context, splitManager, item),
+                          constraints: const BoxConstraints(),
+                          padding: EdgeInsets.zero,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -761,102 +773,175 @@ class UnassignedItemCard extends StatelessWidget {
     );
   }
 
+  void _confirmDelete(BuildContext context, SplitManager splitManager, ReceiptItem item) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.delete_outline, color: colorScheme.error),
+            const SizedBox(width: 8),
+            const Text('Delete Item'),
+          ],
+        ),
+        content: Text('Are you sure you want to delete "${item.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              splitManager.removeUnassignedItem(item);
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.delete),
+            label: const Text('Delete'),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.error,
+              foregroundColor: colorScheme.onError,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showEditDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
-    final formKey = GlobalKey<FormState>();
-    int currentQuantity = item.quantity;
+    final nameController = TextEditingController(text: item.name);
     final priceController = TextEditingController(text: item.price.toStringAsFixed(2));
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-
+    int selectedQuantity = item.quantity;
+    
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          return AlertDialog(
-            title: const Text('Edit Item'),
-            contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 16.0),
-            content: Form(
-              key: formKey,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.edit_outlined, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Edit Item'),
+          ],
+        ),
+        content: StatefulBuilder(
+          builder: (BuildContext context, StateSetter setStateDialog) {
+            return SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.name, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Quantity:', style: textTheme.titleMedium),
-                      QuantitySelector(
-                          item: item.copyWith(quantity: currentQuantity),
-                          onChanged: (newQuantity) {
-                            if (newQuantity >= 1) {
-                               setStateDialog(() => currentQuantity = newQuantity);
-                            } 
-                          },
-                          allowIncreaseBeyondOriginal: true,
-                       ),
-                    ],
+                  // Name field
+                  TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Item Name',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
                   ),
-
                   const SizedBox(height: 16),
-                  TextFormField(
+                  
+                  // Price field
+                  TextField(
                     controller: priceController,
-                    decoration: const InputDecoration(
-                      labelText: 'Price Each (\$)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.attach_money),
+                    decoration: InputDecoration(
+                      labelText: 'Price',
+                      prefixText: '\$',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                     ],
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter price';
-                      }
-                      final price = double.tryParse(value);
-                      if (price == null || price <= 0) {
-                        return 'Price must be positive';
-                      }
-                      return null;
-                    },
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Quantity selector - simplified for better reliability
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Quantity:', style: textTheme.titleMedium),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: selectedQuantity > 1 
+                                ? () => setStateDialog(() => selectedQuantity--) 
+                                : null,
+                            color: selectedQuantity > 1 ? colorScheme.primary : colorScheme.onSurfaceVariant.withOpacity(0.38),
+                          ),
+                          Text(
+                            selectedQuantity.toString(),
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: () => setStateDialog(() => selectedQuantity++),
+                            color: colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.error),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  if (formKey.currentState!.validate()) {
-                    final newQuantity = currentQuantity;
-                    final newPrice = double.parse(priceController.text);
-
-                    // Check if values actually changed
-                    if (newQuantity != item.quantity || newPrice != item.price) {
-                      splitManager.updateUnassignedItem(item, newQuantity, newPrice);
-                       // Optionally show feedback
-                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${item.name} updated.'),
-                          duration: const Duration(seconds: 2),
-                          backgroundColor: colorScheme.primary,
-                          behavior: SnackBarBehavior.floating,
-                        )
-                       );
-                    }
-                    Navigator.pop(context);
-                  }
-                },
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        }
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              // Validate and parse inputs
+              final newName = nameController.text.trim();
+              if (newName.isEmpty) return;
+              
+              double? newPrice = double.tryParse(priceController.text);
+              if (newPrice == null || newPrice <= 0) return;
+              
+              // Use the updateUnassignedItem method which correctly handles updates
+              splitManager.updateUnassignedItem(item, selectedQuantity, newPrice);
+              
+              // Also apply the name change
+              if (newName != item.name) {
+                item.updateName(newName);
+              }
+              
+              // Visual confirmation
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Item updated successfully'),
+                  backgroundColor: colorScheme.primary,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+              
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.check),
+            label: const Text('Save'),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
