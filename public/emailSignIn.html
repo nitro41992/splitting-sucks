@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Email Sign In | Billfie</title>
+  <style>
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .container {
+      max-width: 90%;
+      width: 500px;
+      background-color: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #4285F4;
+      margin-bottom: 20px;
+    }
+    p {
+      font-size: 16px;
+      line-height: 1.5;
+      margin-bottom: 30px;
+    }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border-left-color: #4285F4;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .btn {
+      background-color: #4285F4;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+      margin-top: 10px;
+    }
+    .btn:hover {
+      background-color: #3367D6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Billfie Sign In</h1>
+    <div class="spinner"></div>
+    <p>Signing you in automatically...</p>
+    <p>If the app doesn't open automatically, please click the button below:</p>
+    <button class="btn" id="openApp">Open App</button>
+  </div>
+
+  <!-- Import Firebase libraries -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+
+  <script>
+    // Firebase configuration - replace with your own config
+    const firebaseConfig = {
+      apiKey: "AIzaSyARiiMhNHNGhmLXkih0PQBRrn9AXtwY_dc",
+      authDomain: "billfie.firebaseapp.com",
+      projectId: "billfie",
+      storageBucket: "billfie.firebasestorage.app",
+      messagingSenderId: "700235738899",
+      appId: "1:700235738899:web:21eb0b88a67f75631774e6",
+      measurementId: "G-ECDEY19NJ9"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // Check if the current URL is a sign-in link
+    if (firebase.auth().isSignInWithEmailLink(window.location.href)) {
+      // Get the app's deep link URL - encode the current URL as a parameter
+      const currentUrl = encodeURIComponent(window.location.href);
+      const appUrl = 'billfie://emailSignIn?link=' + currentUrl;
+      
+      // Try to open the app automatically
+      window.location.replace(appUrl);
+      
+      // Setup manual app opening
+      document.getElementById('openApp').addEventListener('click', function() {
+        window.location.replace(appUrl);
+      });
+    } else {
+      document.querySelector('.spinner').style.display = 'none';
+      document.querySelector('p').innerHTML = 'Invalid sign-in link. Please try again.';
+    }
+  </script>
+</body>
+</html> 

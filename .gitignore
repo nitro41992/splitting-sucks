@@ -58,6 +58,25 @@ app.*.map.json
 firebase-debug.log
 .firebase/
 firebase-export-*/
+# Ignore Firebase function node_modules and env files
+**/functions/node_modules/
+**/functions/.env
+**/functions/.env.*
+# Ignore service account keys
+**/serviceAccountKey.json
+**/*-service-account.json
+# Firebase emulator files
+**/emulator-data/
+**/.emulator-data/
+**/firestore-debug.log
+**/ui-debug.log
+**/pubsub-debug.log
+
+# Secrets and local configuration
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
 
 # iOS specific
 **/ios/Pods/
