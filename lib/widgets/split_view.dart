@@ -54,6 +54,8 @@ class _SplitViewState extends State<SplitView> {
           setState(() {
             _selectedIndex = initialIndex;
           });
+          // Check scrollability after setting the initial tab
+          _checkScrollability();
         }
         // Reset the value in SplitManager so it doesn't persist
         splitManager.initialSplitViewTabIndex = null;
@@ -72,6 +74,41 @@ class _SplitViewState extends State<SplitView> {
     _sharedScrollController.dispose();
     _unassignedScrollController.dispose();
     super.dispose();
+  }
+
+  // Add method to check if current tab has scrollable content
+  void _checkScrollability() {
+    ScrollController activeController;
+    
+    switch (_selectedIndex) {
+      case 0:
+        activeController = _peopleScrollController;
+        break;
+      case 1:
+        activeController = _sharedScrollController;
+        break;
+      case 2:
+        activeController = _unassignedScrollController;
+        break;
+      default:
+        return;
+    }
+    
+    // Wait for the next frame to ensure controller is attached and has correct metrics
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      
+      if (activeController.hasClients) {
+        final bool canScroll = activeController.position.maxScrollExtent > 0;
+        
+        // If can't scroll, always show FAB
+        if (!canScroll && !_isFabVisible) {
+          setState(() {
+            _isFabVisible = true;
+          });
+        }
+      }
+    });
   }
 
   void _onScroll() {
@@ -93,11 +130,19 @@ class _SplitViewState extends State<SplitView> {
     
     if (!activeController.hasClients) return;
     
-    final isScrollingDown = activeController.position.userScrollDirection == ScrollDirection.reverse;
-    if (isScrollingDown != !_isFabVisible) {
+    // Only hide buttons if content is actually scrollable
+    if (activeController.position.maxScrollExtent > 0) {
+      final isScrollingDown = activeController.position.userScrollDirection == ScrollDirection.reverse;
+      if (isScrollingDown != !_isFabVisible) {
+        setState(() {
+          _isFabVisible = !isScrollingDown;
+          // No longer changing _isSubtotalCollapsed based on scroll
+        });
+      }
+    } else if (!_isFabVisible) {
+      // If content is not scrollable, buttons should always be visible
       setState(() {
-        _isFabVisible = !isScrollingDown;
-        // No longer changing _isSubtotalCollapsed based on scroll
+        _isFabVisible = true;
       });
     }
   }
@@ -612,7 +657,11 @@ class _SplitViewState extends State<SplitView> {
     final bool isSelected = _selectedIndex == index;
     
     return InkWell(
-      onTap: () => setState(() => _selectedIndex = index),
+      onTap: () {
+        setState(() => _selectedIndex = index);
+        // Check if the new tab has scrollable content
+        _checkScrollability();
+      },
       child: Container(
         height: 48,
         decoration: BoxDecoration(
