@@ -98,7 +98,7 @@ class PersonCard extends StatelessWidget {
                         child: Row(
                           children: [
                             Text(
-                              'Also sharing ${person.sharedItems.length} ${person.sharedItems.length == 1 ? 'item' : 'items'}',
+                              'Sharing ${person.sharedItems.length} ${person.sharedItems.length == 1 ? 'item' : 'items'}',
                               style: textTheme.bodyMedium?.copyWith(
                                 color: colorScheme.secondary,
                                 fontWeight: FontWeight.w500,
