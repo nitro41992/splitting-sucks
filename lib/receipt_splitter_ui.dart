@@ -11,6 +11,7 @@ import 'theme/app_theme.dart';
 import 'theme/app_colors.dart';  // Added import for AppColors
 import 'package:flutter/services.dart';  // Add this import for clipboard
 import 'package:url_launcher/url_launcher.dart'; // Add this import for launching URLs
+import 'services/auth_service.dart'; // Import AuthService
 
 // Import the new screen
 import 'screens/receipt_upload_screen.dart';
@@ -211,6 +212,64 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
               // If the user confirmed, call _resetState
               if (confirmReset == true) {
                 _resetState();
+              }
+            },
+          ),
+          // Logout Button (New)
+          IconButton(
+            icon: Icon(Icons.logout, color: colorScheme.onSurface),
+            tooltip: 'Log Out',
+            onPressed: () async {
+              // Optional: Show confirmation dialog
+              final bool? confirmLogout = await showDialog<bool>(
+                context: context,
+                builder: (BuildContext dialogContext) {
+                  return AlertDialog(
+                    title: const Text('Log Out?'),
+                    content: const Text('Are you sure you want to log out?'),
+                    actions: <Widget>[
+                      TextButton(
+                        child: const Text('Cancel'),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop(false);
+                        },
+                      ),
+                      TextButton(
+                        child: Text('Log Out', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop(true);
+                        },
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              // If the user confirmed, call signOut
+              if (confirmLogout == true) {
+                try {
+                  // Get AuthService instance from Provider
+                  final authService = context.read<AuthService>();
+                  await authService.signOut();
+                  // No need to navigate here, StreamBuilder in main.dart handles it.
+                  if (mounted) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       SnackBar(
+                         content: const Text('Logged out successfully.'),
+                         backgroundColor: Colors.green, // Or use theme color
+                       ),
+                     );
+                  }
+                } catch (e) {
+                   if (mounted) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                       SnackBar(
+                         content: Text('Error logging out: $e'),
+                         backgroundColor: Theme.of(context).colorScheme.error,
+                       ),
+                     );
+                   }
+                }
               }
             },
           ),

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -35,46 +36,6 @@ class AuthService {
     }
   }
 
-  // Send Sign In Link to Email
-  Future<void> sendSignInLinkToEmail(String email) async {
-    try {
-      final actionCodeSettings = ActionCodeSettings(
-        url: 'https://billfie.web.app/emailSignIn',
-        handleCodeInApp: true,
-        iOSBundleId: 'com.billfie.app',
-        androidPackageName: 'com.billfie.app',
-        androidInstallApp: true,
-        androidMinimumVersion: '12',
-      );
-
-      await _auth.setLanguageCode("en");
-      
-      await _auth.sendSignInLinkToEmail(
-        email: email,
-        actionCodeSettings: actionCodeSettings,
-      );
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
-    }
-  }
-
-  // Sign In with Email Link
-  Future<UserCredential> signInWithEmailLink(String email, String emailLink) async {
-    try {
-      return await _auth.signInWithEmailLink(
-        email: email,
-        emailLink: emailLink,
-      );
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
-    }
-  }
-
-  // Check if link is sign-in link
-  bool isSignInWithEmailLink(String link) {
-    return _auth.isSignInWithEmailLink(link);
-  }
-
   // Google Sign In
   Future<UserCredential> signInWithGoogle() async {
     try {
@@ -97,8 +58,27 @@ class AuthService {
 
   // Sign Out
   Future<void> signOut() async {
-    await _googleSignIn.signOut(); // Sign out from Google
-    await _auth.signOut(); // Sign out from Firebase
+    try {
+      await _auth.signOut(); // Sign out from Firebase first
+      debugPrint('Firebase sign out successful.');
+      
+      // Attempt to sign out from Google, but don't let errors block flow
+      try {
+        // Check if a user was previously signed in with Google
+        if (await _googleSignIn.isSignedIn()) {
+             await _googleSignIn.signOut();
+             debugPrint('Google sign out successful.');
+        } else {
+             debugPrint('No active Google sign in session to sign out from.');
+        }
+      } catch (e) {
+        debugPrint('Error during Google sign out (suppressed): $e');
+        // We don't re-throw here, as Firebase logout is the main goal
+      }
+    } catch (e) {
+       debugPrint('Error during Firebase sign out: $e');
+       throw 'Failed to sign out: $e'; // Re-throw Firebase errors
+    }
   }
 
   // Password Reset

@@ -38,9 +38,22 @@ class _SignupScreenState extends State<SignupScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
+      
+      // Show success message and pop screen
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home'); // Navigate to home screen
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Pop back to LoginScreen; StreamBuilder will handle the next navigation
+        Navigator.of(context).pop(); 
       }
+      // Navigation removed - StreamBuilder in main.dart will handle showing ReceiptSplitterUI
+      // if (mounted) {
+      //   Navigator.of(context).pushReplacementNamed('/home'); // Navigate to home screen
+      // }
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();

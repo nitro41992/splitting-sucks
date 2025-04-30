@@ -32,14 +32,18 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      debugPrint('Attempting email/password sign in...');
       await _authService.signInWithEmailPassword(
         _emailController.text.trim(),
         _passwordController.text,
       );
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home'); // Navigate to home screen
-      }
+      debugPrint('Email/password sign in successful.');
+      // Navigation removed - StreamBuilder in main.dart will handle showing ReceiptSplitterUI
+      // if (mounted) {
+      //   Navigator.of(context).pushReplacementNamed('/home'); // Navigate to home screen
+      // }
     } catch (e) {
+      debugPrint('Email/password sign in error: $e');
       setState(() {
         _errorMessage = e.toString();
       });
@@ -59,11 +63,15 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      debugPrint('Attempting Google sign in...');
       await _authService.signInWithGoogle();
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home'); // Navigate to home screen
-      }
+      debugPrint('Google sign in successful.');
+      // Navigation removed - StreamBuilder in main.dart will handle showing ReceiptSplitterUI
+      // if (mounted) {
+      //   Navigator.of(context).pushReplacementNamed('/home'); // Navigate to home screen
+      // }
     } catch (e) {
+      debugPrint('Google sign in error: $e');
       setState(() {
         _errorMessage = e.toString();
       });
@@ -187,14 +195,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Email Link Sign In Button
-                OutlinedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () => Navigator.of(context).pushNamed('/email-link-signin'),
-                  icon: const Icon(Icons.email_outlined),
-                  label: const Text('Passwordless Sign In (Magic Link)'),
-                ),
+                // Email Link Sign In Button - REMOVED
+                // OutlinedButton.icon(
+                //   onPressed: _isLoading
+                //       ? null
+                //       : () => Navigator.of(context).pushNamed('/email-link-signin'),
+                //   icon: const Icon(Icons.email_outlined),
+                //   label: const Text('Passwordless Sign In (Magic Link)'),
+                // ),
                 const SizedBox(height: 16),
 
                 // Sign Up Link

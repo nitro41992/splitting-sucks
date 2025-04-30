@@ -56,25 +56,28 @@ class MyApp extends StatelessWidget {
           initialData: null,
         ),
       ],
-      child: MaterialApp(
-        title: 'Billfie',
-        theme: AppTheme.lightTheme,
-        initialRoute: Routes.initialRoute,
-        routes: Routes.getRoutes(),
-        home: StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            
-            if (snapshot.hasData) {
-              return const ReceiptSplitterUI(); // User is signed in
-            }
-            
-            return const LoginScreen(); // User is not signed in
-          },
-        ),
+      child: Builder(
+        builder: (context) {
+          return MaterialApp(
+            title: 'Billfie',
+            theme: AppTheme.lightTheme,
+            routes: Routes.getRoutes(),
+            home: StreamBuilder<User?>(
+              stream: context.read<AuthService>().authStateChanges,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                
+                if (snapshot.hasData) {
+                  return const ReceiptSplitterUI(); // User is signed in
+                }
+                
+                return const LoginScreen(); // User is not signed in
+              },
+            ),
+          );
+        }
       ),
     );
   }
