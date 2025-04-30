@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'models/split_manager.dart';
 import 'receipt_splitter_ui.dart';
 import 'services/mock_data_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
+  // Ensure Flutter bindings are initialized
+  WidgetsFlutterBinding.ensureInitialized();
+  
   // Load environment variables
   await dotenv.load(fileName: ".env");
+  
+  // Initialize Firebase
+  await Firebase.initializeApp();
   
   runApp(const MyApp());
 }

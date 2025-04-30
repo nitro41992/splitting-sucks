@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "700235738899",
+    "project_id": "billfie",
+    "storage_bucket": "billfie.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700235738899:android:f9581c3a91ecf6891774e6",
+        "android_client_info": {
+          "package_name": "com.example.billfie"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTvGYCjKJ9-6mX3cC9xqZ9xkEZUR9IUmg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
