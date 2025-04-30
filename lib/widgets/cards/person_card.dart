@@ -12,8 +12,18 @@ class PersonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final splitManager = Provider.of<SplitManager>(context);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+
+    // Calculate proper shared amount (divide each item by number of people sharing)
+    double calculatedSharedAmount = 0.0;
+    for (final item in person.sharedItems) {
+      final peopleSharing = splitManager.getPeopleForSharedItem(item);
+      if (peopleSharing.isNotEmpty) {
+        calculatedSharedAmount += (item.price * item.quantity) / peopleSharing.length;
+      }
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
@@ -72,6 +82,49 @@ class PersonCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
               ),
+              // Show shared items indicator if person has shared items
+              if (person.sharedItems.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.group,
+                        size: 18,
+                        color: colorScheme.secondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Text(
+                              'Also sharing ${person.sharedItems.length} ${person.sharedItems.length == 1 ? 'item' : 'items'}',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.secondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: colorScheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '+\$${calculatedSharedAmount.toStringAsFixed(2)}',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSecondaryContainer,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (person.assignedItems.isNotEmpty)
                 Container(
                   decoration: BoxDecoration(
@@ -99,7 +152,7 @@ class PersonCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                '\$${person.totalAssignedAmount.toStringAsFixed(2)}',
+                '\$${(person.totalAssignedAmount + calculatedSharedAmount).toStringAsFixed(2)}',
                 style: textTheme.labelLarge?.copyWith(
                   color: colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.bold,
