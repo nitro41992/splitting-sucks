@@ -515,19 +515,22 @@ class _SplitViewState extends State<SplitView> {
                     heroTag: 'addItemBtn',
                     child: const Icon(Icons.add_shopping_cart),
                   ),
-                  const SizedBox(width: 16),
-                  // Go to Summary button
-                  FloatingActionButton.extended(
-                    onPressed: () {
-                      // Use notification pattern to request navigation to summary page
-                      NavigateToPageNotification(4).dispatch(context);
-                    },
-                    backgroundColor: colorScheme.secondaryContainer,
-                    foregroundColor: colorScheme.onSecondaryContainer,
-                    heroTag: 'goToSummaryBtn',
-                    label: const Text('Go to Summary'),
-                    icon: const Icon(Icons.summarize),
-                  ),
+                  // Only show Go to Summary button if all items are assigned
+                  if (splitManager.unassignedItems.isEmpty) ...[
+                    const SizedBox(width: 16),
+                    // Go to Summary button
+                    FloatingActionButton.extended(
+                      onPressed: () {
+                        // Use notification pattern to request navigation to summary page
+                        NavigateToPageNotification(4).dispatch(context);
+                      },
+                      backgroundColor: colorScheme.secondaryContainer,
+                      foregroundColor: colorScheme.onSecondaryContainer,
+                      heroTag: 'goToSummaryBtn',
+                      label: const Text('Go to Summary'),
+                      icon: const Icon(Icons.summarize),
+                    ),
+                  ],
                 ],
               ),
             ),
