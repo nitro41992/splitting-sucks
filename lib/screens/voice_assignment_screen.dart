@@ -527,87 +527,175 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                           const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceVariant.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            // decoration: BoxDecoration(
+                            //   color: colorScheme.surfaceVariant.withOpacity(0.3),
+                            //   borderRadius: BorderRadius.circular(12),
+                            //   border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
+                            // ),
                             child: Column(
-                              children: widget.itemsToAssign.asMap().entries.map((entry) {
-                                final index = entry.key;
-                                final item = entry.value;
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              children: [
+                                // Header row
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
                                   child: Row(
                                     children: [
-                                      // Display numeric ID
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: colorScheme.secondaryContainer,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          '${index + 1}', // 1-based index
-                                          style: textTheme.bodySmall?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: colorScheme.onSecondaryContainer,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: colorScheme.primaryContainer,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          '${item.quantity}x',
-                                          style: textTheme.bodySmall?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: colorScheme.onPrimaryContainer,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
+                                      SizedBox(width: 36), // Space for item number
+                                      SizedBox(width: 48), // Space for quantity
                                       Expanded(
                                         child: Text(
-                                          item.name,
-                                          style: textTheme.bodyMedium,
-                                          overflow: TextOverflow.ellipsis,
+                                          'Item',
+                                          style: textTheme.bodySmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
                                         ),
                                       ),
-                                      Text(
-                                        '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                                        style: textTheme.bodyMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: colorScheme.primary,
+                                      SizedBox(
+                                        width: 80,
+                                        child: Text(
+                                          'Price',
+                                          style: textTheme.bodySmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                          textAlign: TextAlign.right,
                                         ),
                                       ),
                                     ],
                                   ),
-                                );
-                              }).toList(),
+                                ),
+                                // Divider with very low opacity to separate header
+                                Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: colorScheme.outlineVariant.withOpacity(0.3),
+                                ),
+                                // Items list
+                                ...widget.itemsToAssign.asMap().entries.map((entry) {
+                                  final index = entry.key;
+                                  final item = entry.value;
+                                  
+                                  // Add a subtle grid row effect
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: colorScheme.outlineVariant.withOpacity(0.15),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      color: index.isEven 
+                                          ? Colors.transparent
+                                          : colorScheme.surfaceVariant.withOpacity(0.15),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                    child: Row(
+                                      children: [
+                                        // Display numeric ID - fixed width
+                                        SizedBox(
+                                          width: 30,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: colorScheme.secondaryContainer,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              '${index + 1}', // 1-based index
+                                              style: textTheme.bodySmall?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color: colorScheme.onSecondaryContainer,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                        // Add spacing between item ID and quantity
+                                        const SizedBox(width: 10),
+                                        // Quantity - fixed width
+                                        SizedBox(
+                                          width: 30,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: colorScheme.primaryContainer,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              '${item.quantity}x',
+                                              style: textTheme.bodySmall?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color: colorScheme.onPrimaryContainer,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ),
+                                        // Item name - expanded
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                            child: Text(
+                                              item.name,
+                                              style: textTheme.bodyMedium,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ),
+                                        // Price - fixed width for alignment
+                                        SizedBox(
+                                          width: 80,
+                                          child: Text(
+                                            '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: colorScheme.primary,
+                                            ),
+                                            textAlign: TextAlign.right,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                // Total row with separation
+                                Container(
+                                  padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      top: BorderSide(
+                                        color: colorScheme.outlineVariant.withOpacity(0.5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(width: 84), // Space for ID and quantity
+                                      Expanded(
+                                        child: Text(
+                                          'Total',
+                                          style: textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 80,
+                                        child: Text(
+                                          '\$${_calculateSubtotal().toStringAsFixed(2)}',
+                                          style: textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: colorScheme.primary,
+                                          ),
+                                          textAlign: TextAlign.right,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Total',
-                                style: textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                '\$${_calculateSubtotal().toStringAsFixed(2)}',
-                                style: textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.primary,
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),
