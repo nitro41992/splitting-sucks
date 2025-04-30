@@ -50,3 +50,33 @@ app.*.map.json
 
 # Ignore machine-specific properties file
 /android/local.properties
+
+# Firebase
+**/ios/Runner/GoogleService-Info.plist
+**/android/app/google-services.json
+**/web/firebase-config.js
+firebase-debug.log
+.firebase/
+firebase-export-*/
+
+# iOS specific
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/build/
+**/ios/Runner.xcworkspace/xcshareddata/
+**/ios/Runner.xcworkspace/xcuserdata/
+**/ios/Runner.xcodeproj/xcuserdata/
+**/ios/*.mode1v3
+**/ios/*.mode2v3
+**/ios/*.moved-aside
+**/ios/*.pbxuser
+**/ios/*.perspectivev3
+**/ios/*sync/
+**/ios/.sconsign.dblite
+**/ios/.tags*
+**/ios/.vagrant/
+**/ios/DerivedData/
+**/ios/Icon?
+**/ios/Pods/
+**/ios/profile
+**/ios/xcuserdata/
