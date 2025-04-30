@@ -12,6 +12,8 @@
 .swiftpm/
 migrate_working_dir/
 requirements
+dataconnect-generated
+dataconnect
 
 # Environment variables
 .env
@@ -62,6 +64,18 @@ firebase-export-*/
 **/functions/node_modules/
 **/functions/.env
 **/functions/.env.*
+# Ignore Python-specific files in functions
+**/functions/__pycache__/
+**/functions/**/__pycache__/
+**/functions/venv/
+**/functions/.venv/
+**/functions/*.pyc
+**/functions/**/*.pyc
+**/functions/.pytest_cache/
+**/functions/.coverage
+**/functions/htmlcov/
+**/functions/*.egg-info/
+**/functions/functions/*
 # Ignore service account keys
 **/serviceAccountKey.json
 **/*-service-account.json
