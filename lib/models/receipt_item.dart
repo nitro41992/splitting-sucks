@@ -111,4 +111,17 @@ class ReceiptItem extends ChangeNotifier {
   @override
   int get hashCode => _itemId.hashCode;
     // name.hashCode ^ price.hashCode ^ quantity.hashCode;
+
+  // --- EDIT: Add a general copyWith method ---
+  ReceiptItem copyWith({String? name, double? price, int? quantity}) {
+    // Use the internal constructor to ensure originalQuantity and itemId are handled
+    return ReceiptItem._internal(
+      name: name ?? _name,
+      price: price ?? _price,
+      quantity: quantity ?? _quantity,
+      originalQuantity: _originalQuantity, // Keep the original quantity reference
+      itemId: _itemId,                  // Keep the same unique ID
+    );
+  }
+  // --- END EDIT ---
 } 

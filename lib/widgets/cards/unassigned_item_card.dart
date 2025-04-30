@@ -1,9 +1,12 @@
+import 'package:billfie/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/receipt_item.dart';
 import '../../models/person.dart';
 import '../../models/split_manager.dart';
 import '../shared/editable_price.dart';
+import 'package:flutter/services.dart';
+import '../shared/quantity_selector.dart';
 
 class UnassignedItemCard extends StatelessWidget {
   final ReceiptItem item;
@@ -49,16 +52,23 @@ class UnassignedItemCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${item.quantity} x \$${item.price.toStringAsFixed(2)} each',
-                          style: textTheme.titleMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      ],
+                    Expanded(
+                      child: Text(
+                        '${item.quantity} x \$${item.price.toStringAsFixed(2)} each',
+                        style: textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: IconButton(
+                        icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
+                        tooltip: 'Edit Item Details',
+                        onPressed: () => _showEditDialog(context, splitManager, item),
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                      ),
                     ),
                   ],
                 ),
@@ -748,6 +758,106 @@ class UnassignedItemCard extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  void _showEditDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
+    final formKey = GlobalKey<FormState>();
+    int currentQuantity = item.quantity;
+    final priceController = TextEditingController(text: item.price.toStringAsFixed(2));
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: const Text('Edit Item'),
+            contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 16.0),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.name, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Quantity:', style: textTheme.titleMedium),
+                      QuantitySelector(
+                          item: item.copyWith(quantity: currentQuantity),
+                          onChanged: (newQuantity) {
+                            if (newQuantity >= 1) {
+                               setStateDialog(() => currentQuantity = newQuantity);
+                            } 
+                          },
+                          allowIncreaseBeyondOriginal: true,
+                       ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: priceController,
+                    decoration: const InputDecoration(
+                      labelText: 'Price Each (\$)',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.attach_money),
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\\d+\\.?\\d{0,2}')),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter price';
+                      }
+                      final price = double.tryParse(value);
+                      if (price == null || price <= 0) {
+                        return 'Price must be positive';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    final newQuantity = currentQuantity;
+                    final newPrice = double.parse(priceController.text);
+
+                    // Check if values actually changed
+                    if (newQuantity != item.quantity || newPrice != item.price) {
+                      splitManager.updateUnassignedItem(item, newQuantity, newPrice);
+                       // Optionally show feedback
+                       ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${item.name} updated.'),
+                          duration: const Duration(seconds: 2),
+                          backgroundColor: colorScheme.primary,
+                          behavior: SnackBarBehavior.floating,
+                        )
+                       );
+                    }
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        }
+      ),
     );
   }
 } 

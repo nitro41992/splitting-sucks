@@ -115,7 +115,20 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
             _editableItems = updatedItems;
             _isReviewComplete = true;
           });
-          _navigateToPage(2);
+          
+          // --- EDIT: Initialize SplitManager and store original subtotal ---
+          _initializeSplitManager(_editableItems); // Initialize SplitManager state
+          
+          // Calculate the initial subtotal of unassigned items
+          // Assuming all items start as unassigned after review for now
+          // TODO: Refine this if initial state can include assigned/shared items
+          final splitManager = context.read<SplitManager>();
+          final double initialUnassignedSubtotal = splitManager.unassignedItemsTotal; 
+          splitManager.setOriginalUnassignedSubtotal(initialUnassignedSubtotal);
+          print('DEBUG: Stored original unassigned subtotal: $initialUnassignedSubtotal');
+          // --- END EDIT ---
+          
+          _navigateToPage(2); // Navigate to Voice Assignment
         },
       ),
       VoiceAssignmentScreen(
@@ -379,6 +392,27 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       );
     }
   }
+
+  // --- EDIT: Add method to initialize SplitManager ---
+  void _initializeSplitManager(List<ReceiptItem> items) {
+    final splitManager = context.read<SplitManager>();
+    splitManager.reset(); // Clear any previous state
+
+    // For now, assume all items start as unassigned
+    // TODO: Implement logic to handle pre-assigned/shared items if needed
+    for (var item in items) {
+      splitManager.addUnassignedItem(ReceiptItem.clone(item)); // Add clones to prevent mutation issues
+    }
+
+    // Add default people or load from storage if applicable (example)
+    // if (splitManager.people.isEmpty) {
+    //   splitManager.addPerson("Person 1");
+    //   splitManager.addPerson("Person 2"); 
+    // }
+    
+    print('DEBUG: SplitManager initialized with ${splitManager.unassignedItems.length} unassigned items.');
+  }
+  // --- END EDIT ---
 
   // Handles data from VoiceAssignmentScreen and updates SplitManager
   void _handleAssignmentProcessed(Map<String, dynamic> assignmentsData) {

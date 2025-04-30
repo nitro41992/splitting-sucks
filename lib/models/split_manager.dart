@@ -9,6 +9,11 @@ class SplitManager extends ChangeNotifier {
   Map<String, int> _originalQuantities;  // Track original quantities from review
   int? initialSplitViewTabIndex; // Index for initial tab in SplitView
 
+  // --- EDIT: Add state for tracking edits and original subtotal ---
+  bool _unassignedItemsModified = false;
+  double? _originalUnassignedSubtotal; // Store the subtotal from review
+  // --- END EDIT ---
+
   SplitManager({
     List<Person>? people,
     List<ReceiptItem>? sharedItems,
@@ -22,10 +27,20 @@ class SplitManager extends ChangeNotifier {
   List<ReceiptItem> get sharedItems => List.unmodifiable(_sharedItems);
   List<ReceiptItem> get unassignedItems => List.unmodifiable(_unassignedItems);
 
+  // --- EDIT: Add getters for new state ---
+  bool get unassignedItemsWereModified => _unassignedItemsModified;
+  double? get originalUnassignedSubtotal => _originalUnassignedSubtotal;
+  // --- END EDIT ---
+
   void reset() {
     _people = [];
     _sharedItems = [];
     _unassignedItems = [];
+    _originalQuantities = {};
+    // --- EDIT: Reset modification state ---
+    _unassignedItemsModified = false;
+    _originalUnassignedSubtotal = null;
+    // --- END EDIT ---
     notifyListeners();
   }
 
@@ -310,4 +325,23 @@ class SplitManager extends ChangeNotifier {
   List<Person> getPeopleForSharedItem(ReceiptItem item) {
     return _people.where((person) => person.sharedItems.contains(item)).toList();
   }
+
+  // --- EDIT: Add method to store the original subtotal ---
+  void setOriginalUnassignedSubtotal(double subtotal) {
+    _originalUnassignedSubtotal = subtotal;
+    // Don't notify listeners here, as it's usually set during initialization
+  }
+  // --- END EDIT ---
+
+  // --- EDIT: Add update method for unassigned items ---
+  void updateUnassignedItem(ReceiptItem itemToUpdate, int newQuantity, double newPrice) {
+    final index = _unassignedItems.indexWhere((item) => item.itemId == itemToUpdate.itemId);
+    if (index != -1) {
+      // Update the item in the list using the new copyWith method
+      _unassignedItems[index] = itemToUpdate.copyWith(quantity: newQuantity, price: newPrice);
+      _unassignedItemsModified = true; // Mark as modified
+      notifyListeners();
+    }
+  }
+  // --- END EDIT ---
 } 

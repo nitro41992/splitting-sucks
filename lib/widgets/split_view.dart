@@ -487,6 +487,44 @@ class _SplitViewState extends State<SplitView> {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
+    // --- EDIT: Check for subtotal mismatch ---
+    Widget? warningWidget;
+    final originalSubtotal = splitManager.originalUnassignedSubtotal;
+    final currentSubtotal = splitManager.unassignedItemsTotal;
+    // Use a small tolerance for double comparison
+    final bool subtotalsMatch = originalSubtotal == null 
+        || (currentSubtotal - originalSubtotal).abs() < 0.001; 
+
+    if (splitManager.unassignedItemsWereModified && !subtotalsMatch) {
+      warningWidget = Card(
+        color: colorScheme.errorContainer.withOpacity(0.1), // Use error container
+        margin: const EdgeInsets.only(bottom: 16.0),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colorScheme.error), // Use error color for border
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: colorScheme.error), // Use error color for icon
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Unassigned items total (\$${currentSubtotal.toStringAsFixed(2)}) differs from original review total (\$${originalSubtotal?.toStringAsFixed(2) ?? 'N/A'}).',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onErrorContainer, // Use on error container for text
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    // --- END EDIT ---
+
     if (splitManager.unassignedItems.isEmpty) {
       return Center(
         child: Padding(
@@ -522,7 +560,12 @@ class _SplitViewState extends State<SplitView> {
       );
     } else {
       return Column(
-        children: splitManager.unassignedItems.map((item) => UnassignedItemCard(item: item)).toList(),
+        children: [
+          // --- EDIT: Conditionally add the warning widget ---
+          if (warningWidget != null) warningWidget,
+          // --- END EDIT ---
+          ...splitManager.unassignedItems.map((item) => UnassignedItemCard(item: item)).toList(),
+        ],
       );
     }
   }

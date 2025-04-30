@@ -7,11 +7,13 @@ import '../../theme/app_colors.dart';
 class QuantitySelector extends StatelessWidget {
   final ReceiptItem item;
   final Function(int) onChanged;
+  final bool allowIncreaseBeyondOriginal;
 
   const QuantitySelector({
     super.key,
     required this.item,
     required this.onChanged,
+    this.allowIncreaseBeyondOriginal = false,
   });
 
   @override
@@ -66,6 +68,48 @@ class QuantitySelector extends StatelessWidget {
                 style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            // Increase button
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  if (allowIncreaseBeyondOriginal) {
+                    onChanged(item.quantity + 1);
+                  } else {
+                    final available = splitManager.getAvailableQuantity(item);
+                    if (item.quantity < available) {
+                      onChanged(item.quantity + 1);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Cannot exceed original quantity for ${item.name}.'),
+                          duration: const Duration(seconds: 2),
+                          backgroundColor: colorScheme.error,
+                        )
+                      );
+                    }
+                  }
+                },
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(18)),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: (allowIncreaseBeyondOriginal || splitManager.getAvailableQuantity(item) > item.quantity)
+                        ? AppColors.puce
+                        : Colors.transparent,
+                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(18)),
+                  ),
+                  child: Icon(
+                    Icons.add_circle_outline,
+                    size: 22,
+                    color: (allowIncreaseBeyondOriginal || splitManager.getAvailableQuantity(item) > item.quantity)
+                        ? Colors.white
+                        : colorScheme.onSurfaceVariant.withOpacity(0.38),
+                  ),
                 ),
               ),
             ),
