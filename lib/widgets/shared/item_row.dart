@@ -16,6 +16,18 @@ class ItemRow extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
+    // Function to show toast message when item is assigned
+    void _showAssignedItemToast(BuildContext context) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Changes to items can only be made if not assigned to a person'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        )
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
@@ -30,16 +42,21 @@ class ItemRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          Text(
-            '\$${item.price.toStringAsFixed(2)}',
-            style: textTheme.titleMedium?.copyWith(
-              color: colorScheme.onSurface,
+          // Wrap price in a GestureDetector to show toast when clicked
+          GestureDetector(
+            onTap: () => _showAssignedItemToast(context),
+            child: Text(
+              '\$${item.price.toStringAsFixed(2)}',
+              style: textTheme.titleMedium?.copyWith(
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
           const SizedBox(width: 16),
           QuantitySelector(
             item: item,
             onChanged: (newQuantity) => splitManager.updateItemQuantity(item, newQuantity),
+            isAssigned: true, // Items in PersonCard are always assigned to someone
           ),
         ],
       ),

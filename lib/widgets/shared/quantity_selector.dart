@@ -8,12 +8,14 @@ class QuantitySelector extends StatelessWidget {
   final ReceiptItem item;
   final Function(int) onChanged;
   final bool allowIncreaseBeyondOriginal;
+  final bool isAssigned;
 
   const QuantitySelector({
     super.key,
     required this.item,
     required this.onChanged,
     this.allowIncreaseBeyondOriginal = false,
+    this.isAssigned = false,
   });
 
   @override
@@ -21,6 +23,17 @@ class QuantitySelector extends StatelessWidget {
     final splitManager = context.watch<SplitManager>(); // Keep watch here if needed for context or direct access
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+
+    void _showAssignedItemToast(BuildContext context) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Changes to items can only be made if not assigned to a person'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        )
+      );
+    }
 
     return Tooltip(
       message: 'Reduce quantity',
@@ -33,7 +46,7 @@ class QuantitySelector extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Decrease button
+            // Decrease button - Allow decreasing even when assigned
             Material(
               color: Colors.transparent,
               child: InkWell(
@@ -59,46 +72,51 @@ class QuantitySelector extends StatelessWidget {
               ),
             ),
             // Quantity display
-            Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              child: Text(
-                item.quantity.toString(),
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+            GestureDetector(
+              onTap: isAssigned ? () => _showAssignedItemToast(context) : null,
+              child: Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                child: Text(
+                  item.quantity.toString(),
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
               ),
             ),
-            // Increase button
+            // Increase button - Only show toast if assigned
             Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: () {
-                  if (allowIncreaseBeyondOriginal) {
-                    onChanged(item.quantity + 1);
-                  } else {
-                    final available = splitManager.getAvailableQuantity(item);
-                    if (item.quantity < available) {
-                      onChanged(item.quantity + 1);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Cannot exceed original quantity for ${item.name}.'),
-                          duration: const Duration(seconds: 2),
-                          backgroundColor: colorScheme.error,
-                        )
-                      );
-                    }
-                  }
-                },
+                onTap: isAssigned
+                    ? () => _showAssignedItemToast(context)
+                    : () {
+                        if (allowIncreaseBeyondOriginal) {
+                          onChanged(item.quantity + 1);
+                        } else {
+                          final available = splitManager.getAvailableQuantity(item);
+                          if (item.quantity < available) {
+                            onChanged(item.quantity + 1);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Cannot exceed original quantity for ${item.name}.'),
+                                duration: const Duration(seconds: 2),
+                                backgroundColor: colorScheme.error,
+                              )
+                            );
+                          }
+                        }
+                      },
                 borderRadius: const BorderRadius.horizontal(right: Radius.circular(18)),
                 child: Container(
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: (allowIncreaseBeyondOriginal || splitManager.getAvailableQuantity(item) > item.quantity)
+                    color: !isAssigned && (allowIncreaseBeyondOriginal || splitManager.getAvailableQuantity(item) > item.quantity)
                         ? AppColors.puce
                         : Colors.transparent,
                     borderRadius: const BorderRadius.horizontal(right: Radius.circular(18)),
@@ -106,7 +124,7 @@ class QuantitySelector extends StatelessWidget {
                   child: Icon(
                     Icons.add_circle_outline,
                     size: 22,
-                    color: (allowIncreaseBeyondOriginal || splitManager.getAvailableQuantity(item) > item.quantity)
+                    color: !isAssigned && (allowIncreaseBeyondOriginal || splitManager.getAvailableQuantity(item) > item.quantity)
                         ? Colors.white
                         : colorScheme.onSurfaceVariant.withOpacity(0.38),
                   ),

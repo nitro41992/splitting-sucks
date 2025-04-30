@@ -16,6 +16,18 @@ class SharedItemCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final people = context.select((SplitManager sm) => sm.people);
 
+    // Function to show toast message for assigned items
+    void _showAssignedItemToast(BuildContext context) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Changes to items can only be made if not assigned to a person'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        )
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
       elevation: 0,
@@ -49,16 +61,21 @@ class SharedItemCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      '${item.quantity} x \$${item.price.toStringAsFixed(2)} each',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                    // Wrap the text in GestureDetector to show toast when clicked
+                    GestureDetector(
+                      onTap: () => _showAssignedItemToast(context),
+                      child: Text(
+                        '${item.quantity} x \$${item.price.toStringAsFixed(2)} each',
+                        style: textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                     QuantitySelector(
                       item: item,
                       onChanged: (newQuantity) =>
                           splitManager.updateItemQuantity(item, newQuantity),
+                      isAssigned: true, // Shared items are always assigned to people
                     ),
                   ],
                 ),
