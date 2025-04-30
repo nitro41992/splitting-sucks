@@ -425,7 +425,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         final personName = order['person'] as String?; // Cast as nullable String
         final itemName = order['item'] as String?;     // Cast as nullable String
         final itemPrice = (order['price'] as num?)?.toDouble(); // Handle nullable num
-        final itemQuantity = order['quantity'] as int?;         // Handle nullable int
+        final itemQuantity = (order['quantity'] as num?)?.toInt(); // Handle nullable num and convert to int
 
         if (personName == null || personName.isEmpty) {
           print("WARN: Skipping order with missing or empty person name.");

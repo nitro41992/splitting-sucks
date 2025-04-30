@@ -181,10 +181,15 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       } else {
         print('DEBUG: Making API call in _processTranscription (Screen)');
         final jsonReceipt = {
-          'items': widget.itemsToAssign.map((item) => {
-            'name': item.name,
-            'price': item.price,
-            'quantity': item.quantity,
+          'items': widget.itemsToAssign.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            return {
+              'id': index + 1, // Add 1-based index as ID
+              'name': item.name,
+              'price': item.price,
+              'quantity': item.quantity,
+            };
           }).toList(),
         };
         final result = await _audioService.assignPeopleToItems(
@@ -489,42 +494,62 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Column(
-                              children: widget.itemsToAssign.map((item) => Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.primaryContainer,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        '${item.quantity}x',
-                                        style: textTheme.bodySmall?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: colorScheme.onPrimaryContainer,
+                              children: widget.itemsToAssign.asMap().entries.map((entry) {
+                                final index = entry.key;
+                                final item = entry.value;
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                  child: Row(
+                                    children: [
+                                      // Display numeric ID
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.secondaryContainer,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          '${index + 1}', // 1-based index
+                                          style: textTheme.bodySmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: colorScheme.onSecondaryContainer,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        item.name,
-                                        style: textTheme.bodyMedium,
-                                        overflow: TextOverflow.ellipsis,
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.primaryContainer,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          '${item.quantity}x',
+                                          style: textTheme.bodySmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: colorScheme.onPrimaryContainer,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                    Text(
-                                      '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                                      style: textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.primary,
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          item.name,
+                                          style: textTheme.bodyMedium,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              )).toList(),
+                                      Text(
+                                        '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                                        style: textTheme.bodyMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
                             ),
                           ),
                           const SizedBox(height: 12),

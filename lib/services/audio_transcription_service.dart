@@ -180,29 +180,31 @@ class AudioTranscriptionService {
             {
               'role': 'system',
               'content': '''You are a helpful assistant that assigns items from a receipt to people based on voice instructions.
-              Analyze the voice transcription and receipt items to determine who ordered what.
-              Return a JSON object with the following structure:
-              {
-                "orders": [
-                  {"person": "name", "item": "item_name", "price": price, "quantity": quantity}
-                ],
-                "shared_items": [
-                  {"item": "item_name", "price": price, "quantity": quantity, "people": ["name1", "name2"]}
-                ],
-                "people": [
-                  {"name": "name1"},
-                  {"name": "name2"}
-                ],
-                "unassigned_items": [
-                  {"item": "item_name", "price": price, "quantity": quantity}
-                ]
-              }
-              
-              Pay close attention to:
-              1. Include ALL people mentioned in the transcription
-              2. Make sure all items are assigned to someone, marked as shared, or added to the unassigned_items array. Its important to include all items.
-              3. Ensure quantities and prices match the receipt
-              4. If not every instance of an item is mentioned in the transcription, make sure to add the item to the unassigned_items array''',
+               Analyze the voice transcription and receipt items to determine who ordered what.
+               Each item in the receipt items list has a numeric 'id'. Use these IDs to refer to items when possible, especially if the transcription mentions numbers.
+               Return a JSON object with the following structure:
+               {
+                 "orders": [
+                   {"person": "name", "item": "item_name", "price": price, "quantity": quantity}
+                 ],
+                 "shared_items": [
+                   {"item": "item_name", "price": price, "quantity": quantity, "people": ["name1", "name2"]}
+                 ],
+                 "people": [
+                   {"name": "name1"},
+                   {"name": "name2"}
+                 ],
+                 "unassigned_items": [
+                   {"item": "item_name", "price": price, "quantity": quantity}
+                 ]
+               }
+
+               Pay close attention to:
+               1. Include ALL people mentioned in the transcription
+               2. Make sure all items are assigned to someone, marked as shared, or added to the unassigned_items array. Its important to include all items.
+               3. Ensure quantities and prices match the receipt, providing a positive integer for quantity.
+               4. If not every instance of an item is mentioned in the transcription, make sure to add the item to the unassigned_items array
+               5. If numeric references to items are provided, use the provided numeric IDs to reference items when the transcription includes numbers that seem to correspond to items.''',
             },
             {
               'role': 'user',
