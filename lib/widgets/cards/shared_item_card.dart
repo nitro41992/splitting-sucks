@@ -21,8 +21,8 @@ class SharedItemCard extends StatelessWidget {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Changes to items can only be made if not assigned to a person'),
-          duration: const Duration(seconds: 2),
+          content: Text('Changes to price and quanitty can only be made if not assigned to a person'),
+          duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
         )
       );
