@@ -33,6 +33,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
   bool _isRecording = false;
   bool _isLoading = false; // Loading state specific to this screen
+  bool _tipsExpanded = true; // Track if tips are expanded or collapsed
   String? _transcription;
 
   @override
@@ -273,7 +274,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.center, // Align icons and text vertically centered
                                   children: [
                                     Icon(
                                       Icons.tips_and_updates_outlined,
@@ -290,76 +291,113 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                         ),
                                       ),
                                     ),
+                                    IconButton(
+                                      icon: Icon(
+                                        _tipsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                        color: colorScheme.onSecondaryContainer,
+                                        size: 24,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _tipsExpanded = !_tipsExpanded;
+                                        });
+                                      },
+                                      tooltip: _tipsExpanded ? 'Hide tips' : 'Show tips',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.people,
-                                      size: 18,
-                                      color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Start by saying everyone\'s name (including yours).',
-                                        style: textTheme.bodyMedium?.copyWith(
-                                          color: colorScheme.onSecondaryContainer,
+                                if (_tipsExpanded) ...[
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.people,
+                                        size: 18,
+                                        color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Start by saying everyone\'s name (including yours).',
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            color: colorScheme.onSecondaryContainer,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.restaurant_menu,
-                                      size: 18,
-                                      color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Describe what each person ordered using item names from the list below.',
-                                        style: textTheme.bodyMedium?.copyWith(
-                                          color: colorScheme.onSecondaryContainer,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.share,
-                                      size: 18,
-                                      color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Mention shared items like: "Alex and Jamie shared the fries and we all had the salad."',
-                                        style: textTheme.bodyMedium?.copyWith(
-                                          color: colorScheme.onSecondaryContainer,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Example: "Hey, Sam here. Alex got the burger. Jamie got the pasta. I had the salad. We all shared the garlic bread."',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    fontStyle: FontStyle.italic,
-                                    color: colorScheme.onSecondaryContainer.withOpacity(0.9),
+                                    ],
                                   ),
-                                ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.restaurant_menu,
+                                        size: 18,
+                                        color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Describe what each person ordered using item names from the list below.',
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            color: colorScheme.onSecondaryContainer,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.share,
+                                        size: 18,
+                                        color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Mention shared items like: "Alex and Jamie shared the fries and we all had the salad."',
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            color: colorScheme.onSecondaryContainer,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.format_list_numbered,
+                                        size: 18,
+                                        color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Use the item numbers! Say things like "Emma got #2 and we all shared #5" — super handy when those pasta dishes start sounding the same!',
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            color: colorScheme.onSecondaryContainer,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Example: "Hey, Sam here. Alex got the burger. Jamie got the pasta. I had the salad. We all shared the garlic bread."',
+                                    style: textTheme.bodySmall?.copyWith(
+                                      fontStyle: FontStyle.italic,
+                                      color: colorScheme.onSecondaryContainer.withOpacity(0.9),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
