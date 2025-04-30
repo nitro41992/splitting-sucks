@@ -593,18 +593,18 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                       children: [
                                         // Display numeric ID - fixed width
                                         SizedBox(
-                                          width: 30,
+                                          width: 35,
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: colorScheme.secondaryContainer,
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
+                                            // decoration: BoxDecoration(
+                                            //   color: colorScheme.secondaryContainer,
+                                            //   borderRadius: BorderRadius.circular(4),
+                                            // ),
                                             child: Text(
-                                              '${index + 1}', // 1-based index
-                                              style: textTheme.bodySmall?.copyWith(
+                                              '${index + 1}.', // 1-based index
+                                              style: textTheme.titleSmall?.copyWith(
                                                 fontWeight: FontWeight.bold,
-                                                color: colorScheme.onSecondaryContainer,
+                                                color: colorScheme.primary,
                                               ),
                                               textAlign: TextAlign.center,
                                             ),
@@ -614,7 +614,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                         const SizedBox(width: 10),
                                         // Quantity - fixed width
                                         SizedBox(
-                                          width: 30,
+                                          width: 35,
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                             decoration: BoxDecoration(
