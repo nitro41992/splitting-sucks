@@ -42,6 +42,7 @@ dependencies:
   url_launcher: ^6.2.6
   json_annotation: ^4.8.1
   shared_preferences: ^2.2.2
+  uuid: ^4.3.3
   
   # Firebase
   firebase_core: ^2.27.1

@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import 'package:cloud_functions/cloud_functions.dart';
+import '../env/firebase_config.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 // Model classes for structured validation
 class Order {
@@ -129,106 +132,84 @@ class AssignmentResult {
   }
 }
 
+/// A service that handles audio transcription and assignment of people to items
+/// using Firebase Cloud Functions.
 class AudioTranscriptionService {
-  final String _apiKey;
-  final String _baseUrl = 'https://api.openai.com/v1';
+  // Firebase Functions instance
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  // Firebase Storage instance for uploading audio
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   
-  AudioTranscriptionService() : _apiKey = dotenv.env['OPEN_AI_API_KEY'] ?? '';
+  AudioTranscriptionService();
 
+  /// Transcribes audio using Firebase Cloud Functions.
+  /// 
+  /// Uploads the audio to Firebase Storage and then calls the transcribe_audio
+  /// Cloud Function to process it with OpenAI's Whisper API.
   Future<String> getTranscription(Uint8List audioBytes) async {
     try {
-      final url = Uri.parse('$_baseUrl/audio/transcriptions');
-      final request = http.MultipartRequest('POST', url)
-        ..headers['Authorization'] = 'Bearer $_apiKey'
-        ..files.add(
-          http.MultipartFile.fromBytes(
-            'file',
-            audioBytes,
-            filename: 'audio.wav',
-          ),
-        )
-        ..fields['model'] = 'whisper-1';
-
-      final response = await request.send();
-      final responseBody = await response.stream.bytesToString();
+      // 1. Upload the audio file to Firebase Storage first
+      final String fileName = 'audio_${const Uuid().v4()}.wav';
+      final String storagePath = 'audio_transcriptions/$fileName';
       
-      if (response.statusCode != 200) {
-        throw Exception('Failed to transcribe audio: ${response.statusCode}');
+      final Reference storageRef = _storage.ref(storagePath);
+      await storageRef.putData(audioBytes);
+      
+      // 2. Get the Cloud Storage URI (gs://)
+      final String bucket = _storage.bucket;
+      final String audioUri = 'gs://$bucket/$storagePath';
+      
+      // 3. Call the Firebase Cloud Function for transcription
+      debugPrint('Calling transcribe_audio with URI: $audioUri');
+      final callable = _functions.httpsCallable('transcribe_audio');
+      
+      // The Firebase SDK automatically adds the outer 'data' wrapper
+      // So we just need to provide the audioUri directly as the argument
+      final result = await callable.call(
+        {'audioUri': audioUri}
+      );
+      
+      // 4. Parse the response
+      final responseData = result.data;
+      if (responseData == null || responseData['text'] == null) {
+        throw Exception('Invalid response format from Cloud Function');
       }
-
-      final json = jsonDecode(responseBody);
-      return json['text'] as String;
+      
+      return responseData['text'] as String;
     } catch (e) {
-      print('Error transcribing audio: $e');
+      // Log the error and rethrow
+      debugPrint('Error in audio transcription: $e');
       rethrow;
     }
   }
 
+  /// Assigns people to receipt items based on voice transcription using Firebase Cloud Functions.
+  ///
+  /// Calls the assign_people_to_items Cloud Function to process the transcription
+  /// and receipt data with OpenAI's API.
   Future<AssignmentResult> assignPeopleToItems(String transcription, Map<String, dynamic> receipt) async {
     try {
-      final url = Uri.parse('$_baseUrl/chat/completions');
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $_apiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'model': dotenv.env['OPEN_AI_MODEL'] ?? 'gpt-4o',
-          'response_format': { 'type': 'json_object' },
-          'messages': [
-            {
-              'role': 'system',
-              'content': '''You are a helpful assistant that assigns items from a receipt to people based on voice instructions.
-               Analyze the voice transcription and receipt items to determine who ordered what.
-               Each item in the receipt items list has a numeric 'id'. Use these IDs to refer to items when possible, especially if the transcription mentions numbers.
-               Return a JSON object with the following structure:
-               {
-                 "orders": [
-                   {"person": "name", "item": "item_name", "price": price, "quantity": quantity}
-                 ],
-                 "shared_items": [
-                   {"item": "item_name", "price": price, "quantity": quantity, "people": ["name1", "name2"]}
-                 ],
-                 "people": [
-                   {"name": "name1"},
-                   {"name": "name2"}
-                 ],
-                 "unassigned_items": [
-                   {"item": "item_name", "price": price, "quantity": quantity}
-                 ]
-               }
-
-               Pay close attention to:
-               1. Include ALL people mentioned in the transcription
-               2. Make sure all items are assigned to someone, marked as shared, or added to the unassigned_items array. Its important to include all items.
-               3. Ensure quantities and prices match the receipt, providing a positive integer for quantity.
-               4. If not every instance of an item is mentioned in the transcription, make sure to add the item to the unassigned_items array
-               5. If numeric references to items are provided, use the provided numeric IDs to reference items when the transcription includes numbers that seem to correspond to items.''',
-            },
-            {
-              'role': 'user',
-              'content': '''Voice transcription: $transcription
-              Receipt items: ${jsonEncode(receipt)}''',
-            },
-          ],
-        }),
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed to get completion: ${response.statusCode}');
+      // Call the Firebase Cloud Function
+      debugPrint('Calling assign_people_to_items with transcription and receipt');
+      final callable = _functions.httpsCallable('assign_people_to_items');
+      
+      // No need for extra data wrapper, SDK handles it
+      final result = await callable.call({
+        'transcription': transcription,
+        'receipt': receipt,
+      });
+      
+      // Parse the response
+      final responseData = result.data;
+      
+      if (responseData == null) {
+        throw Exception('Invalid response format from Cloud Function');
       }
-
-      final json = jsonDecode(response.body);
-      final content = json['choices'][0]['message']['content'];
-      if (content == null) {
-        throw Exception('No response from OpenAI');
-      }
-
-      final Map<String, dynamic> parsedJson = jsonDecode(content);
-      return AssignmentResult.fromJson(parsedJson);
+      
+      return AssignmentResult.fromJson(responseData);
     } catch (e) {
-      print('Error assigning items: $e');
+      // Log the error and rethrow
+      debugPrint('Error assigning items: $e');
       rethrow;
     }
   }

@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Always add new files that are not supposed to be commited to github into the gitignore

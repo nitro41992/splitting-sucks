@@ -5,7 +5,9 @@ import 'package:firebase_storage/firebase_storage.dart'; // Import Firebase Stor
 // import 'package:flutter_dotenv/flutter_dotenv.dart'; // No longer needed for API key
 import 'package:billfie/models/receipt_item.dart';
 import 'package:billfie/models/person.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
+/// Data model representing a receipt with items and subtotal
 class ReceiptData {
   final List<dynamic> items;
   // final double tax;
@@ -43,7 +45,7 @@ class ReceiptData {
     // 'total': total,
   };
   
-  // Convert raw API response items to ReceiptItem objects
+  /// Convert raw API response items to ReceiptItem objects
   List<ReceiptItem> getReceiptItems() {
     return items.map((item) {
       final double price = (item['price'] is int) 
@@ -72,7 +74,13 @@ class ReceiptData {
   // }
 }
 
+/// Service for parsing receipts using Firebase Cloud Functions
 class ReceiptParserService {
+  
+  /// Parses a receipt image using the Firebase Cloud Function
+  /// 
+  /// Uploads the image to Firebase Storage and then calls the parse_receipt
+  /// Cloud Function to process it with OpenAI's API.
   static Future<ReceiptData> parseReceipt(File imageFile) async {
     // Get instance of Cloud Functions & Storage
     FirebaseFunctions functions = FirebaseFunctions.instance;
@@ -83,14 +91,14 @@ class ReceiptParserService {
     // --- Upload to Firebase Storage ---
     String? imageUri; // Use gs:// URI
     try {
-      // Create a unique filename (e.g., using timestamp or UUID)
+      // Create a unique filename using timestamp
       String fileName = 'receipts/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}';
       Reference storageRef = storage.ref().child(fileName);
 
-      print('Uploading to Storage: $fileName');
+      debugPrint('Uploading receipt to Storage: $fileName');
       UploadTask uploadTask = storageRef.putFile(
         imageFile,
-        SettableMetadata(contentType: 'image/jpeg'), // Set content type (adjust if needed)
+        SettableMetadata(contentType: 'image/jpeg'),
       );
 
       // Await the upload completion
@@ -100,14 +108,14 @@ class ReceiptParserService {
       // IMPORTANT: Ensure your Cloud Function's service account has permission
       // to read from this bucket (e.g., Storage Object Viewer role).
       imageUri = 'gs://${snapshot.ref.bucket}/${snapshot.ref.fullPath}';
-      print('Upload complete. Image URI: $imageUri');
+      debugPrint('Receipt upload complete. URI: $imageUri');
 
     } on FirebaseException catch (e) {
-      print('Storage Upload Error: ${e.code} - ${e.message}');
-      throw Exception('Failed to upload image to Firebase Storage: ${e.message}');
+      debugPrint('Storage upload error: ${e.code} - ${e.message}');
+      throw Exception('Failed to upload receipt image: ${e.message}');
     } catch (e) {
-      print('Storage Upload Error: $e');
-      throw Exception('An unexpected error occurred during image upload: $e');
+      debugPrint('Unexpected storage upload error: $e');
+      throw Exception('Failed to upload receipt image: $e');
     }
     // --- End Upload ---
 
@@ -121,27 +129,21 @@ class ReceiptParserService {
       // Prepare the callable function reference
       HttpsCallable callable = functions.httpsCallable('parse_receipt');
 
-      // Call the function with the image URI instead of base64
-      print('Calling Cloud Function with URI: $imageUri');
-      // Expect a Map back, since the Python function returns a JSON object
+      // Call the function with the image URI
+      debugPrint('Calling parse_receipt function with URI');
       final HttpsCallableResult result = await callable.call<Map<String, dynamic>>(
         {
-          // Send the gs:// URI (SDK implicitly wraps this in 'data' for request)
           'imageUri': imageUri,
         },
       );
 
-      // The Cloud Function response structure is {"data": { ...receipt data... }}
-      // result.data will be the outer Map<String, dynamic>.
       try {
-        // Access the nested 'data' map which contains the actual receipt fields
-        // Modified to handle both formats: data.data or data directly 
+        // Access the response data
         final Map<String, dynamic>? receiptMap = result.data is Map<String, dynamic> ? result.data as Map<String, dynamic> : null;
 
         if (receiptMap == null) {
-          print("Error: Cloud function response was not a valid map.");
-          print("Raw function response data: ${result.data}");
-          throw Exception('Invalid response structure from Cloud Function.');
+          debugPrint("Error: Invalid response structure from Cloud Function");
+          throw Exception('Invalid response from receipt parser');
         }
 
         // Check if the response has a nested 'data' field
@@ -149,43 +151,36 @@ class ReceiptParserService {
             ? receiptMap['data'] as Map<String, dynamic>
             : receiptMap; // Use the map directly if no 'data' wrapper
 
-        print('Successfully received structured data from Cloud Function.');
-        // Parse the map using your existing factory
+        // Parse the map
         return ReceiptData.fromJson(finalReceiptMap);
       } catch (e) {
-        // Handle cases where casting fails or other parsing errors occur
-        print("Error parsing structured response from Cloud Function: $e");
-        print("Raw function response data: ${result.data}");
-        throw Exception('Failed to parse Cloud Function response map: $e');
+        debugPrint("Error parsing receipt data: $e");
+        throw Exception('Failed to parse receipt data: $e');
       }
 
     } on FirebaseFunctionsException catch (e) {
       // Handle Firebase Cloud Functions specific exceptions
-      print('Cloud Function Error Code: ${e.code}');
-      print('Cloud Function Error Message: ${e.message}');
-      print('Cloud Function Error Details: ${e.details}');
-      // Clean up the uploaded file if the function call fails? Maybe not, user might retry.
-      throw Exception('Error calling Cloud Function (${e.code}): ${e.message}');
+      debugPrint('Cloud Function error: ${e.code} - ${e.message}');
+      throw Exception('Receipt parsing failed: ${e.message}');
     } catch (e) {
-      // Catch any other exceptions during the process
-      print('Error processing receipt: $e');
-      // Clean up uploaded file on general errors?
-      throw Exception('Error processing receipt: $e');
+      // Catch any other exceptions
+      debugPrint('Receipt processing error: $e');
+      throw Exception('Receipt processing failed: $e');
     } finally {
        // Optional: Delete the image from Storage after processing?
        // Decide if you want to keep the images in Storage or clean them up.
        // If cleaning up:
        // if (imageUri != null) {
        //   try {
-       //     print('Deleting image from storage: $imageUri');
+       //     debugPrint('Deleting image from storage: $imageUri');
        //     // Extract bucket and path from gs:// URI
        //     final uriParts = imageUri.replaceFirst('gs://', '').split('/');
        //     final bucketName = uriParts.first; // Note: Default bucket often doesn't need explicit naming here
        //     final objectPath = uriParts.sublist(1).join('/');
        //     await storage.ref().child(objectPath).delete();
-       //     print('Successfully deleted image from storage.');
+       //     debugPrint('Successfully deleted image from storage.');
        //   } catch (e) {
-       //     print('Failed to delete image from storage: $e');
+       //     debugPrint('Failed to delete image from storage: $e');
        //     // Log error but don't fail the whole operation just for cleanup failure
        //   }
        // }
