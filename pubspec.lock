@@ -277,10 +277,10 @@ packages:
     dependency: "direct main"
     description:
       name: dart_openai
-      sha256: "853bb57fed6a71c3ba0324af5cb40c16d196cf3aa55b91d244964ae4a241ccf1"
+      sha256: "688f17bdc165908f533b07438f2b01d02dd5afd326d4c01439f52aa9d4ab343c"
       url: "https://pub.dev"
     source: hosted
-    version: "5.1.0"
+    version: "1.9.93"
   dart_style:
     dependency: transitive
     description:
@@ -301,18 +301,18 @@ packages:
     dependency: transitive
     description:
       name: fetch_api
-      sha256: "24cbd5616f3d4008c335c197bb90bfa0eb43b9e55c6de5c60d1f805092636034"
+      sha256: "74a1e426d41ed9c89353703b2d80400c5d0ecfa144b2d8a7bd8882fbc9e48787"
       url: "https://pub.dev"
     source: hosted
-    version: "2.3.1"
+    version: "1.0.3"
   fetch_client:
     dependency: transitive
     description:
       name: fetch_client
-      sha256: "375253f4efe64303c793fb17fe90771c591320b2ae11fb29cb5b406cc8533c00"
+      sha256: "83c07b07a63526a43630572c72715707ca113a8aa3459efbc7b2d366b79402af"
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.4"
+    version: "1.0.2"
   ffi:
     dependency: transitive
     description:
@@ -496,54 +496,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.3"
-  google_identity_services_web:
-    dependency: transitive
-    description:
-      name: google_identity_services_web
-      sha256: "5d187c46dc59e02646e10fe82665fc3884a9b71bc1c90c2b8b749316d33ee454"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.3+1"
-  google_sign_in:
-    dependency: "direct main"
-    description:
-      name: google_sign_in
-      sha256: d0a2c3bcb06e607bb11e4daca48bd4b6120f0bbc4015ccebbe757d24ea60ed2a
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.3.0"
-  google_sign_in_android:
-    dependency: transitive
-    description:
-      name: google_sign_in_android
-      sha256: d5e23c56a4b84b6427552f1cf3f98f716db3b1d1a647f16b96dbb5b93afa2805
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.2.1"
-  google_sign_in_ios:
-    dependency: transitive
-    description:
-      name: google_sign_in_ios
-      sha256: "102005f498ce18442e7158f6791033bbc15ad2dcc0afa4cf4752e2722a516c96"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.9.0"
-  google_sign_in_platform_interface:
-    dependency: transitive
-    description:
-      name: google_sign_in_platform_interface
-      sha256: "5f6f79cf139c197261adb6ac024577518ae48fdff8e53205c5373b5f6430a8aa"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.5.0"
-  google_sign_in_web:
-    dependency: transitive
-    description:
-      name: google_sign_in_web
-      sha256: "460547beb4962b7623ac0fb8122d6b8268c951cf0b646dd150d60498430e4ded"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.12.4+4"
   graphs:
     dependency: transitive
     description:
@@ -556,10 +508,10 @@ packages:
     dependency: "direct main"
     description:
       name: http
-      sha256: fe7ab022b76f3034adc518fb6ea04a82387620e19977665ea18d30a1cf43442f
+      sha256: "5895291c13fa8a3bd82e76d5627f69e0d85ca6a30dcac95c4ea19a5d555879c2"
       url: "https://pub.dev"
     source: hosted
-    version: "1.3.0"
+    version: "0.13.6"
   http_multi_server:
     dependency: transitive
     description:
@@ -652,10 +604,10 @@ packages:
     dependency: transitive
     description:
       name: js
-      sha256: "53385261521cc4a0c4658fd0ad07a7d14591cf8fc33abbceae306ddb974888dc"
+      sha256: f2c445dce49627136094980615a031419f7f3eb393237e4ecd97ac15dea343f3
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.2"
+    version: "0.6.7"
   json_annotation:
     dependency: "direct main"
     description:

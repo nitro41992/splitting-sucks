@@ -33,10 +33,13 @@ target 'Runner' do
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   
-  # Force specific versions to resolve conflicts
-  pod 'GoogleUtilities', '7.12.0', :modular_headers => true
-  pod 'GoogleUtilities/Logger', '7.12.0', :modular_headers => true
-
+  # Fix Firebase version to avoid conflicts
+  pod 'Firebase/CoreOnly', '10.15.0'
+  pod 'Firebase/Auth', '10.15.0'
+  pod 'Firebase/Firestore', '10.15.0'
+  pod 'Firebase/Storage', '10.15.0'
+  pod 'Firebase/Functions', '10.15.0'
+  
   target 'RunnerTests' do
     inherit! :search_paths
   end
@@ -49,12 +52,7 @@ post_install do |installer|
     # Set deployment target for all pods
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      
-      # Add any other build settings needed
       config.build_settings['ENABLE_BITCODE'] = 'NO'
-      config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ""
-      config.build_settings['CODE_SIGNING_REQUIRED'] = "NO"
-      config.build_settings['CODE_SIGNING_ALLOWED'] = "NO"
     end
   end
 end 

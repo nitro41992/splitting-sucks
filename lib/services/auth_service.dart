@@ -1,12 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
   
   // Constants for rate limiting and security
   static const int _maxLoginAttemptsBeforeCaptcha = 3;
@@ -114,19 +112,30 @@ class AuthService {
     }
   }
 
-  // Google Sign In
+  // Google Sign In with Firebase only
   Future<UserCredential> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) throw 'Google sign in aborted';
+      // Create a GoogleAuthProvider
+      GoogleAuthProvider googleProvider = GoogleAuthProvider();
+      
+      // Add scopes if needed
+      googleProvider.addScope('https://www.googleapis.com/auth/contacts.readonly');
+      googleProvider.setCustomParameters({
+        'login_hint': 'user@example.com'
+      });
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      return await _auth.signInWithCredential(credential);
+      // On mobile, use signInWithPopup
+      if (defaultTargetPlatform == TargetPlatform.iOS || 
+          defaultTargetPlatform == TargetPlatform.android) {
+        return await _auth.signInWithPopup(googleProvider);
+      } 
+      // On web, use signInWithRedirect
+      else {
+        return await _auth.signInWithPopup(googleProvider);
+        // Note: for web redirect flow, you'd use:
+        // await _auth.signInWithRedirect(googleProvider);
+        // and then later handle the redirect result
+      }
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     } catch (e) {
@@ -137,25 +146,11 @@ class AuthService {
   // Sign Out
   Future<void> signOut() async {
     try {
-      await _auth.signOut(); // Sign out from Firebase first
-      debugPrint('Firebase sign out successful.');
-      
-      // Attempt to sign out from Google, but don't let errors block flow
-      try {
-        // Check if a user was previously signed in with Google
-        if (await _googleSignIn.isSignedIn()) {
-             await _googleSignIn.signOut();
-             debugPrint('Google sign out successful.');
-        } else {
-             debugPrint('No active Google sign in session to sign out from.');
-        }
-      } catch (e) {
-        debugPrint('Error during Google sign out (suppressed): $e');
-        // We don't re-throw here, as Firebase logout is the main goal
-      }
+      await _auth.signOut();
+      debugPrint('Sign out successful.');
     } catch (e) {
-       debugPrint('Error during Firebase sign out: $e');
-       throw 'Failed to sign out: $e'; // Re-throw Firebase errors
+       debugPrint('Error during sign out: $e');
+       throw 'Failed to sign out: $e';
     }
   }
 

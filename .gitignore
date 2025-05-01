@@ -101,10 +101,16 @@ firebase-export-*/
 
 # iOS specific
 **/ios/Pods/
+**/ios/Podfile.lock
 **/ios/.symlinks/
 **/ios/build/
+**/ios/Runner.xcworkspace/
 **/ios/Runner.xcworkspace/xcshareddata/
 **/ios/Runner.xcworkspace/xcuserdata/
+**/ios/Runner.xcodeproj/
+**/ios/Runner.xcodeproj/project.xcworkspace/
+**/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/
+**/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
 **/ios/Runner.xcodeproj/xcuserdata/
 **/ios/*.mode1v3
 **/ios/*.mode2v3
@@ -117,9 +123,10 @@ firebase-export-*/
 **/ios/.vagrant/
 **/ios/DerivedData/
 **/ios/Icon?
-**/ios/Pods/
-**/ios/profile
+**/ios/profile/
 **/ios/xcuserdata/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/Flutter.podspec
 
 # Flutter generated files
 # MacOs
