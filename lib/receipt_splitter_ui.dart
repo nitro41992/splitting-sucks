@@ -52,6 +52,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   Map<String, dynamic>? _assignments; // Raw assignment results (optional to keep)
   List<ReceiptItem> _editableItems = []; // Holds items between parsing and review
 
+  // Voice assignment state preservation
+  String? _savedTranscription; // Added to preserve transcription when navigating
+
   // Step completion tracking (kept in coordinator)
   bool _isUploadComplete = false;
   bool _isReviewComplete = false;
@@ -139,7 +142,14 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       VoiceAssignmentScreen(
         key: ValueKey('VoiceScreen_${_editableItems.hashCode}'),
         itemsToAssign: _editableItems,
+        initialTranscription: _savedTranscription, // Pass saved transcription
         onAssignmentProcessed: _handleAssignmentProcessed,
+        onTranscriptionChanged: (transcription) {
+          // Save transcription when it changes
+          setState(() {
+            _savedTranscription = transcription;
+          });
+        },
       ),
       const AssignmentReviewScreen(),
       const FinalSummaryScreen(), // Use the new screen widget
@@ -381,6 +391,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       _isUploadComplete = false;
       _isReviewComplete = false;
       _isAssignmentComplete = false;
+      _savedTranscription = null; // Reset saved transcription
 
       // Reset SplitManager
       if (mounted) {

@@ -15,11 +15,17 @@ class VoiceAssignmentScreen extends StatefulWidget {
   // Callback to notify the parent UI when assignments are processed
   // It passes the raw assignment data (or mock data structure)
   final Function(Map<String, dynamic> assignmentsData) onAssignmentProcessed;
+  // Initial transcription to display (for state preservation)
+  final String? initialTranscription;
+  // Callback to update parent when transcription changes
+  final Function(String? transcription)? onTranscriptionChanged;
 
   const VoiceAssignmentScreen({
     super.key,
     required this.itemsToAssign,
     required this.onAssignmentProcessed,
+    this.initialTranscription,
+    this.onTranscriptionChanged,
   });
 
   @override
@@ -40,6 +46,12 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   void initState() {
     super.initState();
     _transcriptionController = TextEditingController();
+    
+    // Initialize with saved transcription if available
+    if (widget.initialTranscription != null) {
+      _transcription = widget.initialTranscription;
+      _transcriptionController.text = widget.initialTranscription!;
+    }
   }
 
   @override
@@ -72,6 +84,12 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
         _transcriptionController.text = _transcription!;
         _isLoading = false;
       });
+      
+      // Notify parent of transcription change
+      if (widget.onTranscriptionChanged != null) {
+        widget.onTranscriptionChanged!(_transcription);
+      }
+      
       return;
     }
 
@@ -125,6 +143,11 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
             _transcriptionController.text = transcriptionResult;
             _isLoading = false;
           });
+          
+          // Notify parent of transcription change
+          if (widget.onTranscriptionChanged != null) {
+            widget.onTranscriptionChanged!(_transcription);
+          }
         } else {
            setState(() => _isLoading = false);
         }
