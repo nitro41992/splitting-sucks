@@ -17,13 +17,14 @@ import 'package:flutter/services.dart';  // Add this import for clipboard
 import 'package:url_launcher/url_launcher.dart'; // Add this import for launching URLs
 import 'services/auth_service.dart'; // Import AuthService
 import 'package:flutter/services.dart';  // Add this import for system navigation
-
-// Import the new screen
+import 'package:image_picker/image_picker.dart';
+import 'models/person.dart'; // Added import for Person
 import 'screens/receipt_upload_screen.dart';
 import 'screens/receipt_review_screen.dart';
-import 'screens/voice_assignment_screen.dart'; // Import new screen
-import 'screens/assignment_review_screen.dart'; // Import new screen
-import 'screens/final_summary_screen.dart'; // Import the new screen
+import 'screens/voice_assignment_screen.dart';
+import 'screens/assignment_review_screen.dart'; // SplitView is used here
+import 'screens/final_summary_screen.dart';
+import 'services/audio_transcription_service.dart' hide Person;
 
 // Mock data for demonstration
 class MockData {
@@ -735,9 +736,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
       final List<Person> addedPeople = [];
       for (var personName in peopleNames) {
         if (personName.isNotEmpty) {
-          final newPerson = Person(name: personName); // Create Person object
-          splitManager.addPersonObject(newPerson); // Use method that accepts Person object
-          addedPeople.add(newPerson);
+          splitManager.addPerson(personName); // Use the existing addPerson method
+          // Find the person object *after* adding it to get the reference for the shared items list
+          final addedPerson = splitManager.people.firstWhere((p) => p.name == personName);
+          addedPeople.add(addedPerson);
           print("DEBUG: Added person: $personName");
         } else {
           print("WARN: Skipping person with empty name found in assignments.");
@@ -755,11 +757,10 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
           (p) => p.name == personName,
           orElse: () {
             print("ERROR: Person '$personName' not found in SplitManager after adding. This shouldn't happen.");
-            return null; // Return null or handle appropriately
+            // Throw an exception instead of returning null
+            throw Exception("Person '$personName' not found in SplitManager during assignment processing."); 
           }
         );
-
-        if (person == null) return; // Skip if person lookup failed
 
         final refsList = List<Map<String, dynamic>>.from(itemRefs ?? []);
         for (var itemRef in refsList) {
