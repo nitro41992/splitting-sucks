@@ -124,4 +124,26 @@ class ReceiptItem extends ChangeNotifier {
     );
   }
   // --- END EDIT ---
+
+  // Convert to JSON for state persistence
+  Map<String, dynamic> toJson() {
+    return {
+      'name': _name,
+      'price': _price,
+      'quantity': _quantity,
+      'originalQuantity': _originalQuantity,
+      'itemId': _itemId,
+    };
+  }
+
+  // Create from JSON for state persistence
+  static ReceiptItem fromJson(Map<String, dynamic> json) {
+    return ReceiptItem._internal(
+      name: json['name'] as String,
+      price: (json['price'] as num).toDouble(),
+      quantity: json['quantity'] as int,
+      originalQuantity: json['originalQuantity'] as int? ?? json['quantity'] as int,
+      itemId: json['itemId'] as String? ?? 'item_${_nextId++}_${json['name']}',
+    );
+  }
 } 

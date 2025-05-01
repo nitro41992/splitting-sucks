@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 import 'services/receipt_parser_service.dart';
 import 'services/mock_data_service.dart';
 import 'widgets/split_view.dart';
@@ -43,7 +46,7 @@ class ReceiptSplitterUI extends StatefulWidget {
   State<ReceiptSplitterUI> createState() => _ReceiptSplitterUIState();
 }
 
-class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
+class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindingObserver {
   // State variables for the main coordinator
   int _currentStep = 0;
   final PageController _pageController = PageController();
@@ -60,9 +63,14 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
   bool _isReviewComplete = false;
   bool _isAssignmentComplete = false;
 
+  // Path to temporarily saved image for state restoration
+  String? _savedImagePath;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Register for lifecycle events
+    _loadSavedState(); // Load saved state on startup
 
     final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
 
@@ -84,8 +92,129 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Unregister from lifecycle events
     _pageController.dispose();
     super.dispose();
+  }
+
+  // Handle app lifecycle state changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (state == AppLifecycleState.paused || 
+        state == AppLifecycleState.inactive) {
+      // App is going to background, save state
+      _saveCurrentState();
+    } else if (state == AppLifecycleState.resumed) {
+      // App is coming back to foreground, refresh state if needed
+      // (We already load state in initState, but can add additional logic here if needed)
+    }
+  }
+
+  // Save the current state to persistent storage
+  Future<void> _saveCurrentState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Save current step and completion flags
+      await prefs.setInt('current_step', _currentStep);
+      await prefs.setBool('is_upload_complete', _isUploadComplete);
+      await prefs.setBool('is_review_complete', _isReviewComplete);
+      await prefs.setBool('is_assignment_complete', _isAssignmentComplete);
+      
+      // Save transcription if available
+      if (_savedTranscription != null) {
+        await prefs.setString('saved_transcription', _savedTranscription!);
+      }
+      
+      // Save image path if available
+      if (_imageFile != null) {
+        // Save the image to a temporary file if needed
+        final tempDir = await getTemporaryDirectory();
+        final imagePath = '${tempDir.path}/saved_receipt_image.jpg';
+        await _imageFile!.copy(imagePath);
+        await prefs.setString('saved_image_path', imagePath);
+      }
+      
+      // Save editable items as JSON if available
+      if (_editableItems.isNotEmpty) {
+        final itemsJson = jsonEncode(_editableItems.map((item) => item.toJson()).toList());
+        await prefs.setString('editable_items', itemsJson);
+      }
+      
+      // Save assignments if available
+      if (_assignments != null) {
+        await prefs.setString('assignments', jsonEncode(_assignments));
+      }
+      
+      print('App state saved successfully');
+    } catch (e) {
+      print('Error saving app state: $e');
+    }
+  }
+
+  // Load previously saved state from persistent storage
+  Future<void> _loadSavedState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Check if we have saved state
+      if (!prefs.containsKey('current_step')) {
+        print('No saved state found');
+        return;
+      }
+      
+      setState(() {
+        // Restore workflow state
+        _currentStep = prefs.getInt('current_step') ?? 0;
+        _isUploadComplete = prefs.getBool('is_upload_complete') ?? false;
+        _isReviewComplete = prefs.getBool('is_review_complete') ?? false;
+        _isAssignmentComplete = prefs.getBool('is_assignment_complete') ?? false;
+        
+        // Restore transcription
+        _savedTranscription = prefs.getString('saved_transcription');
+        
+        // Restore image if available
+        final imagePath = prefs.getString('saved_image_path');
+        if (imagePath != null) {
+          final imageFile = File(imagePath);
+          if (imageFile.existsSync()) {
+            _imageFile = imageFile;
+          }
+        }
+        
+        // Restore editable items
+        final itemsJson = prefs.getString('editable_items');
+        if (itemsJson != null) {
+          final List<dynamic> itemsList = jsonDecode(itemsJson);
+          _editableItems = itemsList.map((item) => ReceiptItem.fromJson(item)).toList();
+        }
+        
+        // Restore assignments
+        final assignmentsJson = prefs.getString('assignments');
+        if (assignmentsJson != null) {
+          _assignments = jsonDecode(assignmentsJson);
+        }
+      });
+      
+      // If we have a saved state, initialize the page controller to that page
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(_currentStep);
+      }
+      
+      // If we've restored state past the upload stage, initialize the SplitManager
+      if (_isReviewComplete && _editableItems.isNotEmpty) {
+        // Call _initializeSplitManager after the build method completes
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _initializeSplitManager(_editableItems);
+        });
+      }
+      
+      print('App state restored successfully to step: $_currentStep');
+    } catch (e) {
+      print('Error loading saved state: $e');
+    }
   }
 
   @override
@@ -242,7 +371,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                 }
               },
             ),
-            // Logout Button (New)
+            // Logout Button
             IconButton(
               icon: Icon(Icons.logout, color: colorScheme.onSurface),
               tooltip: 'Log Out',
@@ -378,7 +507,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     }
   }
 
-  void _resetState() {
+  void _resetState() async {
     setState(() {
       _currentStep = 0;
       if (_pageController.hasClients) {
@@ -398,6 +527,15 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
          context.read<SplitManager>().reset();
       }
     });
+
+    // Clear saved state from persistent storage
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();  // Remove all saved state
+      print('Saved state cleared successfully');
+    } catch (e) {
+      print('Error clearing saved state: $e');
+    }
 
     // Re-initialize mock data if needed, based on the initial logic
     final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
@@ -470,7 +608,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
     }
   }
 
-  void _navigateToPage(int page) {
+  void _navigateToPage(int page) async {
     if (_pageController.hasClients && _canNavigateToStep(page)) {
       // Check if we're navigating backward
       bool isNavigatingBackward = page < _currentStep;
@@ -505,6 +643,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+      
+      // Automatically save state when navigating between tabs
+      await _saveCurrentState();
     }
   }
 
@@ -768,6 +909,9 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       _navigateToPage(_currentStep - 1);
       return; // Just return, no need for boolean with PopScope
     }
+    
+    // Save state before showing exit dialog so it's preserved if user returns later
+    await _saveCurrentState();
     
     // Show dialog when attempting to exit the app
     final shouldExit = await _showExitConfirmationDialog();
