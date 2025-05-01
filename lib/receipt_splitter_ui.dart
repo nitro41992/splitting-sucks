@@ -12,6 +12,7 @@ import 'theme/app_colors.dart';  // Added import for AppColors
 import 'package:flutter/services.dart';  // Add this import for clipboard
 import 'package:url_launcher/url_launcher.dart'; // Add this import for launching URLs
 import 'services/auth_service.dart'; // Import AuthService
+import 'package:flutter/services.dart';  // Add this import for system navigation
 
 // Import the new screen
 import 'screens/receipt_upload_screen.dart';
@@ -144,196 +145,213 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
       const FinalSummaryScreen(), // Use the new screen widget
     ];
 
-    return Scaffold(
-      backgroundColor: colorScheme.background,
-      appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        elevation: 0,
-        scrolledUnderElevation: 1,
-        title: Row(
-          children: [
-            Image.asset(
-              'logo.png',
-              height: 40,
-              fit: BoxFit.contain,
+    return PopScope(
+      canPop: false, // Prevent automatic popping
+      onPopInvoked: (didPop) async {
+        // didPop will be false since we set canPop to false
+        if (!didPop) {
+          await _handleBackNavigation();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: colorScheme.background,
+        appBar: AppBar(
+          backgroundColor: colorScheme.surface,
+          elevation: 0,
+          scrolledUnderElevation: 1,
+          leading: _currentStep > 0 
+            ? IconButton(
+                icon: Icon(Icons.arrow_back),
+                onPressed: () {
+                  _navigateToPage(_currentStep - 1);
+                },
+              )
+            : null,  // No back button on first screen
+          title: Row(
+            children: [
+              Image.asset(
+                'logo.png',
+                height: 40,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Billfie',
+                    style: textTheme.titleMedium?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Smart Bill Splitting',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.secondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            // Reset Button
+            IconButton(
+              icon: Icon(Icons.refresh, color: colorScheme.onSurface),
+              tooltip: 'Start Over',
+              onPressed: () async {
+                final bool? confirmReset = await showDialog<bool>(
+                  context: context,
+                  builder: (BuildContext dialogContext) {
+                    return AlertDialog(
+                      title: const Text('Start Over?'),
+                      content: const Text('Are you sure you want to discard all progress and start over?'),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('Cancel'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop(false); // Return false
+                          },
+                        ),
+                        TextButton(
+                          child: Text('Reset', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop(true); // Return true
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
+
+                // If the user confirmed, call _resetState
+                if (confirmReset == true) {
+                  _resetState();
+                }
+              },
             ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Billfie',
-                  style: textTheme.titleMedium?.copyWith(
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Smart Bill Splitting',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: colorScheme.secondary,
-                  ),
-                ),
-              ],
+            // Logout Button (New)
+            IconButton(
+              icon: Icon(Icons.logout, color: colorScheme.onSurface),
+              tooltip: 'Log Out',
+              onPressed: () async {
+                // Optional: Show confirmation dialog
+                final bool? confirmLogout = await showDialog<bool>(
+                  context: context,
+                  builder: (BuildContext dialogContext) {
+                    return AlertDialog(
+                      title: const Text('Log Out?'),
+                      content: const Text('Are you sure you want to log out?'),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('Cancel'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop(false);
+                          },
+                        ),
+                        TextButton(
+                          child: Text('Log Out', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop(true);
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
+
+                // If the user confirmed, call signOut
+                if (confirmLogout == true) {
+                  try {
+                    // Get AuthService instance from Provider
+                    final authService = context.read<AuthService>();
+                    await authService.signOut();
+                    // No need to navigate here, StreamBuilder in main.dart handles it.
+                    if (mounted) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         SnackBar(
+                           content: const Text('Logged out successfully.'),
+                           backgroundColor: Colors.green, // Or use theme color
+                         ),
+                       );
+                    }
+                  } catch (e) {
+                     if (mounted) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         SnackBar(
+                           content: Text('Error logging out: $e'),
+                           backgroundColor: Theme.of(context).colorScheme.error,
+                         ),
+                       );
+                     }
+                  }
+                }
+              },
             ),
           ],
         ),
-        actions: [
-          // Reset Button
-          IconButton(
-            icon: Icon(Icons.refresh, color: colorScheme.onSurface),
-            tooltip: 'Start Over',
-            onPressed: () async {
-              final bool? confirmReset = await showDialog<bool>(
-                context: context,
-                builder: (BuildContext dialogContext) {
-                  return AlertDialog(
-                    title: const Text('Start Over?'),
-                    content: const Text('Are you sure you want to discard all progress and start over?'),
-                    actions: <Widget>[
-                      TextButton(
-                        child: const Text('Cancel'),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop(false); // Return false
-                        },
-                      ),
-                      TextButton(
-                        child: Text('Reset', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop(true); // Return true
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-
-              // If the user confirmed, call _resetState
-              if (confirmReset == true) {
-                _resetState();
-              }
-            },
-          ),
-          // Logout Button (New)
-          IconButton(
-            icon: Icon(Icons.logout, color: colorScheme.onSurface),
-            tooltip: 'Log Out',
-            onPressed: () async {
-              // Optional: Show confirmation dialog
-              final bool? confirmLogout = await showDialog<bool>(
-                context: context,
-                builder: (BuildContext dialogContext) {
-                  return AlertDialog(
-                    title: const Text('Log Out?'),
-                    content: const Text('Are you sure you want to log out?'),
-                    actions: <Widget>[
-                      TextButton(
-                        child: const Text('Cancel'),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop(false);
-                        },
-                      ),
-                      TextButton(
-                        child: Text('Log Out', style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
-                        onPressed: () {
-                          Navigator.of(dialogContext).pop(true);
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-
-              // If the user confirmed, call signOut
-              if (confirmLogout == true) {
-                try {
-                  // Get AuthService instance from Provider
-                  final authService = context.read<AuthService>();
-                  await authService.signOut();
-                  // No need to navigate here, StreamBuilder in main.dart handles it.
-                  if (mounted) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                       SnackBar(
-                         content: const Text('Logged out successfully.'),
-                         backgroundColor: Colors.green, // Or use theme color
-                       ),
-                     );
-                  }
-                } catch (e) {
-                   if (mounted) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                       SnackBar(
-                         content: Text('Error logging out: $e'),
-                         backgroundColor: Theme.of(context).colorScheme.error,
-                       ),
-                     );
-                   }
-                }
-              }
-            },
-          ),
-        ],
-      ),
-      body: NotificationListener<NavigateToPageNotification>(
-        onNotification: (notification) {
-          // Check if the notification is the correct type before accessing its properties
-          if (notification is NavigateToPageNotification) {
-             _navigateToPage(notification.pageIndex);
-             return true; // Consume the notification
-          }
-          return false; // Let other listeners handle it if it's not the type we expect
-        },
-        child: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (index) {
-            // Prevent manual swipe updates if necessary
-            // setState(() { _currentStep = index; });
+        body: NotificationListener<NavigateToPageNotification>(
+          onNotification: (notification) {
+            // Check if the notification is the correct type before accessing its properties
+            if (notification is NavigateToPageNotification) {
+               _navigateToPage(notification.pageIndex);
+               return true; // Consume the notification
+            }
+            return false; // Let other listeners handle it if it's not the type we expect
           },
-          children: pages.map((page) {
-            // Add padding around each page content
-            return Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: page,
-            );
-          }).toList(),
+          child: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            onPageChanged: (index) {
+              // Prevent manual swipe updates if necessary
+              // setState(() { _currentStep = index; });
+            },
+            children: pages.map((page) {
+              // Add padding around each page content
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: page,
+              );
+            }).toList(),
+          ),
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentStep,
-        onTap: (index) {
-          // Navigation logic remains the same, controlled by coordinator state
-          if (_canNavigateToStep(index)) {
-            _navigateToPage(index);
-          }
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: colorScheme.surface,
-        selectedItemColor: colorScheme.primary,
-        unselectedItemColor: colorScheme.onSurfaceVariant.withOpacity(0.5),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long),
-            label: 'Upload',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.edit_document),
-            label: 'Review',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.mic),
-            label: 'Assign',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Split',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.summarize),
-            label: 'Summary',
-          ),
-        ],
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentStep,
+          onTap: (index) {
+            // Navigation logic remains the same, controlled by coordinator state
+            if (_canNavigateToStep(index)) {
+              _navigateToPage(index);
+            }
+          },
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: colorScheme.surface,
+          selectedItemColor: colorScheme.primary,
+          unselectedItemColor: colorScheme.onSurfaceVariant.withOpacity(0.5),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long),
+              label: 'Upload',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.edit_document),
+              label: 'Review',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.mic),
+              label: 'Assign',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.people),
+              label: 'Split',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.summarize),
+              label: 'Summary',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -443,10 +461,34 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
 
   void _navigateToPage(int page) {
     if (_pageController.hasClients && _canNavigateToStep(page)) {
+      // Check if we're navigating backward
+      bool isNavigatingBackward = page < _currentStep;
+      
+      if (isNavigatingBackward) {
+        // Handle state cleanup for backward navigation
+        switch (page) {
+          case 0: // Back to Upload
+            // Reset review state but preserve uploaded image
+            setState(() {
+              _isReviewComplete = false;
+              _isAssignmentComplete = false;
+            });
+            break;
+          case 1: // Back to Review
+            // Reset assignment state but preserve review data
+            setState(() {
+              _isAssignmentComplete = false;
+            });
+            break;
+          // Add cases for other backward transitions
+        }
+      }
+      
       // Only update _currentStep if navigation is successful/allowed
       setState(() {
-         _currentStep = page;
+        _currentStep = page;
       });
+      
       _pageController.animateToPage(
         page,
         duration: const Duration(milliseconds: 300),
@@ -707,5 +749,46 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
         );
       }
     }
+  }
+
+  // Update the back navigation handler to match the new PopScope pattern
+  Future<void> _handleBackNavigation() async {
+    if (_currentStep > 0) {
+      _navigateToPage(_currentStep - 1);
+      return; // Just return, no need for boolean with PopScope
+    }
+    
+    // Show dialog when attempting to exit the app
+    final shouldExit = await _showExitConfirmationDialog();
+    if (shouldExit == true) {
+      // Only if user explicitly confirms exit
+      SystemNavigator.pop(); // Properly exit the app
+    }
+  }
+
+  // Exit confirmation dialog
+  Future<bool> _showExitConfirmationDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Exit App?'),
+          content: const Text('Are you sure you want to exit?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            TextButton(
+              child: Text(
+                'Exit',
+                style: TextStyle(color: Theme.of(dialogContext).colorScheme.error),
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
+        );
+      },
+    ) ?? false;  // Default to false if dialog is dismissed
   }
 } 
