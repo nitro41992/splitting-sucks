@@ -212,21 +212,27 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
         };
       } else {
         print('DEBUG: Making API call in _processTranscription (Screen)');
-        final jsonReceipt = {
-          'items': widget.itemsToAssign.asMap().entries.map((entry) {
-            final index = entry.key;
-            final item = entry.value;
-            return {
-              'id': index + 1, // Add 1-based index as ID
-              'name': item.name,
-              'price': item.price,
-              'quantity': item.quantity,
-            };
-          }).toList(),
+        final request = {
+          'data': {
+            'transcription': editedTranscription,
+            'receipt_items': widget.itemsToAssign.asMap().entries.map((entry) {
+              final index = entry.key;
+              final item = entry.value;
+              return {
+                'id': index + 1, // 1-based ID for the API
+                'item': item.name,  // Use the current name (which may have been edited)
+                'quantity': item.quantity, // Use the current quantity (which may have been edited)
+                'price': item.price, // Use the current price (which may have been edited)
+              };
+            }).toList(),
+          }
         };
+        
+        print('DEBUG: Sending request to assign-people endpoint: ${request.toString()}');
+        
         final result = await _audioService.assignPeopleToItems(
           editedTranscription,
-          jsonReceipt,
+          request,
         );
         
         // Convert the structured result to the Map format expected by the parent widget

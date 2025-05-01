@@ -174,17 +174,17 @@ class AudioTranscriptionService {
   ///
   /// Calls the assign_people_to_items Cloud Function to process the transcription
   /// and receipt data with OpenAI's API.
-  Future<AssignmentResult> assignPeopleToItems(String transcription, Map<String, dynamic> receipt) async {
+  Future<AssignmentResult> assignPeopleToItems(String transcription, Map<String, dynamic> request) async {
     try {
       // Call the Firebase Cloud Function
       debugPrint('Calling assign_people_to_items with transcription and receipt');
       final callable = _functions.httpsCallable('assign_people_to_items');
       
-      // No need for extra data wrapper, SDK handles it
-      final result = await callable.call({
-        'transcription': transcription,
-        'receipt_items': receipt,
-      });
+      // Extract the inner data object from the request
+      // The Cloud Function expects direct access to 'transcription' and 'receipt_items' 
+      final innerData = request['data'];
+      
+      final result = await callable.call(innerData);
       
       // Parse the response - convert to proper Map<String, dynamic> first
       final responseData = _convertToStringKeyedMap(result.data);
