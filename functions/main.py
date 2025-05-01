@@ -6,10 +6,20 @@ from firebase_functions import https_fn, options
 from firebase_admin import initialize_app, storage # Import storage
 from google.cloud import storage as gcs # Import Google Cloud Storage client library
 from openai import OpenAI
+# Import the two libraries with distinct aliases
+from google import genai as genai_legacy # Older library for parse/assign
+import google.generativeai as genai_new # Newer library for transcribe
+# Keep instructor for OpenAI
+import instructor 
 import base64
 import json
 import os
 import re # Import regex for parsing URI
+import tempfile # Needed for downloading files
+import mimetypes # Needed for Gemini file uploads
+# Import types from both libraries with distinct aliases
+from google.genai import types as genai_legacy_types # For legacy client
+from google.generativeai import types as genai_new_types # For newer client (if needed)
 from pydantic import BaseModel, Field, ValidationError
 from typing import List, Union, Dict, Any, Optional
 import traceback # Keep for error logging
@@ -18,7 +28,7 @@ from config_helper import get_dynamic_config # Import the config helper
 # Initialize Firebase Admin SDK
 initialize_app()
 
-# --- Pydantic Models for Structured Output (Keep these) ---
+# --- Pydantic Models (Keep as is) ---
 class ReceiptItem(BaseModel):
     item: str
     quantity: int
@@ -28,504 +38,530 @@ class ReceiptData(BaseModel):
     items: List[ReceiptItem]
     subtotal: float
 
-# --- Models for Assignment Result ---
-class Order(BaseModel):
-    person: str
-    item: str
-    price: float
-    quantity: int
-
-class SharedItem(BaseModel):
-    item: str
-    price: float
-    quantity: int
-    people: List[str]
-
-class Person(BaseModel):
-    name: str
-
-class UnassignedItem(BaseModel):
-    item: str
-    price: float
+class AssignedItemRef(BaseModel): # Updated Assignment Model for simplicity
+    id: int
     quantity: int
 
 class AssignmentResult(BaseModel):
-    orders: List[Order]
-    shared_items: List[SharedItem]
-    people: List[Person]
-    unassigned_items: Optional[List[UnassignedItem]] = None
+    assignments: Dict[str, List[AssignedItemRef]] # Key: person name, Value: List of items/qty
+    shared_items: List[AssignedItemRef]
+    unassigned_items: List[AssignedItemRef]
+    # Removed people list - can be derived from assignments keys
 
-# --- Model for Transcription Result ---
 class TranscriptionResult(BaseModel):
     text: str
 
-# Initialize OpenAI client (moved inside function)
-# client = OpenAI()
+# --- Helper Functions ---
+
+def _download_blob_to_tempfile(bucket_name, blob_name):
+    """Downloads a blob to a temporary file and returns its path."""
+    storage_client = gcs.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    # Extract the file extension from the blob name
+    _, extension = os.path.splitext(blob_name)
+
+    # Create a temporary file descriptor, get its path, and close the descriptor
+    # Suffix ensures the temp file has the correct extension for mimetypes
+    temp_fd, temp_local_filename = tempfile.mkstemp(suffix=extension)
+    os.close(temp_fd) # Close the file descriptor, we only need the path
+
+    print(f"Downloading gs://{bucket_name}/{blob_name} to {temp_local_filename}")
+    blob.download_to_filename(temp_local_filename)
+    print("Download complete.")
+    return temp_local_filename
+
+def _validate_data(data: dict, model: BaseModel):
+    """Validates dictionary data against a Pydantic model."""
+    try:
+        validated_data = model.model_validate(data)
+        return validated_data
+    except ValidationError as e:
+        print(f"Pydantic validation failed: {e}")
+        print(f"Data being validated: {data}")
+        raise ValueError(f"Output validation failed: {e}") from e
+
+def _parse_json_from_response(text: str, model: BaseModel):
+    """Attempts to parse JSON from text, handling potential markdown/text noise."""
+    try:
+        # Basic cleanup: remove potential markdown code blocks
+        text = re.sub(r"^```json\n?", "", text.strip(), flags=re.MULTILINE)
+        text = re.sub(r"\n?```$", "", text.strip(), flags=re.MULTILINE)
+        data = json.loads(text)
+        return _validate_data(data, model)
+    except json.JSONDecodeError as e:
+        print(f"Failed to decode JSON: {e}")
+        print(f"Raw text received: {text}")
+        raise ValueError(f"Response was not valid JSON: {e}") from e
+    except Exception as e: # Catch potential validation errors too
+        raise e # Re-raise validation or other errors
+
+# --- Cloud Functions ---
 
 @https_fn.on_request(
     cors=options.CorsOptions(cors_origins="*", cors_methods=["post"]),
-    secrets=["OPENAI_API_KEY"],
-    memory=1024,
+    secrets=["OPENAI_API_KEY", "GOOGLE_API_KEY"], # Added GOOGLE_API_KEY
+    memory=options.MemoryOption.GB_1, # Use enum for memory
     timeout_sec=120
 )
 def parse_receipt(req: https_fn.Request) -> https_fn.Response:
-    """Receives a GCS URI via POST, downloads image, parses with OpenAI, returns parsed data."""
-    print("--- FULL FUNCTION HANDLER ENTERED ---")
+    """Receives GCS URI, gets config, calls selected AI provider (OpenAI/Gemini) for parsing, returns data."""
+    print("--- PARSE RECEIPT FUNCTION HANDLER ENTERED ---")
+    openai_client = None # Will hold the *patched* client
+    gemini_model = None
 
-    # --- Client Initialization --- (Moved inside try block for clarity)
     try:
-        print("Attempting to retrieve OpenAI API key...")
-        openai_api_key = os.environ.get('OPENAI_API_KEY')
-        if not openai_api_key:
-            raise ValueError("OpenAI API key secret ('OPENAI_API_KEY') not found.")
-        client = OpenAI(api_key=openai_api_key)
-        print("OpenAI client initialized.")
-
-        storage_client = gcs.Client()
-        print("Google Cloud Storage client initialized.")
-
-        # Fetch dynamic configuration
+        # --- Configuration and Client Setup ---
+        print("Fetching dynamic configuration for parse_receipt...")
         config = get_dynamic_config('parse_receipt')
-        
-        # Set defaults if config couldn't be fetched
-        default_prompt = '''Parse the image and generate a receipts.
+        if not config:
+            raise ValueError("Failed to retrieve dynamic configuration.")
 
-        **Instructions:**
-        - Sometimes, items may have add-ons or modifiers in the receipt. 
-            - Use your intution to roll up the add-ons into the parent item and sum the prices.
-        - MAKE SURE the price is the individiual price for the item and the quantity is accurate based on the receipt. (ex. If the receipt says Quantity of 2 and price is $10, then the price of the item to provide is $5, not $10)
-        - MAKE SURE all items, quantities, and prices are present and accurate in the json
+        provider = config.get('provider_name')
+        prompt = config.get('prompt')
+        model_name = config.get('model')
+        # max_tokens = config.get('max_tokens') # Less relevant for Gemini JSON mode, OpenAI uses internally
 
-        You should return a JSON object that contains the following keys:
-        - items: A list of dictionaries representing individual items. Each dictionary should have the following keys:
-            - item: The name of the item.
-            - quantity: The quantity of the item.
-            - price: The price of one unit of the item.
-        - subtotal: The subtotal amount.
+        print(f"Using Provider: {provider}, Model: {model_name}")
+        if not provider or not model_name or not prompt:
+             raise ValueError(f"Incomplete configuration received: Provider='{provider}', Model='{model_name}', Prompt exists='{prompt is not None}'")
 
-        Instructions:
-        - First, accurately transcribe every item and its listed price exactly as shown on the receipt, before performing any calculations or transformations. Do not assume or infer numbers — copy the listed amount first. Only after verifying transcription, adjust for quantities.
-        - Sometimes, items may have add-ons or modifiers in the receipt.
-        - Use your intuition to roll up the add-ons into the parent item and sum the prices.
-        - If an item or line has its own price listed to the far right of it, it must be treated as a separate line item in the JSON, even if it appears visually indented, grouped, or described as part of a larger item. Do not assume bundling unless there is no separate price.
-        - MAKE SURE the price is the individual price for the item and the quantity is accurate based on the receipt. (ex. If the receipt says Quantity of 2 and price is $10, then the price of the item to provide is $5, not $10)
-        - MAKE SURE all items, quantities, and prices are present and accurate in the json'''
-        
-        default_model = "gpt-4.1"
-        default_max_tokens = 32768
-        
-        if config:
-            prompt = config.get('prompt') or default_prompt
-            model = config.get('model') or default_model
-            max_tokens = config.get('max_tokens') or default_max_tokens
-            
-            # Enhanced logging
-            sources = config.get('sources', {})
-            print(f"Configuration for parse_receipt:")
-            print(f"  - prompt: using value from {sources.get('prompt', 'default')}")
-            print(f"  - model: {model} (from {sources.get('model', 'default')})")
-            print(f"  - max_tokens: {max_tokens} (from {sources.get('max_tokens', 'default')})")
+        if provider == 'openai':
+            openai_api_key = os.environ.get('OPENAI_API_KEY')
+            if not openai_api_key:
+                raise ValueError("OpenAI API key secret ('OPENAI_API_KEY') not found.")
+            # Patch the client with instructor
+            openai_client = instructor.from_openai(OpenAI(api_key=openai_api_key))
+            print("OpenAI client initialized and patched with Instructor.")
+        elif provider == 'gemini':
+            google_api_key = os.environ.get('GOOGLE_API_KEY')
+            if not google_api_key:
+                 raise ValueError("Google API key secret ('GOOGLE_API_KEY') not found.")
+            # Use genai_legacy.Client here
+            client = genai_legacy.Client(api_key=google_api_key)
+            gemini_model_name = model_name # Store the configured model name
+            print(f"Gemini legacy client initialized. Will use model: {gemini_model_name}")
         else:
-            prompt = default_prompt
-            model = default_model
-            max_tokens = default_max_tokens
-            print("Using ALL default configurations (dynamic config not available)")
+            raise ValueError(f"Unsupported provider selected: {provider}")
 
-    except Exception as e:
-        print(f"ERROR during client setup: {e}")
-        # Return error in consistent format
-        return {
-            "error": {"message": f"Internal Server Error: Failed to initialize clients - {e}", "status": 500}
-        }, 500
+        # --- Request Validation ---
+        if req.method != "POST":
+            raise ValueError(f"Method {req.method} not allowed.")
 
-    # --- Request Validation --- (Moved inside main try block)
-    if req.method != "POST":
-        print(f"ERROR: Method {req.method} not allowed.")
-        return {
-            "error": {"message": f"Method {req.method} not allowed.", "status": 405}
-        }, 405
-
-    # --- Main Processing Logic --- 
-    try:
         print("Attempting to parse request JSON...")
         request_json = req.get_json(silent=True)
-        print(f"Request JSON received: {request_json}")
-
-        # Validate request structure
-        if not (request_json and isinstance(request_json, dict)):
-            print(f"ERROR: Invalid request structure. Not a valid JSON object. Received: {request_json}")
-            raise ValueError("Invalid request: Not a valid JSON object.")
-
-        # The Firebase SDK automatically wraps parameters in a 'data' object
+        if not request_json:
+             raise ValueError("Invalid request: No JSON body found.")
         data = request_json.get('data', {})
-        
-        # Check for imageUri in data
-        if not (isinstance(data, dict) and 'imageUri' in data):
-            print(f"ERROR: Invalid data structure. Missing 'imageUri' field. Received: {data}")
+        image_uri = data.get('imageUri')
+        if not image_uri:
             raise ValueError("Invalid request: 'data' must contain 'imageUri' field.")
-
-        image_uri = data['imageUri']
         print(f"Received image URI: {image_uri}")
 
-        # Validate and parse the gs:// URI
         match = re.match(r"gs://([^/]+)/(.+)", image_uri)
         if not match:
-            print(f"ERROR: Invalid gs:// URI format: {image_uri}")
             raise ValueError("Invalid request: 'imageUri' must be a valid gs:// URI.")
-
-        bucket_name = match.group(1)
-        blob_name = match.group(2)
+        bucket_name, blob_name = match.groups()
         print(f"Parsed URI: Bucket='{bucket_name}', Blob='{blob_name}'")
 
-        # Download image from Cloud Storage
-        base64_image = None
+        # --- Image Processing ---
+        temp_image_path = None
         try:
-            bucket = storage_client.bucket(bucket_name)
-            blob = bucket.blob(blob_name)
-            print(f"Attempting to download blob: {blob_name} from bucket: {bucket_name}")
-            image_bytes = blob.download_as_bytes()
-            print(f"Successfully downloaded {len(image_bytes)} bytes.")
-            base64_image = base64.b64encode(image_bytes).decode('utf-8')
-            print("Image successfully encoded to base64.")
-        except Exception as storage_error:
-            print(f"ERROR downloading/encoding image from Storage: {storage_error}")
-            # Re-raise to be caught by the outer try/except block
-            raise Exception(f"Failed to retrieve image from Storage URI '{image_uri}': {storage_error}")
+            temp_image_path = _download_blob_to_tempfile(bucket_name, blob_name)
+            mime_type, _ = mimetypes.guess_type(temp_image_path)
+            if not mime_type or not mime_type.startswith("image/"):
+                 raise ValueError(f"Downloaded file is not a recognized image type: {mime_type}")
+            print(f"Image downloaded to {temp_image_path}, MIME type: {mime_type}")
 
-        if not base64_image:
-             raise Exception("Internal error: Failed to process image after download.")
+            # --- Provider-Specific API Call ---
+            receipt_data: ReceiptData = None
 
-        # --- Call OpenAI API ---
-        print("Sending request to OpenAI API...")
-        response = client.beta.chat.completions.parse(
-            model=model,
-            response_format=ReceiptData,
-            messages=[{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": prompt
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        },
-                    ],
-                }],
-            max_tokens=max_tokens,
-        )
-        print("Received response from OpenAI API.")
+            if provider == 'openai':
+                print("Sending request to OpenAI API via Instructor...")
+                with open(temp_image_path, "rb") as image_file:
+                    base64_image = base64.b64encode(image_file.read()).decode('utf-8')
 
-        # --- Process OpenAI Response ---
-        parsed_content = response.choices[0].message.content
-        try:
-            receipt_data = ReceiptData.model_validate_json(parsed_content)
-            print("Successfully validated OpenAI response against Pydantic model.")
-            
-            # Return the response properly wrapped in a data object
-            # Firebase Functions handles the JSON conversion automatically
-            return {
-                "data": receipt_data.model_dump()
-            }
+                # Use instructor's response_model parameter
+                # The response 'receipt_data' should be a validated ReceiptData object
+                receipt_data = openai_client.chat.completions.create(
+                    model=model_name,
+                    response_model=ReceiptData, # Use instructor's response_model
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
+                        ]
+                    }],
+                    # max_tokens is usually not needed when using response_model
+                )
+                print("Received and validated response from OpenAI via Instructor.")
+                # No need for _parse_json_from_response here, instructor handles it.
 
-        except (ValidationError, json.JSONDecodeError) as validation_error:
-            print(f"ERROR processing OpenAI response: {validation_error}")
-            print(f"Raw OpenAI response: {parsed_content}")
-            # Re-raise to be caught by the outer try/except block
-            raise Exception(f"Failed to validate/decode OpenAI response: {validation_error}")
+            elif provider == 'gemini':
+                print("Sending request to Gemini API...")
+                # Read image bytes from temporary file
+                with open(temp_image_path, "rb") as image_file:
+                    image_bytes = image_file.read()
+                print(f"Read {len(image_bytes)} bytes from image file.")
 
-    # --- General Error Handling --- 
+                # Ensure prompt is a string
+                if not isinstance(prompt, str):
+                    raise TypeError(f"Prompt must be a string, got: {type(prompt)}")
+
+                # Create image part from bytes using legacy types
+                image_part = genai_legacy_types.Part.from_bytes(
+                    data=image_bytes,
+                    mime_type=mime_type,
+                )
+
+                # Configure generation settings including schema and thinking budget using legacy types
+                generation_config = genai_legacy_types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=ReceiptData, # Specify Pydantic model here
+                    thinking_config=genai_legacy_types.ThinkingConfig(thinking_budget=8000)
+                )
+
+                # Send request using client.models.generate_content
+                response = client.models.generate_content(
+                    model=f'models/{gemini_model_name}', # Use the stored model name
+                    contents=[prompt, image_part], # Send prompt text and image part
+                    config=generation_config # Correct keyword: 'config'
+                )
+
+                print("Received response from Gemini API.")
+
+                # Access the parsed object using response.parsed
+                if hasattr(response, 'parsed') and response.parsed:
+                    # Check if parsed is a list or single object based on schema (ReceiptData)
+                    if isinstance(response.parsed, ReceiptData):
+                        receipt_data = response.parsed # Use directly if it's a single object
+                        print("Successfully retrieved parsed/validated Gemini response.")
+                    # test.py example showed list[ReceiptData], handle that just in case
+                    elif isinstance(response.parsed, list) and len(response.parsed) > 0 and isinstance(response.parsed[0], ReceiptData):
+                         receipt_data = response.parsed[0] # Get the first item if it's a list
+                         print("Successfully retrieved parsed/validated Gemini response (from list).")
+                    else:
+                        # Log the unexpected type/structure
+                        print(f"Warning: Gemini response parsed data is not ReceiptData or list[ReceiptData]. Type: {type(response.parsed)}")
+                        raise ValueError("Gemini response parsed data is not in the expected format (ReceiptData).")
+                else:
+                    # Log the response text if parsing failed or 'parsed' attribute is missing
+                    error_text = response.text if hasattr(response, 'text') else 'No response text available.'
+                    print(f"Warning: Gemini response did not contain expected parsed data. Response text: {error_text}")
+                    # Check for specific safety/block reasons if available
+                    block_reason = None
+                    if response.prompt_feedback and response.prompt_feedback.block_reason:
+                        block_reason = response.prompt_feedback.block_reason.name
+                    elif response.candidates and response.candidates[0].finish_reason:
+                         # finish_reason might indicate blocking or other issues
+                         block_reason = response.candidates[0].finish_reason.name
+
+                    error_message = "Gemini response did not return usable parsed data despite schema request."
+                    if block_reason:
+                         error_message += f" Block/Finish Reason: {block_reason}"
+
+                    raise ValueError(error_message)
+
+            # --- Return Success Response ---
+            if receipt_data:
+                return {"data": receipt_data.model_dump()}
+            else:
+                 raise Exception("Internal error: No receipt data was processed.")
+
+        finally:
+            # Clean up temp file
+            if temp_image_path and os.path.exists(temp_image_path):
+                os.remove(temp_image_path)
+                print(f"Cleaned up temporary file: {temp_image_path}")
+
     except Exception as e:
-        print(f"ERROR processing request: {e}")
+        print(f"ERROR processing parse_receipt request: {e}")
         traceback.print_exc()
-        # Use the same direct dictionary return format for errors
-        # The Firebase Functions SDK will handle the JSON conversion
-        status_code = 400 if isinstance(e, ValueError) else 500
-        # Return error as a properly formatted dictionary
-        return {
-            "error": {"message": f"Internal Server Error: {e}", "status": status_code}
-        }, status_code
+        status_code = 400 if isinstance(e, (ValueError, TypeError)) else 500
+        return {"error": {"message": f"{type(e).__name__}: {e}", "status": status_code}}, status_code
 
+# === ASSIGN PEOPLE TO ITEMS ===
 @https_fn.on_request(
     cors=options.CorsOptions(cors_origins="*", cors_methods=["post"]),
-    secrets=["OPENAI_API_KEY"],
-    memory=1024,
+    secrets=["OPENAI_API_KEY", "GOOGLE_API_KEY"],
+    memory=options.MemoryOption.GB_1, # Use enum for memory
     timeout_sec=120
 )
 def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
-    """Assigns people to receipt items based on voice transcription."""
-    print("--- ASSIGN PEOPLE TO ITEMS FUNCTION ENTERED ---")
+    """Receives transcription and receipt items, calls selected AI for assignment, returns structured result."""
+    print("--- ASSIGN PEOPLE FUNCTION HANDLER ENTERED ---")
+    openai_client = None # Patched client
+    gemini_client = None # Patched client for Gemini
 
-    # --- Client Initialization ---
     try:
-        print("Attempting to retrieve OpenAI API key...")
-        openai_api_key = os.environ.get('OPENAI_API_KEY')
-        if not openai_api_key:
-            raise ValueError("OpenAI API key secret ('OPENAI_API_KEY') not found.")
-        client = OpenAI(api_key=openai_api_key)
-        print("OpenAI client initialized.")
-
-        # Fetch dynamic configuration
+        # --- Configuration and Client Setup ---
+        print("Fetching dynamic configuration for assign_people_to_items...")
         config = get_dynamic_config('assign_people_to_items')
-        
-        # Set defaults if config couldn't be fetched
-        default_system_prompt = '''You are a helpful assistant that assigns items from a receipt to people based on voice instructions.
-        Analyze the voice transcription and receipt items to determine who ordered what.
-        Each item in the receipt items list has a numeric 'id'. Use these IDs to refer to items when possible, especially if the transcription mentions numbers.
-        
-        Pay close attention to:
-        1. Include ALL people mentioned in the transcription
-        2. Make sure all items are assigned to someone, marked as shared, or added to the unassigned_items array. Its important to include all items.
-        3. Ensure quantities and prices match the receipt, providing a positive integer for quantity.
-        4. If not every instance of an item is mentioned in the transcription, make sure to add the item to the unassigned_items array
-        5. If numeric references to items are provided, use the provided numeric IDs to reference items when the transcription includes numbers that seem to correspond to items.'''
-        
-        default_model = "gpt-4.1"
-        default_max_tokens = 32768
-        
-        if config:
-            system_prompt = config.get('prompt') or default_system_prompt
-            model = config.get('model') or default_model
-            max_tokens = config.get('max_tokens') or default_max_tokens
-            
-            # Enhanced logging
-            sources = config.get('sources', {})
-            print(f"Configuration for assign_people_to_items:")
-            print(f"  - prompt: using value from {sources.get('prompt', 'default')}")
-            print(f"  - model: {model} (from {sources.get('model', 'default')})")
-            print(f"  - max_tokens: {max_tokens} (from {sources.get('max_tokens', 'default')})")
+        if not config:
+            raise ValueError("Failed to retrieve dynamic configuration.")
+
+        provider = config.get('provider_name')
+        prompt_template = config.get('prompt')
+        model_name = config.get('model')
+
+        print(f"Using Provider: {provider}, Model: {model_name}")
+        if not provider or not model_name or not prompt_template:
+            raise ValueError(f"Incomplete configuration received: Provider='{provider}', Model='{model_name}', Prompt exists='{prompt_template is not None}'")
+
+        if provider == 'openai':
+            openai_api_key = os.environ.get('OPENAI_API_KEY')
+            if not openai_api_key:
+                raise ValueError("OpenAI API key secret ('OPENAI_API_KEY') not found.")
+            openai_client = instructor.from_openai(OpenAI(api_key=openai_api_key))
+            print("OpenAI client initialized and patched with Instructor.")
+        elif provider == 'gemini':
+            google_api_key = os.environ.get('GOOGLE_API_KEY')
+            if not google_api_key:
+                 raise ValueError("Google API key secret ('GOOGLE_API_KEY') not found.")
+            # Use genai_legacy.Client here
+            client = genai_legacy.Client(api_key=google_api_key)
+            gemini_model_name = model_name # Store the configured model name
+            print(f"Gemini legacy client initialized. Will use model: {gemini_model_name}")
         else:
-            system_prompt = default_system_prompt
-            model = default_model
-            max_tokens = default_max_tokens
-            print("Using ALL default configurations (dynamic config not available)")
+            raise ValueError(f"Unsupported provider selected: {provider}")
 
-    except Exception as e:
-        print(f"ERROR during client setup: {e}")
-        return {
-            "error": {"message": f"Internal Server Error: Failed to initialize clients - {e}", "status": 500}
-        }, 500
-
-    # --- Request Validation ---
-    if req.method != "POST":
-        print(f"ERROR: Method {req.method} not allowed.")
-        return {
-            "error": {"message": f"Method {req.method} not allowed.", "status": 405}
-        }, 405
-
-    # --- Main Processing Logic ---
-    try:
+        # --- Request Validation ---
+        if req.method != "POST":
+            raise ValueError(f"Method {req.method} not allowed.")
         print("Attempting to parse request JSON...")
         request_json = req.get_json(silent=True)
-        print(f"Request JSON received: {request_json}")
-
-        # Validate request structure
-        if not (request_json and isinstance(request_json, dict)):
-            print(f"ERROR: Invalid request structure. Not a valid JSON object. Received: {request_json}")
-            raise ValueError("Invalid request: Not a valid JSON object.")
-
-        # The Firebase SDK automatically wraps parameters in a 'data' object
+        if not request_json:
+            raise ValueError("Invalid request: No JSON body found.")
         data = request_json.get('data', {})
-        
-        # Check for required fields in data
-        if not (isinstance(data, dict) and 'transcription' in data and 'receipt' in data):
-            print(f"ERROR: Invalid data structure. Missing required fields. Received: {data}")
-            raise ValueError("Invalid request: 'data' must contain 'transcription' and 'receipt' fields.")
+        transcription = data.get('transcription')
+        receipt_items_json = data.get('receipt_items')
+        if not transcription or not receipt_items_json:
+            raise ValueError("Invalid request: 'data' must contain 'transcription' and 'receipt_items'.")
+        if isinstance(receipt_items_json, (list, dict)):
+             receipt_items_str = json.dumps(receipt_items_json)
+        elif isinstance(receipt_items_json, str):
+             receipt_items_str = receipt_items_json
+             try:
+                 json.loads(receipt_items_str)
+             except json.JSONDecodeError:
+                 raise ValueError("Invalid request: 'receipt_items' string is not valid JSON.")
+        else:
+             raise ValueError("Invalid request: 'receipt_items' must be a JSON string or object/list.")
+        print(f"Received Transcription: {transcription[:100]}...")
+        print(f"Received Receipt Items: {receipt_items_str[:100]}...")
 
-        transcription = data['transcription']
-        receipt = data['receipt']
-        
-        print(f"Received transcription: {transcription}")
-        print(f"Received receipt data: {receipt}")
+        # --- Construct the full prompt ---
+        full_prompt = f"{prompt_template}\n\nTranscription:\n{transcription}\n\nReceipt Items JSON:\n{receipt_items_str}"
 
-        # Call OpenAI API with dynamic configuration
-        print("Sending request to OpenAI API...")
-        response = client.beta.chat.completions.parse(
-            model=model,
-            response_format=AssignmentResult,
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": f"Voice transcription: {transcription}\nReceipt items: {json.dumps(receipt)}"
-                }
-            ],
-            max_tokens=max_tokens,
-        )
-        
-        # --- Process OpenAI Response ---
-        parsed_content = response.choices[0].message.content
-        try:
-            assignment_result = AssignmentResult.model_validate_json(parsed_content)
-            print("Successfully validated OpenAI response against Pydantic model.")
-            
-            # Return the response properly wrapped in a data object
-            return {
-                "data": assignment_result.model_dump()
-            }
+        # --- Provider-Specific API Call --- 
+        assignment_result: AssignmentResult = None
 
-        except (ValidationError, json.JSONDecodeError) as validation_error:
-            print(f"ERROR processing OpenAI response: {validation_error}")
-            print(f"Raw OpenAI response: {parsed_content}")
-            raise Exception(f"Failed to validate/decode OpenAI response: {validation_error}")
+        if provider == 'openai':
+            print("Sending request to OpenAI API via Instructor...")
+            assignment_result = openai_client.chat.completions.create(
+                model=model_name,
+                response_model=AssignmentResult,
+                messages=[{"role": "user", "content": full_prompt}]
+            )
+            print("Received and validated response from OpenAI via Instructor.")
 
-    # --- General Error Handling ---
+        elif provider == 'gemini':
+            print("Sending request to Gemini API...")
+
+            # Ensure prompt is a string
+            if not isinstance(full_prompt, str):
+                raise TypeError(f"Prompt must be a string, got: {type(full_prompt)}")
+
+            # Configure generation settings including schema and thinking budget using legacy types
+            generation_config = genai_legacy_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=AssignmentResult, # Use AssignmentResult schema
+                thinking_config=genai_legacy_types.ThinkingConfig(thinking_budget=8000)
+            )
+
+            # Send request using client.models.generate_content
+            response = client.models.generate_content(
+                model=f'models/{gemini_model_name}', # Use the stored model name
+                contents=[full_prompt], # Send the combined prompt
+                config=generation_config # Correct keyword: 'config'
+            )
+
+            print("Received response from Gemini API.")
+
+            # Access the parsed object using response.parsed
+            if hasattr(response, 'parsed') and response.parsed:
+                if isinstance(response.parsed, AssignmentResult):
+                    assignment_result = response.parsed
+                    print("Successfully retrieved parsed/validated Gemini response.")
+                # Handle list case if needed, although AssignmentResult schema implies single object
+                elif isinstance(response.parsed, list) and len(response.parsed) > 0 and isinstance(response.parsed[0], AssignmentResult):
+                     assignment_result = response.parsed[0]
+                     print("Successfully retrieved parsed/validated Gemini response (from list).")
+                else:
+                     print(f"Warning: Gemini response parsed data is not AssignmentResult or list[AssignmentResult]. Type: {type(response.parsed)}")
+                     raise ValueError("Gemini response parsed data is not in the expected format (AssignmentResult).")
+            else:
+                error_text = response.text if hasattr(response, 'text') else 'No response text available.'
+                print(f"Warning: Gemini response did not contain expected parsed data. Response text: {error_text}")
+                # Check for specific safety/block reasons if available
+                block_reason = None
+                if response.prompt_feedback and response.prompt_feedback.block_reason:
+                    block_reason = response.prompt_feedback.block_reason.name
+                elif response.candidates and response.candidates[0].finish_reason:
+                    block_reason = response.candidates[0].finish_reason.name
+
+                error_message = "Gemini response did not return usable parsed data despite schema request."
+                if block_reason:
+                    error_message += f" Block/Finish Reason: {block_reason}"
+
+                raise ValueError(error_message)
+
+        # --- Return Success Response --- 
+        if assignment_result:
+            return {"data": assignment_result.model_dump()}
+        else:
+            raise Exception("Internal error: No assignment result was processed.")
+
     except Exception as e:
-        print(f"ERROR processing request: {e}")
+        print(f"ERROR processing assign_people request: {e}")
         traceback.print_exc()
-        status_code = 400 if isinstance(e, ValueError) else 500
-        return {
-            "error": {"message": f"Internal Server Error: {e}", "status": status_code}
-        }, status_code
+        status_code = 400 if isinstance(e, (ValueError, TypeError, json.JSONDecodeError)) else 500
+        return {"error": {"message": f"{type(e).__name__}: {e}", "status": status_code}}, status_code
 
+# === TRANSCRIBE AUDIO ===
 @https_fn.on_request(
     cors=options.CorsOptions(cors_origins="*", cors_methods=["post"]),
-    secrets=["OPENAI_API_KEY"],
-    memory=1024,
+    secrets=["OPENAI_API_KEY", "GOOGLE_API_KEY"], # Added GOOGLE_API_KEY
+    memory=options.MemoryOption.GB_1, # Use enum for memory
     timeout_sec=120
 )
 def transcribe_audio(req: https_fn.Request) -> https_fn.Response:
-    """Transcribes audio using OpenAI's Whisper API."""
-    print("--- TRANSCRIBE AUDIO FUNCTION ENTERED ---")
+    """Receives audio GCS URI, calls selected AI provider (OpenAI/Gemini) for transcription."""
+    print("--- TRANSCRIBE AUDIO FUNCTION HANDLER ENTERED ---")
+    openai_client = None
+    gemini_model = None
 
-    # --- Client Initialization ---
     try:
-        print("Attempting to retrieve OpenAI API key...")
-        openai_api_key = os.environ.get('OPENAI_API_KEY')
-        if not openai_api_key:
-            raise ValueError("OpenAI API key secret ('OPENAI_API_KEY') not found.")
-        client = OpenAI(api_key=openai_api_key)
-        print("OpenAI client initialized.")
-
-        # Initialize Storage client
-        storage_client = gcs.Client()
-        print("Google Cloud Storage client initialized.")
-
-        # Fetch dynamic configuration
+        # --- Configuration and Client Setup ---
+        print("Fetching dynamic configuration for transcribe_audio...")
         config = get_dynamic_config('transcribe_audio')
-        
-        # Set defaults if config couldn't be fetched
-        default_model = "whisper-1"
-        
-        if config:
-            model = config.get('model') or default_model
-            
-            # Enhanced logging
-            sources = config.get('sources', {})
-            print(f"Configuration for transcribe_audio:")
-            print(f"  - model: {model} (from {sources.get('model', 'default')})")
+        if not config:
+            raise ValueError("Failed to retrieve dynamic configuration.")
+
+        provider = config.get('provider_name')
+        model_name = config.get('model')
+        # prompt = config.get('prompt') # Prompt might be used by Gemini for context later
+
+        print(f"Using Provider: {provider}, Model: {model_name}")
+        if not provider or not model_name:
+            raise ValueError(f"Incomplete configuration received: Provider='{provider}', Model='{model_name}'")
+
+        if provider == 'openai':
+            openai_api_key = os.environ.get('OPENAI_API_KEY')
+            if not openai_api_key:
+                raise ValueError("OpenAI API key secret ('OPENAI_API_KEY') not found.")
+            openai_client = OpenAI(api_key=openai_api_key)
+            print("OpenAI client initialized.")
+        elif provider == 'gemini':
+            google_api_key = os.environ.get('GOOGLE_API_KEY')
+            if not google_api_key:
+                 raise ValueError("Google API key secret ('GOOGLE_API_KEY') not found.")
+            # Use genai_new here
+            genai_new.configure(api_key=google_api_key)
+            gemini_model = genai_new.GenerativeModel(model_name)
+            print(f"Gemini new client initialized for model: {model_name}")
         else:
-            model = default_model
-            print("Using default configuration: model=whisper-1 (dynamic config not available)")
+            raise ValueError(f"Unsupported provider selected: {provider}")
 
-    except Exception as e:
-        print(f"ERROR during client setup: {e}")
-        return {
-            "error": {"message": f"Internal Server Error: Failed to initialize clients - {e}", "status": 500}
-        }, 500
+        # --- Request Validation ---
+        if req.method != "POST":
+            raise ValueError(f"Method {req.method} not allowed.")
 
-    # --- Request Validation ---
-    if req.method != "POST":
-        print(f"ERROR: Method {req.method} not allowed.")
-        return {
-            "error": {"message": f"Method {req.method} not allowed.", "status": 405}
-        }, 405
-
-    # --- Main Processing Logic ---
-    try:
         print("Attempting to parse request JSON...")
         request_json = req.get_json(silent=True)
-        print(f"Request JSON received: {request_json}")
-
-        # Validate request structure
-        if not (request_json and isinstance(request_json, dict)):
-            print(f"ERROR: Invalid request structure. Not a valid JSON object. Received: {request_json}")
-            raise ValueError("Invalid request: Not a valid JSON object.")
-
-        # The Firebase SDK automatically wraps parameters in a 'data' object
+        if not request_json:
+            raise ValueError("Invalid request: No JSON body found.")
         data = request_json.get('data', {})
-        
-        # Check for audio URI directly in data
-        if not (isinstance(data, dict) and 'audioUri' in data):
-            print(f"ERROR: Invalid data structure. Missing 'audioUri' field. Received: {data}")
+        audio_uri = data.get('audioUri')
+        if not audio_uri:
             raise ValueError("Invalid request: 'data' must contain 'audioUri' field.")
-
-        audio_uri = data['audioUri']
         print(f"Received audio URI: {audio_uri}")
 
-        # Validate and parse the gs:// URI
         match = re.match(r"gs://([^/]+)/(.+)", audio_uri)
         if not match:
-            print(f"ERROR: Invalid gs:// URI format: {audio_uri}")
             raise ValueError("Invalid request: 'audioUri' must be a valid gs:// URI.")
-
-        bucket_name = match.group(1)
-        blob_name = match.group(2)
+        bucket_name, blob_name = match.groups()
         print(f"Parsed URI: Bucket='{bucket_name}', Blob='{blob_name}'")
 
-        # Download audio from Cloud Storage
-        audio_bytes = None
+        # --- Audio Processing & Transcription ---
+        temp_audio_path = None
         try:
-            bucket = storage_client.bucket(bucket_name)
-            blob = bucket.blob(blob_name)
-            print(f"Attempting to download blob: {blob_name} from bucket: {bucket_name}")
-            audio_bytes = blob.download_as_bytes()
-            print(f"Successfully downloaded {len(audio_bytes)} bytes of audio.")
-        except Exception as storage_error:
-            print(f"ERROR downloading audio from Storage: {storage_error}")
-            raise Exception(f"Failed to retrieve audio from Storage URI '{audio_uri}': {storage_error}")
+            temp_audio_path = _download_blob_to_tempfile(bucket_name, blob_name)
+            mime_type, _ = mimetypes.guess_type(temp_audio_path)
+            # Basic audio type check (can be expanded)
+            if not mime_type or not mime_type.startswith("audio/"):
+                # Allow common audio container types even if not strictly audio/
+                if mime_type not in ["application/octet-stream", "video/mp4", "audio/mp4", "audio/mpeg", "audio/wav", "audio/webm", "audio/ogg"]:
+                    raise ValueError(f"Downloaded file is not a recognized audio type: {mime_type}")
+            print(f"Audio downloaded to {temp_audio_path}, MIME type: {mime_type}")
 
-        if not audio_bytes:
-            raise Exception("Internal error: Failed to process audio after download.")
+            transcribed_text: str = None
 
-        # Process the audio file
-        try:
-            # Create a temporary file for the audio
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=True) as temp_audio_file:
-                temp_audio_file.write(audio_bytes)
-                temp_audio_file.flush()
-                
-                # Call OpenAI Whisper API with dynamic model
-                with open(temp_audio_file.name, 'rb') as audio_file:
-                    transcription = client.audio.transcriptions.create(
-                        model=model,
+            if provider == 'openai':
+                print("Sending request to OpenAI Whisper API...")
+                with open(temp_audio_path, "rb") as audio_file:
+                    # Use the V1 audio transcriptions endpoint
+                    transcript = openai_client.audio.transcriptions.create(
+                        model=model_name, # Should be 'whisper-1'
                         file=audio_file
                     )
-            
-            print(f"Received transcription: {transcription.text}")
-            
-            # Return transcription result
-            return {
-                "data": {
-                    "text": transcription.text
-                }
-            }
+                print("Received response from OpenAI Whisper API.")
+                transcribed_text = transcript.text
 
-        except Exception as e:
-            print(f"ERROR processing audio: {e}")
-            traceback.print_exc()
-            status_code = 400 if isinstance(e, ValueError) else 500
-            return {
-                "error": {"message": f"Internal Server Error: {e}", "status": status_code}
-            }, status_code
+            elif provider == 'gemini':
+                print("Sending request to Gemini API for transcription...")
+                # Read audio file bytes
+                with open(temp_audio_path, "rb") as audio_file:
+                    audio_bytes = audio_file.read()
+                print(f"Read {len(audio_bytes)} bytes from {temp_audio_path}")
 
-    # --- General Error Handling ---
+                # Construct the Part object with inline data
+                audio_part = {"mime_type": mime_type, "data": audio_bytes}
+
+                # Call Gemini model with inline audio data
+                # Optional: Add a simple text prompt if needed/supported for context
+                prompt_for_audio = "Transcribe the following audio:"
+                response = gemini_model.generate_content([prompt_for_audio, audio_part]) # Pass prompt and inline audio part
+                print("Received response from Gemini API.")
+                # No need to delete uploaded file anymore
+
+                transcribed_text = response.text # Assuming response.text contains the transcription
+                if not transcribed_text:
+                     # Check if parts might contain text if response.text is empty
+                    try:
+                        transcribed_text = response.parts[0].text
+                    except (IndexError, AttributeError):
+                         print("Warning: Gemini response text and parts were empty or invalid.")
+                         transcribed_text = "" # Return empty string if no text found
+
+            # --- Format and Return Success Response ---
+            if transcribed_text is not None: # Check for None explicitly
+                 result = TranscriptionResult(text=transcribed_text)
+                 print(f"Transcription result: {result.text[:100]}...")
+                 return {"data": result.model_dump()}
+            else:
+                 raise Exception("Internal error: No transcription text was processed.")
+
+        finally:
+            # Clean up temp file
+            if temp_audio_path and os.path.exists(temp_audio_path):
+                os.remove(temp_audio_path)
+                print(f"Cleaned up temporary file: {temp_audio_path}")
+
     except Exception as e:
-        print(f"ERROR processing request: {e}")
+        print(f"ERROR processing transcribe_audio request: {e}")
         traceback.print_exc()
-        status_code = 400 if isinstance(e, ValueError) else 500
-        return {
-            "error": {"message": f"Internal Server Error: {e}", "status": status_code}
-        }, status_code
-
-# You might want to remove or comment out the example function if you keep it.
-# @https_fn.on_request()
-# def on_request_example(req: https_fn.Request) -> https_fn.Response:
-#     return https_fn.Response("Hello world!")
+        status_code = 400 if isinstance(e, (ValueError, TypeError)) else 500
+        return {"error": {"message": f"{type(e).__name__}: {e}", "status": status_code}}, status_code

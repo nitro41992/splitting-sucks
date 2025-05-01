@@ -704,218 +704,161 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
     try {
       final splitManager = context.read<SplitManager>();
       
-      // Calculate the total from all items BEFORE reset
+      // --- PREPARATION ---
+      // 1. Calculate the total from all items BEFORE reset
       final double originalReviewTotal = _editableItems.fold(
         0.0, 
         (sum, item) => sum + (item.price * item.quantity)
       );
       
-      splitManager.reset(); // Clear previous state in manager
+      // 2. Create a lookup map for original items using their 1-based index (id)
+      //    This ID corresponds to the one sent to and returned by the cloud function.
+      final Map<int, ReceiptItem> originalItemsById = {};
+      for (int i = 0; i < _editableItems.length; i++) {
+        originalItemsById[i + 1] = _editableItems[i]; // Key is 1-based index
+      }
       
-      // Save the original review total AFTER reset
+      // 3. Reset SplitManager and store original total
+      splitManager.reset(); 
       splitManager.setOriginalReviewTotal(originalReviewTotal);
       print('DEBUG (ReceiptSplitterUI): Stored original review total: $originalReviewTotal (from ${_editableItems.length} items) in assignment processing');
 
-      // Add people
-      final peopleData = List<Map<String, dynamic>>.from(assignmentsData['people'] ?? []);
-      for (var personData in peopleData) {
-        final personName = personData['name'] as String?; // Cast as nullable String
-        if (personName != null && personName.isNotEmpty) {
-          splitManager.addPerson(personName);
+      // --- PROCESS ASSIGNMENT DATA --- 
+      // Convert the raw map into the new AssignmentResult structure
+      // Note: We might not strictly need this intermediate object if we parse directly, 
+      // but it can be useful for clarity or if AssignmentResult has other methods.
+      // Assuming AssignmentResult.fromJson is updated as per previous steps.
+      final result = AssignmentResult.fromJson(assignmentsData);
+
+      // 4. Add People from assignment keys
+      final peopleNames = result.assignments.keys.toList();
+      final List<Person> addedPeople = [];
+      for (var personName in peopleNames) {
+        if (personName.isNotEmpty) {
+          final newPerson = Person(name: personName); // Create Person object
+          splitManager.addPersonObject(newPerson); // Use method that accepts Person object
+          addedPeople.add(newPerson);
+          print("DEBUG: Added person: $personName");
         } else {
-          print("WARN: Skipping person with missing or empty name.");
+          print("WARN: Skipping person with empty name found in assignments.");
         }
       }
-
-      // Helper to find original item robustly
-      ReceiptItem findOriginalItem(String name, double price) {
-         // Check if _editableItems is empty before proceeding
-         if (_editableItems.isEmpty) {
-           throw Exception("Cannot find items because the editable items list is empty.");
-         }
-         return _editableItems.firstWhere(
-           (item) => item.name == name && (item.price - price).abs() < 0.01,
-           orElse: () {
-              print("WARN: Item not found via name/price: Name='$name', Price='$price'. Trying name only.");
-              // Find by name only as a fallback
-              return _editableItems.firstWhere(
-                (item) => item.name == name,
-                orElse: () => throw Exception("Item '$name' not found in original list after checking name and price, and name only.")
-              );
-           }
-         );
+      // Handle case where no people were assigned names
+      if (addedPeople.isEmpty) {
+        print("WARN: No people found in assignments. Check AI response structure.");
+        // Decide if we should add a default person or handle differently
       }
 
-      // Process assigned items ('orders')
-      final orders = List<Map<String, dynamic>>.from(assignmentsData['orders'] ?? []);
-      for (var order in orders) {
-        final personName = order['person'] as String?; // Cast as nullable String
-        final itemName = order['item'] as String?;     // Cast as nullable String
-        final itemPrice = (order['price'] as num?)?.toDouble(); // Handle nullable num
-        final itemQuantity = (order['quantity'] as num?)?.toInt(); // Handle nullable num and convert to int
-
-        if (personName == null || personName.isEmpty) {
-          print("WARN: Skipping order with missing or empty person name.");
-          continue;
-        }
-        if (itemName == null || itemName.isEmpty) {
-          print("WARN: Skipping order for person '$personName' with missing or empty item name.");
-          continue;
-        }
-        if (itemPrice == null) {
-          print("WARN: Skipping order for person '$personName', item '$itemName' due to missing price.");
-          continue;
-        }
-        if (itemQuantity == null || itemQuantity <= 0) {
-          print("WARN: Skipping order for person '$personName', item '$itemName' due to missing or invalid quantity.");
-          continue;
-        }
-
+      // 5. Process Assigned Items ('assignments')
+      result.assignments.forEach((personName, itemRefs) {
         final person = splitManager.people.firstWhere(
-           (p) => p.name == personName,
-           orElse: () {
-             print("ERROR: Person '$personName' not found in SplitManager during assignment processing for item '$itemName'. Skipping order.");
-             throw Exception("Person '$personName' not found for item '$itemName'");
-           }
+          (p) => p.name == personName,
+          orElse: () {
+            print("ERROR: Person '$personName' not found in SplitManager after adding. This shouldn't happen.");
+            return null; // Return null or handle appropriately
+          }
         );
 
-        try {
-          final originalItem = findOriginalItem(itemName, itemPrice);
-          final assignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
-          // Ensure original quantity exists before setting
-          if (originalItem.originalQuantity > 0) {
-             splitManager.setOriginalQuantity(assignedItem, originalItem.originalQuantity);
-          } else {
-             // Fallback: use current quantity if original wasn't set/parsed correctly
-             splitManager.setOriginalQuantity(assignedItem, assignedItem.quantity);
-             print("WARN: Original quantity for item '$itemName' was not set or zero. Using current quantity ${assignedItem.quantity}.");
+        if (person == null) return; // Skip if person lookup failed
+
+        final refsList = List<Map<String, dynamic>>.from(itemRefs ?? []);
+        for (var itemRef in refsList) {
+          final itemId = itemRef['id'] as int?;
+          final itemQuantity = (itemRef['quantity'] as num?)?.toInt();
+
+          if (itemId == null || itemQuantity == null || itemQuantity <= 0) {
+            print("WARN: Skipping assignment for person '$personName' due to invalid item ref: $itemRef");
+            continue;
           }
-          splitManager.assignItemToPerson(assignedItem, person);
-        } catch (e) {
-           print("ERROR: Failed to process assigned item '$itemName' for person '$personName'. Error: $e. Skipping item.");
+
+          final originalItem = originalItemsById[itemId];
+          if (originalItem == null) {
+            print("ERROR: Original item with ID $itemId not found for assignment to '$personName'. Skipping.");
+            continue;
+          }
+
+          try {
+            final assignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
+            splitManager.setOriginalQuantity(assignedItem, originalItem.quantity); // Set original quantity from the lookup
+            splitManager.assignItemToPerson(assignedItem, person);
+             print("DEBUG: Assigned item '${assignedItem.name}' (Qty: $itemQuantity, ID: $itemId) to $personName");
+          } catch (e) {
+             print("ERROR: Failed to process assigned item ref $itemRef for person '$personName'. Error: $e. Skipping item.");
+          }
         }
-      }
+      });
 
-      // Process shared items
-      final sharedItemsData = List<Map<String, dynamic>>.from(assignmentsData['shared_items'] ?? []);
-      for (var itemData in sharedItemsData) {
-         final itemName = itemData['item'] as String?;     // Cast as nullable String
-         final itemPrice = (itemData['price'] as num?)?.toDouble(); // Handle nullable num
-         final itemQuantity = (itemData['quantity'] as num?)?.toInt(); // Handle nullable int
-         // Ensure list contains only non-null, non-empty strings
-         final peopleNames = (itemData['people'] as List?)
-             ?.map((p) => p as String?)
-             .where((p) => p != null && p.isNotEmpty)
-             .cast<String>()
-             .toList() ?? [];
+      // 6. Process Shared Items ('shared_items')
+      final sharedItemRefs = List<Map<String, dynamic>>.from(result.shared_items ?? []);
+      for (var itemRef in sharedItemRefs) {
+         final itemId = itemRef['id'] as int?;
+         final itemQuantity = (itemRef['quantity'] as num?)?.toInt();
 
-         if (itemName == null || itemName.isEmpty) {
-           print("WARN: Skipping shared item with missing or empty item name.");
+         if (itemId == null || itemQuantity == null || itemQuantity <= 0) {
+           print("WARN: Skipping shared item due to invalid item ref: $itemRef");
            continue;
          }
-         if (itemPrice == null) {
-           print("WARN: Skipping shared item '$itemName' due to missing price.");
-           continue;
-         }
-         if (itemQuantity == null || itemQuantity <= 0) {
-           print("WARN: Skipping shared item '$itemName' due to missing or invalid quantity.");
-           continue;
-         }
-         if (peopleNames.isEmpty) {
-            print("WARN: Shared item '$itemName' has no valid people listed or the 'people' list is missing/empty. Adding as unassigned.");
-            // Attempt to add as unassigned only if we can find the original item
-            try {
-               final originalItem = findOriginalItem(itemName, itemPrice);
-               final unassignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
-               // Ensure original quantity exists before setting
-               if (originalItem.originalQuantity > 0) {
-                  splitManager.setOriginalQuantity(unassignedItem, originalItem.originalQuantity);
-               } else {
-                  splitManager.setOriginalQuantity(unassignedItem, unassignedItem.quantity);
-                  print("WARN: Original quantity for unassigned item '$itemName' was not set or zero. Using current quantity ${unassignedItem.quantity}.");
-               }
-               splitManager.addUnassignedItem(unassignedItem);
-            } catch (e) {
-               print("ERROR: Failed to find original item for shared item '$itemName' listed with no people. Cannot add as unassigned. Error: $e. Skipping item.");
-            }
-            continue;
-         }
 
-         final peopleToShareWith = splitManager.people.where((p) => peopleNames.contains(p.name)).toList();
-
-         if (peopleToShareWith.isEmpty) {
-            print("WARN: Shared item '$itemName' - none of the listed people (${peopleNames.join(', ')}) exist in the SplitManager. Adding as unassigned.");
-            try {
-               final originalItem = findOriginalItem(itemName, itemPrice);
-               final unassignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
-               if (originalItem.originalQuantity > 0) {
-                 splitManager.setOriginalQuantity(unassignedItem, originalItem.originalQuantity);
-               } else {
-                 splitManager.setOriginalQuantity(unassignedItem, unassignedItem.quantity);
-                 print("WARN: Original quantity for unassigned item '$itemName' was not set or zero. Using current quantity ${unassignedItem.quantity}.");
-               }
-               splitManager.addUnassignedItem(unassignedItem);
-            } catch (e) {
-               print("ERROR: Failed to find original item for shared item '$itemName' with non-existent people. Cannot add as unassigned. Error: $e. Skipping item.");
-            }
+         final originalItem = originalItemsById[itemId];
+         if (originalItem == null) {
+            print("ERROR: Original item with ID $itemId not found for shared items. Skipping.");
             continue;
          }
 
          try {
-            final originalItem = findOriginalItem(itemName, itemPrice);
             final sharedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
-             if (originalItem.originalQuantity > 0) {
-               splitManager.setOriginalQuantity(sharedItem, originalItem.originalQuantity);
-             } else {
-               splitManager.setOriginalQuantity(sharedItem, sharedItem.quantity);
-               print("WARN: Original quantity for shared item '$itemName' was not set or zero. Using current quantity ${sharedItem.quantity}.");
-             }
-            splitManager.addItemToShared(sharedItem, peopleToShareWith);
+            splitManager.setOriginalQuantity(sharedItem, originalItem.quantity);
+            
+            // Add to the main shared list and associate with ALL added people
+            // Since the Python model doesn't specify who shares, we assume all people from assignments share it
+            if (addedPeople.isNotEmpty) {
+              splitManager.addItemToShared(sharedItem, addedPeople); 
+              print("DEBUG: Added shared item '${sharedItem.name}' (Qty: $itemQuantity, ID: $itemId) and assigned to ${addedPeople.length} people.");
+            } else {
+              // If no people were added, maybe add as unassigned? Or log warning.
+              print("WARN: Shared item '${sharedItem.name}' found but no people were identified. Adding as unassigned.");
+              splitManager.addUnassignedItem(sharedItem);
+            }
          } catch (e) {
-            print("ERROR: Failed to process shared item '$itemName'. Error: $e. Skipping item.");
+            print("ERROR: Failed to process shared item ref $itemRef. Error: $e. Skipping item.");
          }
       }
 
-      // Process unassigned items
-      final unassignedItemsData = List<Map<String, dynamic>>.from(assignmentsData['unassigned_items'] ?? []);
-      for (var itemData in unassignedItemsData) {
-         final itemName = itemData['item'] as String?; // Cast as nullable String
-         final itemPrice = (itemData['price'] as num?)?.toDouble(); // Handle nullable num
-         final itemQuantity = (itemData['quantity'] as num?)?.toInt(); // Handle nullable int
+      // 7. Process Unassigned Items ('unassigned_items')
+      final unassignedItemRefs = List<Map<String, dynamic>>.from(result.unassigned_items ?? []);
+      for (var itemRef in unassignedItemRefs) {
+         final itemId = itemRef['id'] as int?;
+         final itemQuantity = (itemRef['quantity'] as num?)?.toInt();
 
-         if (itemName == null || itemName.isEmpty) {
-           print("WARN: Skipping unassigned item with missing or empty item name.");
+         if (itemId == null || itemQuantity == null || itemQuantity <= 0) {
+           print("WARN: Skipping unassigned item due to invalid item ref: $itemRef");
            continue;
          }
-         if (itemPrice == null) {
-           print("WARN: Skipping unassigned item '$itemName' due to missing price.");
-           continue;
-         }
-         if (itemQuantity == null || itemQuantity <= 0) {
-           print("WARN: Skipping unassigned item '$itemName' due to missing or invalid quantity.");
-           continue;
+
+         final originalItem = originalItemsById[itemId];
+         if (originalItem == null) {
+            print("ERROR: Original item with ID $itemId not found for unassigned items. Skipping.");
+            continue;
          }
 
          try {
-            final originalItem = findOriginalItem(itemName, itemPrice);
             final unassignedItem = ReceiptItem.clone(originalItem)..updateQuantity(itemQuantity);
-            if (originalItem.originalQuantity > 0) {
-              splitManager.setOriginalQuantity(unassignedItem, originalItem.originalQuantity);
-            } else {
-              splitManager.setOriginalQuantity(unassignedItem, unassignedItem.quantity);
-              print("WARN: Original quantity for unassigned item '$itemName' was not set or zero. Using current quantity ${unassignedItem.quantity}.");
-            }
+            splitManager.setOriginalQuantity(unassignedItem, originalItem.quantity);
             splitManager.addUnassignedItem(unassignedItem);
+            print("DEBUG: Added unassigned item '${unassignedItem.name}' (Qty: $itemQuantity, ID: $itemId).");
          } catch (e) {
-            print("ERROR: Failed to process unassigned item '$itemName'. Error: $e. Skipping item.");
+            print("ERROR: Failed to process unassigned item ref $itemRef. Error: $e. Skipping item.");
          }
       }
+      
+      // --- CLEANUP & NAVIGATION ---
+      // Remove the old helper function if it exists
+      // ReceiptItem findOriginalItem(String name, double price) { ... } // REMOVED
 
       setState(() {
         _isAssignmentComplete = true;
         _isLoading = false;
         _assignments = assignmentsData; // Store raw results if needed
-        // Don't clear _savedTranscription - we need to keep it for state persistence
       });
       _navigateToPage(3); // Navigate to Assignment Review (SplitView)
 

@@ -16,6 +16,8 @@ dataconnect-generated
 dataconnect
 .cursor
 billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json
+test.py
+PXL_20250420_022344815.jpg
 
 # Environment variables
 .env
@@ -141,3 +143,6 @@ android/app/.cxx/
 
 # Generated JS from TS (if applicable)
 functions/functions/lib/
+
+# Test scripts
+test_endpoints.py

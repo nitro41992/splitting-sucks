@@ -84,50 +84,37 @@ class Person {
 }
 
 class AssignmentResult {
-  final List<dynamic> orders;
-  final List<dynamic> sharedItems;
-  final List<dynamic> people;
-  final List<dynamic>? unassignedItems;
+  final Map<String, dynamic> assignments;
+  final List<dynamic> shared_items;
+  final List<dynamic>? unassigned_items;
 
   AssignmentResult({
-    required this.orders,
-    required this.sharedItems,
-    required this.people,
-    this.unassignedItems,
+    required this.assignments,
+    required this.shared_items,
+    this.unassigned_items,
   });
 
   factory AssignmentResult.fromJson(Map<String, dynamic> json) {
+    final assignmentsMap = json['assignments'];
+    final sharedItemsList = json['shared_items'];
+    final unassignedItemsList = json['unassigned_items'];
+
     return AssignmentResult(
-      orders: json['orders'] as List,
-      sharedItems: json['shared_items'] as List,
-      people: json['people'] as List,
-      unassignedItems: json['unassigned_items'] as List?,
+      assignments: assignmentsMap is Map ? Map<String, dynamic>.from(assignmentsMap) : {},
+      shared_items: sharedItemsList is List ? List<dynamic>.from(sharedItemsList) : [],
+      unassigned_items: unassignedItemsList is List ? List<dynamic>.from(unassignedItemsList) : null,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'orders': orders,
-        'shared_items': sharedItems,
-        'people': people,
-        if (unassignedItems != null) 'unassigned_items': unassignedItems,
+        'assignments': assignments,
+        'shared_items': shared_items,
+        if (unassigned_items != null) 'unassigned_items': unassigned_items,
       };
 
-  // Helper methods to convert raw data to typed objects
-  List<Order> getOrders() {
-    return orders
-        .map((item) => Order.fromJson(item as Map<String, dynamic>))
-        .toList();
-  }
-
   List<SharedItem> getSharedItems() {
-    return sharedItems
+    return shared_items
         .map((item) => SharedItem.fromJson(item as Map<String, dynamic>))
-        .toList();
-  }
-
-  List<Person> getPeople() {
-    return people
-        .map((item) => Person.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 }
@@ -196,7 +183,7 @@ class AudioTranscriptionService {
       // No need for extra data wrapper, SDK handles it
       final result = await callable.call({
         'transcription': transcription,
-        'receipt': receipt,
+        'receipt_items': receipt,
       });
       
       // Parse the response - convert to proper Map<String, dynamic> first
