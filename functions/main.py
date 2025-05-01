@@ -42,8 +42,12 @@ class AssignedItemRef(BaseModel): # Updated Assignment Model for simplicity
     id: int
     quantity: int
 
+class PersonAssignment(BaseModel):
+    person_name: str
+    items: List[AssignedItemRef]
+
 class AssignmentResult(BaseModel):
-    assignments: Dict[str, List[AssignedItemRef]] # Key: person name, Value: List of items/qty
+    person_assignments: List[PersonAssignment] # List of person assignments instead of Dict
     shared_items: List[AssignedItemRef]
     unassigned_items: List[AssignedItemRef]
     # Removed people list - can be derived from assignments keys
@@ -377,7 +381,7 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
             # Configure generation settings including schema and thinking budget using legacy types
             generation_config = genai_legacy_types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=AssignmentResult, # Use AssignmentResult schema
+                response_schema=AssignmentResult.model_json_schema(), # Use JSON schema directly instead of model
                 thinking_config=genai_legacy_types.ThinkingConfig(thinking_budget=8000)
             )
 
@@ -390,29 +394,29 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
 
             print("Received response from Gemini API.")
 
-            # Access the parsed object using response.parsed
-            if hasattr(response, 'parsed') and response.parsed:
-                if isinstance(response.parsed, AssignmentResult):
-                    assignment_result = response.parsed
-                    print("Successfully retrieved parsed/validated Gemini response.")
-                # Handle list case if needed, although AssignmentResult schema implies single object
-                elif isinstance(response.parsed, list) and len(response.parsed) > 0 and isinstance(response.parsed[0], AssignmentResult):
-                     assignment_result = response.parsed[0]
-                     print("Successfully retrieved parsed/validated Gemini response (from list).")
-                else:
-                     print(f"Warning: Gemini response parsed data is not AssignmentResult or list[AssignmentResult]. Type: {type(response.parsed)}")
-                     raise ValueError("Gemini response parsed data is not in the expected format (AssignmentResult).")
+            # Handle raw JSON response since we're not using schema validation directly
+            if hasattr(response, 'text') and response.text:
+                try:
+                    # Parse the JSON response
+                    json_response = json.loads(response.text)
+                    # Validate with Pydantic model
+                    assignment_result = AssignmentResult.model_validate(json_response)
+                    print("Successfully parsed and validated Gemini JSON response.")
+                except (json.JSONDecodeError, ValidationError) as e:
+                    print(f"Failed to parse/validate Gemini response: {e}")
+                    print(f"Raw response: {response.text}")
+                    raise ValueError(f"Failed to parse Gemini response: {e}")
             else:
                 error_text = response.text if hasattr(response, 'text') else 'No response text available.'
-                print(f"Warning: Gemini response did not contain expected parsed data. Response text: {error_text}")
+                print(f"Warning: Gemini response did not contain expected data. Response text: {error_text}")
                 # Check for specific safety/block reasons if available
                 block_reason = None
-                if response.prompt_feedback and response.prompt_feedback.block_reason:
+                if hasattr(response, 'prompt_feedback') and response.prompt_feedback and response.prompt_feedback.block_reason:
                     block_reason = response.prompt_feedback.block_reason.name
-                elif response.candidates and response.candidates[0].finish_reason:
+                elif hasattr(response, 'candidates') and response.candidates and response.candidates[0].finish_reason:
                     block_reason = response.candidates[0].finish_reason.name
 
-                error_message = "Gemini response did not return usable parsed data despite schema request."
+                error_message = "Gemini response did not return usable data."
                 if block_reason:
                     error_message += f" Block/Finish Reason: {block_reason}"
 
@@ -420,7 +424,17 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
 
         # --- Return Success Response --- 
         if assignment_result:
-            return {"data": assignment_result.model_dump()}
+            # Convert from new format to old format for backward compatibility
+            result_dict = assignment_result.model_dump()
+            # If using new format, convert to the format expected by frontend
+            if 'person_assignments' in result_dict:
+                assignments_dict = {}
+                for person_assignment in result_dict['person_assignments']:
+                    person_name = person_assignment['person_name']
+                    assignments_dict[person_name] = person_assignment['items']
+                result_dict['assignments'] = assignments_dict
+                del result_dict['person_assignments']
+            return {"data": result_dict}
         else:
             raise Exception("Internal error: No assignment result was processed.")
 
