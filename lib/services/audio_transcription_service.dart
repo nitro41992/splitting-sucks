@@ -170,7 +170,7 @@ class AudioTranscriptionService {
       );
       
       // 4. Parse the response
-      final responseData = result.data;
+      final responseData = _convertToStringKeyedMap(result.data);
       if (responseData == null || responseData['text'] == null) {
         throw Exception('Invalid response format from Cloud Function');
       }
@@ -199,8 +199,8 @@ class AudioTranscriptionService {
         'receipt': receipt,
       });
       
-      // Parse the response
-      final responseData = result.data;
+      // Parse the response - convert to proper Map<String, dynamic> first
+      final responseData = _convertToStringKeyedMap(result.data);
       
       if (responseData == null) {
         throw Exception('Invalid response format from Cloud Function');
@@ -212,5 +212,39 @@ class AudioTranscriptionService {
       debugPrint('Error assigning items: $e');
       rethrow;
     }
+  }
+  
+  // Helper method to convert dynamic Map to Map<String, dynamic>
+  Map<String, dynamic> _convertToStringKeyedMap(dynamic data) {
+    if (data is Map) {
+      final result = <String, dynamic>{};
+      data.forEach((key, value) {
+        if (key != null) {
+          final stringKey = key.toString();
+          if (value is Map) {
+            result[stringKey] = _convertToStringKeyedMap(value);
+          } else if (value is List) {
+            result[stringKey] = _convertList(value);
+          } else {
+            result[stringKey] = value;
+          }
+        }
+      });
+      return result;
+    }
+    throw Exception('Data is not a Map: ${data.runtimeType}');
+  }
+  
+  // Helper method to convert dynamic List
+  List<dynamic> _convertList(List<dynamic> list) {
+    return list.map((item) {
+      if (item is Map) {
+        return _convertToStringKeyedMap(item);
+      } else if (item is List) {
+        return _convertList(item);
+      } else {
+        return item;
+      }
+    }).toList();
   }
 } 

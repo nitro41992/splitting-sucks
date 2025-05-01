@@ -43,11 +43,16 @@ class SharedItem(BaseModel):
 class Person(BaseModel):
     name: str
 
+class UnassignedItem(BaseModel):
+    item: str
+    price: float
+    quantity: int
+
 class AssignmentResult(BaseModel):
     orders: List[Order]
     shared_items: List[SharedItem]
     people: List[Person]
-    unassigned_items: Optional[List[Dict[str, Any]]] = None
+    unassigned_items: Optional[List[UnassignedItem]] = None
 
 # --- Model for Transcription Result ---
 class TranscriptionResult(BaseModel):
