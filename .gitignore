@@ -118,3 +118,26 @@ firebase-export-*/
 **/ios/Pods/
 **/ios/profile
 **/ios/xcuserdata/
+
+# Flutter generated files
+# MacOs
+macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Windows
+windows/flutter/generated_plugin_registrant.cc
+windows/flutter/generated_plugins.cmake
+
+# Flutter metadata
+.metadata
+
+# Platform ephemeral build files
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# Android build cache
+android/.gradle/
+android/app/.cxx/
+
+# Generated JS from TS (if applicable)
+functions/functions/lib/
