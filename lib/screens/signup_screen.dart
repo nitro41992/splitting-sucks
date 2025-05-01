@@ -21,6 +21,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   int _passwordStrength = 0;
+  bool _hasStartedTypingPassword = false;
 
   @override
   void dispose() {
@@ -69,6 +70,16 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _updatePasswordStrength(String password) {
+    if (password.length >= 3 && !_hasStartedTypingPassword) {
+      setState(() {
+        _hasStartedTypingPassword = true;
+      });
+    } else if (password.length < 3 && _hasStartedTypingPassword) {
+      setState(() {
+        _hasStartedTypingPassword = false;
+      });
+    }
+    
     int strength = 0;
     
     // Check for length
@@ -239,20 +250,22 @@ class _SignupScreenState extends State<SignupScreen> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: 8),
-                          LinearProgressIndicator(
-                            value: _passwordStrength / 4, // Scale from 0 to 1
-                            backgroundColor: colorScheme.surfaceVariant,
-                            color: _getPasswordStrengthColor(_passwordStrength),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getPasswordStrengthText(_passwordStrength),
-                            style: textTheme.bodySmall?.copyWith(
+                          if (_hasStartedTypingPassword) ...[
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: _passwordStrength / 4, // Scale from 0 to 1
+                              backgroundColor: colorScheme.surfaceVariant,
                               color: _getPasswordStrengthColor(_passwordStrength),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                          ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _getPasswordStrengthText(_passwordStrength),
+                              style: textTheme.bodySmall?.copyWith(
+                                color: _getPasswordStrengthColor(_passwordStrength),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 16),
