@@ -530,65 +530,27 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
     }
   }
 
-  void _resetState() async {
+  void _resetState() {
     setState(() {
-      _currentStep = 0;
-      if (_pageController.hasClients) {
-        _pageController.jumpToPage(0);
-      }
       _imageFile = null;
       _isLoading = false;
+      _editableItems = [];
       _assignments = null;
-      _editableItems = []; // Reset coordinator's item list
       _isUploadComplete = false;
       _isReviewComplete = false;
       _isAssignmentComplete = false;
       _savedTranscription = null; // Reset saved transcription
-
-      // Reset SplitManager
-      if (mounted) {
-         context.read<SplitManager>().reset();
-      }
+      _savedImagePath = null;
+      _currentStep = 0;
     });
-
-    // Clear saved state from persistent storage
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();  // Remove all saved state
-      print('Saved state cleared successfully');
-    } catch (e) {
-      print('Error clearing saved state: $e');
+    
+    // Jump to first page
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(0);
     }
-
-    // Re-initialize mock data if needed, based on the initial logic
-    final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
-    if (useMockData) {
-       setState(() {
-          _editableItems = [
-            ...List.from(MockDataService.mockItems),
-            ...List.from(MockDataService.mockSharedItems),
-            ...List.from(MockDataService.mockUnassignedItems),
-          ];
-          _editableItems = _editableItems.toSet().toList();
-       });
-    }
-
-    if (mounted) {
-       ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(
-           content: Row(
-             children: [
-               Icon(Icons.refresh_rounded, color: Theme.of(context).colorScheme.onPrimary),
-               const SizedBox(width: 12),
-               const Text('Reset complete. Ready to start over!'),
-             ],
-           ),
-           backgroundColor: Theme.of(context).colorScheme.primary, // Use theme color
-           behavior: SnackBarBehavior.floating,
-           duration: const Duration(seconds: 2),
-         ),
-       );
-     }
+    
+    // Clear saved preferences
+    _clearSavedPreferences();
   }
 
   Future<void> _parseReceipt() async {
@@ -708,7 +670,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
   // --- END EDIT ---
 
   // Handles data from VoiceAssignmentScreen and updates SplitManager
-  void _handleAssignmentProcessed(Map<String, dynamic> assignmentsData) {
+  Future<void> _handleAssignmentProcessed(Map<String, dynamic> assignmentsData) async {
     print("DEBUG: Handling assignment data in main UI");
     setState(() { _isLoading = true; });
 
@@ -812,11 +774,12 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
       for (var itemData in sharedItemsData) {
          final itemName = itemData['item'] as String?;     // Cast as nullable String
          final itemPrice = (itemData['price'] as num?)?.toDouble(); // Handle nullable num
-         final itemQuantity = itemData['quantity'] as int?;         // Handle nullable int
+         final itemQuantity = (itemData['quantity'] as num?)?.toInt(); // Handle nullable int
          // Ensure list contains only non-null, non-empty strings
          final peopleNames = (itemData['people'] as List?)
              ?.map((p) => p as String?)
              .where((p) => p != null && p.isNotEmpty)
+             .cast<String>()
              .toList() ?? [];
 
          if (itemName == null || itemName.isEmpty) {
@@ -891,7 +854,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
       for (var itemData in unassignedItemsData) {
          final itemName = itemData['item'] as String?; // Cast as nullable String
          final itemPrice = (itemData['price'] as num?)?.toDouble(); // Handle nullable num
-         final itemQuantity = itemData['quantity'] as int?;         // Handle nullable int
+         final itemQuantity = (itemData['quantity'] as num?)?.toInt(); // Handle nullable int
 
          if (itemName == null || itemName.isEmpty) {
            print("WARN: Skipping unassigned item with missing or empty item name.");
@@ -925,6 +888,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
         _isAssignmentComplete = true;
         _isLoading = false;
         _assignments = assignmentsData; // Store raw results if needed
+        // Don't clear _savedTranscription - we need to keep it for state persistence
       });
       _navigateToPage(3); // Navigate to Assignment Review (SplitView)
 
@@ -982,5 +946,38 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
         );
       },
     ) ?? false;  // Default to false if dialog is dismissed
+  }
+
+  // Clear saved preferences from persistent storage
+  Future<void> _clearSavedPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();  // Remove all saved state
+      print('Saved state cleared successfully');
+      
+      // Reset SplitManager
+      if (mounted) {
+        context.read<SplitManager>().reset();
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.refresh_rounded, color: Theme.of(context).colorScheme.onPrimary),
+                const SizedBox(width: 12),
+                const Text('Reset complete. Ready to start over!'),
+              ],
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error clearing saved state: $e');
+    }
   }
 } 

@@ -167,6 +167,14 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
     setState(() => _isLoading = true);
     final editedTranscription = _transcriptionController.text;
+    
+    // Save the edited transcription in our local state
+    _transcription = editedTranscription;
+    
+    // Notify parent of transcription change to ensure it's persisted
+    if (widget.onTranscriptionChanged != null) {
+      widget.onTranscriptionChanged!(editedTranscription);
+    }
 
     final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
     print('DEBUG: In _processTranscription (Screen), useMockData = $useMockData');
