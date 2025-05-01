@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/receipt_upload/full_image_viewer.dart'; // Import the new viewer
+import '../services/file_helper.dart'; // Import FileHelper
 
 class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
@@ -33,12 +34,27 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
         imageQuality: 100,
       );
       if (photo != null) {
-        widget.onImageSelected(File(photo.path));
+        final file = File(photo.path);
+        // Validate the image file before passing it to the parent
+        if (FileHelper.isValidImageFile(file)) {
+          widget.onImageSelected(file);
+        } else {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('The captured image is invalid or corrupted. Please try again.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error taking picture: \$e')),
+        SnackBar(
+          content: Text('Error taking picture: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     }
   }
@@ -50,12 +66,27 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
         imageQuality: 100,
       );
       if (image != null) {
-        widget.onImageSelected(File(image.path));
+        final file = File(image.path);
+        // Validate the image file before passing it to the parent
+        if (FileHelper.isValidImageFile(file)) {
+          widget.onImageSelected(file);
+        } else {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('The selected image is invalid or corrupted. Please choose another image.'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: \$e')),
+        SnackBar(
+          content: Text('Error picking image: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     }
   }
@@ -123,6 +154,37 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                             child: Image.file(
                                               widget.imageFile!,
                                               fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                // Handle image loading errors
+                                                return Container(
+                                                  color: colorScheme.errorContainer,
+                                                  child: Center(
+                                                    child: Column(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Icon(
+                                                          Icons.broken_image,
+                                                          color: colorScheme.onErrorContainer,
+                                                          size: 48,
+                                                        ),
+                                                        const SizedBox(height: 16),
+                                                        Text(
+                                                          'Image could not be loaded',
+                                                          style: textTheme.bodyLarge?.copyWith(
+                                                            color: colorScheme.onErrorContainer,
+                                                          ),
+                                                          textAlign: TextAlign.center,
+                                                        ),
+                                                        const SizedBox(height: 8),
+                                                        ElevatedButton(
+                                                          onPressed: widget.onRetry,
+                                                          child: const Text('Try Again'),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              },
                                             ),
                                           ),
                                         ),

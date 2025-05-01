@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'services/receipt_parser_service.dart';
 import 'services/mock_data_service.dart';
+import 'services/file_helper.dart'; // Import the new helper
 import 'widgets/split_view.dart';
 import 'package:provider/provider.dart';
 import 'models/split_manager.dart';
@@ -130,11 +131,28 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
       
       // Save image path if available
       if (_imageFile != null) {
-        // Save the image to a temporary file if needed
-        final tempDir = await getTemporaryDirectory();
-        final imagePath = '${tempDir.path}/saved_receipt_image.jpg';
-        await _imageFile!.copy(imagePath);
-        await prefs.setString('saved_image_path', imagePath);
+        try {
+          // Save the image to a temporary file using the helper
+          final tempDir = await getTemporaryDirectory();
+          final imagePath = '${tempDir.path}/saved_receipt_image.jpg';
+          
+          // Use the FileHelper to safely copy the image
+          final newFile = await FileHelper.copyImageSafely(_imageFile!, imagePath);
+          
+          // Save the path only if the file was successfully copied
+          if (newFile != null) {
+            await prefs.setString('saved_image_path', newFile.path);
+            print('Image saved successfully to: ${newFile.path}');
+          } else {
+            print('Failed to save image - copy operation failed');
+            // Remove any old reference if copy fails
+            prefs.remove('saved_image_path');
+          }
+        } catch (e) {
+          print('Error saving image file: $e');
+          // Remove any old reference on error
+          prefs.remove('saved_image_path');
+        }
       }
       
       // Save editable items as JSON if available
@@ -179,8 +197,13 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
         final imagePath = prefs.getString('saved_image_path');
         if (imagePath != null) {
           final imageFile = File(imagePath);
-          if (imageFile.existsSync()) {
+          // Use FileHelper to validate the image file
+          if (FileHelper.isValidImageFile(imageFile)) {
             _imageFile = imageFile;
+          } else {
+            // File doesn't exist, is empty, or invalid - remove the reference
+            print('Image file is invalid: $imagePath');
+            prefs.remove('saved_image_path');
           }
         }
         
@@ -570,6 +593,20 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
 
   Future<void> _parseReceipt() async {
     if (_imageFile == null) return;
+    
+    // Use the FileHelper to validate the image file
+    if (!FileHelper.isValidImageFile(_imageFile)) {
+      setState(() { _isLoading = false; });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: The receipt image is invalid or corrupted. Please try uploading again.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+    
     final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
 
     setState(() { _isLoading = true; });

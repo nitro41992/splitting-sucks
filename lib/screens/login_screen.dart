@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../theme/app_colors.dart';
+import '../widgets/shared/wave_divider_painter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,9 +42,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       debugPrint('Email/password sign in successful.');
       // Navigation removed - StreamBuilder in main.dart will handle showing ReceiptSplitterUI
-      // if (mounted) {
-      //   Navigator.of(context).pushReplacementNamed('/home'); // Navigate to home screen
-      // }
     } catch (e) {
       debugPrint('Email/password sign in error: $e');
       setState(() {
@@ -68,9 +67,6 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authService.signInWithGoogle();
       debugPrint('Google sign in successful.');
       // Navigation removed - StreamBuilder in main.dart will handle showing ReceiptSplitterUI
-      // if (mounted) {
-      //   Navigator.of(context).pushReplacementNamed('/home'); // Navigate to home screen
-      // }
     } catch (e) {
       debugPrint('Google sign in error: $e');
       setState(() {
@@ -87,152 +83,242 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login'),
-      ),
-      body: Center(
+      body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Logo or App Name
-                const Text(
-                  'Billfie',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Logo and Header with gradient background
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.secondary,
+                      AppColors.secondary.withOpacity(1.0),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
-                  textAlign: TextAlign.center,
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
                 ),
-                const SizedBox(height: 48),
-
-                // Email Field
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Password Field
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: !_isPasswordVisible,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-
-                // Error Message
-                if (_errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16.0),
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.red),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-
-                // Login Button
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _signInWithEmailPassword,
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Login with Password'),
-                ),
-                const SizedBox(height: 24),
-
-                // Divider with "Or" text
-                Row(
+                child: Column(
                   children: [
-                    const Expanded(child: Divider()),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('Or continue with'),
+                    Image.asset(
+                      'logo.png',
+                      height: 150,
+                      width: 150,
                     ),
-                    const Expanded(child: Divider()),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Billfie',
+                      style: textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Split bills, not friendships',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 24),
+              ),
+              
+              // Form Content
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Email Field with icon
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.email_outlined, color: AppColors.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your email';
+                          }
+                          if (!value.contains('@')) {
+                            return 'Please enter a valid email';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
 
-                // Google Sign In Button
-                OutlinedButton.icon(
-                  onPressed: _isLoading ? null : _signInWithGoogle,
-                  icon: Icon(Icons.g_mobiledata, size: 24),
-                  label: const Text('Sign in with Google'),
+                      // Password Field with icon
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: !_isPasswordVisible,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: Icon(Icons.lock_outline, color: AppColors.primary),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                              color: AppColors.textMuted,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _isPasswordVisible = !_isPasswordVisible;
+                              });
+                            },
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          if (value.length < 6) {
+                            return 'Password must be at least 6 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                      
+                      // Forgot Password Link aligned to the right
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pushNamed('/forgot-password');
+                          },
+                          child: Text(
+                            'Forgot Password?',
+                            style: TextStyle(color: AppColors.secondary),
+                          ),
+                        ),
+                      ),
+
+                      // Error Message
+                      if (_errorMessage != null)
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _errorMessage!,
+                            style: TextStyle(color: AppColors.error),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+
+                      const SizedBox(height: 8),
+
+                      // Login Button with app's secondary color and rounded corners
+                      FilledButton(
+                        onPressed: _isLoading ? null : _signInWithEmailPassword,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.secondary,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 56),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Log In', style: TextStyle(fontSize: 16)),
+                      ),
+                      
+                      const SizedBox(height: 32),
+
+                      // Divider with wave pattern
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CustomPaint(
+                            size: const Size(double.infinity, 40),
+                            painter: WaveDividerPainter(
+                              color: colorScheme.outlineVariant,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            color: colorScheme.background,
+                            child: Text(
+                              'Or continue with',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 24),
+
+                      // Google Sign In Button with updated style
+                      OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _signInWithGoogle,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.text,
+                          side: BorderSide(color: AppColors.textMuted),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: Icon(Icons.g_mobiledata, size: 24, color: AppColors.text),
+                        label: const Text('Sign in with Google'),
+                      ),
+                      
+                      const SizedBox(height: 24),
+
+                      // Sign Up Link
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('Don\'t have an account?', style: TextStyle(color: AppColors.textMuted)),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/signup');
+                            },
+                            child: Text(
+                              'Sign up',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-
-                // Email Link Sign In Button - REMOVED
-                // OutlinedButton.icon(
-                //   onPressed: _isLoading
-                //       ? null
-                //       : () => Navigator.of(context).pushNamed('/email-link-signin'),
-                //   icon: const Icon(Icons.email_outlined),
-                //   label: const Text('Passwordless Sign In (Magic Link)'),
-                // ),
-                const SizedBox(height: 16),
-
-                // Sign Up Link
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pushNamed('/signup');
-                  },
-                  child: const Text('Don\'t have an account? Sign up'),
-                ),
-
-                // Forgot Password Link
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pushNamed('/forgot-password');
-                  },
-                  child: const Text('Forgot Password?'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
