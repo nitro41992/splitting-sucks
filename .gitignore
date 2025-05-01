@@ -15,6 +15,7 @@ requirements
 dataconnect-generated
 dataconnect
 .cursor
+billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json
 
 # Environment variables
 .env
@@ -53,6 +54,9 @@ app.*.map.json
 
 # Ignore machine-specific properties file
 /android/local.properties
+# Ignore Android key properties for app signing
+/android/key.properties
+/android/**/*.jks
 
 # Firebase
 **/ios/Runner/GoogleService-Info.plist

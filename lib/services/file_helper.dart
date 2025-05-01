@@ -18,10 +18,10 @@ class FileHelper {
         return false;
       }
       
-      // Check if file has a valid image extension
-      final validExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif'];
+      // Check if file has a valid image extension - FIXED
+      final validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
       final fileExtension = file.path.toLowerCase().split('.').last;
-      if (!validExtensions.any((ext) => fileExtension.contains(ext))) {
+      if (!validExtensions.contains(fileExtension)) {
         print('File does not have a valid image extension: ${file.path}');
         return false;
       }
