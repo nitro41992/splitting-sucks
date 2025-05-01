@@ -129,23 +129,41 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
         await prefs.setString('saved_transcription', _savedTranscription!);
       }
       
-      // Save image path if available
+      // Enhanced image saving logic
       if (_imageFile != null) {
         try {
-          // Save the image to a temporary file using the helper
-          final tempDir = await getTemporaryDirectory();
-          final imagePath = '${tempDir.path}/saved_receipt_image.jpg';
-          
-          // Use the FileHelper to safely copy the image
-          final newFile = await FileHelper.copyImageSafely(_imageFile!, imagePath);
-          
-          // Save the path only if the file was successfully copied
-          if (newFile != null) {
-            await prefs.setString('saved_image_path', newFile.path);
-            print('Image saved successfully to: ${newFile.path}');
+          // Check if the image file is valid before attempting to save
+          if (FileHelper.isValidImageFile(_imageFile!)) {
+            final tempDir = await getTemporaryDirectory();
+            final fileName = 'saved_receipt_image.${_imageFile!.path.split('.').last}'; // Preserve extension
+            final imagePath = '${tempDir.path}/$fileName';
+            
+            // Create the directory if it doesn't exist
+            final directory = Directory(tempDir.path);
+            if (!directory.existsSync()) {
+              directory.createSync(recursive: true);
+            }
+            
+            // For robustness, make a direct copy of the bytes
+            try {
+              final bytes = await _imageFile!.readAsBytes();
+              final newFile = File(imagePath);
+              await newFile.writeAsBytes(bytes);
+              
+              // Verify the file was correctly written
+              if (newFile.existsSync() && newFile.lengthSync() > 0) {
+                await prefs.setString('saved_image_path', newFile.path);
+                print('Image saved successfully to: ${newFile.path}');
+              } else {
+                print('Failed to save image - file not created or empty');
+                prefs.remove('saved_image_path');
+              }
+            } catch (e) {
+              print('Error during direct file copy: $e');
+              prefs.remove('saved_image_path');
+            }
           } else {
-            print('Failed to save image - copy operation failed');
-            // Remove any old reference if copy fails
+            print('Cannot save invalid image file: ${_imageFile!.path}');
             prefs.remove('saved_image_path');
           }
         } catch (e) {
@@ -193,13 +211,22 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> with WidgetsBindi
         // Restore transcription
         _savedTranscription = prefs.getString('saved_transcription');
         
-        // Restore image if available
+        // Restore image if available - with enhanced validation
         final imagePath = prefs.getString('saved_image_path');
         if (imagePath != null) {
           final imageFile = File(imagePath);
-          // Use FileHelper to validate the image file
-          if (FileHelper.isValidImageFile(imageFile)) {
-            _imageFile = imageFile;
+          
+          // Verify the file exists and is valid
+          if (imageFile.existsSync() && imageFile.lengthSync() > 0) {
+            try {
+              // Additional check to ensure the file is readable
+              imageFile.readAsBytesSync();
+              _imageFile = imageFile;
+              print('Successfully restored image from: $imagePath');
+            } catch (e) {
+              print('Error reading restored image file: $e');
+              prefs.remove('saved_image_path');
+            }
           } else {
             // File doesn't exist, is empty, or invalid - remove the reference
             print('Image file is invalid: $imagePath');
