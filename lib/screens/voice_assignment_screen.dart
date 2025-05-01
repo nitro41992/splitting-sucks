@@ -307,8 +307,8 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Text(
-                                        'Tips for better voice recognition:',
-                                        style: textTheme.titleSmall?.copyWith(
+                                        'Some tips for a better split',
+                                        style: textTheme.titleMedium?.copyWith(
                                           fontWeight: FontWeight.bold,
                                           color: colorScheme.onSecondaryContainer,
                                         ),
