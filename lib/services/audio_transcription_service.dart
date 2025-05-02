@@ -139,8 +139,12 @@ class AudioTranscriptionService {
       final String fileName = 'audio_${const Uuid().v4()}.wav';
       final String storagePath = 'audio_transcriptions/$fileName';
       
+      debugPrint('Uploading audio to storage: $storagePath');
       final Reference storageRef = _storage.ref(storagePath);
-      await storageRef.putData(audioBytes);
+      await storageRef.putData(
+        audioBytes,
+        SettableMetadata(contentType: 'audio/wav'),
+      );
       
       // 2. Get the Cloud Storage URI (gs://)
       final String bucket = _storage.bucket;
@@ -157,11 +161,21 @@ class AudioTranscriptionService {
       );
       
       // 4. Parse the response
+      debugPrint('Received response from transcribe_audio function');
       final responseData = _convertToStringKeyedMap(result.data);
-      if (responseData == null || responseData['text'] == null) {
-        throw Exception('Invalid response format from Cloud Function');
+      if (responseData == null) {
+        throw Exception('No response data received from Cloud Function');
       }
       
+      if (responseData['text'] == null) {
+        // Check if there's an error message in the response
+        if (responseData['error'] != null) {
+          throw Exception('Transcription error: ${responseData['error']}');
+        }
+        throw Exception('Invalid response format from Cloud Function - missing text field');
+      }
+      
+      debugPrint('Transcription successful');
       return responseData['text'] as String;
     } catch (e) {
       // Log the error and rethrow

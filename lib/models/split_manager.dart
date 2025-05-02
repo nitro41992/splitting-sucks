@@ -351,4 +351,20 @@ class SplitManager extends ChangeNotifier {
     }
   }
   // --- END EDIT ---
+
+  // Set the receipt items from the review screen
+  void setReceiptItems(List<ReceiptItem> items) {
+    _unassignedItems = List.from(items);
+    
+    // Store original quantities for tracking
+    for (var item in items) {
+      setOriginalQuantity(item, item.quantity);
+    }
+    
+    // Calculate and store original total for comparison later
+    _originalReviewTotal = _unassignedItems.fold<double>(0.0, (double sum, item) => 
+      sum + (item.price * item.quantity));
+    
+    notifyListeners();
+  }
 } 

@@ -50,6 +50,8 @@
 	<string>This app needs camera access to take pictures of receipts</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app needs photo library access to select receipts from your gallery</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access to record voice for item assignments</string>
 	<!-- Google Sign-in Section -->
 	<key>CFBundleURLTypes</key>
 	<array>

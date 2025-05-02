@@ -70,7 +70,13 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   }
 
   Future<void> _toggleRecording() async {
-    final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+    bool useMockData = true; // Default to true for safety
+    try {
+      // Try to get from dotenv but handle failure
+      useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+    } catch (e) {
+      print('DEBUG: dotenv not initialized, using mock data');
+    }
     print('DEBUG: In _toggleRecording (Screen), useMockData = $useMockData');
 
     if (useMockData) {
@@ -96,8 +102,11 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
     // Real recording logic
     if (!_isRecording) {
       final hasPermission = await _recorder.hasPermission();
+      print('DEBUG: Microphone permission status: $hasPermission');
+      
       if (!hasPermission) {
         if (!mounted) return;
+        print('DEBUG: Microphone permission denied');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Microphone permission is required')),
         );
@@ -106,8 +115,11 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
       setState(() => _isLoading = true);
       try {
+        print('Starting audio recording...');
         final tempDir = await getTemporaryDirectory();
         final path = '${tempDir.path}/audio_recording.wav';
+        print('Recording to path: $path');
+        
         await _recorder.start(
           const RecordConfig(
             encoder: AudioEncoder.wav,
@@ -116,12 +128,15 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
           ),
           path: path,
         );
+        
+        print('Recording started successfully');
         setState(() {
           _isRecording = true;
           _isLoading = false;
         });
       } catch (e) {
         print('Error starting recording: $e');
+        print('Stack trace: ${StackTrace.current}');
         setState(() => _isLoading = false);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -131,13 +146,27 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
     } else {
       setState(() => _isLoading = true); // Show loading while stopping/transcribing
       try {
+        print('Stopping recording...');
         final path = await _recorder.stop();
         setState(() => _isRecording = false);
 
         if (path != null) {
+          print('Recording saved to: $path');
           final File audioFile = File(path);
+          final fileSize = await audioFile.length();
+          print('Audio file size: ${fileSize} bytes');
+          
+          if (fileSize == 0) {
+            throw Exception('Recorded audio file is empty');
+          }
+          
           final Uint8List audioBytes = await audioFile.readAsBytes();
+          print('Audio bytes read: ${audioBytes.length} bytes');
+          
+          print('Sending audio for transcription...');
           final transcriptionResult = await _audioService.getTranscription(audioBytes);
+          print('Transcription received: ${transcriptionResult.length} characters');
+          
           setState(() {
             _transcription = transcriptionResult;
             _transcriptionController.text = transcriptionResult;
@@ -149,14 +178,37 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
             widget.onTranscriptionChanged!(_transcription);
           }
         } else {
+           print('Error: Recording stop returned null path');
            setState(() => _isLoading = false);
         }
       } catch (e) {
         print('Error stopping/processing recording: $e');
+        print('Stack trace: ${StackTrace.current}');
         setState(() => _isLoading = false);
         if (!mounted) return;
+        
+        // Show a more detailed error message with potential Firebase error details
+        final errorMessage = e.toString();
+        print('Detailed transcription error: $errorMessage');
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error processing recording: $e')),
+          SnackBar(
+            content: Text('Error processing recording. Please try again.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Details',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(errorMessage),
+                    duration: const Duration(seconds: 10),
+                  ),
+                );
+              },
+            ),
+          ),
         );
       }
     }
@@ -176,7 +228,13 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       widget.onTranscriptionChanged!(editedTranscription);
     }
 
-    final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+    bool useMockData = true; // Default to true for safety
+    try {
+      // Try to get from dotenv but handle failure
+      useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+    } catch (e) {
+      print('DEBUG: dotenv not initialized, using mock data');
+    }
     print('DEBUG: In _processTranscription (Screen), useMockData = $useMockData');
 
     try {

@@ -69,7 +69,8 @@ class ReceiptSplitterUI extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Billfie'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
             actions: [
               IconButton(
                 icon: const Icon(Icons.logout),
@@ -97,14 +98,153 @@ class MainAppContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Navigate directly to the ReceiptScreenWrapper instead of showing welcome screen
-    return const ReceiptScreenWrapper();
+    // Wrap the MainPageController with MultiProvider to provide SplitManager
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => SplitManager(),
+        ),
+      ],
+      child: const MainPageController(),
+    );
+  }
+}
+
+// Main page controller to handle all screens with navigation
+class MainPageController extends StatefulWidget {
+  const MainPageController({super.key});
+
+  @override
+  State<MainPageController> createState() => _MainPageControllerState();
+}
+
+class _MainPageControllerState extends State<MainPageController> {
+  final PageController _pageController = PageController(initialPage: 0);
+  int _currentPage = 0;
+  List<ReceiptItem> _receiptItems = [];
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _navigateToPage(int page) {
+    _pageController.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<NavigateToPageNotification>(
+      onNotification: (notification) {
+        _navigateToPage(notification.pageIndex);
+        return true;
+      },
+      child: Scaffold(
+        body: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
+          onPageChanged: (index) {
+            setState(() {
+              _currentPage = index;
+            });
+          },
+          children: [
+            // Page 0: Receipt Upload
+            ReceiptScreenWrapper(
+              onReviewComplete: (items) {
+                setState(() {
+                  _receiptItems = items;
+                });
+                _navigateToPage(1); // Navigate to receipt review
+              },
+            ),
+            
+            // Page 1: Receipt Review
+            ReceiptReviewScreen(
+              initialItems: _receiptItems,
+              onReviewComplete: (updatedItems, deletedItems) {
+                // Save updated items to SplitManager
+                final splitManager = Provider.of<SplitManager>(context, listen: false);
+                splitManager.setReceiptItems(updatedItems);
+                
+                // Navigate to the next page (Voice Assignment)
+                _navigateToPage(2);
+              },
+            ),
+            
+            // Page 2: Voice Assignment
+            VoiceAssignmentScreen(
+              itemsToAssign: _receiptItems,
+              onAssignmentProcessed: (assignmentData) {
+                // Process assignments and navigate to next page
+                _navigateToPage(3);
+              },
+            ),
+            
+            // Page 3: Assignment Review (Split View)
+            const AssignmentReviewScreen(),
+            
+            // Page 4: Final Summary
+            const FinalSummaryScreen(),
+          ],
+        ),
+        bottomNavigationBar: _buildBottomNavBar(),
+      ),
+    );
+  }
+  
+  Widget _buildBottomNavBar() {
+    return BottomNavigationBar(
+      currentIndex: _currentPage == 0 ? 0 : _currentPage - 1, // Adjust based on current page
+      onTap: (index) {
+        if (index == 0) {
+          _navigateToPage(0); // Navigate to upload
+        } else {
+          _navigateToPage(index); // Navigate to other pages (already adjusted index)
+        }
+      },
+      type: BottomNavigationBarType.fixed,
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.upload_file),
+          label: 'Upload',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.receipt_long),
+          label: 'Review',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.record_voice_over),
+          label: 'Assign',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.people),
+          label: 'Split',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.summarize),
+          label: 'Summary',
+        ),
+      ],
+    );
   }
 }
 
 // Wrapper class for ReceiptUploadScreen to manage state
 class ReceiptScreenWrapper extends StatefulWidget {
-  const ReceiptScreenWrapper({super.key});
+  final Function(List<ReceiptItem>)? onReviewComplete;
+
+  const ReceiptScreenWrapper({super.key, this.onReviewComplete});
 
   @override
   State<ReceiptScreenWrapper> createState() => _ReceiptScreenWrapperState();
@@ -133,26 +273,18 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
       
       if (!mounted) return;
       
-      // Navigate to ReceiptReviewScreen with the parsed items
+      // Get the receipt items and pass them to parent
       final items = receiptData.getReceiptItems();
-      
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ReceiptReviewScreen(
-            initialItems: items,
-            onReviewComplete: (updatedItems, deletedItems) {
-              // Handle the reviewed items (will implement later)
-              debugPrint('Review complete with ${updatedItems.length} items');
-              Navigator.pop(context); // Go back to upload screen
-            },
-          ),
-        ),
-      );
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Receipt processed successfully!')),
       );
+      
+      // If onReviewComplete is provided, call it with the parsed items
+      if (widget.onReviewComplete != null) {
+        widget.onReviewComplete!(items);
+      }
+      
     } catch (e) {
       if (!mounted) return;
       

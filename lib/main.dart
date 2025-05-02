@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'models/split_manager.dart';
 import 'receipt_splitter_ui.dart';
 import 'services/mock_data_service.dart';
@@ -12,7 +13,18 @@ import 'theme/app_theme.dart';
 import 'routes.dart';
 import 'firebase_options.dart';
 
-void main() {
+void main() async {
+  // Wait for Flutter to be fully initialized
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Try to load environment variables, but continue if it fails
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Failed to load .env file: $e");
+    // Just continue without env vars, our code will handle missing values
+  }
+  
   // Entry point
   runApp(const MyApp());
 }
@@ -24,10 +36,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Billfie',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
       home: const FirebaseInit(),
     );
   }
