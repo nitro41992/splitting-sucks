@@ -19,6 +19,7 @@ samples, guidance on mobile development, and a full API reference.
 
 - `scripts/` - Utility scripts for setup and maintenance
   - `ios/` - iOS-specific scripts
+  - `android/` - Android-specific scripts
   - `fix_google_sign_in.sh` - Script to fix Google Sign-In issues
   - `fix_google_sign_in_noprompt.sh` - Non-interactive version of the Google Sign-In fix
   - `fix_ios_deployment_target.sh` - Script to update iOS deployment target to 16.0
@@ -28,6 +29,24 @@ samples, guidance on mobile development, and a full API reference.
   - `google_sign_in_fix.md` - Documentation for Google Sign-In fix
   - `m1_firebase_setup.md` - Guide for Firebase setup on M1/M2/M3 Macs
   - `fix_firebase_ios_build.md` - Troubleshooting guide for Firebase iOS build issues
+  - `cross_platform_compatibility.md` - Guide for ensuring iOS and Android compatibility
+
+## Cross-Platform Development
+
+The app is designed to run on both iOS and Android platforms. For platform-specific setup:
+
+### iOS Setup
+Follow the detailed guide at [iOS Setup Guide](docs/ios_setup_guide.md).
+
+### Android Setup
+For Android setup after iOS changes:
+
+```bash
+# Run the Android setup script to check for compatibility issues
+./scripts/android/setup_android.sh
+```
+
+For comprehensive cross-platform compatibility information, see the [Cross-Platform Compatibility Guide](docs/cross_platform_compatibility.md).
 
 ## Authentication
 
