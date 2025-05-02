@@ -12,9 +12,31 @@ import 'theme/app_theme.dart';
 import 'routes.dart';
 import 'firebase_options.dart';
 
+// Global variable to track initialization
+bool firebaseInitialized = false;
+
 void main() async {
   // Wait for Flutter to be fully initialized
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase at the entry point
+  try {
+    // Only initialize if it hasn't been initialized yet
+    if (Firebase.apps.isEmpty) {
+      debugPrint("Initializing Firebase in main() function...");
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      debugPrint("Firebase successfully initialized in main()");
+      firebaseInitialized = true;
+    } else {
+      debugPrint("Firebase already initialized, using existing instance");
+      firebaseInitialized = true;
+    }
+  } catch (e) {
+    debugPrint("Error initializing Firebase in main(): $e");
+    // Continue with the app, the FirebaseInit widget will handle retries
+  }
   
   // Entry point
   runApp(const MyApp());
@@ -28,7 +50,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Billfie',
       theme: AppTheme.lightTheme,
-      home: const FirebaseInit(),
+      home: firebaseInitialized ? const ReceiptSplitterUI() : const FirebaseInit(),
       routes: Routes.getRoutes(),
       onGenerateRoute: (settings) {
         if (settings.name == '/signup') {
@@ -62,22 +84,23 @@ class _FirebaseInitState extends State<FirebaseInit> {
   // Initialize Firebase
   void initializeFirebase() async {
     try {
-      debugPrint("Starting Firebase initialization...");
+      debugPrint("Attempting Firebase initialization from widget...");
       
-      // Wait for Flutter to be fully initialized
-      WidgetsFlutterBinding.ensureInitialized();
+      // Check if already initialized
+      if (Firebase.apps.isNotEmpty) {
+        debugPrint("Firebase already initialized, using existing instance");
+        setState(() {
+          _initialized = true;
+        });
+        return;
+      }
       
-      // Initialize Firebase
+      // Initialize Firebase only if not already initialized
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
       
-      // Test Firebase Auth initialization (important for debugging)
-      FirebaseAuth.instance.authStateChanges().listen((User? user) {
-        debugPrint('Auth state changed: ${user != null ? 'User is signed in' : 'User is signed out'}');
-      });
-      
-      debugPrint("Firebase successfully initialized");
+      debugPrint("Firebase successfully initialized from widget");
       
       setState(() {
         _initialized = true;

@@ -24,15 +24,15 @@ class AuthService {
 
   // Constructor
   AuthService() {
-    _initializeFirebase();
+    _connectToFirebaseAuth();
   }
   
-  // Safely initialize Firebase Auth
-  Future<void> _initializeFirebase() async {
+  // Connect to Firebase Auth
+  Future<void> _connectToFirebaseAuth() async {
     try {
-      // Ensure Firebase is initialized
+      // Check if Firebase is already initialized rather than trying to initialize it
       if (Firebase.apps.isEmpty) {
-        debugPrint('Firebase not initialized in AuthService');
+        debugPrint('Firebase not initialized in AuthService - waiting for app initialization');
         _userStreamController.add(null);
         return;
       }
@@ -45,9 +45,9 @@ class AuthService {
         _userStreamController.add(user);
       });
       
-      debugPrint('AuthService initialized successfully');
+      debugPrint('AuthService connected to Firebase Auth successfully');
     } catch (e) {
-      debugPrint('Error initializing AuthService: $e');
+      debugPrint('Error connecting to Firebase Auth: $e');
       _userStreamController.add(null);
     }
   }
@@ -66,7 +66,7 @@ class AuthService {
   // Make sure Firebase Auth is initialized before operations
   Future<void> _ensureInitialized() async {
     if (!_isInitialized) {
-      await _initializeFirebase();
+      await _connectToFirebaseAuth();
       if (!_isInitialized) {
         throw 'Firebase Authentication is not initialized';
       }

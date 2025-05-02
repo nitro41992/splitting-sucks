@@ -9,8 +9,8 @@ class PlatformConfig {
       // iOS needs explicit padding
       return const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0);
     } else {
-      // Android might already have padding at container level
-      return EdgeInsets.zero;
+      // Android also needs padding, just a bit different
+      return const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0);
     }
   }
   
@@ -20,8 +20,8 @@ class PlatformConfig {
       // iOS needs explicit padding
       return const EdgeInsets.symmetric(horizontal: 8.0);
     } else {
-      // Android might already have padding at container level
-      return EdgeInsets.zero;
+      // Android also needs padding
+      return const EdgeInsets.symmetric(horizontal: 8.0);
     }
   }
   
@@ -31,8 +31,8 @@ class PlatformConfig {
       // iOS needs explicit margins
       return const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0);
     } else {
-      // Keep original Android margins
-      return const EdgeInsets.symmetric(vertical: 4.0);
+      // Update Android margins to include horizontal padding
+      return const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0);
     }
   }
 } 

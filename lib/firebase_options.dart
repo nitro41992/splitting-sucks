@@ -56,7 +56,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDUTqsyv-85mZtCT5_M6HULAyp8_rN5z2I',
-    appId: '1:700235738899:android:placeholder',  // Replace with actual Android appId
+    appId: '1:700235738899:android:f9581c3a91ecf6891774e6',  // Updated with actual Android appId from google-services.json
     messagingSenderId: '700235738899',
     projectId: 'billfie',
     storageBucket: 'billfie.firebasestorage.app',
