@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,11 +15,14 @@ void main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
-  
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase - with error handling
+  try {
+    await Firebase.initializeApp();
+    debugPrint('Firebase initialized successfully');
+  } catch (e) {
+    debugPrint('Error initializing Firebase: $e');
+    // Continue with app initialization even if Firebase fails
+  }
   
   // Initialize SharedPreferences (attempt but don't block on failure)
   try {
@@ -38,8 +40,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Check if we should use mock data
-    final useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
+    // Use mock data by default for now
+    const useMockData = true;
     
     return MultiProvider(
       providers: [
@@ -69,11 +71,18 @@ class MyApp extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
                 
+                // Always go to the main app screen first during development
+                // Remove this line for production to enforce authentication
+                return const ReceiptSplitterUI();
+                
+                // Below is the authentication flow code - comment out for now
+                /*
                 if (snapshot.hasData) {
                   return const ReceiptSplitterUI(); // User is signed in
                 }
                 
                 return const LoginScreen(); // User is not signed in
+                */
               },
             ),
           );

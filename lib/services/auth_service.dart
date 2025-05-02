@@ -1,12 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
   
   // Constants for rate limiting and security
   static const int _maxLoginAttemptsBeforeCaptcha = 3;
@@ -114,19 +112,18 @@ class AuthService {
     }
   }
 
-  // Google Sign In
+  // Google Sign In using Firebase Auth
   Future<UserCredential> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) throw 'Google sign in aborted';
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      return await _auth.signInWithCredential(credential);
+      if (kIsWeb) {
+        // For web platforms
+        GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        return await _auth.signInWithPopup(googleProvider);
+      } else {
+        // For native platforms
+        GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        return await _auth.signInWithProvider(googleProvider);
+      }
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     } catch (e) {
@@ -134,25 +131,30 @@ class AuthService {
     }
   }
 
+  // Apple Sign In using Firebase Auth
+  Future<UserCredential> signInWithApple() async {
+    try {
+      if (kIsWeb) {
+        // For web platforms
+        AppleAuthProvider appleProvider = AppleAuthProvider();
+        return await _auth.signInWithPopup(appleProvider);
+      } else {
+        // For native platforms
+        AppleAuthProvider appleProvider = AppleAuthProvider();
+        return await _auth.signInWithProvider(appleProvider);
+      }
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw 'Failed to sign in with Apple: $e';
+    }
+  }
+
   // Sign Out
   Future<void> signOut() async {
     try {
-      await _auth.signOut(); // Sign out from Firebase first
+      await _auth.signOut(); // Sign out from Firebase
       debugPrint('Firebase sign out successful.');
-      
-      // Attempt to sign out from Google, but don't let errors block flow
-      try {
-        // Check if a user was previously signed in with Google
-        if (await _googleSignIn.isSignedIn()) {
-             await _googleSignIn.signOut();
-             debugPrint('Google sign out successful.');
-        } else {
-             debugPrint('No active Google sign in session to sign out from.');
-        }
-      } catch (e) {
-        debugPrint('Error during Google sign out (suppressed): $e');
-        // We don't re-throw here, as Firebase logout is the main goal
-      }
     } catch (e) {
        debugPrint('Error during Firebase sign out: $e');
        throw 'Failed to sign out: $e'; // Re-throw Firebase errors

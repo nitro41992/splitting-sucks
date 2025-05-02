@@ -120,6 +120,9 @@ firebase-export-*/
 **/ios/Pods/
 **/ios/profile
 **/ios/xcuserdata/
+**/ios/Podfile.lock
+**/ios/Podfile.bak*
+**/ios/*.xcworkspace
 
 # Flutter generated files
 # MacOs
@@ -146,3 +149,26 @@ functions/functions/lib/
 
 # Test scripts
 test_endpoints.py
+
+# M1 Mac fix scripts
+.pod-install-wrapper.sh
+fix_firebase_ios_build.md
+fix_g_option.sh
+fix_m1_pods.sh
+fix_podfile_for_g_flag.sh
+fix_xcode_arch.sh
+m1_firebase_setup.md
+
+# Large binary files
+logo.png
+
+# MacOS Pod files
+macos/Podfile
+macos/Podfile.lock
+macos/Pods/
+
+# Storage rules (should be committed only when finalized)
+# storage.rules
+
+# Flutter logs
+flutter_*.log
