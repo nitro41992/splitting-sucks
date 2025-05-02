@@ -2,9 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  late FirebaseAuth _auth;
+  bool _isInitialized = false;
+  final StreamController<User?> _userStreamController = StreamController<User?>.broadcast();
   
   // Constants for rate limiting and security
   static const int _maxLoginAttemptsBeforeCaptcha = 3;
@@ -16,14 +19,60 @@ class AuthService {
   static const String _lastLoginAttemptTimeKey = 'last_login_attempt_time';
   static const String _loginLockedUntilKey = 'login_locked_until';
 
-  // Get current user
-  User? get currentUser => _auth.currentUser;
+  // Constructor
+  AuthService() {
+    _initializeFirebase();
+  }
+  
+  // Safely initialize Firebase Auth
+  Future<void> _initializeFirebase() async {
+    try {
+      // Ensure Firebase is initialized
+      if (Firebase.apps.isEmpty) {
+        debugPrint('Firebase not initialized in AuthService');
+        _userStreamController.add(null);
+        return;
+      }
+      
+      _auth = FirebaseAuth.instance;
+      _isInitialized = true;
+      
+      // Start listening to auth state changes and forward to our stream
+      _auth.authStateChanges().listen((User? user) {
+        _userStreamController.add(user);
+      });
+      
+      debugPrint('AuthService initialized successfully');
+    } catch (e) {
+      debugPrint('Error initializing AuthService: $e');
+      _userStreamController.add(null);
+    }
+  }
 
-  // Auth state changes stream
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  // Get current user with safety check
+  User? get currentUser {
+    if (!_isInitialized) return null;
+    return _auth.currentUser;
+  }
+
+  // Auth state changes stream with safety check
+  Stream<User?> get authStateChanges {
+    return _userStreamController.stream;
+  }
+
+  // Make sure Firebase Auth is initialized before operations
+  Future<void> _ensureInitialized() async {
+    if (!_isInitialized) {
+      await _initializeFirebase();
+      if (!_isInitialized) {
+        throw 'Firebase Authentication is not initialized';
+      }
+    }
+  }
 
   // Email/Password Sign Up
   Future<UserCredential> signUpWithEmailPassword(String email, String password) async {
+    await _ensureInitialized();
     try {
       return await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -88,6 +137,8 @@ class AuthService {
 
   // Email/Password Sign In with rate limiting
   Future<UserCredential> signInWithEmailPassword(String email, String password) async {
+    await _ensureInitialized();
+    
     // Check if login is allowed (not rate limited)
     final captchaNeeded = !(await _checkLoginAttempts(email));
     if (captchaNeeded) {
@@ -114,6 +165,8 @@ class AuthService {
 
   // Google Sign In using Firebase Auth
   Future<UserCredential> signInWithGoogle() async {
+    await _ensureInitialized();
+    
     try {
       if (kIsWeb) {
         // For web platforms
@@ -133,6 +186,8 @@ class AuthService {
 
   // Apple Sign In using Firebase Auth
   Future<UserCredential> signInWithApple() async {
+    await _ensureInitialized();
+    
     try {
       if (kIsWeb) {
         // For web platforms
@@ -152,6 +207,8 @@ class AuthService {
 
   // Sign Out
   Future<void> signOut() async {
+    await _ensureInitialized();
+    
     try {
       await _auth.signOut(); // Sign out from Firebase
       debugPrint('Firebase sign out successful.');
@@ -163,6 +220,8 @@ class AuthService {
 
   // Password Reset with rate limiting
   Future<void> resetPassword(String email) async {
+    await _ensureInitialized();
+    
     // Check if too many password reset requests have been made
     final captchaNeeded = !(await _checkLoginAttempts(email));
     if (captchaNeeded) {
@@ -202,5 +261,10 @@ class AuthService {
       default:
         return 'An error occurred: ${e.message}';
     }
+  }
+  
+  // Clean up resources
+  void dispose() {
+    _userStreamController.close();
   }
 } 
