@@ -15,6 +15,50 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
+## Project Structure
+
+- `scripts/` - Utility scripts for setup and maintenance
+  - `ios/` - iOS-specific scripts
+  - `fix_google_sign_in.sh` - Script to fix Google Sign-In issues
+  - `fix_google_sign_in_noprompt.sh` - Non-interactive version of the Google Sign-In fix
+  - `fix_ios_deployment_target.sh` - Script to update iOS deployment target to 16.0
+- `docs/` - Documentation files
+  - `ios_setup_guide.md` - Guide for iOS setup
+  - `ios_code_signing_guide.md` - Guide for iOS code signing
+  - `google_sign_in_fix.md` - Documentation for Google Sign-In fix
+  - `m1_firebase_setup.md` - Guide for Firebase setup on M1/M2/M3 Macs
+  - `fix_firebase_ios_build.md` - Troubleshooting guide for Firebase iOS build issues
+
+## Authentication
+
+The app uses Firebase Authentication with Google Sign-In. We've solved two significant issues:
+
+1. **GoogleUtilities Version Conflict**: Resolved conflicts between Firebase (7.x) and GoogleSignIn (8.x) by implementing a unified authentication approach using Firebase Auth's direct provider methods.
+
+2. **iOS Deployment Target Mismatch**: Fixed deployment target issues by updating the app to target iOS 16.0, matching Firebase's requirements.
+
+These fixes enable consistent authentication across both iOS and Android platforms without platform-specific code paths.
+
+### Applying Authentication Fixes
+
+Run either of these scripts to fix Google Sign-In:
+
+```bash
+# Interactive version with prompts
+./scripts/fix_google_sign_in.sh
+
+# Non-interactive version (no prompts)
+./scripts/fix_google_sign_in_noprompt.sh
+```
+
+For iOS deployment target issues:
+
+```bash
+./scripts/fix_ios_deployment_target.sh
+```
+
+For detailed information about the fixes, see [Google Sign-In Fix Documentation](docs/google_sign_in_fix.md).
+
 ## Dynamic AI Prompts
 
 The app uses a dynamic prompt system for AI interactions, allowing the modification of prompts and model configurations without redeploying Cloud Functions.
