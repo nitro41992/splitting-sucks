@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'services/receipt_parser_service.dart';
@@ -639,6 +638,10 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
       debugPrint('Split view initialized with total: ${splitManager.totalAmount}');
     }
     
+    // If we are navigating to split view (3) or summary (4), ensure we save current state 
+    // immediately after navigation to have the latest for hot reload
+    final needsImmediateSave = (page == 3 || page == 4);
+    
     setState(() {
       _currentPage = page;
     });
@@ -649,10 +652,113 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+    
+    // Save state again after navigation if needed
+    if (needsImmediateSave) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _saveCurrentState();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Add post-frame callback to ensure SplitManager is initialized after hot reload
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // If we're already on the split view or summary view, restore the state
+      if ((_currentPage == 3 || _currentPage == 4) && 
+          _isAssignmentComplete && 
+          _assignments != null && 
+          _receiptItems.isNotEmpty) {
+        debugPrint('Post-build: Ensuring split view state is initialized');
+        
+        // Get the SplitManager
+        final splitManager = context.read<SplitManager>();
+        
+        // Only initialize if the manager doesn't have any data already
+        if (splitManager.people.isEmpty && splitManager.unassignedItems.isEmpty) {
+          debugPrint('SplitManager is empty, restoring from saved state');
+          
+          // Set original review total for validation
+          final originalTotal = _receiptItems.fold(
+            0.0, 
+            (sum, item) => sum + (item.price * item.quantity)
+          );
+          splitManager.setOriginalReviewTotal(originalTotal);
+          
+          // Process saved assignments
+          final Map<String, dynamic> assignments = _assignments!['assignments'] as Map<String, dynamic>;
+          final List<dynamic> sharedItems = _assignments!['shared_items'] as List<dynamic>;
+          final List<dynamic> unassignedItems = _assignments!['unassigned_items'] as List<dynamic>? ?? [];
+          
+          // Process people and assignments
+          assignments.forEach((name, items) {
+            // Add the person if they don't exist
+            if (!splitManager.people.any((p) => p.name == name)) {
+              splitManager.addPerson(name);
+            }
+            
+            // Find the person object
+            final person = splitManager.people.firstWhere((p) => p.name == name);
+            
+            // Assign items to the person
+            final List<dynamic> personItems = items as List<dynamic>;
+            for (var itemData in personItems) {
+              final int itemId = itemData['id'];
+              final int quantity = itemData['quantity'];
+              
+              // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+              if (itemId > 0 && itemId <= _receiptItems.length) {
+                final receiptItem = _receiptItems[itemId - 1];
+                
+                // Create a copy of the item with the right quantity
+                final itemToAssign = receiptItem.copyWithQuantity(quantity);
+                
+                // Assign to the person
+                splitManager.assignItemToPerson(itemToAssign, person);
+              }
+            }
+          });
+          
+          // Process shared items
+          for (var itemData in sharedItems) {
+            final int itemId = itemData['id'];
+            final int quantity = itemData['quantity'];
+            
+            // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+            if (itemId > 0 && itemId <= _receiptItems.length) {
+              final receiptItem = _receiptItems[itemId - 1];
+              
+              // Create a copy with the right quantity
+              final itemToShare = receiptItem.copyWithQuantity(quantity);
+              
+              // Add to shared for all people
+              splitManager.addItemToShared(itemToShare, splitManager.people);
+            }
+          }
+          
+          // Process unassigned items
+          if (unassignedItems.isNotEmpty) {
+            for (var itemData in unassignedItems) {
+              final int itemId = itemData['id'];
+              final int quantity = itemData['quantity'];
+              
+              // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+              if (itemId > 0 && itemId <= _receiptItems.length) {
+                final receiptItem = _receiptItems[itemId - 1];
+                
+                // Create a copy with the right quantity
+                final itemToKeepUnassigned = receiptItem.copyWithQuantity(quantity);
+                
+                // Keep in unassigned
+                splitManager.addUnassignedItem(itemToKeepUnassigned);
+              }
+            }
+          }
+        }
+      }
+    });
+
     return PopScope(
       canPop: false, // Prevent automatically popping
       onPopInvoked: (didPop) async {

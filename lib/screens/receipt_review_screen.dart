@@ -4,6 +4,7 @@ import '../widgets/receipt_review/subtotal_header.dart'; // Import the header
 import '../widgets/receipt_review/receipt_item_card.dart'; // Import the new card
 import '../widgets/dialogs/add_item_dialog.dart'; // Import Add dialog
 import '../widgets/dialogs/edit_item_dialog.dart'; // Import Edit dialog
+import '../utils/platform_config.dart'; // Import platform config
 
 class ReceiptReviewScreen extends StatefulWidget {
   final List<ReceiptItem> initialItems;
@@ -220,13 +221,16 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   final item = _editableItems[index];
-                  return ReceiptItemCard(
-                    key: ValueKey(item.hashCode), // Use a unique key for animations
-                    item: item,
-                    index: index,
-                    onEdit: _editItem,
-                    onDelete: _removeItem,
-                    onQuantityChanged: _updateItemQuantity, // Pass the new handler
+                  return Padding(
+                    padding: PlatformConfig.getListItemPadding(),
+                    child: ReceiptItemCard(
+                      key: ValueKey(item.hashCode), // Use a unique key for animations
+                      item: item,
+                      index: index,
+                      onEdit: _editItem,
+                      onDelete: _removeItem,
+                      onQuantityChanged: _updateItemQuantity, // Pass the new handler
+                    ),
                   );
                 },
                 childCount: _editableItems.length,
@@ -257,7 +261,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                   (context, index) {
                     final item = _deletedItems[index];
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      margin: PlatformConfig.getCardMargin(),
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),

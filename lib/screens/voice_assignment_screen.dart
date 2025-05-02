@@ -7,6 +7,7 @@ import 'package:record/record.dart';
 import '../models/receipt_item.dart';
 import '../services/audio_transcription_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/platform_config.dart'; // Import platform config
 
 class VoiceAssignmentScreen extends StatefulWidget {
   final List<ReceiptItem> itemsToAssign;
@@ -262,270 +263,273 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Recording Controls Section
-                  Card(
-                    elevation: 0,
-                    margin: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: colorScheme.outlineVariant),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.mic_none_outlined, color: colorScheme.primary),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Assign Items by Voice',
-                                style: textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          // Voice Input Guide
-                          Container(
-                            decoration: BoxDecoration(
-                              color: colorScheme.secondaryContainer.withOpacity(0.9),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: colorScheme.secondary.withOpacity(0.3)),
-                            ),
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                  Padding(
+                    padding: PlatformConfig.getCardPadding(),
+                    child: Card(
+                      elevation: 0,
+                      margin: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: colorScheme.outlineVariant),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center, // Align icons and text vertically centered
-                                  children: [
-                                    Icon(
-                                      Icons.tips_and_updates_outlined,
-                                      color: colorScheme.onSecondaryContainer,
-                                      size: 24,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        'Some tips for a better split',
-                                        style: textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: colorScheme.onSecondaryContainer,
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: Icon(
-                                        _tipsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                        color: colorScheme.onSecondaryContainer,
-                                        size: 24,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _tipsExpanded = !_tipsExpanded;
-                                        });
-                                      },
-                                      tooltip: _tipsExpanded ? 'Hide tips' : 'Show tips',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                  ],
+                                Icon(Icons.mic_none_outlined, color: colorScheme.primary),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Assign Items by Voice',
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.primary,
+                                  ),
                                 ),
-                                if (_tipsExpanded) ...[
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Icon(
-                                        Icons.people,
-                                        size: 18,
-                                        color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Start by saying everyone\'s name (including yours).',
-                                          style: textTheme.bodyMedium?.copyWith(
-                                            color: colorScheme.onSecondaryContainer,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Icon(
-                                        Icons.restaurant_menu,
-                                        size: 18,
-                                        color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Describe what each person ordered using item names from the list below.',
-                                          style: textTheme.bodyMedium?.copyWith(
-                                            color: colorScheme.onSecondaryContainer,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Icon(
-                                        Icons.share,
-                                        size: 18,
-                                        color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Mention shared items like: "Alex and Jamie shared the fries and we all had the salad."',
-                                          style: textTheme.bodyMedium?.copyWith(
-                                            color: colorScheme.onSecondaryContainer,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Icon(
-                                        Icons.format_list_numbered,
-                                        size: 18,
-                                        color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          'Use the item numbers! Say things like "Emma got #2 and we all shared #5" — super handy when those pasta dishes start sounding the same!',
-                                          style: textTheme.bodyMedium?.copyWith(
-                                            color: colorScheme.onSecondaryContainer,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Example: "Hey, Sam here. Alex got the burger. Jamie got the pasta. I had the salad. We all shared the garlic bread."',
-                                    style: textTheme.bodySmall?.copyWith(
-                                      fontStyle: FontStyle.italic,
-                                      color: colorScheme.onSecondaryContainer.withOpacity(0.9),
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          
-                          Center(
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              padding: const EdgeInsets.all(16),
+                            const SizedBox(height: 16),
+                            // Voice Input Guide
+                            Container(
                               decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _isRecording ? colorScheme.errorContainer : colorScheme.primaryContainer,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: (_isRecording ? colorScheme.error : colorScheme.primary).withOpacity(0.3),
-                                    spreadRadius: _isRecording ? 4 : 0,
-                                    blurRadius: 8,
-                                  ),
-                                ],
+                                color: colorScheme.secondaryContainer.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: colorScheme.secondary.withOpacity(0.3)),
                               ),
-                              child: IconButton(
-                                icon: Icon(
-                                  _isRecording ? Icons.stop : Icons.mic,
-                                  size: 48,
-                                  color: _isRecording ? colorScheme.onErrorContainer : colorScheme.onPrimaryContainer,
-                                ),
-                                onPressed: _isLoading ? null : _toggleRecording, // Disable while loading
-                                tooltip: _isRecording ? 'Stop Recording' : 'Start Recording',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          if (_isLoading)
-                            const Center(child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16.0),
-                              child: CircularProgressIndicator(),
-                            )),
-                          if (!_isLoading && _transcription != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 16.0),
+                              padding: const EdgeInsets.all(16),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    'Transcription:',
-                                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.surfaceVariant.withOpacity(0.3),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: colorScheme.outlineVariant),
-                                    ),
-                                    child: Stack(
-                                      children: [
-                                        TextField(
-                                          controller: _transcriptionController,
-                                          maxLines: 8,
-                                          minLines: 5,
-                                          decoration: InputDecoration(
-                                            hintText: 'Edit transcription if needed...',
-                                            hintStyle: textTheme.bodyLarge?.copyWith(
-                                              color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                                            ),
-                                            border: InputBorder.none,
-                                            contentPadding: const EdgeInsets.all(16),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center, // Align icons and text vertically centered
+                                    children: [
+                                      Icon(
+                                        Icons.tips_and_updates_outlined,
+                                        color: colorScheme.onSecondaryContainer,
+                                        size: 24,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Some tips for a better split',
+                                          style: textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: colorScheme.onSecondaryContainer,
                                           ),
-                                          style: textTheme.bodyLarge?.copyWith(
-                                            height: 1.5,
-                                          ),
-                                          onChanged: (value) {
-                                            // Update transcription and notify parent when edited
-                                            _transcription = value;
-                                            if (widget.onTranscriptionChanged != null) {
-                                              widget.onTranscriptionChanged!(value);
-                                            }
-                                          },
                                         ),
-                                        Positioned(
-                                          top: 8,
-                                          right: 8,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: BoxDecoration(
-                                              color: colorScheme.primaryContainer,
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(
-                                              Icons.edit,
-                                              size: 16,
-                                              color: colorScheme.onPrimaryContainer,
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          _tipsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                          color: colorScheme.onSecondaryContainer,
+                                          size: 24,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _tipsExpanded = !_tipsExpanded;
+                                          });
+                                        },
+                                        tooltip: _tipsExpanded ? 'Hide tips' : 'Show tips',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                    ],
+                                  ),
+                                  if (_tipsExpanded) ...[
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          Icons.people,
+                                          size: 18,
+                                          color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Start by saying everyone\'s name (including yours).',
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              color: colorScheme.onSecondaryContainer,
                                             ),
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          Icons.restaurant_menu,
+                                          size: 18,
+                                          color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Describe what each person ordered using item names from the list below.',
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              color: colorScheme.onSecondaryContainer,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          Icons.share,
+                                          size: 18,
+                                          color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Mention shared items like: "Alex and Jamie shared the fries and we all had the salad."',
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              color: colorScheme.onSecondaryContainer,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          Icons.format_list_numbered,
+                                          size: 18,
+                                          color: colorScheme.onSecondaryContainer.withOpacity(0.8),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Use the item numbers! Say things like "Emma got #2 and we all shared #5" — super handy when those pasta dishes start sounding the same!',
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              color: colorScheme.onSecondaryContainer,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Example: "Hey, Sam here. Alex got the burger. Jamie got the pasta. I had the salad. We all shared the garlic bread."',
+                                      style: textTheme.bodySmall?.copyWith(
+                                        fontStyle: FontStyle.italic,
+                                        color: colorScheme.onSecondaryContainer.withOpacity(0.9),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
-                        ],
+                            const SizedBox(height: 24),
+                            
+                            Center(
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _isRecording ? colorScheme.errorContainer : colorScheme.primaryContainer,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: (_isRecording ? colorScheme.error : colorScheme.primary).withOpacity(0.3),
+                                      spreadRadius: _isRecording ? 4 : 0,
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  icon: Icon(
+                                    _isRecording ? Icons.stop : Icons.mic,
+                                    size: 48,
+                                    color: _isRecording ? colorScheme.onErrorContainer : colorScheme.onPrimaryContainer,
+                                  ),
+                                  onPressed: _isLoading ? null : _toggleRecording, // Disable while loading
+                                  tooltip: _isRecording ? 'Stop Recording' : 'Start Recording',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            if (_isLoading)
+                              const Center(child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16.0),
+                                child: CircularProgressIndicator(),
+                              )),
+                            if (!_isLoading && _transcription != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Transcription:',
+                                      style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.surfaceVariant.withOpacity(0.3),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: colorScheme.outlineVariant),
+                                      ),
+                                      child: Stack(
+                                        children: [
+                                          TextField(
+                                            controller: _transcriptionController,
+                                            maxLines: 8,
+                                            minLines: 5,
+                                            decoration: InputDecoration(
+                                              hintText: 'Edit transcription if needed...',
+                                              hintStyle: textTheme.bodyLarge?.copyWith(
+                                                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                              ),
+                                              border: InputBorder.none,
+                                              contentPadding: const EdgeInsets.all(16),
+                                            ),
+                                            style: textTheme.bodyLarge?.copyWith(
+                                              height: 1.5,
+                                            ),
+                                            onChanged: (value) {
+                                              // Update transcription and notify parent when edited
+                                              _transcription = value;
+                                              if (widget.onTranscriptionChanged != null) {
+                                                widget.onTranscriptionChanged!(value);
+                                              }
+                                            },
+                                          ),
+                                          Positioned(
+                                            top: 8,
+                                            right: 8,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: BoxDecoration(
+                                                color: colorScheme.primaryContainer,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Icon(
+                                                Icons.edit,
+                                                size: 16,
+                                                color: colorScheme.onPrimaryContainer,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -534,7 +538,9 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                   const SizedBox(height: 16),
                   Card(
                     elevation: 0,
-                    margin: EdgeInsets.zero,
+                    margin: Platform.isIOS 
+                        ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0)
+                        : EdgeInsets.zero,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                       side: BorderSide(color: colorScheme.outlineVariant),
@@ -742,22 +748,19 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
             if (!_isLoading && _transcription != null)
               Positioned(
                 bottom: 16,
-                left: 0,
-                right: 0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 0), // Use screen padding
-                  child: FilledButton.icon(
-                    onPressed: _processTranscription,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('Start Splitting'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.secondary, // Consider using theme colors
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16), // Adjust padding
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+                left: 16,
+                right: 16,
+                child: FilledButton.icon(
+                  onPressed: _processTranscription,
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Start Splitting'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.secondary, // Consider using theme colors
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16), // Adjust padding
+                    minimumSize: const Size(double.infinity, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),

@@ -12,6 +12,9 @@ class SplitManager extends ChangeNotifier {
   // --- EDIT: Add state for tracking edits and original subtotal ---
   bool _unassignedItemsModified = false;
   double? _originalReviewTotal; // Store the total from review tab
+  
+  // Add a flag to track if the state has been preserved across hot reloads
+  bool _statePreserved = false;
   // --- END EDIT ---
 
   SplitManager({
@@ -336,6 +339,7 @@ class SplitManager extends ChangeNotifier {
   // New method with clearer name
   void setOriginalReviewTotal(double subtotal) {
     _originalReviewTotal = subtotal;
+    _statePreserved = true; // Mark as preserved when we set the total
     notifyListeners();
   }
   // --- END EDIT ---
@@ -372,6 +376,27 @@ class SplitManager extends ChangeNotifier {
       }
     }
     
+    notifyListeners();
+  }
+
+  // Check if state has been preserved
+  bool get isStatePreserved => _statePreserved;
+  
+  // Helper method for hot reload state preservation
+  void preserveState(SplitManager other) {
+    // Only copy state if the other manager has preserved state
+    if (!other.isStatePreserved) return;
+    
+    _people = [...other.people];
+    _sharedItems = [...other.sharedItems];
+    _unassignedItems = [...other.unassignedItems];
+    _originalQuantities = Map.from(other._originalQuantities);
+    _originalReviewTotal = other._originalReviewTotal;
+    _unassignedItemsModified = other._unassignedItemsModified;
+    initialSplitViewTabIndex = other.initialSplitViewTabIndex;
+    _statePreserved = true;
+    
+    // Notify listeners about the copied state
     notifyListeners();
   }
 } 

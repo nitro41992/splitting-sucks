@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -9,6 +8,7 @@ import '../models/receipt_item.dart'; // Ensure ReceiptItem is available if need
 import '../theme/app_colors.dart'; // Ensure AppColors is correctly defined or replace with Theme colors
 import '../widgets/split_view.dart'; // Import to get NavigateToPageNotification
 import '../widgets/final_summary/person_summary_card.dart'; // Import the new card
+import '../utils/platform_config.dart'; // Import platform config
 
 class FinalSummaryScreen extends StatefulWidget {
   const FinalSummaryScreen({
@@ -63,15 +63,9 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
   }
 
   Future<void> _launchBuyMeACoffee(BuildContext context) async {
-    final String? buyMeACoffeeLink = dotenv.env['BUY_ME_A_COFFEE_LINK'];
-    if (buyMeACoffeeLink == null || buyMeACoffeeLink.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Buy Me a Coffee link is not configured.')),
-      );
-      return;
-    }
-
+    // Hardcode the buy me a coffee link instead of using dotenv
+    const String buyMeACoffeeLink = 'https://buymeacoffee.com/kuchiman';
+    
     final Uri url = Uri.parse(buyMeACoffeeLink);
     try {
         if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -557,12 +551,15 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
               itemCount: splitManager.people.length,
               itemBuilder: (context, index) {
                 final person = splitManager.people[index];
-                return PersonSummaryCard(
-                  key: ValueKey(person.name), // Use person's name as key (assuming unique)
-                  person: person,
-                  splitManager: splitManager,
-                  taxPercentage: _taxPercentage,
-                  tipPercentage: _tipPercentage,
+                return Padding(
+                  padding: PlatformConfig.getCardPadding(),
+                  child: PersonSummaryCard(
+                    key: ValueKey(person.name), // Use person's name as key (assuming unique)
+                    person: person,
+                    splitManager: splitManager,
+                    taxPercentage: _taxPercentage,
+                    tipPercentage: _tipPercentage,
+                  ),
                 );
               },
             ),
@@ -594,25 +591,27 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                   NavigateToPageNotification(3).dispatch(context); // Go to Split View (index 3)
                 },
                 borderRadius: BorderRadius.circular(24), // Match the Card's border radius for ripple effect
-                child: Card(
-                   elevation: 1,
-                   shadowColor: colorScheme.shadow.withOpacity(0.2),
-                   margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                   shape: RoundedRectangleBorder(
-                     borderRadius: BorderRadius.circular(24),
-                     // Add a subtle border using the theme's outline color
-                     side: BorderSide(
-                       color: colorScheme.outlineVariant.withOpacity(0.5),
-                       width: 1.0,
-                     ),
-                   ),
-                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                         Row(
-                           children: [
+                child: Padding(
+                  padding: PlatformConfig.getCardPadding(),
+                  child: Card(
+                    elevation: 1,
+                    shadowColor: colorScheme.shadow.withOpacity(0.2),
+                    margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      // Add a subtle border using the theme's outline color
+                      side: BorderSide(
+                        color: colorScheme.outlineVariant.withOpacity(0.5),
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
                               CircleAvatar(
                                 backgroundColor: colorScheme.errorContainer.withOpacity(0.5),
                                 child: Icon(Icons.question_mark, color: colorScheme.onErrorContainer),
@@ -636,43 +635,44 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                               ),
                               // Total cost
                               Container(
-                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                 decoration: BoxDecoration(
-                                   color: colorScheme.errorContainer,
-                                   borderRadius: BorderRadius.circular(20),
-                                 ),
-                                 child: Text(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.errorContainer,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
                                   '\$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}', // Show subtotal here
                                   style: textTheme.titleMedium?.copyWith(
                                     color: colorScheme.onErrorContainer,
                                     fontWeight: FontWeight.bold,
-                                   ),
-                                 ),
+                                  ),
+                                ),
                               ),
                               // Add a trailing icon to indicate clickability
                               const SizedBox(width: 8),
                               Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
                             ],
-                         ),
-                         const SizedBox(height: 16),
-                         _buildItemList(context, 'Items:', splitManager.unassignedItems),
-                         const SizedBox(height: 12),
-                         Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.3)),
-                         Padding(
+                          ),
+                          const SizedBox(height: 16),
+                          _buildItemList(context, 'Items:', splitManager.unassignedItems),
+                          const SizedBox(height: 12),
+                          Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.3)),
+                          Padding(
                             padding: const EdgeInsets.only(top: 12.0),
                             child: Column(
-                               children: [
-                                  // Show the tax/tip associated with these items for clarity
-                                  _buildDetailRow(context, 'Tax (${_taxPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * taxRate),
-                                  const SizedBox(height: 4),
-                                  _buildDetailRow(context, 'Tip (${_tipPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * tipRate),
-                               ],
+                              children: [
+                                // Show the tax/tip associated with these items for clarity
+                                _buildDetailRow(context, 'Tax (${_taxPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * taxRate),
+                                const SizedBox(height: 4),
+                                _buildDetailRow(context, 'Tip (${_tipPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * tipRate),
+                              ],
                             ),
-                         ),
-                       ],
+                          ),
+                        ],
+                      ),
                     ),
-                   ),
-                 ),
+                  ),
+                ),
               ), // End of InkWell wrapper
             ],
 
