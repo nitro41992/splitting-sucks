@@ -29,6 +29,19 @@ class MyApp extends StatelessWidget {
       title: 'Billfie',
       theme: AppTheme.lightTheme,
       home: const FirebaseInit(),
+      routes: Routes.getRoutes(),
+      onGenerateRoute: (settings) {
+        if (settings.name == '/signup') {
+          return MaterialPageRoute(
+            builder: (_) => Routes.getRoutes()['/signup']!(_),
+          );
+        } else if (settings.name == '/forgot-password') {
+          return MaterialPageRoute(
+            builder: (_) => Routes.getRoutes()['/forgot-password']!(_),
+          );
+        }
+        return null;
+      },
     );
   }
 }
@@ -168,17 +181,11 @@ class AppWithProviders extends StatelessWidget {
           initialData: null,
         ),
       ],
-      child: Builder(
-        builder: (context) {
-          return Navigator(
-            onGenerateRoute: (settings) {
-              return MaterialPageRoute(
-                builder: (context) => const ReceiptSplitterUI(),
-                settings: settings,
-              );
-            },
-          );
-        }
+      child: MaterialApp(
+        title: 'Billfie',
+        theme: AppTheme.lightTheme,
+        routes: Routes.getRoutes(),
+        home: const ReceiptSplitterUI(),
       ),
     );
   }

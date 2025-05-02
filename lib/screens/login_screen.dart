@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/shared/wave_divider_painter.dart';
 import 'dart:io';
+import 'package:flutter/services.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -97,26 +98,21 @@ class _LoginScreenState extends State<LoginScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     
+    // Remove the status bar color override
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+    ));
+    
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Logo and Header with gradient background
-              Container(
+              // Logo and Header without gradient background
+              Padding(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.secondary,
-                      AppColors.secondary.withOpacity(1.0),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-                ),
                 child: Column(
                   children: [
                     Image.asset(
@@ -128,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       'Billfie',
                       style: textTheme.headlineMedium?.copyWith(
-                        color: Colors.white,
+                        color: AppColors.primary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -136,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       'Split bills, not friendships',
                       style: textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
+                        color: AppColors.textLight,
                       ),
                     ),
                   ],

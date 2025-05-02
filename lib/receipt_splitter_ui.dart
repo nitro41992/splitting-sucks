@@ -51,6 +51,16 @@ void forceRefreshApp(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
+    // Show a success toast before navigating
+    ToastHelper.showToast(
+      context,
+      'App has been reset successfully',
+      isSuccess: true
+    );
+
+    // Small delay to ensure the toast is visible before navigation
+    await Future.delayed(const Duration(milliseconds: 500));
+
     // 2. Don't use Provider here - it will cause scope issues
     // Instead, directly navigate to reset the entire app
     
@@ -197,11 +207,48 @@ class ReceiptSplitterUI extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.logout, color: Colors.black54),
                 onPressed: () async {
-                  try {
-                    await FirebaseAuth.instance.signOut();
-                    debugPrint('User signed out');
-                  } catch (e) {
-                    debugPrint('Error signing out: $e');
+                  // Show confirmation dialog before logging out
+                  final shouldLogout = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Log Out?'),
+                      content: const Text('Are you sure you want to log out of Billfie?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(false),
+                          child: const Text('CANCEL'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(true),
+                          child: const Text('LOG OUT'),
+                        ),
+                      ],
+                    ),
+                  ) ?? false;
+                  
+                  if (shouldLogout) {
+                    try {
+                      await FirebaseAuth.instance.signOut();
+                      debugPrint('User signed out');
+                      
+                      // Show success toast after logout
+                      if (context.mounted) {
+                        ToastHelper.showToast(
+                          context,
+                          'You have successfully logged out',
+                          isSuccess: true
+                        );
+                      }
+                    } catch (e) {
+                      debugPrint('Error signing out: $e');
+                      if (context.mounted) {
+                        ToastHelper.showToast(
+                          context,
+                          'Error signing out: $e',
+                          isError: true
+                        );
+                      }
+                    }
                   }
                 },
                 tooltip: 'Logout',
@@ -950,6 +997,15 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
     // Navigate to upload screen immediately
     if (_pageController.hasClients) {
       _pageController.jumpToPage(0);
+    }
+    
+    // Show success toast
+    if (mounted) {
+      ToastHelper.showToast(
+        context,
+        'App has been reset successfully',
+        isSuccess: true
+      );
     }
   }
 }
