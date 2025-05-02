@@ -9,6 +9,7 @@ import '../theme/app_colors.dart'; // Ensure AppColors is correctly defined or r
 import '../widgets/split_view.dart'; // Import to get NavigateToPageNotification
 import '../widgets/final_summary/person_summary_card.dart'; // Import the new card
 import '../utils/platform_config.dart'; // Import platform config
+import '../utils/toast_helper.dart'; // Import toast helper
 
 class FinalSummaryScreen extends StatefulWidget {
   const FinalSummaryScreen({
@@ -73,8 +74,10 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
         }
     } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not launch link: ${e.toString()}')),
+        ToastHelper.showToast(
+            context, 
+            'Could not launch link: ${e.toString()}',
+            isError: true
         );
     }
   }
@@ -166,12 +169,10 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
     await Clipboard.setData(ClipboardData(text: receipt.toString()));
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Receipt copied to clipboard!'),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(label: 'OK', onPressed: () {}),
-      ),
+    ToastHelper.showToast(
+      context,
+      'Receipt copied to clipboard!',
+      isSuccess: true
     );
     showDialog(
       context: context,

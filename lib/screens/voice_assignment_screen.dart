@@ -8,6 +8,7 @@ import '../models/receipt_item.dart';
 import '../services/audio_transcription_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/platform_config.dart'; // Import platform config
+import '../utils/toast_helper.dart'; // Import toast helper
 
 class VoiceAssignmentScreen extends StatefulWidget {
   final List<ReceiptItem> itemsToAssign;
@@ -77,8 +78,10 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       if (!hasPermission) {
         if (!mounted) return;
         print('DEBUG: Microphone permission denied');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission is required')),
+        ToastHelper.showToast(
+          context,
+          'Microphone permission is required',
+          isError: true
         );
         return;
       }
@@ -109,8 +112,10 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
         print('Stack trace: ${StackTrace.current}');
         setState(() => _isLoading = false);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error starting recording: $e')),
+        ToastHelper.showToast(
+          context,
+          'Error starting recording: ${e.toString()}',
+          isError: true
         );
       }
     } else {
@@ -161,24 +166,10 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
         final errorMessage = e.toString();
         print('Detailed transcription error: $errorMessage');
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error processing recording. Please try again.'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Details',
-              textColor: Colors.white,
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(errorMessage),
-                    duration: const Duration(seconds: 10),
-                  ),
-                );
-              },
-            ),
-          ),
+        ToastHelper.showToast(
+          context,
+          'Error processing recording. Please try again.',
+          isError: true
         );
       }
     }
@@ -239,8 +230,10 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       print('Error processing assignment in screen: $e');
       setState(() => _isLoading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error processing assignment: ${e.toString()}')),
+      ToastHelper.showToast(
+        context,
+        'Error processing assignment: ${e.toString()}',
+        isError: true
       );
     }
   }

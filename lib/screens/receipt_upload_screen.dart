@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/receipt_upload/full_image_viewer.dart'; // Import the new viewer
 import '../services/file_helper.dart'; // Import FileHelper
+import '../theme/app_colors.dart';
+import '../utils/toast_helper.dart'; // Import the toast helper
 
 class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
@@ -31,30 +33,38 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
     try {
       final XFile? photo = await _picker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 100,
+        imageQuality: 90,
+        preferredCameraDevice: CameraDevice.rear,
       );
+      
       if (photo != null) {
         final file = File(photo.path);
         // Validate the image file before passing it to the parent
         if (FileHelper.isValidImageFile(file)) {
           widget.onImageSelected(file);
+          
+          if (mounted) {
+            ToastHelper.showToast(
+              context,
+              'Photo captured successfully!',
+              isSuccess: true
+            );
+          }
         } else {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('The captured image is invalid or corrupted. Please try again.'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
+          ToastHelper.showToast(
+            context,
+            'The captured image is invalid or corrupted. Please try again.',
+            isError: true
           );
         }
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error taking picture: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      ToastHelper.showToast(
+        context,
+        'Error taking picture: ${e.toString()}',
+        isError: true
       );
     }
   }
@@ -63,30 +73,36 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 100,
+        imageQuality: 90,
       );
       if (image != null) {
         final file = File(image.path);
         // Validate the image file before passing it to the parent
         if (FileHelper.isValidImageFile(file)) {
           widget.onImageSelected(file);
+          
+          if (mounted) {
+            ToastHelper.showToast(
+              context,
+              'Image selected successfully!',
+              isSuccess: true
+            );
+          }
         } else {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('The selected image is invalid or corrupted. Please choose another image.'),
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
+          ToastHelper.showToast(
+            context,
+            'The selected image is invalid or corrupted. Please choose another image.',
+            isError: true
           );
         }
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error picking image: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      ToastHelper.showToast(
+        context,
+        'Error picking image: ${e.toString()}',
+        isError: true
       );
     }
   }

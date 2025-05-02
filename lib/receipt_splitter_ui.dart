@@ -27,6 +27,7 @@ import 'screens/login_screen.dart'; // Import login screen
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'services/audio_transcription_service.dart' hide Person;
 import 'main.dart'; // Import MyApp from main.dart
+import 'utils/toast_helper.dart'; // Import the toast helper
 
 // Mock data for demonstration
 class MockData {
@@ -41,51 +42,6 @@ class MockData {
 
   // Use same mock shared items as MockDataService for consistency
   static final List<ReceiptItem> sharedItems = MockDataService.mockSharedItems;
-}
-
-// Top-level function for showing notifications
-void showTopNotification(BuildContext context, String message, Color backgroundColor) {
-  final overlay = Overlay.of(context);
-  final mediaQuery = MediaQuery.of(context);
-  
-  // Position just below the app bar
-  final topPosition = mediaQuery.padding.top + 70;
-  
-  final entry = OverlayEntry(
-    builder: (context) => Positioned(
-      top: topPosition,
-      left: 20,
-      right: 20,
-      child: Material(
-        elevation: 4.0,
-        borderRadius: BorderRadius.circular(8),
-        color: backgroundColor,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-  
-  overlay.insert(entry);
-  Future.delayed(const Duration(seconds: 2), () {
-    entry.remove();
-  });
 }
 
 // Helper to force refresh the app state (emergency reset)
@@ -106,10 +62,10 @@ void forceRefreshApp(BuildContext context) async {
     );
   } catch (e) {
     // Show error notification
-    showTopNotification(
+    ToastHelper.showToast(
       context,
       'Error during reset: $e',
-      AppColors.error,
+      isError: true,
     );
   }
 }
@@ -197,10 +153,10 @@ class ReceiptSplitterUI extends StatelessWidget {
                                 await mainPageState.resetApp();
                                 
                                 // Show success notification
-                                showTopNotification(
+                                ToastHelper.showToast(
                                   context, 
                                   'App has been reset successfully',
-                                  AppColors.warning,
+                                  isSuccess: true,
                                 );
                                 return; // If this worked, exit early
                               }
@@ -210,10 +166,10 @@ class ReceiptSplitterUI extends StatelessWidget {
                               
                             } catch (e) {
                               // Handle any errors that might occur during reset
-                              showTopNotification(
+                              ToastHelper.showToast(
                                 context,
                                 'Error during reset: ${e.toString()}',
-                                AppColors.error,
+                                isError: true,
                               );
                               
                               // Try emergency reset as last resort
@@ -221,10 +177,10 @@ class ReceiptSplitterUI extends StatelessWidget {
                                 forceRefreshApp(context);
                               } catch (_) {
                                 // If even that fails, show error
-                                showTopNotification(
+                                ToastHelper.showToast(
                                   context,
                                   'Reset failed. Please restart the app manually.',
-                                  AppColors.error,
+                                  isError: true,
                                 );
                               }
                             }
@@ -901,50 +857,12 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
         if (targetPage <= furthestAllowedPage) {
           _navigateToPage(targetPage);
         } else {
-          // Show tooltip/hint at the CENTER of the screen instead of a bottom snackbar
-          final overlay = Overlay.of(context);
-          final renderBox = context.findRenderObject() as RenderBox;
-          final center = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
-          
-          // Create an overlay entry for our tooltip
-          final entry = OverlayEntry(
-            builder: (context) => Positioned(
-              top: center.dy - 100, // Position higher in the screen
-              left: 20, 
-              right: 20,
-              child: Material(
-                elevation: 4.0,
-                borderRadius: BorderRadius.circular(8),
-                color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.9),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Theme.of(context).colorScheme.onErrorContainer,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Please complete the previous steps first',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onErrorContainer,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          // Show toast notification at the top
+          ToastHelper.showToast(
+            context,
+            'Please complete the previous steps first',
+            isError: true
           );
-          
-          // Insert and automatically remove after 2 seconds
-          overlay.insert(entry);
-          Future.delayed(const Duration(seconds: 2), () {
-            entry.remove();
-          });
         }
       },
       type: BottomNavigationBarType.fixed,
@@ -1095,10 +1013,10 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
       // Get the receipt items and pass them to parent
       final items = receiptData.getReceiptItems();
       
-      showTopNotification(
+      ToastHelper.showToast(
         context,
         'Receipt processed successfully!',
-        AppColors.success,
+        isSuccess: true,
       );
       
       // If onReviewComplete is provided, call it with the parsed items
@@ -1109,10 +1027,10 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
     } catch (e) {
       if (!mounted) return;
       
-      showTopNotification(
+      ToastHelper.showToast(
         context,
         'Error processing receipt: ${e.toString()}',
-        AppColors.error,
+        isError: true,
       );
     } finally {
       if (mounted) {

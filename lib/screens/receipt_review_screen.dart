@@ -5,6 +5,7 @@ import '../widgets/receipt_review/receipt_item_card.dart'; // Import the new car
 import '../widgets/dialogs/add_item_dialog.dart'; // Import Add dialog
 import '../widgets/dialogs/edit_item_dialog.dart'; // Import Edit dialog
 import '../utils/platform_config.dart'; // Import platform config
+import '../utils/toast_helper.dart'; // Import toast helper
 
 class ReceiptReviewScreen extends StatefulWidget {
   final List<ReceiptItem> initialItems;
@@ -108,13 +109,10 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
         widget.onItemsUpdated!(_editableItems);
       }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added ${newItem.name} to the receipt'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          showCloseIcon: true,
-        ),
+      ToastHelper.showToast(
+        context,
+        'Added ${newItem.name} to the receipt',
+        isSuccess: true
       );
     }
   }
@@ -148,25 +146,75 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
     }
 
     ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${itemToRemove.name} moved to deleted items'),
-        action: SnackBarAction(
-          label: 'UNDO',
-          onPressed: () {
-            setState(() {
-              _editableItems.insert(index, itemToRemove);
-              _deletedItems.remove(itemToRemove);
-            });
-            
-            // Notify parent on undo if callback is provided
-            if (widget.onItemsUpdated != null) {
-              widget.onItemsUpdated!(_editableItems);
-            }
-          },
+    ToastHelper.showToast(
+      context,
+      '${itemToRemove.name} moved to deleted items',
+      isSuccess: false
+    );
+    
+    // Show the undo action as a separate button-focused toast
+    final undoOverlay = Overlay.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    late final OverlayEntry undoEntry;
+    
+    undoEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 16,
+        right: 16,
+        child: Material(
+          elevation: 4.0,
+          borderRadius: BorderRadius.circular(16),
+          color: colorScheme.primaryContainer,
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _editableItems.insert(index, itemToRemove);
+                _deletedItems.remove(itemToRemove);
+              });
+              
+              // Notify parent on undo if callback is provided
+              if (widget.onItemsUpdated != null) {
+                widget.onItemsUpdated!(_editableItems);
+              }
+              
+              undoEntry.remove();
+              
+              ToastHelper.showToast(
+                context,
+                'Item restored',
+                isSuccess: true
+              );
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              child: Row(
+                children: [
+                  Icon(Icons.undo, color: colorScheme.onPrimaryContainer),
+                  const SizedBox(width: 8),
+                  Text(
+                    'UNDO',
+                    style: TextStyle(
+                      color: colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
+    
+    undoOverlay.insert(undoEntry);
+    Future.delayed(const Duration(seconds: 4), () {
+      if (undoEntry.mounted) {
+        undoEntry.remove();
+      }
+    });
   }
 
   void _restoreItem(int deletedIndex) {
