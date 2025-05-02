@@ -8,14 +8,14 @@ import '../widgets/dialogs/edit_item_dialog.dart'; // Import Edit dialog
 class ReceiptReviewScreen extends StatefulWidget {
   final List<ReceiptItem> initialItems;
   final Function(List<ReceiptItem> updatedItems, List<ReceiptItem> deletedItems) onReviewComplete;
-  // Optional: Callback for immediate updates if needed later
-  // final Function(List<ReceiptItem> currentItems) onItemsUpdated;
+  // Callback for immediate updates when items change
+  final Function(List<ReceiptItem> currentItems)? onItemsUpdated;
 
   const ReceiptReviewScreen({
     super.key,
     required this.initialItems,
     required this.onReviewComplete,
-    // this.onItemsUpdated,
+    this.onItemsUpdated,
   });
 
   @override
@@ -88,6 +88,11 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
     setState(() {
       _editableItems[index].updateQuantity(newQuantity);
     });
+    
+    // Notify parent if callback is provided
+    if (widget.onItemsUpdated != null) {
+      widget.onItemsUpdated!(_editableItems);
+    }
   }
 
   void _addItem() async {
@@ -96,6 +101,12 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
       setState(() {
         _editableItems.add(newItem);
       });
+      
+      // Notify parent if callback is provided
+      if (widget.onItemsUpdated != null) {
+        widget.onItemsUpdated!(_editableItems);
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Added ${newItem.name} to the receipt'),
@@ -115,6 +126,11 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
         _editableItems[index].updatePrice(result.price);
         // Quantity is handled separately by the card now
       });
+      
+      // Notify parent if callback is provided
+      if (widget.onItemsUpdated != null) {
+        widget.onItemsUpdated!(_editableItems);
+      }
     }
   }
 
@@ -124,6 +140,11 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
       _deletedItems.add(itemToRemove);
       _editableItems.removeAt(index);
     });
+    
+    // Notify parent if callback is provided
+    if (widget.onItemsUpdated != null) {
+      widget.onItemsUpdated!(_editableItems);
+    }
 
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -136,6 +157,11 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
               _editableItems.insert(index, itemToRemove);
               _deletedItems.remove(itemToRemove);
             });
+            
+            // Notify parent on undo if callback is provided
+            if (widget.onItemsUpdated != null) {
+              widget.onItemsUpdated!(_editableItems);
+            }
           },
         ),
       ),
@@ -148,6 +174,11 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
        _editableItems.add(itemToRestore);
        _deletedItems.removeAt(deletedIndex);
      });
+     
+     // Notify parent if callback is provided
+     if (widget.onItemsUpdated != null) {
+       widget.onItemsUpdated!(_editableItems);
+     }
    }
 
   @override

@@ -495,6 +495,13 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                           style: textTheme.bodyLarge?.copyWith(
                                             height: 1.5,
                                           ),
+                                          onChanged: (value) {
+                                            // Update transcription and notify parent when edited
+                                            _transcription = value;
+                                            if (widget.onTranscriptionChanged != null) {
+                                              widget.onTranscriptionChanged!(value);
+                                            }
+                                          },
                                         ),
                                         Positioned(
                                           top: 8,

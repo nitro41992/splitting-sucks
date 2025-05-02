@@ -27,6 +27,7 @@ import 'screens/final_summary_screen.dart';
 import 'screens/login_screen.dart'; // Import login screen
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 import 'services/audio_transcription_service.dart' hide Person;
+import 'main.dart'; // Import MyApp from main.dart
 
 // Mock data for demonstration
 class MockData {
@@ -41,6 +42,77 @@ class MockData {
 
   // Use same mock shared items as MockDataService for consistency
   static final List<ReceiptItem> sharedItems = MockDataService.mockSharedItems;
+}
+
+// Top-level function for showing notifications
+void showTopNotification(BuildContext context, String message, Color backgroundColor) {
+  final overlay = Overlay.of(context);
+  final mediaQuery = MediaQuery.of(context);
+  
+  // Position just below the app bar
+  final topPosition = mediaQuery.padding.top + 70;
+  
+  final entry = OverlayEntry(
+    builder: (context) => Positioned(
+      top: topPosition,
+      left: 20,
+      right: 20,
+      child: Material(
+        elevation: 4.0,
+        borderRadius: BorderRadius.circular(8),
+        color: backgroundColor,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  
+  overlay.insert(entry);
+  Future.delayed(const Duration(seconds: 2), () {
+    entry.remove();
+  });
+}
+
+// Helper to force refresh the app state (emergency reset)
+void forceRefreshApp(BuildContext context) async {
+  try {
+    // 1. Clear all SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+
+    // 2. Don't use Provider here - it will cause scope issues
+    // Instead, directly navigate to reset the entire app
+    
+    // 3. Force navigation to the very root of the app - MyApp instead of FirebaseInit
+    // This ensures we get a completely fresh start with proper provider setup
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const MyApp()),
+      (route) => false,
+    );
+  } catch (e) {
+    // Show error notification
+    showTopNotification(
+      context,
+      'Error during reset: $e',
+      AppColors.error,
+    );
+  }
 }
 
 class ReceiptSplitterUI extends StatelessWidget {
@@ -68,12 +140,107 @@ class ReceiptSplitterUI extends StatelessWidget {
         // If logged in, show the main app
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Billfie'),
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+            backgroundColor: Colors.white,
+            elevation: 1,
+            leading: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Image.asset(
+                'logo.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.contain,
+              ),
+            ),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Billfie',
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Smarter bill splitting',
+                  style: TextStyle(
+                    color: Colors.black54,
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
             actions: [
+              // Reset button
               IconButton(
-                icon: const Icon(Icons.logout),
+                icon: const Icon(Icons.refresh, color: Colors.black54),
+                onPressed: () {
+                  // Show confirmation dialog before resetting
+                  showDialog(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Reset app?'),
+                      content: const Text('This will clear all your data and start over. Are you sure?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          child: const Text('CANCEL'),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            Navigator.of(dialogContext).pop();
+                            
+                            try {
+                              // 1. Try to find and reset the MainPageController directly
+                              final mainPageState = context.findAncestorStateOfType<_MainPageControllerState>();
+                              if (mainPageState != null) {
+                                await mainPageState.resetApp();
+                                
+                                // Show success notification
+                                showTopNotification(
+                                  context, 
+                                  'App has been reset successfully',
+                                  AppColors.warning,
+                                );
+                                return; // If this worked, exit early
+                              }
+                              
+                              // If we couldn't find the controller, use the emergency reset
+                              forceRefreshApp(context);
+                              
+                            } catch (e) {
+                              // Handle any errors that might occur during reset
+                              showTopNotification(
+                                context,
+                                'Error during reset: ${e.toString()}',
+                                AppColors.error,
+                              );
+                              
+                              // Try emergency reset as last resort
+                              try {
+                                forceRefreshApp(context);
+                              } catch (_) {
+                                // If even that fails, show error
+                                showTopNotification(
+                                  context,
+                                  'Reset failed. Please restart the app manually.',
+                                  AppColors.error,
+                                );
+                              }
+                            }
+                          },
+                          child: const Text('RESET'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                tooltip: 'Reset app',
+              ),
+              // Logout button
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.black54),
                 onPressed: () async {
                   try {
                     await FirebaseAuth.instance.signOut();
@@ -82,6 +249,7 @@ class ReceiptSplitterUI extends StatelessWidget {
                     debugPrint('Error signing out: $e');
                   }
                 },
+                tooltip: 'Logout',
               ),
             ],
           ),
@@ -112,29 +280,370 @@ class MainAppContent extends StatelessWidget {
 
 // Main page controller to handle all screens with navigation
 class MainPageController extends StatefulWidget {
-  const MainPageController({super.key});
+  const MainPageController({Key? key}) : super(key: key);
 
   @override
   State<MainPageController> createState() => _MainPageControllerState();
 }
 
-class _MainPageControllerState extends State<MainPageController> {
+class _MainPageControllerState extends State<MainPageController> with WidgetsBindingObserver {
   final PageController _pageController = PageController(initialPage: 0);
   int _currentPage = 0;
   List<ReceiptItem> _receiptItems = [];
+  
+  // State management variables
+  bool _isUploadComplete = false;
+  bool _isReviewComplete = false;
+  bool _isAssignmentComplete = false;
+  String? _savedTranscription;
+  File? _imageFile;
+  Map<String, dynamic>? _assignments;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this); // Register for lifecycle events
+    _loadSavedState(); // Load saved state on startup
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Unregister from lifecycle events
     _pageController.dispose();
     super.dispose();
   }
 
+  // Handle app lifecycle state changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (state == AppLifecycleState.paused || 
+        state == AppLifecycleState.inactive) {
+      // App is going to background, save state
+      _saveCurrentState();
+    } else if (state == AppLifecycleState.resumed) {
+      // App is coming back to foreground, refresh state if needed
+      // (We already load state in initState, but can add additional logic here if needed)
+    }
+  }
+
+  // Save the current state to persistent storage
+  Future<void> _saveCurrentState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Save current step and completion flags
+      await prefs.setInt('current_page', _currentPage);
+      await prefs.setBool('is_upload_complete', _isUploadComplete);
+      await prefs.setBool('is_review_complete', _isReviewComplete);
+      await prefs.setBool('is_assignment_complete', _isAssignmentComplete);
+      
+      // Save transcription if available
+      if (_savedTranscription != null) {
+        await prefs.setString('saved_transcription', _savedTranscription!);
+      }
+      
+      // Save image path if available
+      if (_imageFile != null && _imageFile!.existsSync()) {
+        await prefs.setString('saved_image_path', _imageFile!.path);
+      }
+      
+      // Save receipt items
+      if (_receiptItems.isNotEmpty) {
+        final itemsJson = jsonEncode(_receiptItems.map((item) => item.toJson()).toList());
+        await prefs.setString('receipt_items', itemsJson);
+      }
+      
+      // Save assignments
+      if (_assignments != null) {
+        final assignmentsJson = jsonEncode(_assignments);
+        await prefs.setString('assignments', assignmentsJson);
+      }
+      
+      print('App state saved successfully with page: $_currentPage');
+    } catch (e) {
+      print('Error saving app state: $e');
+    }
+  }
+
+  Future<void> _loadSavedState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Check if we have saved state
+      if (!prefs.containsKey('current_page')) {
+        print('No saved state found');
+        return;
+      }
+      
+      setState(() {
+        // Restore workflow state
+        _currentPage = prefs.getInt('current_page') ?? 0;
+        _isUploadComplete = prefs.getBool('is_upload_complete') ?? false;
+        _isReviewComplete = prefs.getBool('is_review_complete') ?? false;
+        _isAssignmentComplete = prefs.getBool('is_assignment_complete') ?? false;
+        
+        // Restore transcription
+        _savedTranscription = prefs.getString('saved_transcription');
+        
+        // Restore image if available
+        final imagePath = prefs.getString('saved_image_path');
+        if (imagePath != null) {
+          final imageFile = File(imagePath);
+          
+          // Verify the file exists and is valid
+          if (imageFile.existsSync() && imageFile.lengthSync() > 0) {
+            try {
+              // Additional check to ensure the file is readable
+              imageFile.readAsBytesSync();
+              _imageFile = imageFile;
+              print('Successfully restored image from: $imagePath');
+            } catch (e) {
+              print('Error reading restored image file: $e');
+              prefs.remove('saved_image_path');
+            }
+          } else {
+            // File doesn't exist or is invalid - remove the reference
+            print('Image file is invalid: $imagePath');
+            prefs.remove('saved_image_path');
+          }
+        }
+        
+        // Restore receipt items
+        final itemsJson = prefs.getString('receipt_items');
+        if (itemsJson != null) {
+          final List<dynamic> itemsList = jsonDecode(itemsJson);
+          _receiptItems = itemsList.map((item) => ReceiptItem.fromJson(item)).toList();
+        }
+        
+        // Restore assignments
+        final assignmentsJson = prefs.getString('assignments');
+        if (assignmentsJson != null) {
+          _assignments = jsonDecode(assignmentsJson);
+        }
+      });
+      
+      // If we have a saved state, initialize the page controller to that page
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(_currentPage);
+        }
+        
+        // If we've restored state to the split view page, ensure SplitManager is initialized
+        if (_currentPage == 3 && _isAssignmentComplete && _assignments != null && _receiptItems.isNotEmpty) {
+          debugPrint('Restoring split view from saved state');
+          
+          // Get the SplitManager
+          final splitManager = context.read<SplitManager>();
+          
+          // Clean reset of the manager
+          splitManager.reset();
+          
+          // Set original review total for validation
+          final originalTotal = _receiptItems.fold(
+            0.0, 
+            (sum, item) => sum + (item.price * item.quantity)
+          );
+          splitManager.setOriginalReviewTotal(originalTotal);
+          debugPrint('Setting original review total to: $originalTotal from saved state');
+          
+          // Process saved assignments
+          final Map<String, dynamic> assignments = _assignments!['assignments'] as Map<String, dynamic>;
+          final List<dynamic> sharedItems = _assignments!['shared_items'] as List<dynamic>;
+          final List<dynamic> unassignedItems = _assignments!['unassigned_items'] as List<dynamic>? ?? [];
+          
+          // Process people and assignments
+          assignments.forEach((name, items) {
+            // Add the person if they don't exist
+            if (!splitManager.people.any((p) => p.name == name)) {
+              splitManager.addPerson(name);
+            }
+            
+            // Find the person object
+            final person = splitManager.people.firstWhere((p) => p.name == name);
+            
+            // Assign items to the person
+            final List<dynamic> personItems = items as List<dynamic>;
+            for (var itemData in personItems) {
+              final int itemId = itemData['id'];
+              final int quantity = itemData['quantity'];
+              
+              // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+              if (itemId > 0 && itemId <= _receiptItems.length) {
+                final receiptItem = _receiptItems[itemId - 1];
+                
+                // Create a copy of the item with the right quantity
+                final itemToAssign = receiptItem.copyWithQuantity(quantity);
+                
+                // Assign to the person
+                splitManager.assignItemToPerson(itemToAssign, person);
+              }
+            }
+          });
+          
+          // Process shared items
+          for (var itemData in sharedItems) {
+            final int itemId = itemData['id'];
+            final int quantity = itemData['quantity'];
+            
+            // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+            if (itemId > 0 && itemId <= _receiptItems.length) {
+              final receiptItem = _receiptItems[itemId - 1];
+              
+              // Create a copy with the right quantity
+              final itemToShare = receiptItem.copyWithQuantity(quantity);
+              
+              // Add to shared for all people
+              splitManager.addItemToShared(itemToShare, splitManager.people);
+            }
+          }
+          
+          // Process unassigned items
+          if (unassignedItems.isNotEmpty) {
+            for (var itemData in unassignedItems) {
+              final int itemId = itemData['id'];
+              final int quantity = itemData['quantity'];
+              
+              // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+              if (itemId > 0 && itemId <= _receiptItems.length) {
+                final receiptItem = _receiptItems[itemId - 1];
+                
+                // Create a copy with the right quantity
+                final itemToKeepUnassigned = receiptItem.copyWithQuantity(quantity);
+                
+                // Keep in unassigned
+                splitManager.addUnassignedItem(itemToKeepUnassigned);
+              }
+            }
+          }
+          
+          // Debug - verify total after initialization
+          debugPrint('Split view restored with total: ${splitManager.totalAmount}');
+        }
+      });
+      
+      print('App state restored successfully to page: $_currentPage');
+    } catch (e) {
+      print('Error loading saved state: $e');
+    }
+  }
+  
+  // Method to update the image file from child widgets
+  void updateImageFile(File file) {
+    setState(() {
+      _imageFile = file;
+    });
+    _saveCurrentState(); // Save state when image changes
+  }
+
   void _navigateToPage(int page) {
+    // Save current state before navigating
+    _saveCurrentState();
+    
+    // Only initialize SplitManager when going from the assignment screen (page 2) 
+    // to the split view (page 3) with completed assignments
+    if (page == 3 && _currentPage == 2 && _isAssignmentComplete && _assignments != null) {
+      debugPrint('Initializing SplitManager with assignments from audio service');
+      
+      // Get the SplitManager and reset it
+      final splitManager = context.read<SplitManager>();
+      
+      // First save the original total for comparison
+      final originalTotal = _receiptItems.fold(
+        0.0, 
+        (sum, item) => sum + (item.price * item.quantity)
+      );
+      
+      // Clean reset of the manager
+      splitManager.reset();
+      
+      // Set original review total for validation
+      splitManager.setOriginalReviewTotal(originalTotal);
+      debugPrint('Setting original review total to: $originalTotal');
+      
+      // Process assignments that came from the AI service
+      final Map<String, dynamic> assignments = _assignments!['assignments'] as Map<String, dynamic>;
+      final List<dynamic> sharedItems = _assignments!['shared_items'] as List<dynamic>;
+      final List<dynamic> unassignedItems = _assignments!['unassigned_items'] as List<dynamic>? ?? [];
+      
+      debugPrint('Processing assignments: ${assignments.keys.length} people, ${sharedItems.length} shared items');
+      
+      // 1. Create people from assignments
+      assignments.forEach((name, items) {
+        // Add the person if they don't exist
+        if (!splitManager.people.any((p) => p.name == name)) {
+          splitManager.addPerson(name);
+        }
+        
+        // Find the person object
+        final person = splitManager.people.firstWhere((p) => p.name == name);
+        
+        // Assign items to the person
+        final List<dynamic> personItems = items as List<dynamic>;
+        for (var itemData in personItems) {
+          final int itemId = itemData['id'];
+          final int quantity = itemData['quantity'];
+          
+          // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+          if (itemId > 0 && itemId <= _receiptItems.length) {
+            final receiptItem = _receiptItems[itemId - 1];
+            
+            // Create a copy of the item with the right quantity
+            final itemToAssign = receiptItem.copyWithQuantity(quantity);
+            
+            // Assign to the person
+            splitManager.assignItemToPerson(itemToAssign, person);
+          }
+        }
+      });
+      
+      // 2. Process shared items
+      for (var itemData in sharedItems) {
+        final int itemId = itemData['id'];
+        final int quantity = itemData['quantity'];
+        
+        // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+        if (itemId > 0 && itemId <= _receiptItems.length) {
+          final receiptItem = _receiptItems[itemId - 1];
+          
+          // Create a copy with the right quantity
+          final itemToShare = receiptItem.copyWithQuantity(quantity);
+          
+          // Add to shared for all people
+          splitManager.addItemToShared(itemToShare, splitManager.people);
+        }
+      }
+      
+      // 3. Process unassigned items (if any)
+      if (unassignedItems.isNotEmpty) {
+        for (var itemData in unassignedItems) {
+          final int itemId = itemData['id'];
+          final int quantity = itemData['quantity'];
+          
+          // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+          if (itemId > 0 && itemId <= _receiptItems.length) {
+            final receiptItem = _receiptItems[itemId - 1];
+            
+            // Create a copy with the right quantity
+            final itemToKeepUnassigned = receiptItem.copyWithQuantity(quantity);
+            
+            // Keep in unassigned
+            splitManager.addUnassignedItem(itemToKeepUnassigned);
+          }
+        }
+      }
+      
+      // Debug - verify total after initialization
+      debugPrint('Split view initialized with total: ${splitManager.totalAmount}');
+    }
+    
+    setState(() {
+      _currentPage = page;
+    });
+    
+    // Animate to the target page
     _pageController.animateToPage(
       page,
       duration: const Duration(milliseconds: 300),
@@ -144,203 +653,324 @@ class _MainPageControllerState extends State<MainPageController> {
 
   @override
   Widget build(BuildContext context) {
-    return NotificationListener<NavigateToPageNotification>(
-      onNotification: (notification) {
-        _navigateToPage(notification.pageIndex);
-        return true;
+    return PopScope(
+      canPop: false, // Prevent automatically popping
+      onPopInvoked: (didPop) async {
+        // didPop will be false since we set canPop to false
+        if (!didPop) {
+          // Handle back navigation - save state and go back if possible
+          if (_currentPage > 0) {
+            _navigateToPage(_currentPage - 1);
+          } else {
+            // We're at the first screen, show exit confirmation
+            final shouldExit = await _showExitConfirmationDialog();
+            if (shouldExit == true) {
+              // Only exit if user confirms
+              Navigator.of(context).pop();
+            }
+          }
+        }
       },
-      child: Scaffold(
-        body: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (index) {
-            setState(() {
-              _currentPage = index;
-            });
-          },
-          children: [
-            // Page 0: Receipt Upload
-            ReceiptScreenWrapper(
-              onReviewComplete: (items) {
-                setState(() {
-                  _receiptItems = items;
-                });
-                _navigateToPage(1); // Navigate to receipt review
-              },
-            ),
-            
-            // Page 1: Receipt Review
-            ReceiptReviewScreen(
-              initialItems: _receiptItems,
-              onReviewComplete: (updatedItems, deletedItems) {
-                // Save updated items to SplitManager
-                final splitManager = Provider.of<SplitManager>(context, listen: false);
-                splitManager.setReceiptItems(updatedItems);
-                
-                // Navigate to the next page (Voice Assignment)
-                _navigateToPage(2);
-              },
-            ),
-            
-            // Page 2: Voice Assignment
-            VoiceAssignmentScreen(
-              itemsToAssign: _receiptItems,
-              onAssignmentProcessed: (assignmentData) {
-                // Process assignments and update SplitManager
-                final splitManager = Provider.of<SplitManager>(context, listen: false);
-                
-                print('Processing assignment data: ${assignmentData.toString()}');
-                
-                // Reset the split manager first to avoid double-counting
-                // We'll keep the original total for validation
-                final originalTotal = splitManager.originalReviewTotal;
-                splitManager.reset();
-                if (originalTotal != null) {
-                  splitManager.setOriginalReviewTotal(originalTotal);
-                }
-                
-                // Get the assignments map from the response
-                final Map<String, dynamic> assignments = assignmentData['assignments'] as Map<String, dynamic>;
-                final List<dynamic> sharedItems = assignmentData['shared_items'] as List<dynamic>;
-                final List<dynamic> unassignedItems = assignmentData['unassigned_items'] as List<dynamic>? ?? [];
-                
-                // 1. Create people from assignments
-                assignments.forEach((name, items) {
-                  // Add the person if they don't exist
-                  if (!splitManager.people.any((p) => p.name == name)) {
-                    splitManager.addPerson(name);
-                  }
+      child: NotificationListener<NavigateToPageNotification>(
+        onNotification: (notification) {
+          _navigateToPage(notification.pageIndex);
+          return true;
+        },
+        child: Scaffold(
+          body: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            onPageChanged: (index) {
+              setState(() {
+                _currentPage = index;
+              });
+              _saveCurrentState(); // Save state on page change
+            },
+            children: [
+              // Page 0: Receipt Upload
+              ReceiptScreenWrapper(
+                onReviewComplete: (items) {
+                  setState(() {
+                    _receiptItems = items;
+                    _isUploadComplete = true; // Mark upload as complete regardless of current state
+                  });
+                  _saveCurrentState(); // Save state after upload
+                  _navigateToPage(1); // Navigate to receipt review
+                },
+                initialImage: _imageFile, // Pass saved image if available
+                uploadComplete: _isUploadComplete, // Pass upload completion status
+                // If upload is already complete, make the "Use This" button visible immediately
+              ),
+              
+              // Page 1: Receipt Review
+              ReceiptReviewScreen(
+                initialItems: _isUploadComplete ? _receiptItems : [], // Use empty list if upload not complete
+                onReviewComplete: (updatedItems, deletedItems) {
+                  // Save updated items to SplitManager
+                  setState(() {
+                    _receiptItems = updatedItems;
+                    _isReviewComplete = true;
+                  });
                   
-                  // Find the person object
-                  final person = splitManager.people.firstWhere((p) => p.name == name);
+                  final splitManager = Provider.of<SplitManager>(context, listen: false);
+                  splitManager.setReceiptItems(updatedItems);
                   
-                  // Assign items to the person
-                  final List<dynamic> personItems = items as List<dynamic>;
-                  for (var itemData in personItems) {
-                    final int itemId = itemData['id'];
-                    final int quantity = itemData['quantity'];
-                    
-                    // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
-                    if (itemId > 0 && itemId <= _receiptItems.length) {
-                      final receiptItem = _receiptItems[itemId - 1];
-                      
-                      // Create a copy of the item with the right quantity
-                      final itemToAssign = receiptItem.copyWithQuantity(quantity);
-                      
-                      // Assign to the person
-                      splitManager.assignItemToPerson(itemToAssign, person);
-                    }
-                  }
-                });
-                
-                // 2. Process shared items
-                for (var itemData in sharedItems) {
-                  final int itemId = itemData['id'];
-                  final int quantity = itemData['quantity'];
+                  _saveCurrentState(); // Save state after review
+                  // Navigate to the next page (Voice Assignment)
+                  _navigateToPage(2);
+                },
+                onItemsUpdated: (currentItems) {
+                  // Update items whenever they change (add, edit, delete)
+                  setState(() {
+                    _receiptItems = currentItems;
+                  });
+                  _saveCurrentState(); // Save state when items change
+                },
+              ),
+              
+              // Page 2: Voice Assignment
+              VoiceAssignmentScreen(
+                itemsToAssign: _isReviewComplete ? _receiptItems : [], // Use empty list if review not complete
+                initialTranscription: _savedTranscription, // Pass saved transcription
+                onTranscriptionChanged: (transcription) {
+                  // Save transcription when it changes
+                  setState(() {
+                    _savedTranscription = transcription;
+                  });
+                  _saveCurrentState(); // Save state when transcription changes
+                },
+                onAssignmentProcessed: (assignmentData) {
+                  // Store the assignment data but don't apply it yet
+                  // It will be applied only once when navigating to the split view
+                  setState(() {
+                    _assignments = assignmentData;
+                    _isAssignmentComplete = true;
+                  });
                   
-                  // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
-                  if (itemId > 0 && itemId <= _receiptItems.length) {
-                    final receiptItem = _receiptItems[itemId - 1];
-                    
-                    // Create a copy with the right quantity
-                    final itemToShare = receiptItem.copyWithQuantity(quantity);
-                    
-                    // Add to shared for all people
-                    splitManager.addItemToShared(itemToShare, splitManager.people);
-                  }
-                }
-                
-                // 3. Process unassigned items (keep items in unassigned if any)
-                if (unassignedItems.isNotEmpty) {
-                  for (var itemData in unassignedItems) {
-                    final int itemId = itemData['id'];
-                    final int quantity = itemData['quantity'];
-                    
-                    // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
-                    if (itemId > 0 && itemId <= _receiptItems.length) {
-                      final receiptItem = _receiptItems[itemId - 1];
-                      
-                      // Create a copy with the right quantity
-                      final itemToKeepUnassigned = receiptItem.copyWithQuantity(quantity);
-                      
-                      // Keep in unassigned
-                      splitManager.addUnassignedItem(itemToKeepUnassigned);
-                    }
-                  }
-                }
-                
-                // Navigate to next page
-                _navigateToPage(3);
-              },
-            ),
-            
-            // Page 3: Assignment Review (Split View)
-            const AssignmentReviewScreen(),
-            
-            // Page 4: Final Summary
-            const FinalSummaryScreen(),
-          ],
+                  debugPrint('Received assignment data from AI service, storing for split view');
+                  
+                  // Save state before navigating
+                  _saveCurrentState();
+                  
+                  // Navigate to the split view (page 3)
+                  // The actual assignment application will happen in _navigateToPage
+                  _navigateToPage(3);
+                },
+              ),
+              
+              // Page 3: Assignment Review (Split View)
+              const AssignmentReviewScreen(),
+              
+              // Page 4: Final Summary
+              const FinalSummaryScreen(),
+            ],
+          ),
+          bottomNavigationBar: _buildBottomNavBar(),
         ),
-        bottomNavigationBar: _buildBottomNavBar(),
       ),
     );
   }
   
   Widget _buildBottomNavBar() {
+    // Get the furthest reached page based on completion flags
+    int furthestAllowedPage = 0; // Start with upload screen
+    
+    if (_isAssignmentComplete) {
+      furthestAllowedPage = 4; // Can navigate all the way to summary
+    } else if (_isReviewComplete) {
+      furthestAllowedPage = 2; // Can navigate up to assign
+    } else if (_isUploadComplete) {
+      furthestAllowedPage = 1; // Can navigate up to review
+    }
+    
     return BottomNavigationBar(
-      currentIndex: _currentPage == 0 ? 0 : _currentPage - 1, // Adjust based on current page
+      currentIndex: _currentPage >= 4 ? 4 : _currentPage,
       onTap: (index) {
-        if (index == 0) {
-          _navigateToPage(0); // Navigate to upload
+        // Calculate the actual page index
+        // Bottom nav indices are offset from page indices: 
+        // nav index 0 = page 0, nav index 1 = page 1, etc.
+        final targetPage = index == 0 ? 0 : index;
+        
+        // Allow navigation if target is within allowed range
+        if (targetPage <= furthestAllowedPage) {
+          _navigateToPage(targetPage);
         } else {
-          _navigateToPage(index); // Navigate to other pages (already adjusted index)
+          // Show tooltip/hint at the CENTER of the screen instead of a bottom snackbar
+          final overlay = Overlay.of(context);
+          final renderBox = context.findRenderObject() as RenderBox;
+          final center = renderBox.localToGlobal(renderBox.size.center(Offset.zero));
+          
+          // Create an overlay entry for our tooltip
+          final entry = OverlayEntry(
+            builder: (context) => Positioned(
+              top: center.dy - 100, // Position higher in the screen
+              left: 20, 
+              right: 20,
+              child: Material(
+                elevation: 4.0,
+                borderRadius: BorderRadius.circular(8),
+                color: Theme.of(context).colorScheme.errorContainer.withOpacity(0.9),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Please complete the previous steps first',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+          
+          // Insert and automatically remove after 2 seconds
+          overlay.insert(entry);
+          Future.delayed(const Duration(seconds: 2), () {
+            entry.remove();
+          });
         }
       },
       type: BottomNavigationBarType.fixed,
-      items: const [
-        BottomNavigationBarItem(
+      items: [
+        const BottomNavigationBarItem(
           icon: Icon(Icons.upload_file),
           label: 'Upload',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.receipt_long),
+          icon: Icon(
+            Icons.receipt_long, 
+            color: furthestAllowedPage >= 1 ? null : Colors.grey,
+          ),
           label: 'Review',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.record_voice_over),
+          icon: Icon(
+            Icons.record_voice_over,
+            color: furthestAllowedPage >= 2 ? null : Colors.grey,
+          ),
           label: 'Assign',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.people),
+          icon: Icon(
+            Icons.people,
+            color: furthestAllowedPage >= 3 ? null : Colors.grey,
+          ),
           label: 'Split',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.summarize),
+          icon: Icon(
+            Icons.summarize,
+            color: furthestAllowedPage >= 4 ? null : Colors.grey,
+          ),
           label: 'Summary',
         ),
       ],
     );
+  }
+
+  Future<bool> _showExitConfirmationDialog() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Exit Confirmation'),
+          content: Text('Are you sure you want to exit? Your progress will not be saved.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('Exit'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  // Explicit reset method for the MainPageController
+  Future<void> resetApp() async {
+    // Reset all state variables
+    setState(() {
+      _imageFile = null;
+      _receiptItems = [];
+      _savedTranscription = null;
+      _assignments = null;
+      _isUploadComplete = false;
+      _isReviewComplete = false;
+      _isAssignmentComplete = false;
+      _currentPage = 0;
+    });
+    
+    // Clear all saved state
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (e) {
+      debugPrint('Error clearing preferences: $e');
+    }
+    
+    // Navigate to upload screen immediately
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
   }
 }
 
 // Wrapper class for ReceiptUploadScreen to manage state
 class ReceiptScreenWrapper extends StatefulWidget {
   final Function(List<ReceiptItem>)? onReviewComplete;
+  final File? initialImage;
+  final bool uploadComplete;
 
-  const ReceiptScreenWrapper({super.key, this.onReviewComplete});
+  const ReceiptScreenWrapper({
+    super.key, 
+    this.onReviewComplete, 
+    this.initialImage,
+    this.uploadComplete = false,
+  });
 
   @override
   State<ReceiptScreenWrapper> createState() => _ReceiptScreenWrapperState();
 }
 
 class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
-  File? _imageFile;
+  late File? _imageFile;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with provided image if available
+    _imageFile = widget.initialImage;
+  }
 
   void _handleImageSelected(File? file) {
     setState(() {
       _imageFile = file;
     });
+    
+    // Also update the global state through the parent widget
+    if (file != null) {
+      // Get access to the parent StatefulWidget (_MainPageControllerState)
+      final mainPage = context.findAncestorStateOfType<_MainPageControllerState>();
+      if (mainPage != null) {
+        mainPage.updateImageFile(file);
+      }
+    }
   }
 
   void _handleParseReceipt() async {
@@ -359,8 +989,10 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
       // Get the receipt items and pass them to parent
       final items = receiptData.getReceiptItems();
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Receipt processed successfully!')),
+      showTopNotification(
+        context,
+        'Receipt processed successfully!',
+        AppColors.success,
       );
       
       // If onReviewComplete is provided, call it with the parsed items
@@ -371,12 +1003,10 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
     } catch (e) {
       if (!mounted) return;
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error processing receipt: ${e.toString()}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          duration: const Duration(seconds: 5),
-        ),
+      showTopNotification(
+        context,
+        'Error processing receipt: ${e.toString()}',
+        AppColors.error,
       );
     } finally {
       if (mounted) {
@@ -395,6 +1025,9 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
 
   @override
   Widget build(BuildContext context) {
+    // If we already have an image and upload is complete, show parse button automatically
+    final showParseButton = _imageFile != null && widget.uploadComplete;
+    
     return ReceiptUploadScreen(
       imageFile: _imageFile,
       isLoading: _isLoading,

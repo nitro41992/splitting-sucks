@@ -336,7 +336,7 @@ class SplitManager extends ChangeNotifier {
   // New method with clearer name
   void setOriginalReviewTotal(double subtotal) {
     _originalReviewTotal = subtotal;
-    // Don't notify listeners here, as it's usually set during initialization
+    notifyListeners();
   }
   // --- END EDIT ---
 
@@ -354,16 +354,23 @@ class SplitManager extends ChangeNotifier {
 
   // Set the receipt items from the review screen
   void setReceiptItems(List<ReceiptItem> items) {
-    _unassignedItems = List.from(items);
+    // Clear existing original quantities first to avoid stale data
+    _originalQuantities = {};
     
-    // Store original quantities for tracking
+    // Track original quantity for each item
     for (var item in items) {
       setOriginalQuantity(item, item.quantity);
     }
     
-    // Calculate and store original total for comparison later
-    _originalReviewTotal = _unassignedItems.fold<double>(0.0, (double sum, item) => 
-      sum + (item.price * item.quantity));
+    // Add all items as unassigned initially
+    // But first clear existing unassigned items to prevent duplication
+    _unassignedItems = [];
+    
+    for (var item in items) {
+      if (!_unassignedItems.any((i) => i.isSameItem(item))) {
+        _unassignedItems.add(item);
+      }
+    }
     
     notifyListeners();
   }

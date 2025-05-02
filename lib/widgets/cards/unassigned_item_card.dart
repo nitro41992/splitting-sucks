@@ -137,31 +137,35 @@ class UnassignedItemCard extends StatelessWidget {
             const Text('Choose how to assign this item:'),
             const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.person),
-                  label: const Text('To Person'),
-                  onPressed: () {
-                    Navigator.pop(context); // Close this dialog first
-                    _showAssignToPersonDialog(context, splitManager, item);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: colorScheme.onPrimaryContainer,
-                    backgroundColor: colorScheme.primaryContainer,
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.person),
+                    label: const Text('To Person'),
+                    onPressed: () {
+                      Navigator.pop(context); // Close this dialog first
+                      _showAssignToPersonDialog(context, splitManager, item);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: colorScheme.onPrimaryContainer,
+                      backgroundColor: colorScheme.primaryContainer,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 24),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.group),
-                  label: const Text('Share'),
-                  onPressed: () {
-                    Navigator.pop(context); // Close this dialog first
-                    _showShareDialog(context, splitManager, item);
-                  },
-                   style: ElevatedButton.styleFrom(
-                    foregroundColor: colorScheme.onSecondaryContainer,
-                    backgroundColor: colorScheme.secondaryContainer,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.group),
+                    label: const Text('Share'),
+                    onPressed: () {
+                      Navigator.pop(context); // Close this dialog first
+                      _showShareDialog(context, splitManager, item);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: colorScheme.onSecondaryContainer,
+                      backgroundColor: colorScheme.secondaryContainer,
+                    ),
                   ),
                 ),
               ],
