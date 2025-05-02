@@ -1,13 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import '../models/receipt_item.dart';
 import '../services/audio_transcription_service.dart';
-import '../services/mock_data_service.dart';
 import '../theme/app_colors.dart';
 
 class VoiceAssignmentScreen extends StatefulWidget {
@@ -70,35 +68,6 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   }
 
   Future<void> _toggleRecording() async {
-    bool useMockData = true; // Default to true for safety
-    try {
-      // Try to get from dotenv but handle failure
-      useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
-    } catch (e) {
-      print('DEBUG: dotenv not initialized, using mock data');
-    }
-    print('DEBUG: In _toggleRecording (Screen), useMockData = $useMockData');
-
-    if (useMockData) {
-      print('DEBUG: Using mock data in _toggleRecording (Screen)');
-      setState(() => _isLoading = true);
-      await Future.delayed(const Duration(seconds: 1)); // Simulate recording/processing
-      // Use the hardcoded mock transcription string
-      final mockTranscription = "John ordered the burger and chicken wings. Sarah got the soda and milkshake. Mike had the salad and caesar salad. Emma took the pizza and nachos. The appetizer is shared between John and Sarah. The garlic bread is shared between everyone. The fries, ice cream, and coffee are still unassigned.";
-      setState(() {
-        _transcription = mockTranscription;
-        _transcriptionController.text = _transcription!;
-        _isLoading = false;
-      });
-      
-      // Notify parent of transcription change
-      if (widget.onTranscriptionChanged != null) {
-        widget.onTranscriptionChanged!(_transcription);
-      }
-      
-      return;
-    }
-
     // Real recording logic
     if (!_isRecording) {
       final hasPermission = await _recorder.hasPermission();
@@ -228,74 +197,36 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       widget.onTranscriptionChanged!(editedTranscription);
     }
 
-    bool useMockData = true; // Default to true for safety
     try {
-      // Try to get from dotenv but handle failure
-      useMockData = dotenv.env['USE_MOCK_DATA']?.toLowerCase() == 'true';
-    } catch (e) {
-      print('DEBUG: dotenv not initialized, using mock data');
-    }
-    print('DEBUG: In _processTranscription (Screen), useMockData = $useMockData');
-
-    try {
-      Map<String, dynamic> assignmentsData;
-      if (useMockData) {
-        print('DEBUG: Using mock assignment data in _processTranscription (Screen)');
-        await Future.delayed(const Duration(seconds: 1)); // Simulate processing
-        // Return the predefined mock structure (similar to original logic)
-        // This structure should match what the API would return
-        assignmentsData = {
-          'people': MockDataService.mockPeople.map((name) => {'name': name}).toList(),
-          'orders': MockDataService.mockAssignments.entries.expand((entry) {
-            final personName = entry.key;
-            return entry.value.map((item) => {
-              'person': personName,
-              'item': item.name,
-              'price': item.price,
-              'quantity': item.quantity,
-            });
+      print('DEBUG: Making API call for item assignment');
+      print('DEBUG: Using transcription: $editedTranscription');
+      
+      final request = {
+        'data': {
+          'transcription': editedTranscription,
+          'receipt_items': widget.itemsToAssign.asMap().entries.map((entry) {
+            final index = entry.key;
+            final item = entry.value;
+            return {
+              'id': index + 1, // 1-based ID for the API
+              'item': item.name,  // Use the current name (which may have been edited)
+              'quantity': item.quantity, // Use the current quantity (which may have been edited)
+              'price': item.price, // Use the current price (which may have been edited)
+            };
           }).toList(),
-          'shared_items': MockDataService.mockSharedItems.map((item) => {
-             'item': item.name,
-             'price': item.price,
-             'quantity': item.quantity,
-             // Mock which people share it - let's assume all for simplicity here, adjust if needed
-             'people': MockDataService.mockPeople
-          }).toList(),
-           'unassigned_items': MockDataService.mockUnassignedItems.map((item) => {
-             'item': item.name,
-             'price': item.price,
-             'quantity': item.quantity,
-          }).toList(),
-        };
-      } else {
-        print('DEBUG: Making API call in _processTranscription (Screen)');
-        final request = {
-          'data': {
-            'transcription': editedTranscription,
-            'receipt_items': widget.itemsToAssign.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              return {
-                'id': index + 1, // 1-based ID for the API
-                'item': item.name,  // Use the current name (which may have been edited)
-                'quantity': item.quantity, // Use the current quantity (which may have been edited)
-                'price': item.price, // Use the current price (which may have been edited)
-              };
-            }).toList(),
-          }
-        };
-        
-        print('DEBUG: Sending request to assign-people endpoint: ${request.toString()}');
-        
-        final result = await _audioService.assignPeopleToItems(
-          editedTranscription,
-          request,
-        );
-        
-        // Convert the structured result to the Map format expected by the parent widget
-        assignmentsData = result.toJson();
-      }
+        }
+      };
+      
+      print('DEBUG: Sending request to assign-people endpoint: ${request.toString()}');
+      
+      final result = await _audioService.assignPeopleToItems(
+        editedTranscription,
+        request,
+      );
+      
+      // Convert the structured result to the Map format expected by the parent widget
+      final assignmentsData = result.toJson();
+      print('DEBUG: Received assignment data: ${assignmentsData.toString()}');
 
       // Pass the raw assignment data back to the parent widget
       widget.onAssignmentProcessed(assignmentsData);

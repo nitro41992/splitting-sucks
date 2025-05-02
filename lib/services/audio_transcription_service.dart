@@ -198,7 +198,16 @@ class AudioTranscriptionService {
       // The Cloud Function expects direct access to 'transcription' and 'receipt_items' 
       final innerData = request['data'];
       
-      final result = await callable.call(innerData);
+      // Ensure the transcription parameter is used (in case it was edited)
+      // This overrides any transcription that might have been in the request object
+      final modifiedData = Map<String, dynamic>.from(innerData);
+      modifiedData['transcription'] = transcription;
+      
+      debugPrint('Request data: ${modifiedData.toString()}');
+      
+      final result = await callable.call(modifiedData);
+      
+      debugPrint('Raw result: ${result.data.toString()}');
       
       // Parse the response - convert to proper Map<String, dynamic> first
       final responseData = _convertToStringKeyedMap(result.data);
@@ -206,6 +215,8 @@ class AudioTranscriptionService {
       if (responseData == null) {
         throw Exception('Invalid response format from Cloud Function');
       }
+      
+      debugPrint('Parsed response: ${responseData.toString()}');
       
       return AssignmentResult.fromJson(responseData);
     } catch (e) {

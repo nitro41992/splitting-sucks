@@ -186,7 +186,90 @@ class _MainPageControllerState extends State<MainPageController> {
             VoiceAssignmentScreen(
               itemsToAssign: _receiptItems,
               onAssignmentProcessed: (assignmentData) {
-                // Process assignments and navigate to next page
+                // Process assignments and update SplitManager
+                final splitManager = Provider.of<SplitManager>(context, listen: false);
+                
+                print('Processing assignment data: ${assignmentData.toString()}');
+                
+                // Reset the split manager first to avoid double-counting
+                // We'll keep the original total for validation
+                final originalTotal = splitManager.originalReviewTotal;
+                splitManager.reset();
+                if (originalTotal != null) {
+                  splitManager.setOriginalReviewTotal(originalTotal);
+                }
+                
+                // Get the assignments map from the response
+                final Map<String, dynamic> assignments = assignmentData['assignments'] as Map<String, dynamic>;
+                final List<dynamic> sharedItems = assignmentData['shared_items'] as List<dynamic>;
+                final List<dynamic> unassignedItems = assignmentData['unassigned_items'] as List<dynamic>? ?? [];
+                
+                // 1. Create people from assignments
+                assignments.forEach((name, items) {
+                  // Add the person if they don't exist
+                  if (!splitManager.people.any((p) => p.name == name)) {
+                    splitManager.addPerson(name);
+                  }
+                  
+                  // Find the person object
+                  final person = splitManager.people.firstWhere((p) => p.name == name);
+                  
+                  // Assign items to the person
+                  final List<dynamic> personItems = items as List<dynamic>;
+                  for (var itemData in personItems) {
+                    final int itemId = itemData['id'];
+                    final int quantity = itemData['quantity'];
+                    
+                    // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+                    if (itemId > 0 && itemId <= _receiptItems.length) {
+                      final receiptItem = _receiptItems[itemId - 1];
+                      
+                      // Create a copy of the item with the right quantity
+                      final itemToAssign = receiptItem.copyWithQuantity(quantity);
+                      
+                      // Assign to the person
+                      splitManager.assignItemToPerson(itemToAssign, person);
+                    }
+                  }
+                });
+                
+                // 2. Process shared items
+                for (var itemData in sharedItems) {
+                  final int itemId = itemData['id'];
+                  final int quantity = itemData['quantity'];
+                  
+                  // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+                  if (itemId > 0 && itemId <= _receiptItems.length) {
+                    final receiptItem = _receiptItems[itemId - 1];
+                    
+                    // Create a copy with the right quantity
+                    final itemToShare = receiptItem.copyWithQuantity(quantity);
+                    
+                    // Add to shared for all people
+                    splitManager.addItemToShared(itemToShare, splitManager.people);
+                  }
+                }
+                
+                // 3. Process unassigned items (keep items in unassigned if any)
+                if (unassignedItems.isNotEmpty) {
+                  for (var itemData in unassignedItems) {
+                    final int itemId = itemData['id'];
+                    final int quantity = itemData['quantity'];
+                    
+                    // Find the receipt item with this ID (subtract 1 as IDs are 1-based)
+                    if (itemId > 0 && itemId <= _receiptItems.length) {
+                      final receiptItem = _receiptItems[itemId - 1];
+                      
+                      // Create a copy with the right quantity
+                      final itemToKeepUnassigned = receiptItem.copyWithQuantity(quantity);
+                      
+                      // Keep in unassigned
+                      splitManager.addUnassignedItem(itemToKeepUnassigned);
+                    }
+                  }
+                }
+                
+                // Navigate to next page
                 _navigateToPage(3);
               },
             ),
