@@ -2,7 +2,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
+// Remove conditional GoogleSignIn import
+// import 'package:google_sign_in/google_sign_in.dart' if (dart.library.html) 'dart:core';
 
 class AuthService {
   late FirebaseAuth _auth;
@@ -163,23 +166,41 @@ class AuthService {
     }
   }
 
-  // Google Sign In using Firebase Auth
-  Future<UserCredential> signInWithGoogle() async {
+  // Google Sign In using Firebase Auth - unified approach
+  Future<UserCredential?> signInWithGoogle() async {
     await _ensureInitialized();
     
     try {
+      debugPrint('Attempting Google sign in...');
+      
       if (kIsWeb) {
         // For web platforms
         GoogleAuthProvider googleProvider = GoogleAuthProvider();
         return await _auth.signInWithPopup(googleProvider);
       } else {
-        // For native platforms
-        GoogleAuthProvider googleProvider = GoogleAuthProvider();
-        return await _auth.signInWithProvider(googleProvider);
+        // Unified approach for iOS and Android using Firebase Auth directly
+        try {
+          // Create a Google provider directly in Firebase Auth
+          final googleProvider = GoogleAuthProvider();
+          
+          // Add scopes as needed
+          googleProvider.addScope('email');
+          googleProvider.addScope('profile');
+          
+          // Use signInWithProvider for both iOS and Android
+          final userCredential = await _auth.signInWithProvider(googleProvider);
+          debugPrint('Google sign in successful');
+          return userCredential;
+        } catch (e) {
+          debugPrint('Google sign in failed: $e');
+          rethrow;
+        }
       }
     } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase Auth Exception: ${e.message}');
       throw _handleAuthException(e);
     } catch (e) {
+      debugPrint('Error in Google Sign In: $e');
       throw 'Failed to sign in with Google: $e';
     }
   }

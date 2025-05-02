@@ -1,8 +1,11 @@
 # Uncomment this line to define a global platform for your project
-platform :ios, '12.0'
+platform :ios, '16.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+# Define Firebase SDK version to use
+$FirebaseSDKVersion = '10.29.0'
 
 project 'Runner', {
   'Debug' => :debug,
@@ -35,7 +38,7 @@ target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
   # Use pre-compiled Firestore frameworks to avoid building BoringSSL-GRPC
-  pod 'FirebaseFirestore', :git => 'https://github.com/invertase/firestore-ios-sdk-frameworks.git', :tag => '10.25.0'
+  pod 'FirebaseFirestore', :git => 'https://github.com/invertase/firestore-ios-sdk-frameworks.git', :tag => $FirebaseSDKVersion
 end
 
 post_install do |installer|
@@ -66,7 +69,7 @@ post_install do |installer|
       end
       
       # Set the deployment target to match the Flutter project
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
       
       # Set iOS architectures
       if config.build_settings['SDKROOT'] == 'iphoneos' && target.platform_name == :ios

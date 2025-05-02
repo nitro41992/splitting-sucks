@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/shared/wave_divider_painter.dart';
+import 'dart:io';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -64,7 +65,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       debugPrint('Attempting Google sign in...');
-      await _authService.signInWithGoogle();
+      final result = await _authService.signInWithGoogle();
+      
+      if (result == null) {
+        // User canceled the sign-in
+        debugPrint('Google sign-in was canceled');
+        setState(() {
+          _errorMessage = null; // Don't show an error if user canceled
+        });
+        return;
+      }
+      
       debugPrint('Google sign in successful.');
       // Navigation removed - StreamBuilder in main.dart will handle showing ReceiptSplitterUI
     } catch (e) {

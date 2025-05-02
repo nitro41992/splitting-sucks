@@ -37,4 +37,26 @@ CHANGELOG.local.md
 # Local CocoaPods related files (already in main .gitignore but repeated here for clarity)
 ios/Pods/
 ios/Podfile.lock
-ios/Podfile.bak* 
+ios/Podfile.bak*
+
+# Local developer-specific files to exclude from git
+# Copy this file to your project root and add it to your personal global gitignore
+# Do not commit this to the repository
+
+# Local environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# macOS specific files
+.DS_Store
+
+# IDE specific files
+.idea/
+
+# Build directories
+build/
+
+# Local Podfile changes (keep the checked-in version consistent)
+ios/Podfile.local 
