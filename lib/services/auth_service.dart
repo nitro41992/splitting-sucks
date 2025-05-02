@@ -171,7 +171,7 @@ class AuthService {
     await _ensureInitialized();
     
     try {
-      debugPrint('Attempting Google sign in...');
+      debugPrint('Attempting Google sign in with Firebase Auth...');
       
       if (kIsWeb) {
         // For web platforms
@@ -180,6 +180,10 @@ class AuthService {
       } else {
         // Unified approach for iOS and Android using Firebase Auth directly
         try {
+          debugPrint('Platform: ${Platform.isAndroid ? "Android" : "iOS"}');
+          debugPrint('Firebase Apps: ${Firebase.apps.length}');
+          debugPrint('Auth initialized: $_isInitialized');
+          
           // Create a Google provider directly in Firebase Auth
           final googleProvider = GoogleAuthProvider();
           
@@ -187,17 +191,22 @@ class AuthService {
           googleProvider.addScope('email');
           googleProvider.addScope('profile');
           
+          debugPrint('Google provider created with scopes');
+          
           // Use signInWithProvider for both iOS and Android
+          debugPrint('Calling signInWithProvider...');
           final userCredential = await _auth.signInWithProvider(googleProvider);
-          debugPrint('Google sign in successful');
+          debugPrint('Google sign in successful: ${userCredential.user?.displayName}');
           return userCredential;
         } catch (e) {
-          debugPrint('Google sign in failed: $e');
+          debugPrint('Google sign in failed with detailed error: $e');
+          debugPrint('Stack trace: ${StackTrace.current}');
           rethrow;
         }
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase Auth Exception: ${e.message}');
+      debugPrint('Firebase Auth Exception code: ${e.code}');
+      debugPrint('Firebase Auth Exception message: ${e.message}');
       throw _handleAuthException(e);
     } catch (e) {
       debugPrint('Error in Google Sign In: $e');
