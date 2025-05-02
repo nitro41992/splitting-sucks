@@ -352,37 +352,45 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Save current step and completion flags
-      await prefs.setInt('current_page', _currentPage);
-      await prefs.setBool('is_upload_complete', _isUploadComplete);
-      await prefs.setBool('is_review_complete', _isReviewComplete);
-      await prefs.setBool('is_assignment_complete', _isAssignmentComplete);
+      // Get current user ID for user-specific storage
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        debugPrint('Cannot save state: No user logged in');
+        return;
+      }
+      final userId = user.uid;
+      
+      // Save current step and completion flags with user-specific keys
+      await prefs.setInt('${userId}_current_page', _currentPage);
+      await prefs.setBool('${userId}_is_upload_complete', _isUploadComplete);
+      await prefs.setBool('${userId}_is_review_complete', _isReviewComplete);
+      await prefs.setBool('${userId}_is_assignment_complete', _isAssignmentComplete);
       
       // Save transcription if available
       if (_savedTranscription != null) {
-        await prefs.setString('saved_transcription', _savedTranscription!);
+        await prefs.setString('${userId}_saved_transcription', _savedTranscription!);
       }
       
       // Save image path if available
       if (_imageFile != null && _imageFile!.existsSync()) {
-        await prefs.setString('saved_image_path', _imageFile!.path);
+        await prefs.setString('${userId}_saved_image_path', _imageFile!.path);
       }
       
       // Save receipt items
       if (_receiptItems.isNotEmpty) {
         final itemsJson = jsonEncode(_receiptItems.map((item) => item.toJson()).toList());
-        await prefs.setString('receipt_items', itemsJson);
+        await prefs.setString('${userId}_receipt_items', itemsJson);
       }
       
       // Save assignments
       if (_assignments != null) {
         final assignmentsJson = jsonEncode(_assignments);
-        await prefs.setString('assignments', assignmentsJson);
+        await prefs.setString('${userId}_assignments', assignmentsJson);
       }
       
-      print('App state saved successfully with page: $_currentPage');
+      debugPrint('App state saved successfully for user $userId with page: $_currentPage');
     } catch (e) {
-      print('Error saving app state: $e');
+      debugPrint('Error saving app state: $e');
     }
   }
 
@@ -390,24 +398,32 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Check if we have saved state
-      if (!prefs.containsKey('current_page')) {
-        print('No saved state found');
+      // Get current user ID for user-specific storage
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        debugPrint('Cannot load state: No user logged in');
+        return;
+      }
+      final userId = user.uid;
+      
+      // Check if we have saved state for this user
+      if (!prefs.containsKey('${userId}_current_page')) {
+        debugPrint('No saved state found for user $userId');
         return;
       }
       
       setState(() {
         // Restore workflow state
-        _currentPage = prefs.getInt('current_page') ?? 0;
-        _isUploadComplete = prefs.getBool('is_upload_complete') ?? false;
-        _isReviewComplete = prefs.getBool('is_review_complete') ?? false;
-        _isAssignmentComplete = prefs.getBool('is_assignment_complete') ?? false;
+        _currentPage = prefs.getInt('${userId}_current_page') ?? 0;
+        _isUploadComplete = prefs.getBool('${userId}_is_upload_complete') ?? false;
+        _isReviewComplete = prefs.getBool('${userId}_is_review_complete') ?? false;
+        _isAssignmentComplete = prefs.getBool('${userId}_is_assignment_complete') ?? false;
         
         // Restore transcription
-        _savedTranscription = prefs.getString('saved_transcription');
+        _savedTranscription = prefs.getString('${userId}_saved_transcription');
         
         // Restore image if available
-        final imagePath = prefs.getString('saved_image_path');
+        final imagePath = prefs.getString('${userId}_saved_image_path');
         if (imagePath != null) {
           final imageFile = File(imagePath);
           
@@ -417,27 +433,27 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
               // Additional check to ensure the file is readable
               imageFile.readAsBytesSync();
               _imageFile = imageFile;
-              print('Successfully restored image from: $imagePath');
+              debugPrint('Successfully restored image from: $imagePath');
             } catch (e) {
-              print('Error reading restored image file: $e');
-              prefs.remove('saved_image_path');
+              debugPrint('Error reading restored image file: $e');
+              prefs.remove('${userId}_saved_image_path');
             }
           } else {
             // File doesn't exist or is invalid - remove the reference
-            print('Image file is invalid: $imagePath');
-            prefs.remove('saved_image_path');
+            debugPrint('Image file is invalid: $imagePath');
+            prefs.remove('${userId}_saved_image_path');
           }
         }
         
         // Restore receipt items
-        final itemsJson = prefs.getString('receipt_items');
+        final itemsJson = prefs.getString('${userId}_receipt_items');
         if (itemsJson != null) {
           final List<dynamic> itemsList = jsonDecode(itemsJson);
           _receiptItems = itemsList.map((item) => ReceiptItem.fromJson(item)).toList();
         }
         
         // Restore assignments
-        final assignmentsJson = prefs.getString('assignments');
+        final assignmentsJson = prefs.getString('${userId}_assignments');
         if (assignmentsJson != null) {
           _assignments = jsonDecode(assignmentsJson);
         }
@@ -451,7 +467,7 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
         
         // If we've restored state to the split view page, ensure SplitManager is initialized
         if (_currentPage == 3 && _isAssignmentComplete && _assignments != null && _receiptItems.isNotEmpty) {
-          debugPrint('Restoring split view from saved state');
+          debugPrint('Restoring split view from saved state for user $userId');
           
           // Get the SplitManager
           final splitManager = context.read<SplitManager>();
@@ -542,9 +558,9 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
         }
       });
       
-      print('App state restored successfully to page: $_currentPage');
+      debugPrint('App state restored successfully for user $userId to page: $_currentPage');
     } catch (e) {
-      print('Error loading saved state: $e');
+      debugPrint('Error loading saved state: $e');
     }
   }
   
