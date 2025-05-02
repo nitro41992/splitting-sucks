@@ -568,13 +568,40 @@ class AuthService {
     await _ensureInitialized();
     
     try {
-      await _auth.signOut(); // Sign out from Firebase
+      // Sign out from Firebase without clearing app state
+      await _auth.signOut();
       debugPrint('Firebase sign out successful.');
       
       // No need for a toast here as it's handled in the UI
     } catch (e) {
        debugPrint('Error during Firebase sign out: $e');
        throw 'Failed to sign out: $e'; // Re-throw Firebase errors
+    }
+  }
+  
+  // Method to clear all app state (can be called separately when needed)
+  Future<void> clearAllAppState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Get all keys
+      final allKeys = prefs.getKeys();
+      
+      // Keep auth-related preferences (like login attempts) but remove app state
+      final keysToRemove = allKeys.where((key) => 
+        !key.contains(_loginAttemptsKey) && 
+        !key.contains(_lastLoginAttemptTimeKey) && 
+        !key.contains(_loginLockedUntilKey)
+      ).toList();
+      
+      // Remove each key individually
+      for (final key in keysToRemove) {
+        await prefs.remove(key);
+      }
+      
+      debugPrint('Cleared ${keysToRemove.length} app state preferences');
+    } catch (e) {
+      debugPrint('Error clearing app state: $e');
     }
   }
 

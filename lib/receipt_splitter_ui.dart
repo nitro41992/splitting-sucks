@@ -243,6 +243,7 @@ class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
                   
                   if (shouldLogout) {
                     try {
+                      // Sign out without resetting app state
                       await FirebaseAuth.instance.signOut();
                       debugPrint('User signed out');
                       
@@ -988,7 +989,7 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
   }
 
   // Explicit reset method for the MainPageController
-  Future<void> resetApp() async {
+  Future<void> resetApp({bool showToast = true}) async {
     // Reset all state variables
     setState(() {
       _imageFile = null;
@@ -1014,8 +1015,8 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
       _pageController.jumpToPage(0);
     }
     
-    // Show success toast
-    if (mounted) {
+    // Show success toast if requested
+    if (mounted && showToast) {
       ToastHelper.showToast(
         context,
         'App has been reset successfully',
