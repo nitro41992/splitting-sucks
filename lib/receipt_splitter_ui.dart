@@ -120,26 +120,56 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
     });
   }
 
-  void _handleParseReceipt() {
+  void _handleParseReceipt() async {
     if (_imageFile == null) return;
     
     setState(() {
       _isLoading = true;
     });
     
-    // Simulate processing
-    Future.delayed(const Duration(seconds: 2), () {
-      setState(() {
-        _isLoading = false;
-      });
+    try {
+      // Actually parse the receipt using ReceiptParserService
+      final receiptData = await ReceiptParserService.parseReceipt(_imageFile!);
       
-      // Navigate to next screen
+      if (!mounted) return;
+      
+      // Navigate to ReceiptReviewScreen with the parsed items
+      final items = receiptData.getReceiptItems();
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReceiptReviewScreen(
+            initialItems: items,
+            onReviewComplete: (updatedItems, deletedItems) {
+              // Handle the reviewed items (will implement later)
+              debugPrint('Review complete with ${updatedItems.length} items');
+              Navigator.pop(context); // Go back to upload screen
+            },
+          ),
+        ),
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Receipt processed successfully!')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error processing receipt: ${e.toString()}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Receipt processed successfully!')),
-        );
+        setState(() {
+          _isLoading = false;
+        });
       }
-    });
+    }
   }
 
   void _handleRetry() {
