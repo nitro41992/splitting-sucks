@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/shared/wave_divider_painter.dart';
+import '../utils/toast_helper.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'phone_auth_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -78,6 +80,16 @@ class _LoginScreenState extends State<LoginScreen> {
       }
       
       debugPrint('Google sign in successful.');
+      
+      // Show a success toast directly
+      if (mounted) {
+        ToastHelper.showToast(
+          context,
+          'Welcome! Signed in with Google',
+          isSuccess: true,
+        );
+      }
+      
       // Navigation removed - StreamBuilder in main.dart will handle showing ReceiptSplitterUI
     } catch (e) {
       debugPrint('Google sign in error: $e');
@@ -208,6 +220,56 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           )
                         : const Text('Sign in with Google', style: TextStyle(fontSize: 16)),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Apple Sign In Button (show only on iOS)
+                    if (Platform.isIOS)
+                      OutlinedButton.icon(
+                        onPressed: _isLoading ? null : () {
+                          // TODO: Implement Apple Sign In
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Apple Sign In not implemented yet')),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.black,
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.black),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          minimumSize: const Size(double.infinity, 56),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: const Icon(Icons.apple, size: 24, color: Colors.black),
+                        label: const Text('Sign in with Apple', style: TextStyle(fontSize: 16)),
+                      ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Phone Authentication Button
+                    OutlinedButton.icon(
+                      onPressed: _isLoading ? null : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PhoneAuthScreen(),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.text,
+                        side: BorderSide(color: AppColors.textMuted),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        minimumSize: const Size(double.infinity, 56),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: Icon(Icons.phone, size: 24, color: AppColors.primary),
+                      label: const Text('Sign in with Phone', style: TextStyle(fontSize: 16)),
                     ),
                   ],
                 ),

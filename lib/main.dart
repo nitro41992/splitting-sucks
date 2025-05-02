@@ -47,23 +47,37 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Billfie',
-      theme: AppTheme.lightTheme,
-      home: firebaseInitialized ? const ReceiptSplitterUI() : const FirebaseInit(),
-      routes: Routes.getRoutes(),
-      onGenerateRoute: (settings) {
-        if (settings.name == '/signup') {
-          return MaterialPageRoute(
-            builder: (_) => Routes.getRoutes()['/signup']!(_),
-          );
-        } else if (settings.name == '/forgot-password') {
-          return MaterialPageRoute(
-            builder: (_) => Routes.getRoutes()['/forgot-password']!(_),
-          );
-        }
-        return null;
-      },
+    return MultiProvider(
+      providers: [
+        // Provide AuthService globally
+        Provider<AuthService>(
+          create: (_) => AuthService(),
+          dispose: (_, service) => service.dispose(),
+        ),
+        // Stream of auth state changes
+        StreamProvider<User?>(
+          create: (context) => context.read<AuthService>().authStateChanges,
+          initialData: null,
+        ),
+      ],
+      child: MaterialApp(
+        title: 'Billfie',
+        theme: AppTheme.lightTheme,
+        home: firebaseInitialized ? const ReceiptSplitterUI() : const FirebaseInit(),
+        routes: Routes.getRoutes(),
+        onGenerateRoute: (settings) {
+          if (settings.name == '/signup') {
+            return MaterialPageRoute(
+              builder: (_) => Routes.getRoutes()['/signup']!(_),
+            );
+          } else if (settings.name == '/forgot-password') {
+            return MaterialPageRoute(
+              builder: (_) => Routes.getRoutes()['/forgot-password']!(_),
+            );
+          }
+          return null;
+        },
+      ),
     );
   }
 }

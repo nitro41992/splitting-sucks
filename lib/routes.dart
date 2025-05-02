@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/forgot_password_screen.dart';
+import 'screens/phone_auth_screen.dart';
 
 class Routes {
   static const String login = '/login';
   static const String signup = '/signup';
   static const String forgotPassword = '/forgot-password';
+  static const String phoneAuth = '/phone-auth';
   static const String home = '/home';
 
   static Map<String, WidgetBuilder> getRoutes() {
@@ -14,6 +16,7 @@ class Routes {
       login: (context) => const LoginScreen(),
       signup: (context) => const SignupScreen(),
       forgotPassword: (context) => const ForgotPasswordScreen(),
+      phoneAuth: (context) => const PhoneAuthScreen(),
       // Add other routes as needed
     };
   }

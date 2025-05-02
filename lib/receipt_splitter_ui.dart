@@ -80,8 +80,16 @@ void forceRefreshApp(BuildContext context) async {
   }
 }
 
-class ReceiptSplitterUI extends StatelessWidget {
+class ReceiptSplitterUI extends StatefulWidget {
   const ReceiptSplitterUI({super.key});
+
+  @override
+  State<ReceiptSplitterUI> createState() => _ReceiptSplitterUIState();
+}
+
+class _ReceiptSplitterUIState extends State<ReceiptSplitterUI> {
+  // Keep track of listeners to prevent duplicates
+  bool _hasSetupListeners = false;
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +108,13 @@ class ReceiptSplitterUI extends StatelessWidget {
         // If the user is not logged in, show the login screen
         if (!snapshot.hasData || snapshot.data == null) {
           return const LoginScreen();
+        }
+        
+        // Set up success message listener once
+        if (!_hasSetupListeners) {
+          // NOTE: We don't need this anymore since we're showing toasts directly in the login screens
+          // But we'll keep the structure in case we need to add other listeners in the future
+          _hasSetupListeners = true;
         }
         
         // If logged in, show the main app
