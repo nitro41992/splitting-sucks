@@ -97,38 +97,8 @@ class MainAppContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-          const SizedBox(height: 20),
-          Text(
-            'Welcome ${user?.displayName ?? user?.email ?? "User"}!',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Your app is ready to use.',
-            style: TextStyle(fontSize: 16),
-          ),
-          const SizedBox(height: 30),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ReceiptScreenWrapper(),
-                ),
-              );
-            },
-            child: const Text('Upload Receipt'),
-          ),
-        ],
-      ),
-    );
+    // Navigate directly to the ReceiptScreenWrapper instead of showing welcome screen
+    return const ReceiptScreenWrapper();
   }
 }
 
