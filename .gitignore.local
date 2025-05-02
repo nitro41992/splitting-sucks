@@ -1,0 +1,40 @@
+# Local development environment specific ignores
+# You can copy this file to .git/info/exclude to apply these ignores locally without modifying the project's .gitignore
+
+# iOS build artifacts and temporary files
+ios/DerivedData/
+ios/build/
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner.xcodeproj/xcuserdata/
+ios/**/xcuserdata/
+
+# Local Firebase config
+ios/GoogleService-Info.plist
+ios/Runner/GoogleService-Info.plist
+android/app/google-services.json
+
+# Developer-specific configuration files
+.vscode/
+*.code-workspace
+
+# Local environment scripts
+*.local.sh
+
+# Fix scripts (can be added to main .gitignore if they should be shared)
+ios/fix_*.sh
+
+# Local notes and documentation
+NOTES.md
+TODO.md
+CHANGELOG.local.md
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+
+# Local CocoaPods related files (already in main .gitignore but repeated here for clarity)
+ios/Pods/
+ios/Podfile.lock
+ios/Podfile.bak* 

@@ -27,47 +27,25 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
-# Resolve GoogleUtilities version conflicts
-pre_install do |installer|
-  # Override GoogleUtilities version to avoid conflicts between Firebase and GoogleSignIn
-  Pod::UI.puts "Resolving GoogleUtilities version conflicts"
-  installer.pod_targets.each do |pod|
-    if pod.name.eql?('GoogleUtilities/Environment') || pod.name.eql?('GoogleUtilities/Logger')
-      def pod.build_type
-        Pod::BuildType.static_library
-      end
-    end
-  end
-end
-
 target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  # Use pre-compiled FirebaseFirestore to avoid gRPC-Core and BoringSSL build issues
-  pod 'FirebaseFirestore', :git => 'https://github.com/invertase/firestore-ios-sdk-frameworks.git', :tag => '10.25.0'
-
+  # Flutter-specific pods
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
-  # Add the Firebase pod for Google Analytics
-  pod 'FirebaseAnalytics'
-  
-  # For Analytics without IDFA collection capability, use this pod instead
-  # pod 'FirebaseAnalytics', '~> 10.17.0', :configurations => ['Debug', 'Release']
-
-  target 'RunnerTests' do
-    inherit! :search_paths
-  end
+  # Use pre-compiled Firestore frameworks to avoid building BoringSSL-GRPC
+  pod 'FirebaseFirestore', :git => 'https://github.com/invertase/firestore-ios-sdk-frameworks.git', :tag => '10.25.0'
 end
 
 post_install do |installer|
-  # Fix non-modular headers for all targets
   installer.pods_project.targets.each do |target|
+    # Fix for non-modular headers
     target.build_configurations.each do |config|
       config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
     end
-    
-    # Additional specific fix for BoringSSL-GRPC compiler flags
+
+    # Fix for BoringSSL-GRPC compiler flags - removes problematic '-G' flag
     if target.name == 'BoringSSL-GRPC'
       target.source_build_phase.files.each do |file|
         if file.settings && file.settings['COMPILER_FLAGS']
@@ -78,33 +56,22 @@ post_install do |installer|
       end
     end
     
+    # Fix for M1 Mac architecture issues
     flutter_additional_ios_build_settings(target)
     
-    # Ensure iOS deployment target is set correctly
+    # Exclude arm64 architecture for simulator builds on Apple Silicon
     target.build_configurations.each do |config|
+      if config.name == 'Debug' && config.build_settings['ARCHS'] == nil
+        config.build_settings['ARCHS'] = '${ARCHS_STANDARD_64_BIT}'
+      end
+      
+      # Set the deployment target to match the Flutter project
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
-    end
-  end
-  
-  # Fix Runner project too
-  begin
-    require 'xcodeproj'
-    runner_project_path = File.expand_path("../Runner.xcodeproj", __FILE__)
-    runner_project = Xcodeproj::Project.open(runner_project_path)
-  
-    runner_project.targets.each do |target|
-      if target.name == "Runner"
-        puts "Updating build settings for Runner target"
-        target.build_configurations.each do |config|
-          config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-        end
+      
+      # Set iOS architectures
+      if config.build_settings['SDKROOT'] == 'iphoneos' && target.platform_name == :ios
+        config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
       end
     end
-  
-    runner_project.save
-    puts "Runner project updated successfully"
-  rescue => e
-    puts "Warning: Could not update Runner project automatically: #{e.message}"
-    puts "You may need to open Xcode and set 'Allow Non-modular Includes in Framework Modules' to YES manually"
   end
 end

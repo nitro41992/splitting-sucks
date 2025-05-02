@@ -62,6 +62,7 @@ app.*.map.json
 
 # Firebase
 **/ios/Runner/GoogleService-Info.plist
+**/ios/GoogleService-Info.plist
 **/android/app/google-services.json
 **/web/firebase-config.js
 firebase-debug.log
@@ -157,7 +158,9 @@ fix_g_option.sh
 fix_m1_pods.sh
 fix_podfile_for_g_flag.sh
 fix_xcode_arch.sh
+fix_plist_in_bundle.sh
 m1_firebase_setup.md
+ios_code_signing_guide.md
 
 # Large binary files
 logo.png
