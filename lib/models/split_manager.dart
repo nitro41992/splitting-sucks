@@ -59,7 +59,34 @@ class SplitManager extends ChangeNotifier {
   }
 
   void updatePersonName(Person person, String newName) {
-    person.updateName(newName);
+    print('DEBUG: SplitManager.updatePersonName called for "${person.name}" to "$newName"');
+    // Check if person is in our list
+    final personIndex = _people.indexOf(person);
+    if (personIndex == -1) {
+      print('DEBUG: ERROR - Person not found in _people list!');
+      // Person not found in our list, let's print more details
+      print('DEBUG: Person list contents:');
+      for (int i = 0; i < _people.length; i++) {
+        print('DEBUG:   Person[$i]: ${_people[i].name} (hash: ${_people[i].hashCode})');
+      }
+      print('DEBUG: Person to update: ${person.name} (hash: ${person.hashCode})');
+      
+      // Try to find by name as a fallback
+      final matchByName = _people.firstWhere(
+        (p) => p.name == person.name,
+        orElse: () => person
+      );
+      if (matchByName != person) {
+        print('DEBUG: Found person by name match instead, updating that one');
+        matchByName.updateName(newName);
+      } else {
+        print('DEBUG: Could not find person by name either, using provided reference');
+        person.updateName(newName);
+      }
+    } else {
+      print('DEBUG: Person found at index $personIndex, updating name');
+      person.updateName(newName);
+    }
     notifyListeners();
   }
 

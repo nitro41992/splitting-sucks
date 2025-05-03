@@ -166,13 +166,15 @@ class PersonCard extends StatelessWidget {
   }
 
   void _showEditNameDialog(BuildContext context, Person person) {
+    // Capture the SplitManager here, outside the dialog
+    final splitManager = Provider.of<SplitManager>(context, listen: false);
     final controller = TextEditingController(text: person.name);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
             Icon(Icons.edit, color: colorScheme.primary),
@@ -201,7 +203,7 @@ class PersonCard extends StatelessWidget {
               autofocus: true,
               onChanged: (value) {
                 // Update the state to rebuild the dialog and show the counter
-                (context as Element).markNeedsBuild();
+                (dialogContext as Element).markNeedsBuild();
               },
             ),
             const SizedBox(height: 8),
@@ -221,7 +223,7 @@ class PersonCard extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text(
               'Cancel',
               style: TextStyle(color: colorScheme.error),
@@ -231,8 +233,19 @@ class PersonCard extends StatelessWidget {
             onPressed: () {
               final newName = controller.text.trim();
               if (newName.isNotEmpty && newName.length <= maxNameLength) {
-                context.read<SplitManager>().updatePersonName(person, newName);
-                Navigator.pop(context);
+                // Add debug logging
+                print('DEBUG: Updating person name from "${person.name}" to "$newName"');
+                
+                // Use the previously captured splitManager, not context.read
+                print('DEBUG: Split manager people count: ${splitManager.people.length}');
+                
+                // Update the name
+                splitManager.updatePersonName(person, newName);
+                
+                // Log person name after update attempt
+                print('DEBUG: After update - person name is now: "${person.name}"');
+                
+                Navigator.pop(dialogContext);
               }
             },
             icon: const Icon(Icons.check),
