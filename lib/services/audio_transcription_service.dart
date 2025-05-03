@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../env/firebase_config.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show Platform;
 
 // Model classes for structured validation
 class Order {
@@ -141,10 +143,19 @@ class AudioTranscriptionService {
       
       debugPrint('Uploading audio to storage: $storagePath');
       final Reference storageRef = _storage.ref(storagePath);
-      await storageRef.putData(
-        audioBytes,
-        SettableMetadata(contentType: 'audio/wav'),
+      
+      // Use a proper standard MIME type for WAV files
+      // This is more widely recognized across platforms
+      final metadata = SettableMetadata(
+        contentType: 'audio/x-wav',
+        customMetadata: {
+          'uploadedFrom': Platform.isIOS ? 'iOS' : Platform.isAndroid ? 'Android' : 'other'
+        }
       );
+      
+      debugPrint('Uploading with content type: ${metadata.contentType}');
+      await storageRef.putData(audioBytes, metadata);
+      debugPrint('Upload successful');
       
       // 2. Get the Cloud Storage URI (gs://)
       final String bucket = _storage.bucket;
