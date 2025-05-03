@@ -79,6 +79,9 @@ class AuthService {
       _auth = FirebaseAuth.instance;
       _isInitialized = true;
       
+      // Attempt to handle potential sessionStorage errors during initialization
+      await _handlePotentialStorageIssues();
+      
       // Start listening to auth state changes and forward to our stream
       _auth.authStateChanges().listen((User? user) {
         _userStreamController.add(user);
@@ -113,6 +116,39 @@ class AuthService {
     } catch (e) {
       debugPrint('Error connecting to Firebase Auth: $e');
       _userStreamController.add(null);
+    }
+  }
+
+  // Method to handle and recover from potential storage issues
+  Future<void> _handlePotentialStorageIssues() async {
+    try {
+      // If we're on Android or web, ensure persistence is set to LOCAL
+      if (kIsWeb || Platform.isAndroid) {
+        // Try to explicitly set the persistence to LOCAL to fix storage issues
+        await _auth.setPersistence(Persistence.LOCAL);
+        debugPrint('Auth persistence explicitly set to LOCAL');
+      }
+      
+      // If we're running in Firebase App Distribution test environment
+      // Get and check the current user to force a reload of auth state
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        try {
+          // Force a token refresh to ensure we have a valid session
+          await currentUser.getIdToken(true);
+          debugPrint('Successfully refreshed auth token for current user');
+        } catch (e) {
+          if (e.toString().contains('missing initial state') || 
+              e.toString().contains('sessionStorage')) {
+            debugPrint('Detected storage issue during token refresh, signing out to recover');
+            await _auth.signOut();
+          } else {
+            debugPrint('Error refreshing token, not related to storage: $e');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error during storage issue handling: $e');
     }
   }
 
@@ -655,6 +691,22 @@ class AuthService {
       case 'app-not-authorized':
         return 'This app is not authorized to use Firebase Authentication with your key.';
       default:
+        // Check for "missing initial state" error in the message
+        if (e.message != null && 
+            (e.message!.contains('missing initial state') || 
+             e.message!.contains('sessionStorage is inaccessible'))) {
+          debugPrint('Caught missing initial state error, handling gracefully');
+          // Attempt to recover by clearing Firebase auth state
+          try {
+            FirebaseAuth.instance.signOut().then((_) {
+              debugPrint('Signed out to reset auth state after missing initial state error');
+            });
+          } catch (innerError) {
+            debugPrint('Error during recovery signout: $innerError');
+          }
+          
+          return 'There was a temporary authentication issue. Please try again.';
+        }
         return 'An error occurred: ${e.message}';
     }
   }

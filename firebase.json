@@ -14,5 +14,11 @@
   "storage": {
     "rules": "storage.rules"
   },
-  "extensions": {}
+  "extensions": {},
+  "app_distribution": {
+    "android": {
+      "app": "1:700235738899:android:f2b0756dfe3bca2f1774e6",
+      "groups": "testers"
+    }
+  }
 }

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'models/split_manager.dart';
 import 'receipt_splitter_ui.dart';
 import 'services/mock_data_service.dart';
@@ -27,6 +29,26 @@ void main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      
+      // Configure Firebase Auth persistence to fix the "missing initial state" issue
+      // This addresses problems with browser sessionStorage in web/PWA contexts and
+      // similar state persistence issues in the Android app
+      try {
+        // For Android, set the persistence to LOCAL (default is already LOCAL on native platforms)
+        if (!kIsWeb && Platform.isAndroid) {
+          await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+          debugPrint("Firebase Auth persistence set to LOCAL for Android");
+        }
+        
+        // For web, explicitly set persistence to prevent issues with sessionStorage
+        if (kIsWeb) {
+          await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+          debugPrint("Firebase Auth persistence set to LOCAL for Web");
+        }
+      } catch (e) {
+        debugPrint("Error setting persistence: $e - continuing anyway");
+      }
+      
       debugPrint("Firebase successfully initialized in main()");
       firebaseInitialized = true;
     } else {
@@ -113,6 +135,23 @@ class _FirebaseInitState extends State<FirebaseInit> {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      
+      // Configure Firebase Auth persistence (backup in case it wasn't set in main)
+      try {
+        // For Android, set the persistence to LOCAL
+        if (!kIsWeb && Platform.isAndroid) {
+          await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+          debugPrint("Firebase Auth persistence set to LOCAL for Android");
+        }
+        
+        // For web, explicitly set persistence
+        if (kIsWeb) {
+          await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+          debugPrint("Firebase Auth persistence set to LOCAL for Web");
+        }
+      } catch (e) {
+        debugPrint("Error setting persistence: $e - continuing anyway");
+      }
       
       debugPrint("Firebase successfully initialized from widget");
       
