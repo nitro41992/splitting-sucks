@@ -555,9 +555,47 @@ class _SplitViewState extends State<SplitView> {
   }
 
   Widget _buildPeopleList(BuildContext context, SplitManager splitManager) {
-    return Column(
-      children: splitManager.people.map((person) => PersonCard(person: person)).toList(),
-    );
+    final TextTheme textTheme = Theme.of(context).textTheme;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+
+    if (splitManager.people.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.people_outlined, // Icon indicating no people
+                size: 60,
+                color: colorScheme.primary, // Use primary color for distinction
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'No People Added Yet!',
+                textAlign: TextAlign.center,
+                style: textTheme.headlineSmall?.copyWith(
+                  color: colorScheme.primary, // Use primary color
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Add people to assign receipt items to them.',
+                textAlign: TextAlign.center,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return Column(
+        children: splitManager.people.map((person) => PersonCard(person: person)).toList(),
+      );
+    }
   }
 
   Widget _buildSharedItemsList(BuildContext context, SplitManager splitManager) {
