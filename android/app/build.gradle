@@ -29,7 +29,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.example.billfie"
+    namespace "com.billfie.app"
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -46,8 +46,40 @@ android {
         main.java.srcDirs += 'src/main/kotlin'
     }
 
+    signingConfigs {
+        release {
+            // You will need to create a key using the keytool command:
+            // keytool -genkey -v -keystore billfie-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias billfie
+            // Then place the keystore in the app/ directory
+            // The keystore password and key password will be specified when running the keytool command
+            if (System.getenv('ANDROID_KEYSTORE_PATH')) {
+                storeFile file(System.getenv('ANDROID_KEYSTORE_PATH'))
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            } else {
+                // For local development, you can put values in local.properties
+                // keystore.properties format:
+                // storeFile=path/to/keystore.jks
+                // storePassword=yourStorePassword
+                // keyAlias=yourKeyAlias
+                // keyPassword=yourKeyPassword
+                def keystorePropertiesFile = rootProject.file('key.properties')
+                if (keystorePropertiesFile.exists()) {
+                    def keystoreProperties = new Properties()
+                    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+                    
+                    storeFile file(keystoreProperties['storeFile'])
+                    storePassword keystoreProperties['storePassword']
+                    keyAlias keystoreProperties['keyAlias']
+                    keyPassword keystoreProperties['keyPassword']
+                }
+            }
+        }
+    }
+
     defaultConfig {
-        applicationId "com.example.billfie"
+        applicationId "com.billfie.app"
         minSdkVersion 23
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
@@ -57,7 +89,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
 }

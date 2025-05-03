@@ -531,9 +531,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                   const SizedBox(height: 16),
                   Card(
                     elevation: 0,
-                    margin: Platform.isIOS 
-                        ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0)
-                        : EdgeInsets.zero,
+                    margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                       side: BorderSide(color: colorScheme.outlineVariant),
