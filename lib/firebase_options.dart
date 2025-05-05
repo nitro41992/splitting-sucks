@@ -55,12 +55,12 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDO7J9bVAhIrnNNXoXhptSure6LoU9OBSw',
-    appId: '1:700235738899:android:f9581c3a91ecf6891774e6',  // Updated with actual Android appId from google-services.json
+    apiKey: 'AIzaSyDTvGYCjKJ9-6mX3cC9xqZ9xkEZUR9IUmg',
+    appId: '1:700235738899:android:f2b0756dfe3bca2f1774e6',
     messagingSenderId: '700235738899',
     projectId: 'billfie',
     storageBucket: 'billfie.firebasestorage.app',
-    androidClientId: '700235738899-pq86318m7pafrmqc6agi2qcu1g13c8vv.apps.googleusercontent.com',
+    androidClientId: '700235738899-4b4lksjclelghr4f62ikfiujs3arlke3.apps.googleusercontent.com',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

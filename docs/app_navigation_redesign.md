@@ -652,66 +652,44 @@ The Settings section will contain user account options and app settings:
 └─────────────────┴─────────────────┴─────────────────┘
 ```
 
-## Firestore Data for Receipt History
+## Recent Updates and Known Issues
 
-The History screen uses data directly from Firestore. This approach offers several benefits:
+### Recently Fixed Issues
 
-### Real Database Testing
-- Testing against the actual database structure and Firebase SDK
-- Validating Firestore security rules in real scenarios
-- Ability to test with varying amounts of data for performance analysis
+1. **Receipt Parsing Integration**
+   - ✅ Fixed integration between Receipt Upload screen and Cloud Functions
+   - ✅ Implemented proper data flow from image upload to item review
+   - ✅ Updated ReceiptParserService to return both parsed data and image URI
+   - ✅ Fixed tuple handling in all components that use ReceiptParserService
 
-### Data Population Methods
-There are multiple ways to populate test data:
+### Current Known Issues
 
-1. **Creating Receipts Through the App**: 
-   - Use the "Create" tab to generate real receipts with real data
-   - Go through the complete workflow and save them to Firestore
+1. **History Refresh**
+   - ❌ History list doesn't automatically refresh when a new draft is created
+   - ❌ No manual refresh mechanism available in the History screen
+   - ❌ User needs to restart app to see newly created drafts or completed receipts
 
-2. **Using Test Data Generation Utilities**:
-   - `MockDataService` - Provides utilities to generate test receipt data
-   - This service only generates test data with realistic values
-   - Data generated is saved to the real Firestore database
+### Pending Implementation Tasks
 
-3. **Direct Firebase Console Creation**:
-   - Create documents directly in the Firebase Console for testing
+1. **History Refresh Mechanism**
+   - Add pull-to-refresh functionality in the History screen
+   - Implement automatic refresh when navigating to History tab
+   - Add a refresh button in the app bar of the History screen
 
-### Test Data vs. Mock Services
+2. **Split Step Implementation**
+   - Complete the implementation of the Split step in the Create workflow
+   - Add UI for managing item assignments between people
+   - Implement shared item functionality
 
-It's important to understand the distinction:
+3. **Resource Cleanup**
+   - Improve receipt deletion to properly clean up resources
+   - Add Firebase Storage cleanup for associated images
 
-- **Test Data**: Realistic sample data used for testing that is stored in your actual Firestore database
-- **Mock Services**: An implementation that bypasses the real backend service (no longer used)
+4. **Security Enhancements**
+   - Implement account deletion with proper data cleanup
+   - Update Firebase Storage security rules
 
-The app now always uses the real Firestore database with real services, but can be populated with test data for development and testing purposes.
-
-### Database Structure
-The receipt history data is stored in Firestore following this structure:
-```
-users/{userId}/receipts/{receiptId}
-  - image_uri: String (GCS path)
-  - created_at: Timestamp
-  - updated_at: Timestamp 
-  - userId: String
-  - restaurant_name: String
-  - status: String ('completed' or 'draft')
-  - total_amount: Number
-  - receipt_data: Map { items: Array<Map> }
-  - transcription: String (optional)
-  - people: Array<String>
-  - person_totals: Array<Map>
-  - split_manager_state: Map
-```
-
-### Testing Considerations
-- Test with multiple user accounts to validate security rules
-- Create receipts with varying complexity (different number of items, people)
-- Include both 'completed' and 'draft' status receipts
-- Test with realistic image references to validate thumbnail generation
-
-### Receipt Images
-For testing, the following images are stored in Firebase Storage:
-- `gs://billfie.firebasestorage.app/receipts/PXL_20240815_225730738.jpg` (Restaurant receipt)
-- `gs://billfie.firebasestorage.app/receipts/PXL_20241207_220416408.MP.jpg` (Grocery receipt)
-- `gs://billfie.firebasestorage.app/receipts/PXL_20250419_011719007.jpg` (Coffee shop receipt)
-- `gs://billfie.firebasestorage.app/receipts/PXL_20250504_180915852.jpg`
+5. **Testing and Optimization**
+   - Complete cross-device testing
+   - Optimize performance for large datasets
+   - Add comprehensive error handling

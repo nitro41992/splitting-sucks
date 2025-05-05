@@ -16,6 +16,7 @@ import 'theme/app_theme.dart';
 import 'routes.dart';
 import 'firebase_options.dart';
 import 'env/env.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Global variable to track initialization
 bool firebaseInitialized = false;
@@ -86,9 +87,15 @@ void main() async {
       
       debugPrint("Firebase successfully initialized in main()");
       firebaseInitialized = true;
+      
+      // Test Firebase connectivity
+      _testFirebaseConnectivity();
     } else {
       debugPrint("Firebase already initialized, using existing instance");
       firebaseInitialized = true;
+      
+      // Test Firebase connectivity
+      _testFirebaseConnectivity();
     }
   } catch (e) {
     debugPrint("Error initializing Firebase in main(): $e");
@@ -97,6 +104,28 @@ void main() async {
   
   // Entry point
   runApp(const MyApp());
+}
+
+// Function to test Firebase connectivity
+void _testFirebaseConnectivity() async {
+  try {
+    // Test Firestore
+    debugPrint("Testing Firestore connectivity...");
+    final testDoc = await FirebaseFirestore.instance.collection('_test_connectivity').doc('test').get();
+    debugPrint("Firestore test result: ${testDoc.exists ? 'Document exists' : 'Document does not exist'}");
+    
+    // Test Authentication
+    debugPrint("Testing Firebase Auth connectivity...");
+    final authState = FirebaseAuth.instance.authStateChanges();
+    authState.listen(
+      (user) => debugPrint("Auth state: ${user != null ? 'Signed In' : 'Signed Out'}"),
+      onError: (e) => debugPrint("Auth error: $e")
+    );
+    
+    debugPrint("Firebase connectivity tests initiated");
+  } catch (e) {
+    debugPrint("Firebase connectivity test error: $e");
+  }
 }
 
 class MyApp extends StatelessWidget {

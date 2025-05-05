@@ -14,10 +14,10 @@ class HistoryScreen extends StatefulWidget {
   const HistoryScreen({Key? key}) : super(key: key);
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  State<HistoryScreen> createState() => HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class HistoryScreenState extends State<HistoryScreen> {
   final ReceiptHistoryProvider _historyProvider = ReceiptHistoryProvider();
   List<ReceiptHistory> _receipts = [];
   List<ReceiptHistory> _filteredReceipts = [];
@@ -33,7 +33,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.initState();
     // Log environment status for this screen
     EnvironmentChecker.logStatus('HistoryScreen');
-    _loadReceipts();
+    refreshReceipts();
     
     // Add scroll listener to show/hide scroll-to-top button
     _scrollController.addListener(() {
@@ -43,7 +43,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     });
   }
 
-  Future<void> _loadReceipts() async {
+  Future<void> refreshReceipts() async {
     setState(() {
       _isLoading = true;
     });
@@ -144,7 +144,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     
     // If result is true, it means the receipt was deleted in the detail screen
     if (result == true) {
-      _loadReceipts();
+      refreshReceipts();
     }
   }
 
@@ -212,7 +212,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           HapticFeedback.vibrate();
         }
         _showSuccessMessage('Receipt deleted successfully');
-        _loadReceipts();
+        refreshReceipts();
       } catch (e) {
         _showErrorMessage('Error deleting receipt: ${e.toString()}');
       }
@@ -428,6 +428,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return CupertinoPageScaffold(
         navigationBar: CupertinoNavigationBar(
           middle: const Text('History'),
+          trailing: CupertinoButton(
+            padding: EdgeInsets.zero,
+            child: const Icon(CupertinoIcons.refresh),
+            onPressed: refreshReceipts,
+          ),
         ),
         child: _buildBody(),
       );
@@ -435,6 +440,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return Scaffold(
         appBar: AppBar(
           title: const Text('History'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: refreshReceipts,
+              tooltip: 'Refresh',
+            ),
+          ],
         ),
         body: _buildBody(),
         // Floating action button for Android to scroll to top
@@ -472,18 +484,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
         Expanded(
           child: _filteredReceipts.isEmpty
               ? _buildEmptyState()
-              : ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: _filteredReceipts.length,
-                  itemBuilder: (context, index) {
-                    final receipt = _filteredReceipts[index];
-                    return ReceiptHistoryCard(
-                      receipt: receipt,
-                      onTap: () => _viewReceiptDetails(receipt),
-                      onDelete: () => _deleteReceipt(receipt),
-                    );
-                  },
+              : RefreshIndicator(
+                  onRefresh: refreshReceipts,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16.0),
+                    itemCount: _filteredReceipts.length,
+                    itemBuilder: (context, index) {
+                      final receipt = _filteredReceipts[index];
+                      return ReceiptHistoryCard(
+                        receipt: receipt,
+                        onTap: () => _viewReceiptDetails(receipt),
+                        onDelete: () => _deleteReceipt(receipt),
+                      );
+                    },
+                  ),
                 ),
         ),
       ],

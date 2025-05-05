@@ -14,13 +14,40 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  int _previousIndex = 0;
+  
+  // Create global keys for each screen
+  final GlobalKey<HistoryScreenState> _historyKey = GlobalKey<HistoryScreenState>();
   
   // List of screens to display
-  final List<Widget> _screens = [
-    const CreateWorkflowScreen(),
-    const HistoryScreen(),
-    const SettingsScreen(),
-  ];
+  late final List<Widget> _screens;
+  
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      const CreateWorkflowScreen(),
+      HistoryScreen(key: _historyKey),
+      const SettingsScreen(),
+    ];
+  }
+  
+  void _onTabChanged(int index) {
+    // If we're switching to the History tab from another tab
+    if (index == 1 && _currentIndex != 1) {
+      // Schedule the refresh after the build is complete
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_historyKey.currentState != null) {
+          _historyKey.currentState!.refreshReceipts();
+        }
+      });
+    }
+    
+    setState(() {
+      _previousIndex = _currentIndex;
+      _currentIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,25 +73,18 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildMaterialBottomNavBar() {
     return BottomNavigationBar(
       currentIndex: _currentIndex,
-      onTap: (index) {
-        setState(() {
-          _currentIndex = index;
-        });
-      },
+      onTap: _onTabChanged,
       items: const [
         BottomNavigationBarItem(
           icon: Icon(Icons.add_circle_outline),
-          activeIcon: Icon(Icons.add_circle),
           label: 'Create',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.history),
-          activeIcon: Icon(Icons.history),
           label: 'History',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.settings_outlined),
-          activeIcon: Icon(Icons.settings),
+          icon: Icon(Icons.settings),
           label: 'Settings',
         ),
       ],
@@ -75,25 +95,18 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildCupertinoTabBar() {
     return CupertinoTabBar(
       currentIndex: _currentIndex,
-      onTap: (index) {
-        setState(() {
-          _currentIndex = index;
-        });
-      },
+      onTap: _onTabChanged,
       items: const [
         BottomNavigationBarItem(
           icon: Icon(CupertinoIcons.add_circled),
-          activeIcon: Icon(CupertinoIcons.add_circled_solid),
           label: 'Create',
         ),
         BottomNavigationBarItem(
           icon: Icon(CupertinoIcons.clock),
-          activeIcon: Icon(CupertinoIcons.clock_fill),
           label: 'History',
         ),
         BottomNavigationBarItem(
           icon: Icon(CupertinoIcons.settings),
-          activeIcon: Icon(CupertinoIcons.settings_solid),
           label: 'Settings',
         ),
       ],
