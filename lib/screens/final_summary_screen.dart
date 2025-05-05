@@ -30,9 +30,16 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize tax percentage potentially from SplitManager if needed, otherwise use default
-    // Example: _taxPercentage = context.read<SplitManager>().initialTaxRate ?? DEFAULT_TAX_RATE;
-    // For now, just use the default or last known value.
+    
+    // Initialize values from SplitManager if available
+    final splitManager = context.read<SplitManager>();
+    _tipPercentage = splitManager.tipPercentage;
+    
+    // Use tax percentage from SplitManager if available or default
+    _taxPercentage = splitManager.tax > 0 
+        ? (splitManager.tax / splitManager.subtotal * 100) 
+        : DEFAULT_TAX_RATE;
+    
     _taxController = TextEditingController(text: _taxPercentage.toStringAsFixed(3));
 
     _taxController.addListener(() {
@@ -41,15 +48,22 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
         if (_taxPercentage != newTax) {
            setState(() {
              _taxPercentage = newTax;
-             // Optionally update SplitManager if tax is global
-             // context.read<SplitManager>().updateTaxRate(newTax);
+             
+             // Update SplitManager with the new tax rate
+             final splitManager = context.read<SplitManager>();
+             final subtotal = splitManager.totalAmount;
+             final calculatedTax = subtotal * (newTax / 100.0);
+             splitManager.tax = calculatedTax;
            });
         }
       } else if (_taxController.text.isEmpty) {
         if (_taxPercentage != 0.0) { // Avoid rebuild if already 0
           setState(() {
             _taxPercentage = 0.0; // Set tax to 0 if input is cleared
-            // context.read<SplitManager>().updateTaxRate(0.0);
+            
+            // Update SplitManager with zero tax
+            final splitManager = context.read<SplitManager>();
+            splitManager.tax = 0.0;
           });
         }
       }
@@ -469,7 +483,16 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                             bool isSelected = (_tipPercentage - percentage).abs() < 0.01;
                             return ElevatedButton(
                               onPressed: () {
-                                setState(() { _tipPercentage = percentage; });
+                                setState(() { 
+                                  _tipPercentage = percentage; 
+                                  
+                                  // Update SplitManager with the new tip percentage
+                                  final splitManager = context.read<SplitManager>();
+                                  splitManager.tipPercentage = percentage;
+                                  final subtotal = splitManager.totalAmount;
+                                  final calculatedTip = subtotal * (percentage / 100.0);
+                                  splitManager.tip = calculatedTip;
+                                });
                               },
                               style: ElevatedButton.styleFrom(
                                 elevation: isSelected ? 2 : 0,
@@ -493,7 +516,16 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                           label: '${_tipPercentage.toStringAsFixed(1)}%',
                           onChanged: (value) {
                              // Round to one decimal place
-                            setState(() { _tipPercentage = (value * 10).round() / 10.0; });
+                            setState(() { 
+                              _tipPercentage = (value * 10).round() / 10.0; 
+                              
+                              // Update SplitManager with the new tip percentage and calculated tip
+                              final splitManager = context.read<SplitManager>();
+                              splitManager.tipPercentage = _tipPercentage;
+                              final subtotal = splitManager.totalAmount;
+                              final calculatedTip = subtotal * (_tipPercentage / 100.0);
+                              splitManager.tip = calculatedTip;
+                            });
                           },
                         ),
                       ],
@@ -587,10 +619,16 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
               // Wrap the Card with InkWell for tappable navigation
               InkWell(
                 onTap: () {
-                  // Set the initial tab index before navigating
-                  context.read<SplitManager>().initialSplitViewTabIndex = 2; // 2 = Unassigned tab
-                  // Notify the parent PageView controller to navigate
-                  NavigateToPageNotification(3).dispatch(context); // Go to Split View (index 3)
+                  // Explicitly set the initial tab index and update SplitManager
+                  final splitManager = context.read<SplitManager>();
+                  splitManager.initialSplitViewTabIndex = 2; // 2 = Unassigned tab
+                  debugPrint('Set initialSplitViewTabIndex to 2 for navigation to Unassigned tab');
+                  
+                  // Force a small delay to ensure the property is set before navigation
+                  Future.microtask(() {
+                    // Notify the parent PageView controller to navigate
+                    NavigateToPageNotification(3).dispatch(context); // Go to Split View (index 3)
+                  });
                 },
                 borderRadius: BorderRadius.circular(24), // Match the Card's border radius for ripple effect
                 child: Padding(

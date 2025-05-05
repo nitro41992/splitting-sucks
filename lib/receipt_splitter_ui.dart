@@ -1146,6 +1146,12 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
       onImageSelected: _handleImageSelected,
       onParseReceipt: _handleParseReceipt,
       onRetry: _handleRetry,
+      onRestaurantNameChanged: (name) {
+        // For now, simply log the restaurant name change
+        debugPrint('Restaurant name changed to: $name');
+        // You might want to store this in the parent state later
+      },
+      restaurantName: null, // Optional parameter, but added for completeness
     );
   }
 } 

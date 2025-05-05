@@ -167,18 +167,18 @@ class SplitManager extends ChangeNotifier {
   }
 
   void assignItemToPerson(ReceiptItem item, Person person) {
-    // Check if the person already has this item
+    debugPrint('SplitManager.assignItemToPerson: Assigning ${item.name} with quantity ${item.quantity} to ${person.name}');
+    
+    // First, remove any existing instance of this item if it exists
     for (int i = 0; i < person.assignedItems.length; i++) {
       if (person.assignedItems[i].isSameItem(item)) {
-        // Person already has this item, update the quantity
-        int newQuantity = person.assignedItems[i].quantity + item.quantity;
-        person.assignedItems[i].updateQuantity(newQuantity);
-        notifyListeners();
-        return;
+        debugPrint('Found existing item - replacing instead of adding to quantity');
+        person.removeAssignedItem(person.assignedItems[i]);
+        break;
       }
     }
     
-    // If we get here, the person doesn't have this item yet
+    // Now add the item with its exact quantity
     person.addAssignedItem(item);
     notifyListeners();
   }
@@ -568,14 +568,27 @@ class SplitManager extends ChangeNotifier {
 
   // New methods for receipt items management
   void markAsShared(ReceiptItem item, {List<Person>? people}) {
-    debugPrint('markAsShared called for item: ${item.name}, ID: ${item.itemId}');
+    debugPrint('markAsShared called for item: ${item.name}, ID: ${item.itemId}, quantity: ${item.quantity}');
     
-    // First add to shared items list if not already there
-    if (!_sharedItems.contains(item)) {
-      _sharedItems.add(item);
-      debugPrint('Added item to shared items list');
+    // First, check if an identical item already exists in shared items
+    ReceiptItem? existingSharedItem;
+    for (int i = 0; i < _sharedItems.length; i++) {
+      if (_sharedItems[i].isSameItem(item)) {
+        existingSharedItem = _sharedItems[i];
+        debugPrint('Found existing shared item with same name/price, will update rather than add new');
+        break;
+      }
+    }
+    
+    // If we found an existing item, replace it
+    if (existingSharedItem != null) {
+      final index = _sharedItems.indexOf(existingSharedItem);
+      _sharedItems[index] = item;
+      debugPrint('Replaced existing shared item with updated version, quantity: ${item.quantity}');
     } else {
-      debugPrint('Item already in shared items list');
+      // Add to shared items list if not already there
+      _sharedItems.add(item);
+      debugPrint('Added new item to shared items list, quantity: ${item.quantity}');
     }
     
     // If people are specified, assign the shared item ONLY to those specific people
@@ -584,26 +597,64 @@ class SplitManager extends ChangeNotifier {
       
       // First, remove this item from all people's shared items
       for (final person in _people) {
-        if (person.sharedItems.contains(item)) {
-          debugPrint('Removing item ${item.name} from ${person.name}\'s shared items first');
-          person.removeSharedItem(item);
+        for (int i = 0; i < person.sharedItems.length; i++) {
+          if (person.sharedItems[i].isSameItem(item)) {
+            debugPrint('Removing item ${item.name} from ${person.name}\'s shared items first');
+            person.removeSharedItem(person.sharedItems[i]);
+            break;
+          }
         }
       }
       
       // Then add to specified people only
       for (final person in people) {
-        if (!person.sharedItems.contains(item)) {
+        // Check if person already has this exact item
+        bool hasItem = false;
+        for (final existingItem in person.sharedItems) {
+          if (existingItem.isSameItem(item)) {
+            hasItem = true;
+            break;
+          }
+        }
+        
+        if (!hasItem) {
           debugPrint('Adding item ${item.name} to ${person.name}\'s shared items');
           person.addSharedItem(item);
         } else {
-          debugPrint('Item ${item.name} already in ${person.name}\'s shared items');
+          debugPrint('Item ${item.name} already in ${person.name}\'s shared items, updating with new quantity');
+          // Since we can't update directly, remove and add back
+          for (int i = 0; i < person.sharedItems.length; i++) {
+            if (person.sharedItems[i].isSameItem(item)) {
+              person.removeSharedItem(person.sharedItems[i]);
+              break;
+            }
+          }
+          person.addSharedItem(item);
         }
       }
     } else {
       // Default behavior: assign to all people if no specific people are provided
       debugPrint('No specific people provided, assigning item ${item.name} to ALL ${_people.length} people');
       for (final person in _people) {
-        if (!person.sharedItems.contains(item)) {
+        // Check if person already has this exact item
+        bool hasItem = false;
+        for (final existingItem in person.sharedItems) {
+          if (existingItem.isSameItem(item)) {
+            hasItem = true;
+            break;
+          }
+        }
+        
+        if (!hasItem) {
+          person.addSharedItem(item);
+        } else {
+          // Since we can't update directly, remove and add back
+          for (int i = 0; i < person.sharedItems.length; i++) {
+            if (person.sharedItems[i].isSameItem(item)) {
+              person.removeSharedItem(person.sharedItems[i]);
+              break;
+            }
+          }
           person.addSharedItem(item);
         }
       }
@@ -613,27 +664,69 @@ class SplitManager extends ChangeNotifier {
   }
   
   void markAsUnassigned(ReceiptItem item) {
-    if (!_unassignedItems.contains(item)) {
-      _unassignedItems.add(item);
-      notifyListeners();
+    debugPrint('markAsUnassigned called for item: ${item.name}, ID: ${item.itemId}, quantity: ${item.quantity}');
+    
+    // Check if an identical item already exists in unassigned items
+    ReceiptItem? existingUnassignedItem;
+    for (int i = 0; i < _unassignedItems.length; i++) {
+      if (_unassignedItems[i].isSameItem(item)) {
+        existingUnassignedItem = _unassignedItems[i];
+        debugPrint('Found existing unassigned item with same name/price, will update rather than add new');
+        break;
+      }
     }
+    
+    // If we found an existing item, replace it
+    if (existingUnassignedItem != null) {
+      final index = _unassignedItems.indexOf(existingUnassignedItem);
+      _unassignedItems[index] = item;
+      debugPrint('Replaced existing unassigned item with updated version, quantity: ${item.quantity}');
+    } else {
+      // Add as new item
+      _unassignedItems.add(item);
+      debugPrint('Added new item to unassigned items list, quantity: ${item.quantity}');
+    }
+    
+    notifyListeners();
   }
   
   // Add a method to add receipt items with improved duplicate handling
   void addReceiptItem(ReceiptItem item) {
-    // Check if the item is already in the list by ID
-    bool exists = _receiptItems.any((existingItem) => existingItem.itemId == item.itemId);
+    debugPrint('Adding receipt item to SplitManager: ${item.name}, ID: ${item.itemId}, Price: ${item.price}, Quantity: ${item.quantity}');
     
-    if (!exists) {
+    // Check if the item is already in the list by ID
+    int existingIndex = -1;
+    for (int i = 0; i < _receiptItems.length; i++) {
+      if (_receiptItems[i].itemId == item.itemId) {
+        existingIndex = i;
+        break;
+      }
+    }
+    
+    // Also check by name if ID check didn't find anything
+    if (existingIndex == -1) {
+      for (int i = 0; i < _receiptItems.length; i++) {
+        if (_receiptItems[i].name.toLowerCase() == item.name.toLowerCase()) {
+          existingIndex = i;
+          break;
+        }
+      }
+    }
+    
+    if (existingIndex != -1) {
+      // Replace existing item
+      _receiptItems[existingIndex] = item;
+      // Also update original quantity
+      _originalQuantities[item.itemId] = item.quantity;
+      debugPrint('Replaced existing receipt item at index $existingIndex: ${item.name}, ID: ${item.itemId}');
+    } else {
       // Add new item
       _receiptItems.add(item);
       // Track original quantity
       _originalQuantities[item.itemId] = item.quantity;
-      debugPrint('Added receipt item: ${item.name}, ID: ${item.itemId}, Price: ${item.price}');
-      notifyListeners();
-    } else {
-      debugPrint('Item already exists with ID: ${item.itemId}');
+      debugPrint('Added new receipt item: ${item.name}, ID: ${item.itemId}, Price: ${item.price}');
     }
+    notifyListeners();
   }
   
   // Debug method to log all items in the split manager

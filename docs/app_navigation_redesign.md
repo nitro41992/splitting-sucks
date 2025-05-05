@@ -391,9 +391,9 @@ This redesign maintains all existing functionality while improving the user expe
 ### Remaining Tasks
 
 1. **UI Enhancements**
-   - Add a required restaurant name field in the receipt upload section of the workflow
-     - Make this a required field before allowing users to proceed to the next step
-     - Use this restaurant name as the item name in the receipts parent view
+   - ✅ Add a required restaurant name field in the receipt upload section of the workflow
+     - Implemented: Added a required text field with validation in ReceiptUploadScreen
+     - Restaurant name is saved to receipt metadata and used throughout the workflow
    - Redesign the overall receipts view to be less bland and more cohesive with the app theme
      - Add visual interest and styling consistent with the creation workflow screens
      - Use proper elevation, colors, and typography from the app theme
@@ -401,15 +401,24 @@ This redesign maintains all existing functionality while improving the user expe
      - Ensure consistent use of the app's color palette across all components
 
 2. **Bug Fixing**
-   - Fix split_manager_state not updating based on changes in the split summary
-     - Ensure tip slider, tax fields, and other adjustments properly update the state
-   - Fix navigation from unassigned items in summary view to the associated tab in split view
+   - ✅ Fix split_manager_state not updating based on changes in the split summary
+     - Fixed: Tax, tip, and tip percentage values now properly update the SplitManager state
+   - ✅ Fix navigation from unassigned items in summary view to the associated tab in split view
+     - Fixed: Added proper navigation with improved delay handling
    - Fix edits in split summary not saving to state (new items, people, reassignments)
-   - Fix back gesture to navigate to previous step instead of asking to exit
-   - Correct receipt summary position item numbers to use puce (from AppColors) instead of blue
-   - Fix toast notifications to appear at the top instead of bottom
-     - Use properly formatted toasts with appropriate colors (AppColors.success or AppColors.warning)
-     - Remove obtrusive blue bottom toasts and maintain consistency with the existing top toast style
+   - ✅ Fix back gesture to navigate to previous step instead of asking to exit
+     - Fixed: Back gesture now navigates to previous step except on first screen
+   - ✅ Correct receipt summary position item numbers to use puce (from AppColors) instead of blue
+     - Fixed: Updated voice assignment screen to use AppColors.secondary for position numbers
+   - ✅ Fix toast notifications to appear at the top instead of bottom
+     - Fixed: Replaced direct ScaffoldMessenger usage with ToastHelper that shows toasts at the top
+   - ✅ Fix quantity parsing bug in assignments where single items incorrectly show as multiple quantities
+     - Fixed: Updated SplitManager's handling of items with the same name but different quantities
+   - ✅ Fix inability to modify item quantities in the People view when a person has multiple of an item
+     - Fixed: Improved tracking of items by name and proper quantity assignment
+   - New bug: Navigation to Summary view fails. Users cannot navigate to the Summary step by clicking either:
+     - The Summary step indicator in the workflow header
+     - The "Go to Summary" button in the Split view
    - Update existing workflow screens to work with the new modal container
    - Fix any issues with the AppRoot component
 
@@ -444,3 +453,56 @@ This redesign maintains all existing functionality while improving the user expe
   - Apply the text styles from the theme's `TextTheme`
   - Use the predefined button styles from the theme for actions
   - Follow the elevation and corner radius conventions from the card and modal themes 
+
+## Implementation Notes
+
+### Progress Summary
+
+We've made significant progress on the app navigation redesign with the following key improvements:
+
+#### Bug Fixes Completed
+1. **Split Manager State Update**: Fixed the issue where changes made in the Split Summary screen (tax, tip adjustments) weren't properly updating the underlying SplitManager state, ensuring that all changes are correctly saved and persisted.
+
+2. **Improved Navigation**: Fixed navigation issues including:
+   - Back gesture now properly navigates to the previous step instead of immediately showing an exit dialog
+   - Successfully implemented navigation from unassigned items in summary view to the correct tab in split view
+
+3. **Visual Consistency**: Corrected visual issues:
+   - Updated receipt item position numbers to use the app's secondary color (puce) instead of blue
+   - Fixed toast notifications to consistently appear at the top instead of the bottom
+
+4. **Item Quantity Handling**: Fixed issues with item quantities:
+   - Corrected quantity parsing bug where single items incorrectly showed as multiple quantities
+   - Fixed UI for modifying quantities when a person has multiple of the same item
+   - Updated the SplitManager to properly handle duplicate items with different quantities
+
+#### UI Enhancements Completed
+1. **Restaurant Name Field**: Added a required restaurant name field in the receipt upload section:
+   - Implemented form validation to ensure the field is not left empty
+   - Added proper storage in receipt metadata and SplitManager state
+   - Ensured the name is propagated throughout the workflow and saved with the receipt
+
+#### Current Issues
+1. **Navigation to Summary**: Users are unable to navigate to the Summary view using either:
+   - The Summary step indicator in the workflow header
+   - The "Go to Summary" button in the Split view
+   This appears to be a regression that needs urgent fixing for workflow completion.
+
+#### Next Steps
+1. **Remaining Bug Fixes**:
+   - Fix navigation to Summary screen from Split view
+   - Complete edits in split summary saving to state
+   - Update existing workflow screens to work with the new modal container
+   - Fix any issues with the AppRoot component
+
+2. **UI Refinement**:
+   - Redesign the overall receipts view to be more cohesive with the app theme
+   - Add visual interest and proper styling
+   - Implement empty state placeholders
+
+3. **Testing & Deployment**:
+   - Test all fixed functionality
+   - Update security rules to support the new data structure
+   - Test on various devices and screen sizes
+
+The restaurant name implementation serves as a foundation for further UI improvements, demonstrating how we can enhance the workflow while maintaining compatibility with the existing architecture. 

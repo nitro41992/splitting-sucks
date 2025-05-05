@@ -47,18 +47,26 @@ class _SplitViewState extends State<SplitView> {
     // Read initial tab index from SplitManager
     // Use WidgetsBinding.instance.addPostFrameCallback to safely interact with context
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final splitManager = context.read<SplitManager>();
-      final initialIndex = splitManager.initialSplitViewTabIndex;
-      if (initialIndex != null && initialIndex >= 0 && initialIndex <= 2) { // Check bounds (0, 1, 2)
-        if (mounted) { // Check if the widget is still in the tree
-          setState(() {
-            _selectedIndex = initialIndex;
-          });
-          // Check scrollability after setting the initial tab
-          _checkScrollability();
+      // First check if still mounted before accessing context
+      if (!mounted) return;
+      
+      try {
+        final splitManager = context.read<SplitManager>();
+        final initialIndex = splitManager.initialSplitViewTabIndex;
+        if (initialIndex != null && initialIndex >= 0 && initialIndex <= 2) { // Check bounds (0, 1, 2)
+          if (mounted) { // Double check mounted again before setState
+            setState(() {
+              _selectedIndex = initialIndex;
+            });
+            // Check scrollability after setting the initial tab
+            _checkScrollability();
+          }
+          // Reset the value in SplitManager so it doesn't persist
+          splitManager.initialSplitViewTabIndex = null;
         }
-        // Reset the value in SplitManager so it doesn't persist
-        splitManager.initialSplitViewTabIndex = null;
+      } catch (e) {
+        // Safely handle any errors that might occur if context is invalid
+        debugPrint('Error in SplitView.initState: $e');
       }
     });
 

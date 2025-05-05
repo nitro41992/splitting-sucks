@@ -9,7 +9,9 @@ import '../utils/toast_helper.dart'; // Import the toast helper
 class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
   final bool isLoading;
+  final String? restaurantName;
   final Function(File?) onImageSelected;
+  final Function(String) onRestaurantNameChanged;
   final Function() onParseReceipt;
   final Function() onRetry; // Callback to clear the image
 
@@ -17,7 +19,9 @@ class ReceiptUploadScreen extends StatefulWidget {
     super.key,
     required this.imageFile,
     required this.isLoading,
+    this.restaurantName,
     required this.onImageSelected,
+    required this.onRestaurantNameChanged,
     required this.onParseReceipt,
     required this.onRetry,
   });
@@ -28,6 +32,30 @@ class ReceiptUploadScreen extends StatefulWidget {
 
 class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
   final ImagePicker _picker = ImagePicker();
+  late TextEditingController _restaurantNameController;
+  final _formKey = GlobalKey<FormState>();
+  bool _nameValidated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _restaurantNameController = TextEditingController(text: widget.restaurantName ?? '');
+  }
+
+  @override
+  void dispose() {
+    _restaurantNameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ReceiptUploadScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.restaurantName != oldWidget.restaurantName && 
+        widget.restaurantName != _restaurantNameController.text) {
+      _restaurantNameController.text = widget.restaurantName ?? '';
+    }
+  }
 
   Future<void> _takePicture() async {
     try {
@@ -113,6 +141,29 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
      }
    }
 
+  // Validate and proceed with receipt processing
+  void _processReceipt() {
+    if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
+      setState(() {
+        _nameValidated = true;
+      });
+      
+      // Call parent callback with the validated restaurant name
+      widget.onRestaurantNameChanged(_restaurantNameController.text);
+      
+      // Proceed with receipt parsing
+      widget.onParseReceipt();
+    } else {
+      // Show error toast if validation fails
+      ToastHelper.showToast(
+        context,
+        'Please enter a restaurant name',
+        isError: true
+      );
+    }
+  }
+
   // Handle image preview with more robust error handling
   Widget _buildImagePreview() {
     if (widget.imageFile == null) {
@@ -134,129 +185,172 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
     }
     
     // File exists or is a network URL, try to display it
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AspectRatio(
-          aspectRatio: 3 / 4, // Portrait ratio for receipt
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Image Preview with Hero tag for smooth transition
-                Hero(
-                  tag: 'receipt_image',
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _showFullImage,
-                      child: isNetworkImage 
-                        ? Image.network(
-                            imagePath,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              debugPrint('Error loading network image: $error');
-                              debugPrint('Stack trace: $stackTrace');
-                              return _buildErrorUI();
-                            },
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              );
-                            },
-                          )
-                        : Image.file(
-                            widget.imageFile!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              debugPrint('Error loading local image: $error');
-                              debugPrint('Stack trace: $stackTrace');
-                              return _buildErrorUI();
-                            },
-                          ),
-                    ),
+    return Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 3 / 4, // Portrait ratio for receipt
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                ),
-                // Loading indicator overlay
-                if (widget.isLoading)
-                  Container(
-                    color: Colors.black.withOpacity(0.3),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(
-                            color: Theme.of(context).colorScheme.onPrimary,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Processing Receipt...',
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              color: Theme.of(context).colorScheme.onPrimary,
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Image Preview with Hero tag for smooth transition
+                  Hero(
+                    tag: 'receipt_image',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _showFullImage,
+                        child: isNetworkImage 
+                          ? Image.network(
+                              imagePath,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                debugPrint('Error loading network image: $error');
+                                debugPrint('Stack trace: $stackTrace');
+                                return _buildErrorUI();
+                              },
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
+                            )
+                          : Image.file(
+                              widget.imageFile!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                debugPrint('Error loading local image: $error');
+                                debugPrint('Stack trace: $stackTrace');
+                                return _buildErrorUI();
+                              },
                             ),
-                          ),
-                        ],
                       ),
                     ),
                   ),
+                  // Loading indicator overlay
+                  if (widget.isLoading)
+                    Container(
+                      color: Colors.black.withOpacity(0.3),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: Theme.of(context).colorScheme.onPrimary,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Processing Receipt...',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: Theme.of(context).colorScheme.onPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Restaurant Name Field (added)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+            child: TextFormField(
+              controller: _restaurantNameController,
+              decoration: InputDecoration(
+                labelText: 'Restaurant Name',
+                hintText: 'Enter restaurant or store name',
+                prefixIcon: const Icon(Icons.restaurant),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surface,
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Restaurant name is required';
+                }
+                return null;
+              },
+              onSaved: (newValue) {
+                if (newValue != null && newValue.trim().isNotEmpty) {
+                  widget.onRestaurantNameChanged(newValue.trim());
+                }
+              },
+              onChanged: (value) {
+                // Reset validation state when user types
+                if (_nameValidated) {
+                  setState(() {
+                    _nameValidated = false;
+                  });
+                }
+              },
+              textInputAction: TextInputAction.done,
+              enabled: !widget.isLoading,
+            ),
+          ),
+          
+          // Action buttons below the image
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (!widget.isLoading) ...[
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: widget.onRetry, // Call the retry callback
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                        foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                        minimumSize: const Size(0, 48),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _processReceipt, // Use the new method that validates the form
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Use This'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        minimumSize: const Size(0, 48),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-        ),
-        // Action buttons below the image
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (!widget.isLoading) ...[
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: widget.onRetry, // Call the retry callback
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.errorContainer,
-                      foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
-                      minimumSize: const Size(0, 48),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: widget.onParseReceipt,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('Use This'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      minimumSize: const Size(0, 48),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
   

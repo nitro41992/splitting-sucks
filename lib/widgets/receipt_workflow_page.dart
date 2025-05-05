@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:cloud_firestore/cloud_firestore.dart'; // Add import for Timestamp
 import '../models/receipt.dart';
 import '../models/receipt_item.dart';
 import '../models/split_manager.dart';
@@ -16,6 +17,7 @@ import '../screens/assignment_review_screen.dart';
 import '../screens/final_summary_screen.dart';
 import '../models/person.dart' as model show Person;
 import '../widgets/split_view.dart'; // Import for NavigateToPageNotification
+import '../utils/toast_helper.dart'; // Import ToastHelper
 
 // Create a new notification for split manager updates
 class SplitManagerUpdateNotification extends Notification {
@@ -46,6 +48,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   late List<ReceiptItem> _receiptItems;
   Map<String, dynamic>? _assignments;
   String? _savedTranscription;
+  String? _restaurantName; // Add variable to track restaurant name
   
   // Make PageController final to prevent recreation
   final PageController _pageController = PageController(keepPage: true);
@@ -88,6 +91,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         List<ReceiptItem> receiptItems = [];
         String? transcription;
         Map<String, dynamic>? assignments;
+        String? restaurantName = receipt.metadata.restaurantName; // Load restaurant name
         bool isUploadComplete = false;
         bool isReviewComplete = false;
         bool isAssignmentComplete = false;
@@ -138,6 +142,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           _receiptItems = receiptItems;
           _savedTranscription = transcription;
           _assignments = assignments;
+          _restaurantName = restaurantName; // Set restaurant name
           _isUploadComplete = isUploadComplete;
           _isReviewComplete = isReviewComplete;
           _isAssignmentComplete = isAssignmentComplete;
@@ -175,27 +180,36 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     
     return WillPopScope(
-      // Prevent backing out of workflow - show confirmation dialog instead
+      // Handle back gesture to navigate to previous step instead of showing exit dialog
       onWillPop: () async {
-        final shouldPop = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Exit Receipt Workflow?'),
-            content: const Text('Progress will be saved, but you will need to restart from the beginning if you exit now.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Stay'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Exit'),
-              ),
-            ],
-          ),
-        );
-        
-        return shouldPop ?? false;
+        // If on the first step, show the standard exit dialog
+        if (_currentStep == 0) {
+          final shouldPop = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Exit Receipt Workflow?'),
+              content: const Text('Progress will be saved, but you will need to restart from the beginning if you exit now.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Stay'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Exit'),
+                ),
+              ],
+            ),
+          );
+          
+          return shouldPop ?? false;
+        } else {
+          // If on any other step, navigate to the previous step
+          _navigateToPreviousStep();
+          
+          // Always return false since we're handling navigation internally
+          return false;
+        }
       },
       child: ChangeNotifierProvider(
         create: (_) => SplitManager(),
@@ -207,22 +221,41 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
                 children: [
                   _buildStepIndicator(),
                   Expanded(
-                    child: PageView(
-                      controller: _pageController,
-                      physics: const NeverScrollableScrollPhysics(), // Disable swipe navigation
-                      onPageChanged: (index) {
-                        // Update current step when page changes
+                    child: NotificationListener<NavigateToPageNotification>(
+                      onNotification: (notification) {
+                        // Navigate to the requested page
+                        debugPrint('Received NavigateToPageNotification to page: ${notification.pageIndex}');
                         setState(() {
-                          _currentStep = index;
+                          _currentStep = notification.pageIndex;
                         });
+                        
+                        // Use jumpToPage for immediate transition without animation to prevent flashing
+                        if (_pageController.hasClients) {
+                          _pageController.jumpToPage(_currentStep);
+                        } else {
+                          debugPrint('ERROR: PageController has no clients when trying to navigate');
+                        }
+                        
+                        // Return true to stop notification propagation
+                        return true;
                       },
-                      children: [
-                        _buildUploadScreen(),
-                        _buildReviewScreen(),
-                        _buildAssignScreen(),
-                        _buildSplitScreen(),
-                        _buildSummaryScreen(),
-                      ],
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(), // Disable swipe navigation
+                        onPageChanged: (index) {
+                          // Update current step when page changes
+                          setState(() {
+                            _currentStep = index;
+                          });
+                        },
+                        children: [
+                          _buildUploadScreen(),
+                          _buildReviewScreen(),
+                          _buildAssignScreen(),
+                          _buildSplitScreen(),
+                          _buildSummaryScreen(),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -459,11 +492,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       if (!mounted) return;
       
       // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Receipt completed successfully!'),
-          duration: Duration(seconds: 2),
-        ),
+      ToastHelper.showToast(
+        context,
+        'Receipt completed successfully!',
+        isSuccess: true,
       );
       
       // Return to previous screen
@@ -475,11 +507,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       if (!mounted) return;
       
       // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error completing receipt: $e'),
-          backgroundColor: Colors.red,
-        ),
+      ToastHelper.showToast(
+        context,
+        'Error completing receipt: $e',
+        isError: true,
       );
     }
   }
@@ -489,10 +520,34 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     return ReceiptUploadScreen(
       imageFile: _imageFile,
       isLoading: _isLoading,
+      restaurantName: _restaurantName, // Pass restaurant name
       onImageSelected: (file) {
         setState(() {
           _imageFile = file;
         });
+      },
+      onRestaurantNameChanged: (name) {
+        // Update restaurant name in state
+        setState(() {
+          _restaurantName = name;
+        });
+        
+        // If receipt exists, update its metadata
+        if (widget.receipt.id != null) {
+          // Update through a full receipt update
+          final updatedReceipt = widget.receipt.copyWith(
+            metadata: widget.receipt.metadata.copyWith(
+              restaurantName: name,
+              updatedAt: Timestamp.now(),
+            ),
+          );
+          
+          _receiptService.updateReceipt(updatedReceipt).then((_) {
+            debugPrint('Updated receipt metadata with restaurant name: $name');
+          }).catchError((e) {
+            debugPrint('Error updating receipt metadata: $e');
+          });
+        }
       },
       onParseReceipt: () async {
         try {
@@ -551,14 +606,18 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             );
             debugPrint('Image uploaded successfully with URLs: $urls');
             
-            // Update receipt with image URLs
+            // Update receipt with image URLs and restaurant name
             final updatedReceipt = widget.receipt.copyWith(
               imageUri: urls['imageUri'],
               thumbnailUri: urls['thumbnailUri'],
+              metadata: widget.receipt.metadata.copyWith(
+                restaurantName: _restaurantName,
+                updatedAt: Timestamp.now(),
+              ),
             );
             
             await _receiptService.updateReceipt(updatedReceipt);
-            debugPrint('Receipt updated with image URLs');
+            debugPrint('Receipt updated with image URLs and metadata');
             
             // Use ReceiptParserService to parse the image
             debugPrint('Calling receipt parser service...');
@@ -604,11 +663,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
                 _pageController.jumpToPage(1);
                 
                 // Show success toast after navigation
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Receipt uploaded and processed successfully'),
-                    duration: Duration(seconds: 2),
-                  ),
+                ToastHelper.showToast(
+                  context,
+                  'Receipt uploaded and processed successfully',
+                  isSuccess: true,
                 );
               }
             });
@@ -619,11 +677,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           
           // Show error message
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error processing receipt: $e'),
-                backgroundColor: Colors.red,
-              ),
+            ToastHelper.showToast(
+              context,
+              'Error processing receipt: $e',
+              isError: true,
             );
           }
         }
@@ -680,11 +737,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
               _pageController.jumpToPage(2);
               
               // Show success toast after navigation
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Receipt items saved successfully'),
-                  duration: Duration(seconds: 2),
-                ),
+              ToastHelper.showToast(
+                context,
+                'Receipt items saved successfully',
+                isSuccess: true,
               );
             }
           });
@@ -694,11 +750,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           
           // Show error message
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error saving items: $e'),
-                backgroundColor: Colors.red,
-              ),
+            ToastHelper.showToast(
+              context,
+              'Error saving items: $e',
+              isError: true,
             );
           }
         }
@@ -799,11 +854,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
                 _pageController.jumpToPage(3);
                 
                 // Show success toast after navigation
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Assignments saved successfully'),
-                    duration: Duration(seconds: 2),
-                  ),
+                ToastHelper.showToast(
+                  context,
+                  'Assignments saved successfully',
+                  isSuccess: true,
                 );
               } else {
                 debugPrint('ERROR: PageController has no clients when trying to navigate');
@@ -815,11 +869,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
               setState(() => _isLoading = false);
               
               // Show error message
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error saving assignments: $e'),
-                  backgroundColor: Colors.red,
-                ),
+              ToastHelper.showToast(
+                context,
+                'Error saving assignments: $e',
+                isError: true,
               );
             }
           }
@@ -829,60 +882,103 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   }
   
   Widget _buildSplitScreen() {
-    // The split screen is the AssignmentReviewScreen which wraps a SplitView
-    return Consumer<SplitManager>(
-      builder: (context, splitManager, _) {
-        // Initialize split manager with saved state if available
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_assignments != null && !splitManager.initialized) {
-            // Run debug utility before initialization
-            _debugItemMatching();
-            
-            // Now initialize the split manager
-            _initializeSplitManager(splitManager);
-          }
+    return NotificationListener<SplitManagerUpdateNotification>(
+      onNotification: (notification) {
+        // Log that we received a notification
+        debugPrint('SplitManagerUpdateNotification received in _buildSplitScreen');
+        
+        // Update receipts items with any changes from the SplitManager
+        setState(() {
+          // The SplitManager has been updated
+          debugPrint('Updating state in response to SplitManagerUpdateNotification');
         });
         
-        // Add NotificationListener to capture navigation requests from SplitView
-        return NotificationListener<NavigateToPageNotification>(
-          onNotification: (notification) {
-            debugPrint('Received NavigateToPageNotification');
-            
-            // Auto-save the split manager state first
-            _autoSaveSplitManagerState(splitManager);
-            
-            // Update current step and navigate to Summary (step 4)
-            setState(() {
-              _isSplitComplete = true;
-              _currentStep = 4; // Summary page is step 4
-            });
-            
-            // Use jumpToPage for immediate navigation without animation
+        // Save the SplitManager state automatically
+        _autoSaveSplitManagerState(notification.splitManager);
+        
+        // Return true to stop notification propagation
+        return true;
+      },
+      child: Consumer<SplitManager>(
+        builder: (context, splitManager, child) {
+          // Debug log to check if assignments data is available
+          debugPrint('_buildSplitScreen called, assignments: ${_assignments != null ? 'available' : 'null'}, items: ${_receiptItems.length}, splitManager initialized: ${splitManager.initialized}');
+          
+          // Explicitly trigger initialization here if we have assignments but manager isn't initialized
+          if (_assignments != null && !splitManager.initialized) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && _pageController.hasClients) {
-                debugPrint('Navigating to Summary page via notification');
-                _pageController.jumpToPage(4); // Summary page is index 4
+              debugPrint('Explicitly initializing SplitManager from _buildSplitScreen');
+              _initializeSplitManager(splitManager);
+              
+              // Force a rebuild after initialization
+              if (mounted) {
+                setState(() {
+                  debugPrint('Triggering rebuild after SplitManager initialization');
+                });
               }
             });
-            
-            // Return true to indicate we've handled the notification
-            return true;
-          },
-          child: const AssignmentReviewScreen(),
-        );
-      },
+          } else if (_assignments != null && splitManager.initialized) {
+            // Check if the SplitManager has people data
+            debugPrint('SplitManager is initialized with ${splitManager.people.length} people and ${splitManager.unassignedItems.length} unassigned items');
+          }
+          
+          return SplitView(
+            key: UniqueKey(), // Ensure SplitView reinitializes when rebuilt
+          );
+        },
+      ),
     );
   }
   
   Widget _buildSummaryScreen() {
     return Consumer<SplitManager>(
       builder: (context, splitManager, _) {
-        // Initialize split manager with saved state if available
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_assignments != null && !splitManager.initialized) {
-            _initializeSplitManager(splitManager);
+        // Handle initialization synchronously before building the UI
+        if (_assignments != null && !splitManager.initialized) {
+          debugPrint('Initializing SplitManager from _buildSummaryScreen');
+          _initializeSplitManager(splitManager);
+          
+          // Even though we just initialized, check if it worked
+          if (!splitManager.initialized) {
+            debugPrint('WARNING: SplitManager initialization failed!');
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Failed to initialize split data',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Try again
+                      setState(() {
+                        // Force a rebuild
+                      });
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
           }
-        });
+        }
+        
+        // Check if we have assignments data but no people in the split manager after initialization
+        if (_assignments != null && splitManager.initialized && splitManager.people.isEmpty) {
+          debugPrint('WARNING: SplitManager is initialized but has no people! Assignments: $_assignments');
+          
+          // Try to debug what's happening
+          final Map<String, dynamic>? assignments = _assignments?['assignments'] as Map<String, dynamic>?;
+          if (assignments != null) {
+            debugPrint('Assignments keys: ${assignments.keys.join(', ')}');
+          } else {
+            debugPrint('No assignments data available');
+          }
+        }
         
         return Stack(
           children: [
@@ -910,6 +1006,11 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       
       // Reset the manager
       splitManager.reset();
+      
+      // Set restaurant name if available
+      if (_restaurantName != null) {
+        splitManager.restaurantName = _restaurantName;
+      }
       
       // Set original review total for validation
       final originalTotal = _receiptItems.fold(
@@ -983,6 +1084,8 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
             final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
             final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
+            // Get the quantity from the assignment data (defaulting to 1 if not specified)
+            final quantity = itemJson.containsKey('quantity') ? (itemJson['quantity'] is int ? itemJson['quantity'] as int : 1) : 1;
             
             if (itemName == null && itemId == null && position == null) {
               debugPrint('Warning: Item has no identifiers in assignment data: $itemJson');
@@ -995,8 +1098,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             if (itemName != null) {
               matchingItem = receiptItemsByName[itemName.toLowerCase()];
               if (matchingItem != null) {
-                debugPrint('Found name match: "$itemName" for person: ${person.name}');
-                splitManager.assignItemToPerson(matchingItem, person);
+                debugPrint('Found name match: "$itemName" for person: ${person.name} with quantity: $quantity');
+                // Create a copy of the item with the exact quantity from the assignment
+                final itemToAssign = matchingItem.copyWithQuantity(quantity);
+                splitManager.assignItemToPerson(itemToAssign, person);
                 // Mark this item as processed by this person
                 processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
                 continue;
@@ -1010,8 +1115,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
                 final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
                 if (index >= 0 && index < _receiptItems.length) {
                   matchingItem = _receiptItems[index];
-                  debugPrint('Found position match using id field: $itemId: ${matchingItem.name} for person: ${person.name}');
-                  splitManager.assignItemToPerson(matchingItem, person);
+                  debugPrint('Found position match using id field: $itemId: ${matchingItem.name} for person: ${person.name} with quantity: $quantity');
+                  // Create a copy of the item with the exact quantity from the assignment
+                  final itemToAssign = matchingItem.copyWithQuantity(quantity);
+                  splitManager.assignItemToPerson(itemToAssign, person);
                   // Mark this item as processed by this person
                   processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
                   continue;
@@ -1023,8 +1130,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             if (position != null) {
               matchingItem = receiptItemsByName['position_$position'];
               if (matchingItem != null) {
-                debugPrint('Found position match: $position: ${matchingItem.name} for person: ${person.name}');
-                splitManager.assignItemToPerson(matchingItem, person);
+                debugPrint('Found position match: $position: ${matchingItem.name} for person: ${person.name} with quantity: $quantity');
+                // Create a copy of the item with the exact quantity from the assignment
+                final itemToAssign = matchingItem.copyWithQuantity(quantity);
+                splitManager.assignItemToPerson(itemToAssign, person);
                 // Mark this item as processed by this person
                 processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
                 continue;
@@ -1052,6 +1161,8 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
           final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
           final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
+          // Get the quantity from the shared item data (defaulting to 1 if not specified)
+          final quantity = itemJson.containsKey('quantity') ? (itemJson['quantity'] is int ? itemJson['quantity'] as int : 1) : 1;
           
           if (itemName == null && itemId == null && position == null) {
             debugPrint('Warning: Shared item has no identifiers: $itemJson');
@@ -1070,7 +1181,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           if (itemName != null) {
             matchingItem = receiptItemsByName[itemName.toLowerCase()];
             if (matchingItem != null) {
-              debugPrint('Found name match for shared item: "$itemName"');
+              debugPrint('Found name match for shared item: "$itemName" with quantity: $quantity');
             }
           }
           
@@ -1081,7 +1192,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
               final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
               if (index >= 0 && index < _receiptItems.length) {
                 matchingItem = _receiptItems[index];
-                debugPrint('Found position match using id field for shared item: $itemId: ${matchingItem.name}');
+                debugPrint('Found position match using id field for shared item: $itemId: ${matchingItem.name} with quantity: $quantity');
               }
             }
           }
@@ -1090,7 +1201,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           if (matchingItem == null && position != null) {
             matchingItem = receiptItemsByName['position_$position'];
             if (matchingItem != null) {
-              debugPrint('Found position match for shared item: $position: ${matchingItem.name}');
+              debugPrint('Found position match for shared item: $position: ${matchingItem.name} with quantity: $quantity');
             }
           }
           
@@ -1146,13 +1257,16 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             specificPeople.add(person);
           }
           
-          debugPrint('Marking ${matchingItem.name} as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")}');
+          debugPrint('Marking ${matchingItem.name} as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")} with quantity: $quantity');
+          
+          // Create a copy with the correct quantity
+          final itemToShare = matchingItem.copyWithQuantity(quantity);
           
           if (specificPeople.isNotEmpty) {
-            splitManager.markAsShared(matchingItem, people: specificPeople);
+            splitManager.markAsShared(itemToShare, people: specificPeople);
           } else {
             debugPrint('WARNING: No people found to share item with, using default behavior');
-            splitManager.markAsShared(matchingItem);
+            splitManager.markAsShared(itemToShare);
           }
           
         } catch (e) {
@@ -1169,6 +1283,8 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
           final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
           final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
+          // Get the quantity from the unassigned item data (defaulting to 1 if not specified)
+          final quantity = itemJson.containsKey('quantity') ? (itemJson['quantity'] is int ? itemJson['quantity'] as int : 1) : 1;
           
           if (itemName == null && itemId == null && position == null) {
             debugPrint('Warning: Unassigned item has no identifiers: $itemJson');
@@ -1181,8 +1297,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           if (itemName != null) {
             matchingItem = receiptItemsByName[itemName.toLowerCase()];
             if (matchingItem != null) {
-              debugPrint('Found name match for unassigned item: "$itemName"');
-              splitManager.markAsUnassigned(matchingItem);
+              debugPrint('Found name match for unassigned item: "$itemName" with quantity: $quantity');
+              // Create a copy with the correct quantity
+              final itemToUnassign = matchingItem.copyWithQuantity(quantity);
+              splitManager.markAsUnassigned(itemToUnassign);
               continue;
             }
           }
@@ -1194,8 +1312,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
               final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
               if (index >= 0 && index < _receiptItems.length) {
                 matchingItem = _receiptItems[index];
-                debugPrint('Found position match using id field for unassigned item: $itemId: ${matchingItem.name}');
-                splitManager.markAsUnassigned(matchingItem);
+                debugPrint('Found position match using id field for unassigned item: $itemId: ${matchingItem.name} with quantity: $quantity');
+                // Create a copy with the correct quantity
+                final itemToUnassign = matchingItem.copyWithQuantity(quantity);
+                splitManager.markAsUnassigned(itemToUnassign);
                 continue;
               }
             }
@@ -1205,8 +1325,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           if (position != null) {
             matchingItem = receiptItemsByName['position_$position'];
             if (matchingItem != null) {
-              debugPrint('Found position match for unassigned item: $position: ${matchingItem.name}');
-              splitManager.markAsUnassigned(matchingItem);
+              debugPrint('Found position match for unassigned item: $position: ${matchingItem.name} with quantity: $quantity');
+              // Create a copy with the correct quantity
+              final itemToUnassign = matchingItem.copyWithQuantity(quantity);
+              splitManager.markAsUnassigned(itemToUnassign);
               continue;
             }
           }
@@ -1284,12 +1406,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       
       // Show error notification
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error preparing split: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
+        ToastHelper.showToast(
+          context,
+          'Error preparing split: $e',
+          isError: true,
         );
       }
     }
@@ -1297,55 +1417,46 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   
   Future<void> _autoSaveSplitManagerState(SplitManager splitManager) async {
     try {
-      // Create a basic map with the required information
-      final Map<String, dynamic> splitManagerState = {};
-      
-      // Add key data we want to preserve
-      splitManagerState['people'] = splitManager.people.map((person) => {
-        'name': person.name,
-        // Add other person properties as needed
-      }).toList();
-      
-      // Add other important calculation properties
-      splitManagerState['subtotal'] = splitManager.subtotal;
-      splitManagerState['tax'] = splitManager.tax;
-      splitManagerState['tip'] = splitManager.tip;
-      splitManagerState['tipPercentage'] = splitManager.tipPercentage;
-      if (splitManager.restaurantName != null) {
-        splitManagerState['restaurantName'] = splitManager.restaurantName;
+      // First check if the receipt has an ID
+      if (widget.receipt.id == null) {
+        debugPrint('ERROR: Receipt has no ID, cannot save state');
+        return;
       }
       
-      // Save to Firestore
-      await _receiptService.saveSplitManagerState(
-        widget.receipt.id!,
-        splitManagerState,
-      );
+      // Build data for saving
+      final splitManagerState = <String, dynamic>{
+        'people': splitManager.people.map((person) => {
+          'name': person.name,
+          'assignedItems': person.assignedItems.map((item) => item.toJson()).toList(),
+          'sharedItems': person.sharedItems.map((item) => item.toJson()).toList(),
+        }).toList(),
+        'unassignedItems': splitManager.unassignedItems.map((item) => item.toJson()).toList(),
+        'sharedItems': splitManager.sharedItems.map((item) => item.toJson()).toList(),
+        'subtotal': splitManager.subtotal,
+        'tax': splitManager.tax,
+        'tip': splitManager.tip,
+        'tipPercentage': splitManager.tipPercentage,
+        'restaurantName': _restaurantName ?? splitManager.restaurantName, // Save restaurant name
+      };
       
-      // Update state
-      setState(() {
-        _isSplitComplete = true;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Saved split calculations'),
-            duration: Duration(seconds: 2),
+      // If we have a restaurant name, update the metadata
+      if (_restaurantName != null) {
+        // Update the receipt using the service
+        final updatedReceipt = widget.receipt.copyWith(
+          splitManagerState: splitManagerState,
+          metadata: widget.receipt.metadata.copyWith(
+            restaurantName: _restaurantName,
+            updatedAt: Timestamp.now(),
           ),
         );
+        await _receiptService.updateReceipt(updatedReceipt);
+      } else {
+        // Just update the split manager state
+        await _receiptService.saveSplitManagerState(widget.receipt.id!, splitManagerState);
       }
+      
     } catch (e) {
-      debugPrint('Error saving split manager state: $e');
-      
-      // Show error message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving split calculations: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint('Error auto-saving split manager state: $e');
     }
   }
   
@@ -1409,11 +1520,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           
           // Only show indicator for the first save
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Transcription saved'),
-                duration: Duration(seconds: 1),
-              ),
+            ToastHelper.showToast(
+              context,
+              'Transcription saved',
+              isSuccess: true,
             );
           }
         }
@@ -1425,11 +1535,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       
       // Show error message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving transcription: $e'),
-            backgroundColor: Colors.red,
-          ),
+        ToastHelper.showToast(
+          context,
+          'Error saving transcription: $e',
+          isError: true,
         );
       }
     }

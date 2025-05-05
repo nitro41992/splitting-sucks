@@ -668,7 +668,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: colorScheme.primaryContainer,
+                                              color: AppColors.secondary,
                                               borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: Tooltip(
@@ -677,7 +677,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                                 '${index + 1}', // 1-based index displayed more prominently
                                                 style: textTheme.titleSmall?.copyWith(
                                                   fontWeight: FontWeight.bold,
-                                                  color: colorScheme.onPrimaryContainer,
+                                                  color: Colors.white,
                                                 ),
                                                 textAlign: TextAlign.center,
                                               ),
