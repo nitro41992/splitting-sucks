@@ -220,6 +220,14 @@ The enhanced data model provides significant improvements in how shared items ar
 
 1. **Firestore Rules**: Ensure users can only access their own receipts
 2. **Secure Deletion**: Properly handle account and data deletion
+   - Implement soft deletion with delayed hard deletion (mark records as deleted, then purge after 30 days)
+   - Create a comprehensive deletion workflow that removes all user data across all collections
+   - Ensure deletion of associated storage assets (receipt images, thumbnails)
+   - Maintain audit logs of deletion requests separate from user data
+   - Implement cascading deletion for all related documents and subcollections
+   - Provide users with data export option before final deletion
+   - Ensure deletion complies with data protection regulations (GDPR, CCPA)
+   - Use atomic operations for deletion to prevent partial deletions
 3. **Authentication**: Maintain secure auth flow in Settings section
 4. **Data Validation**: 
    - Validate that people listed in shared items' "people" field exist in the receipt's people list
@@ -382,18 +390,39 @@ This redesign maintains all existing functionality while improving the user expe
 
 ### Remaining Tasks
 
-1. **Bug Fixing**
+1. **UI Enhancements**
+   - Add a required restaurant name field in the receipt upload section of the workflow
+     - Make this a required field before allowing users to proceed to the next step
+     - Use this restaurant name as the item name in the receipts parent view
+   - Redesign the overall receipts view to be less bland and more cohesive with the app theme
+     - Add visual interest and styling consistent with the creation workflow screens
+     - Use proper elevation, colors, and typography from the app theme
+     - Add empty state placeholders with playful, engaging language
+     - Ensure consistent use of the app's color palette across all components
+
+2. **Bug Fixing**
+   - Fix split_manager_state not updating based on changes in the split summary
+     - Ensure tip slider, tax fields, and other adjustments properly update the state
+   - Fix navigation from unassigned items in summary view to the associated tab in split view
+   - Fix edits in split summary not saving to state (new items, people, reassignments)
+   - Fix back gesture to navigate to previous step instead of asking to exit
+   - Correct receipt summary position item numbers to use puce (from AppColors) instead of blue
+   - Fix toast notifications to appear at the top instead of bottom
+     - Use properly formatted toasts with appropriate colors (AppColors.success or AppColors.warning)
+     - Remove obtrusive blue bottom toasts and maintain consistency with the existing top toast style
    - Update existing workflow screens to work with the new modal container
    - Fix any issues with the AppRoot component
 
-2. **Testing**
-   - Test receipt creation
+3. **Testing**
+   - Test receipt creation with required restaurant name
    - Test workflow steps with auto-saving
    - Test receipt search and filtering
    - Test receipt editing and deletion
    - Test thumbnail generation
+   - Test state persistence between workflow steps
+   - Verify proper navigation using back gestures
 
-3. **Deployment**
+4. **Deployment**
    - Update Firestore security rules for the new data structure
    - Test on various devices and screen sizes
 
