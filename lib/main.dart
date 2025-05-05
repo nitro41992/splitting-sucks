@@ -4,12 +4,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:io';
 import 'models/split_manager.dart';
 import 'receipt_splitter_ui.dart';
 import 'services/mock_data_service.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
+import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
 import 'routes.dart';
 import 'firebase_options.dart';
@@ -20,6 +22,16 @@ bool firebaseInitialized = false;
 void main() async {
   // Wait for Flutter to be fully initialized
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Load .env file
+  try {
+    await dotenv.load(fileName: ".env");
+    debugPrint("Environment variables loaded successfully");
+  } catch (e) {
+    debugPrint("Error loading .env file: $e - using default values");
+    // Set fallback environment values if .env file is missing
+    dotenv.env['USE_MOCK_RECEIPT_HISTORY'] = 'true';
+  }
   
   // Initialize Firebase at the entry point
   try {
@@ -85,7 +97,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Billfie',
         theme: AppTheme.lightTheme,
-        home: firebaseInitialized ? const ReceiptSplitterUI() : const FirebaseInit(),
+        home: firebaseInitialized ? const AuthWrapper() : const FirebaseInit(),
         routes: Routes.getRoutes(),
         onGenerateRoute: (settings) {
           if (settings.name == '/signup') {
@@ -228,8 +240,8 @@ class _FirebaseInitState extends State<FirebaseInit> {
       );
     }
 
-    // Show app
-    return const ReceiptSplitterUI();
+    // Show app using AuthWrapper instead of ReceiptSplitterUI
+    return const AuthWrapper();
   }
 }
 
@@ -264,5 +276,18 @@ class AppWithProviders extends StatelessWidget {
         home: const ReceiptSplitterUI(),
       ),
     );
+  }
+}
+
+// AuthWrapper to handle authentication state
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final user = Provider.of<User?>(context);
+    
+    // If user is authenticated, show MainScreen, otherwise show LoginScreen
+    return user != null ? const MainScreen() : const LoginScreen();
   }
 }

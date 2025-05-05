@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/receipt_history.dart';
 import '../models/split_manager.dart';
 import 'mock_data_service.dart';
+import 'package:flutter/foundation.dart';
 
 /// A mock implementation of the receipt history service that uses in-memory data
 /// This service is used when mock data is enabled in the app
@@ -29,25 +30,39 @@ class MockReceiptHistoryService {
     return _instance!;
   }
   
-  // Get the current user ID or throw an error if no user is logged in
+  // Get the current user ID or use a fallback for testing
   String get _userId {
-    final user = _auth.currentUser;
-    if (user == null) {
-      throw Exception('User not authenticated');
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint("Warning: No authenticated user found, using fallback 'mock_user_id'");
+        return 'mock_user_id';
+      }
+      return user.uid;
+    } catch (e) {
+      debugPrint("Error getting current user: $e - using fallback 'mock_user_id'");
+      return 'mock_user_id';
     }
-    return user.uid;
   }
   
   // Initialize mock data
   Future<void> _initializeIfNeeded() async {
-    if (_initialized) return;
-    
-    _mockReceipts = MockDataService.createMockReceiptHistories(
-      userId: _userId,
-      count: 5, // Create 5 mock receipts
-    );
-    
-    _initialized = true;
+    try {
+      if (_initialized) return;
+      
+      _mockReceipts = MockDataService.createMockReceiptHistories(
+        userId: _userId,
+        count: 5, // Create 5 mock receipts
+      );
+      
+      _initialized = true;
+      debugPrint("MockReceiptHistoryService initialized successfully with 5 mock receipts");
+    } catch (e) {
+      debugPrint("Error initializing mock receipt history: $e");
+      // Set empty list as fallback
+      _mockReceipts = [];
+      _initialized = true;
+    }
   }
   
   // Save a receipt
