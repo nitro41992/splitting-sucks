@@ -971,6 +971,9 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         splitManager.addReceiptItem(item);
       }
       
+      // Track which items have been processed to avoid duplicate assignments
+      final Set<String> processedItemNames = {};
+      
       // Assign items to people - with name-based matching
       assignments.forEach((personName, items) {
         if (personName.isEmpty) return;
@@ -1009,6 +1012,8 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
               if (matchingItem != null) {
                 debugPrint('Found name match: "$itemName" for person: ${person.name}');
                 splitManager.assignItemToPerson(matchingItem, person);
+                // Mark this item as processed by this person
+                processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
                 continue;
               }
             }
@@ -1022,6 +1027,8 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
                   matchingItem = _receiptItems[index];
                   debugPrint('Found position match using id field: $itemId: ${matchingItem.name} for person: ${person.name}');
                   splitManager.assignItemToPerson(matchingItem, person);
+                  // Mark this item as processed by this person
+                  processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
                   continue;
                 }
               }
@@ -1033,6 +1040,8 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
               if (matchingItem != null) {
                 debugPrint('Found position match: $position: ${matchingItem.name} for person: ${person.name}');
                 splitManager.assignItemToPerson(matchingItem, person);
+                // Mark this item as processed by this person
+                processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
                 continue;
               }
             }
@@ -1046,6 +1055,9 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         }
       });
 
+      // Track which items have been processed as shared to avoid duplicate shared item processing
+      final Set<String> processedSharedItemNames = {};
+      
       // Use name-based matching for shared items
       for (final itemData in sharedItems) {
         try {
@@ -1058,6 +1070,12 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           
           if (itemName == null && itemId == null && position == null) {
             debugPrint('Warning: Shared item has no identifiers: $itemJson');
+            continue;
+          }
+          
+          // Skip items that have already been processed as shared
+          if (itemName != null && processedSharedItemNames.contains(itemName.toLowerCase())) {
+            debugPrint('Skipping already processed shared item: $itemName');
             continue;
           }
           
@@ -1105,6 +1123,27 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             // If no people specified, default to all people sharing (legacy behavior)
             peopleNames = splitManager.people.map((p) => p.name).toList();
             debugPrint('No people specified in shared item ${matchingItem.name}, defaulting to all people: $peopleNames');
+          }
+          
+          // Check if any of these people have already been individually assigned this exact item
+          bool isAlreadyAssigned = false;
+          for (final personName in peopleNames) {
+            if (processedItemNames.contains('${personName}:${matchingItem.name.toLowerCase()}')) {
+              debugPrint('WARNING: Item ${matchingItem.name} was already assigned to $personName individually, ' +
+                         'but also appears in shared items. Skipping to avoid duplication.');
+              isAlreadyAssigned = true;
+              break;
+            }
+          }
+          
+          // Skip shared item processing if it was already individually assigned
+          if (isAlreadyAssigned) {
+            continue;
+          }
+          
+          // Mark this item as processed for shared
+          if (itemName != null) {
+            processedSharedItemNames.add(itemName.toLowerCase());
           }
           
           // Find the specific Person objects for these people names
