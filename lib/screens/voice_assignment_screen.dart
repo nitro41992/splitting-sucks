@@ -41,6 +41,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   bool _isLoading = false; // Loading state specific to this screen
   bool _tipsExpanded = true; // Track if tips are expanded or collapsed
   String? _transcription;
+  bool _hasUnsavedChanges = false; // Track if we have unsaved transcription changes
 
   @override
   void initState() {
@@ -56,9 +57,30 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
   @override
   void dispose() {
+    // Save any pending changes when disposing
+    _saveTranscriptionIfNeeded();
     _recorder.dispose();
     _transcriptionController.dispose();
     super.dispose();
+  }
+
+  // New method to save transcription only when needed
+  void _saveTranscriptionIfNeeded() {
+    if (_hasUnsavedChanges && _transcription != null && widget.onTranscriptionChanged != null) {
+      // Save state variables without triggering UI rebuilds
+      _hasUnsavedChanges = false;
+      final transcription = _transcription;
+      
+      // Call parent callback outside of setState to avoid double rebuilds
+      if (transcription != null) {
+        try {
+          widget.onTranscriptionChanged!(transcription);
+        } catch (e) {
+          // Log error but continue - don't block UI
+          print('Error in transcription callback: $e');
+        }
+      }
+    }
   }
 
   double _calculateSubtotal() {
@@ -178,17 +200,13 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   Future<void> _processTranscription() async {
     if (_transcription == null) return;
 
-    setState(() => _isLoading = true);
+    // Save any pending changes before processing, but don't show loading yet
+    _saveTranscriptionIfNeeded();
+
+    // Now show loading for the assignment processing
+    if (mounted) setState(() => _isLoading = true);
     final editedTranscription = _transcriptionController.text;
     
-    // Save the edited transcription in our local state
-    _transcription = editedTranscription;
-    
-    // Notify parent of transcription change to ensure it's persisted
-    if (widget.onTranscriptionChanged != null) {
-      widget.onTranscriptionChanged!(editedTranscription);
-    }
-
     try {
       print('DEBUG: Making API call for item assignment');
       print('DEBUG: Using transcription: $editedTranscription');
@@ -220,21 +238,29 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       final assignmentsData = result.toJson();
       print('DEBUG: Received assignment data: ${assignmentsData.toString()}');
 
+      // Ensure we're still mounted before proceeding
+      if (!mounted) {
+        print('Component unmounted during processing - aborting');
+        return;
+      }
+
       // Pass the raw assignment data back to the parent widget
       widget.onAssignmentProcessed(assignmentsData);
 
-      // Loading state will be handled by the parent switching pages
-      // setState(() => _isLoading = false); // No need to set loading false here
+      // We don't need to reset loading here as the parent will handle the navigation
 
     } catch (e) {
       print('Error processing assignment in screen: $e');
-      setState(() => _isLoading = false);
-      if (!mounted) return;
-      ToastHelper.showToast(
-        context,
-        'Error processing assignment: ${e.toString()}',
-        isError: true
-      );
+      // Always reset loading state on error
+      if (mounted) setState(() => _isLoading = false);
+      
+      if (mounted) {
+        ToastHelper.showToast(
+          context,
+          'Error processing assignment: ${e.toString()}',
+          isError: true
+        );
+      }
     }
   }
 
@@ -491,12 +517,26 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                             style: textTheme.bodyLarge?.copyWith(
                                               height: 1.5,
                                             ),
+                                            // Only update local state on change, don't notify parent
                                             onChanged: (value) {
-                                              // Update transcription and notify parent when edited
-                                              _transcription = value;
-                                              if (widget.onTranscriptionChanged != null) {
-                                                widget.onTranscriptionChanged!(value);
+                                              // Update local state without triggering a full rebuild
+                                              // Only mark as having unsaved changes if the value actually changed
+                                              if (_transcription != value) {
+                                                _transcription = value;
+                                                _hasUnsavedChanges = true;
+                                                // No setState here to avoid UI flickering while typing
                                               }
+                                            },
+                                            // Add an explicit onSubmitted handler for keyboard "done" button
+                                            onSubmitted: (value) {
+                                              // Save when user presses done/enter
+                                              _saveTranscriptionIfNeeded();
+                                              FocusScope.of(context).unfocus();
+                                            },
+                                            // Save when user taps outside the text field
+                                            onTapOutside: (_) {
+                                              _saveTranscriptionIfNeeded();
+                                              FocusScope.of(context).unfocus();
                                             },
                                           ),
                                           Positioned(
@@ -742,7 +782,11 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                 left: 16,
                 right: 16,
                 child: FilledButton.icon(
-                  onPressed: _processTranscription,
+                  onPressed: () {
+                    // Save any pending changes before processing
+                    _saveTranscriptionIfNeeded();
+                    _processTranscription();
+                  },
                   icon: const Icon(Icons.check_circle_outline),
                   label: const Text('Start Splitting'),
                   style: FilledButton.styleFrom(

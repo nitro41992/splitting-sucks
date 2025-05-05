@@ -26,6 +26,19 @@ The app currently uses a bottom navigation bar with 5 items representing steps i
 - **Floating Action Button**: Add Receipt (initiates the workflow)
 - **Receipt Workflow**: Becomes a transient modal flow rather than persistent tabs
 
+### Visual Design Guidelines
+
+- **Theme System**: Follow Material You design principles using the app's existing theme system
+- **Color Palette**: 
+  - Primary: Prussian Blue (#253D5B) - Used for navigation bar, primary buttons, and headers
+  - Secondary: Puce (#C6878F) - Used for accents, floating action button
+  - Tertiary: Rosy Brown (#B79D94) - Used for subtle accents and card borders
+  - Surface: White - For background of cards and content areas
+  - Text: Prussian Blue for headings, Dim Gray (#67697C) for body text
+- **Typography**: Follow existing text theme with hierarchical styles
+- **Component Consistency**: Reuse established design patterns for buttons, inputs, and cards
+- **Elevation**: Use subtle elevation for cards (2dp) and modals (8dp) with consistent shadows
+
 ### Receipts Screen (Main View)
 
 - List of all saved receipts (both completed and drafts)
@@ -35,11 +48,29 @@ The app currently uses a bottom navigation bar with 5 items representing steps i
 
 ### Workflow Modal
 
-- Contains the existing 5 steps (Upload, Review, Assign, Split, Summary)
-- Step indicator at top (functions exactly like current tab navigation)
-- Same progression logic as current app
-- Auto-saves data after each cloud function returns results
-- Option to cancel workflow and return to Receipts screen
+```
+┌─────────────────────────────────────────────────┐
+│ ●───○───○───○───○                      ✕        │
+│ Upload  Review  Assign  Split  Summary          │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│                                                 │
+│            Current Step Content                 │
+│            (with existing navigation)           │
+│                                                 │
+│                                                 │
+│                                                 │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+**Design Notes:**
+- Modal container with rounded corners (12dp radius) and surface color
+- Step indicator uses Primary color (Prussian Blue) for active step
+- Success color (green) for completed steps
+- Close button (✕) to exit the workflow and return to Receipts screen
+- Preserves existing in-screen navigation buttons and swipe gestures
+- Content area maintains the styling of individual workflow steps
 
 ## Data Model
 
@@ -71,11 +102,12 @@ This model:
 
 ### Minimal Changes Strategy
 
-1. **Reuse Existing Screens**: Keep all existing workflow screens with their current logic
+1. **Reuse Existing Screens**: Keep all existing workflow screens with their current logic and navigation controls
 2. **Simple Container Change**: Wrap workflow in a modal container instead of tabs
 3. **Transform Navigation**: Convert bottom tabs to a step indicator with the same functionality
-4. **Add Persistence**: Save function outputs to Firestore without transformations
-5. **Update Receipts Screen**: Create a simple list view of stored receipts
+4. **Preserve Navigation Patterns**: Maintain existing in-screen buttons and swipe gestures
+5. **Add Persistence**: Save function outputs to Firestore without transformations
+6. **Update Receipts Screen**: Create a simple list view of stored receipts
 
 ### Efficient Image Handling
 
@@ -100,8 +132,9 @@ This model:
    - Save `transcribe_audio` results after voice recording
    - Save `assign_people_to_items` results after assignments
    - Save final calculations in `split_manager_state`
+   - Add subtle loading indicators or success checkmarks to indicate saving status
 
-2. After any user edits, update the corresponding data:
+2. After any user edits, update the corresponding data in real-time or when moving between steps:
    - When user edits receipt items in the Review screen
    - When user modifies the transcription text
    - When user changes assignments (adding/removing people, changing item assignments)
@@ -140,12 +173,16 @@ This ensures that all user input and customizations are preserved when resuming 
 2. **Workflow Container**
    - Create modal container for the 5 existing workflow screens
    - Convert tab navigation to step indicator
-   - Add save/cancel functionality
+   - Add close button functionality
+   - Maintain existing in-screen navigation controls
+   - Preserve swipe gestures for back navigation
 
 3. **Persistence**
    - Implement auto-save after each cloud function call
+   - Add auto-save for user edits between steps
    - Create service methods to retrieve and update receipts
    - Add security rules for user data protection
+   - Add subtle indicators to show save status
 
 4. **Receipt Management**
    - Implement receipt list and detail views
@@ -184,24 +221,38 @@ This ensures that all user input and customizations are preserved when resuming 
 └─────────────────────────┴─────────────────────────┘
 ```
 
+**Design Notes:**
+- Navigation bar uses Primary color (Prussian Blue)
+- FAB uses Secondary color (Puce) for emphasis
+- Receipt cards use Surface color with subtle Tertiary (Rosy Brown) borders
+- Typography follows hierarchical scale from app_theme.dart
+- Filter chips use subtle surface variant background
+
 ### Workflow Modal
 
 ```
 ┌─────────────────────────────────────────────────┐
-│ ●───○───○───○───○                               │
+│ ●───○───○───○───○                      ✕        │
 │ Upload  Review  Assign  Split  Summary          │
 ├─────────────────────────────────────────────────┤
 │                                                 │
 │                                                 │
 │            Current Step Content                 │
+│            (with existing navigation)           │
 │                                                 │
 │                                                 │
 │                                                 │
 │                                                 │
-├─────────────────────────────────────────────────┤
-│    ← Back                        Next →         │
 └─────────────────────────────────────────────────┘
 ```
+
+**Design Notes:**
+- Modal container with rounded corners (12dp radius) and surface color
+- Step indicator uses Primary color (Prussian Blue) for active step
+- Success color (green) for completed steps
+- Close button (✕) to exit the workflow and return to Receipts screen
+- Preserves existing in-screen navigation buttons and swipe gestures
+- Content area maintains the styling of individual workflow steps
 
 ## Summary
 
@@ -211,3 +262,80 @@ This redesign maintains all existing functionality while improving the user expe
 3. A streamlined workflow experience in a modal container
 4. Persistent storage of all receipt data
 5. Minimal changes to existing code and cloud functions 
+
+## Implementation Progress
+
+### Completed Tasks
+
+1. **Data Model**
+   - Created Receipt model in `lib/models/receipt.dart`
+   - Created ReceiptMetadata model to store metadata for searching and display
+
+2. **Services**
+   - Created ReceiptService for CRUD operations in `lib/services/receipt_service.dart`
+   - Implemented auto-save functionality for workflow steps
+   - Added thumbnail generation for efficient loading
+
+3. **UI Components**
+   - Created ReceiptsScreen in `lib/screens/receipts_screen.dart`
+   - Created SettingsScreen in `lib/screens/settings_screen.dart`
+   - Created ReceiptWorkflowModal in `lib/widgets/receipt_workflow_modal.dart`
+   - Created AppRoot component in `lib/app_root.dart` to replace ReceiptSplitterUI
+
+4. **Navigation**
+   - Implemented two-tab bottom navigation (Receipts and Settings)
+   - Added floating action button for initiating new receipts
+   - Created modal workflow container with step indicator
+
+5. **Bug Fixes**
+   - Added missing properties to SplitManager class:
+     - Added `initialized` flag for tracking initialization state
+     - Added `receiptItems` collection for storing receipt items
+     - Added proper methods for `markAsShared` and `markAsUnassigned`
+     - Added missing properties for restaurant name, subtotal, tax, tip, and tip percentage
+
+6. **Visual Design**
+   - Ensured consistent use of app theme from `app_theme.dart`
+   - Applied Material You design principles throughout new components
+   - Maintained color consistency using the palette from `app_colors.dart`:
+     - Prussian Blue primary color for navigation and primary actions
+     - Puce accent color for the floating action button and highlights
+     - White surface color with consistent elevation for cards and containers
+   - Used consistent text styles from the app's typography scale
+   - Applied proper elevation and rounded corners to match existing components
+
+### Remaining Tasks
+
+1. **Bug Fixing**
+   - Update existing workflow screens to work with the new modal container
+   - Fix any issues with the AppRoot component
+
+2. **Testing**
+   - Test receipt creation
+   - Test workflow steps with auto-saving
+   - Test receipt search and filtering
+   - Test receipt editing and deletion
+   - Test thumbnail generation
+
+3. **Deployment**
+   - Update Firestore security rules for the new data structure
+   - Test on various devices and screen sizes
+
+### Notes for Future AI Sessions
+
+- The implementation preserves all existing functionality while providing a more user-friendly navigation structure
+- Existing cloud functions remain unchanged, we now simply store their output directly in Firestore
+- The primary code changes involve reorganizing UI components rather than changing business logic
+- The data model allows for efficient searching and filtering of receipts
+- Auto-saving ensures that users never lose their progress
+- **Required SplitManager Updates**: The SplitManager class needs several properties added or modified to match references in the ReceiptWorkflowModal:
+  - Add `initialized` flag to track whether the manager has been initialized from saved state
+  - Add `receiptItems` collection or use existing collection for receipt items
+  - Add proper methods for `markAsShared` and `markAsUnassigned` or update the workflow modal to use existing methods
+  - Ensure all necessary properties are properly defined in the SplitManager class
+- **Security Considerations**: Make sure to implement proper Firestore security rules to protect user receipt data and enforce ownership
+- **Design Consistency**: All new components must maintain the Material You design aesthetic:
+  - Use the color constants from `AppColors` rather than hardcoded values
+  - Apply the text styles from the theme's `TextTheme`
+  - Use the predefined button styles from the theme for actions
+  - Follow the elevation and corner radius conventions from the card and modal themes 

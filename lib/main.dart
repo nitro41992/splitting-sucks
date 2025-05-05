@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'models/split_manager.dart';
-import 'receipt_splitter_ui.dart';
+import 'app_root.dart';
 import 'services/mock_data_service.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
@@ -85,7 +85,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Billfie',
         theme: AppTheme.lightTheme,
-        home: firebaseInitialized ? const ReceiptSplitterUI() : const FirebaseInit(),
+        home: firebaseInitialized ? const AppRoot() : const FirebaseInit(),
         routes: Routes.getRoutes(),
         onGenerateRoute: (settings) {
           if (settings.name == '/signup') {
@@ -229,7 +229,7 @@ class _FirebaseInitState extends State<FirebaseInit> {
     }
 
     // Show app
-    return const ReceiptSplitterUI();
+    return const AppRoot();
   }
 }
 
@@ -261,7 +261,7 @@ class AppWithProviders extends StatelessWidget {
         title: 'Billfie',
         theme: AppTheme.lightTheme,
         routes: Routes.getRoutes(),
-        home: const ReceiptSplitterUI(),
+        home: const AppRoot(),
       ),
     );
   }

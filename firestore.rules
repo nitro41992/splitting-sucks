@@ -17,6 +17,36 @@ service cloud.firestore {
         allow create: if request.auth != null && request.auth.uid == userId;
         allow update: if request.auth != null && request.auth.uid == userId;
         allow delete: if request.auth != null && request.auth.uid == userId;
+        
+        // Validation for receipt structure
+        function isValidReceipt() {
+          let data = request.resource.data;
+          
+          // Require metadata
+          return data.keys().hasAll(['metadata']) && 
+            
+            // Metadata validation
+            data.metadata is map && 
+            data.metadata.keys().hasAll(['created_at', 'updated_at', 'status']) &&
+            (data.metadata.status == 'draft' || data.metadata.status == 'completed') &&
+            
+            // If receipt is completed, ensure it has a restaurant name
+            (data.metadata.status == 'draft' || 
+             (data.metadata.status == 'completed' && 
+              data.metadata.keys().hasAny(['restaurant_name']) && 
+              data.metadata.restaurant_name is string && 
+              data.metadata.restaurant_name.size() > 0));
+        }
+        
+        // Require valid structure on create
+        allow create: if request.auth != null && 
+                        request.auth.uid == userId && 
+                        isValidReceipt();
+        
+        // Allow updates with valid structure
+        allow update: if request.auth != null && 
+                        request.auth.uid == userId && 
+                        isValidReceipt();
       }
     }
     

@@ -15,6 +15,19 @@ class SplitManager extends ChangeNotifier {
   
   // Add a flag to track if the state has been preserved across hot reloads
   bool _statePreserved = false;
+
+  // Flag to track whether manager has been initialized from saved state
+  bool _initialized = false;
+  
+  // Calculation properties
+  double _subtotal = 0.0;
+  double _tax = 0.0;
+  double _tip = 0.0;
+  double _tipPercentage = 15.0;
+  String? _restaurantName;
+  
+  // List of all receipt items
+  final List<ReceiptItem> _receiptItems = [];
   // --- END EDIT ---
 
   SplitManager({
@@ -29,22 +42,69 @@ class SplitManager extends ChangeNotifier {
   List<Person> get people => List.unmodifiable(_people);
   List<ReceiptItem> get sharedItems => List.unmodifiable(_sharedItems);
   List<ReceiptItem> get unassignedItems => List.unmodifiable(_unassignedItems);
+  List<ReceiptItem> get receiptItems => List.unmodifiable(_receiptItems);
 
   // --- EDIT: Add getters for new state ---
   bool get unassignedItemsWereModified => _unassignedItemsModified;
   double? get originalUnassignedSubtotal => _originalReviewTotal; // For backwards compatibility
   double? get originalReviewTotal => _originalReviewTotal; // New clearer name
+  
+  // Add getters and setters for properties used in ReceiptWorkflowModal
+  bool get initialized => _initialized;
+  set initialized(bool value) {
+    _initialized = value;
+    notifyListeners();
+  }
+  
+  set originalReviewTotal(double? value) {
+    _originalReviewTotal = value;
+    notifyListeners();
+  }
+  
+  double get subtotal => _subtotal;
+  set subtotal(double value) {
+    _subtotal = value;
+    notifyListeners();
+  }
+  
+  double get tax => _tax;
+  set tax(double value) {
+    _tax = value;
+    notifyListeners();
+  }
+  
+  double get tip => _tip;
+  set tip(double value) {
+    _tip = value;
+    notifyListeners();
+  }
+  
+  double get tipPercentage => _tipPercentage;
+  set tipPercentage(double value) {
+    _tipPercentage = value;
+    notifyListeners();
+  }
+  
+  String? get restaurantName => _restaurantName;
+  set restaurantName(String? value) {
+    _restaurantName = value;
+    notifyListeners();
+  }
   // --- END EDIT ---
 
   void reset() {
+    initialized = false;
     _people = [];
+    _receiptItems.clear();
+    _originalQuantities = {};
     _sharedItems = [];
     _unassignedItems = [];
-    _originalQuantities = {};
-    // --- EDIT: Reset modification state ---
-    _unassignedItemsModified = false;
-    _originalReviewTotal = null;
-    // --- END EDIT ---
+    restaurantName = null;
+    subtotal = 0.0;
+    tax = 0.0;
+    tip = 0.0;
+    tipPercentage = 15.0;
+    originalReviewTotal = 0.0;
     notifyListeners();
   }
 
@@ -425,5 +485,28 @@ class SplitManager extends ChangeNotifier {
     
     // Notify listeners about the copied state
     notifyListeners();
+  }
+
+  // New methods for receipt items management
+  void markAsShared(ReceiptItem item) {
+    if (!_sharedItems.contains(item)) {
+      _sharedItems.add(item);
+      notifyListeners();
+    }
+  }
+  
+  void markAsUnassigned(ReceiptItem item) {
+    if (!_unassignedItems.contains(item)) {
+      _unassignedItems.add(item);
+      notifyListeners();
+    }
+  }
+  
+  // Add a method to add receipt items
+  void addReceiptItem(ReceiptItem item) {
+    if (!_receiptItems.contains(item)) {
+      _receiptItems.add(item);
+      notifyListeners();
+    }
   }
 } 
