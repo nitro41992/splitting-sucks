@@ -309,14 +309,17 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
                            (step == 2 && _isAssignmentComplete) ||
                            (step == 3 && _isSplitComplete);
     
-    // Determine if we can navigate to this step based on completed data
+    // Allow navigation to any step that is either:
+    // 1. The current step or a previous step
+    // 2. The next step (only one step ahead)
+    // 3. The Summary step if we're on Split step and all items are assigned
     bool canNavigate = false;
     
     // Can always navigate to current or previous steps
     if (step <= _currentStep) {
       canNavigate = true;
-    } else {
-      // For future steps, check if we have the necessary data
+    } else if (step == _currentStep + 1) {
+      // Can navigate to the next step if we have the necessary data
       switch (step) {
         case 1: // Review step
           canNavigate = _isUploadComplete;
@@ -327,8 +330,8 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         case 3: // Split step
           canNavigate = _isAssignmentComplete;
           break;
-        case 4: // Summary step
-          canNavigate = _isSplitComplete;
+        case 4: // Summary step - special case, always allow if we're on Split (step 3)
+          canNavigate = _currentStep == 3; // Always allow going to Summary from Split
           break;
       }
     }
