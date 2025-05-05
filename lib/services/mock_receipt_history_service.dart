@@ -1,0 +1,143 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/receipt_history.dart';
+import '../models/split_manager.dart';
+import 'mock_data_service.dart';
+
+/// A mock implementation of the receipt history service that uses in-memory data
+/// This service is used when mock data is enabled in the app
+class MockReceiptHistoryService {
+  final FirebaseAuth _auth;
+  List<ReceiptHistory> _mockReceipts = [];
+  bool _initialized = false;
+  
+  // Private constructor
+  MockReceiptHistoryService._({
+    FirebaseAuth? auth,
+  }) : _auth = auth ?? FirebaseAuth.instance;
+  
+  // Singleton instance
+  static MockReceiptHistoryService? _instance;
+  
+  // Factory constructor to get instance
+  factory MockReceiptHistoryService({
+    FirebaseAuth? auth,
+  }) {
+    _instance ??= MockReceiptHistoryService._(
+      auth: auth,
+    );
+    return _instance!;
+  }
+  
+  // Get the current user ID or throw an error if no user is logged in
+  String get _userId {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('User not authenticated');
+    }
+    return user.uid;
+  }
+  
+  // Initialize mock data
+  Future<void> _initializeIfNeeded() async {
+    if (_initialized) return;
+    
+    _mockReceipts = MockDataService.createMockReceiptHistories(
+      userId: _userId,
+      count: 5, // Create 5 mock receipts
+    );
+    
+    _initialized = true;
+  }
+  
+  // Save a receipt
+  Future<ReceiptHistory> saveReceipt({
+    required SplitManager splitManager,
+    required String imageUri,
+    required String restaurantName,
+    required String status,
+    String? transcription,
+  }) async {
+    await _initializeIfNeeded();
+    
+    final receipt = MockDataService.createMockReceiptHistory(
+      userId: _userId,
+      restaurantName: restaurantName,
+      status: status,
+      createdAt: DateTime.now(),
+      imageUri: imageUri,
+    );
+    
+    _mockReceipts.add(receipt);
+    
+    return receipt;
+  }
+  
+  // Update an existing receipt
+  Future<void> updateReceipt(ReceiptHistory receipt) async {
+    await _initializeIfNeeded();
+    
+    final index = _mockReceipts.indexWhere((r) => r.id == receipt.id);
+    if (index >= 0) {
+      _mockReceipts[index] = receipt;
+    }
+  }
+  
+  // Delete a receipt
+  Future<void> deleteReceipt(String receiptId) async {
+    await _initializeIfNeeded();
+    
+    _mockReceipts.removeWhere((receipt) => receipt.id == receiptId);
+  }
+  
+  // Get all receipts for the current user
+  Future<List<ReceiptHistory>> getAllReceipts() async {
+    await _initializeIfNeeded();
+    
+    return List.unmodifiable(_mockReceipts);
+  }
+  
+  // Get receipts filtered by status
+  Future<List<ReceiptHistory>> getReceiptsByStatus(String status) async {
+    await _initializeIfNeeded();
+    
+    return _mockReceipts
+        .where((receipt) => receipt.status == status)
+        .toList();
+  }
+  
+  // Get a specific receipt by ID
+  Future<ReceiptHistory?> getReceiptById(String receiptId) async {
+    await _initializeIfNeeded();
+    
+    return _mockReceipts
+        .firstWhere((receipt) => receipt.id == receiptId, orElse: () => null as ReceiptHistory)
+        as ReceiptHistory?;
+  }
+  
+  // Search receipts by restaurant name
+  Future<List<ReceiptHistory>> searchByRestaurantName(String query) async {
+    await _initializeIfNeeded();
+    
+    final lowerQuery = query.toLowerCase();
+    return _mockReceipts
+        .where((receipt) => receipt.restaurantName.toLowerCase().contains(lowerQuery))
+        .toList();
+  }
+  
+  // Save draft receipt (auto-save functionality)
+  Future<ReceiptHistory> saveDraftReceipt({
+    required SplitManager splitManager,
+    required String imageUri,
+    String restaurantName = 'Draft Receipt',
+    String? transcription,
+  }) async {
+    return saveReceipt(
+      splitManager: splitManager,
+      imageUri: imageUri,
+      restaurantName: restaurantName,
+      status: 'draft',
+      transcription: transcription,
+    );
+  }
+} 

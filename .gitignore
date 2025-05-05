@@ -16,11 +16,19 @@ dataconnect-generated
 dataconnect
 .cursor
 billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json
+service-account-key.json
 test.py
 PXL_20250420_022344815.jpg
 
 # Environment variables
 .env
+
+# Firebase tools for mock data
+functions/firebase-tools/service-account-key.json
+functions/firebase-tools/node_modules/
+functions/firebase-tools/package-lock.json
+functions/firebase-tools/package.json
+functions/firebase-tools/.env
 
 # IntelliJ related
 *.iml
