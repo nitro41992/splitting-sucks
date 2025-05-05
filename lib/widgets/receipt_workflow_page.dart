@@ -15,6 +15,7 @@ import '../screens/voice_assignment_screen.dart';
 import '../screens/assignment_review_screen.dart';
 import '../screens/final_summary_screen.dart';
 import '../models/person.dart' as model show Person;
+import '../widgets/split_view.dart'; // Import for NavigateToPageNotification
 
 // Create a new notification for split manager updates
 class SplitManagerUpdateNotification extends Notification {
@@ -413,7 +414,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     } else {
       // Finish the workflow
       debugPrint('Workflow complete, calling _completeWorkflow()');
-      _completeWorkflow();
+      _completeWorkflow(context.read<SplitManager>());
     }
   }
   
@@ -442,8 +443,11 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     );
   }
   
-  void _completeWorkflow() async {
+  void _completeWorkflow(SplitManager splitManager) async {
     try {
+      // First save the split manager state
+      await _autoSaveSplitManagerState(splitManager);
+      
       // Show saving indicator
       setState(() => _isLoading = true);
       
@@ -839,40 +843,32 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           }
         });
         
-        // Create a wrapper around AssignmentReviewScreen with a complete button
-        return Stack(
-          children: [
-            const AssignmentReviewScreen(),
+        // Add NotificationListener to capture navigation requests from SplitView
+        return NotificationListener<NavigateToPageNotification>(
+          onNotification: (notification) {
+            debugPrint('Received NavigateToPageNotification');
             
-            // Add a Complete button to move to summary
-            Positioned(
-              bottom: 16,
-              right: 16,
-              child: FloatingActionButton.extended(
-                onPressed: () {
-                  // Auto-save the current state
-                  _autoSaveSplitManagerState();
-                  
-                  // Ensure state is updated correctly before navigation
-                  setState(() {
-                    _isSplitComplete = true;
-                    _currentStep = 4; // Explicitly set to Summary step
-                  });
-                  
-                  // Use direct jumpToPage without animation to prevent flashing
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted && _pageController.hasClients) {
-                      debugPrint('Directly jumping to Summary screen (page 4)');
-                      _pageController.jumpToPage(4);
-                    }
-                  });
-                },
-                heroTag: 'split_complete_button',
-                label: const Text('Complete'),
-                icon: const Icon(Icons.check),
-              ),
-            ),
-          ],
+            // Auto-save the split manager state first
+            _autoSaveSplitManagerState(splitManager);
+            
+            // Update current step and navigate to Summary (step 4)
+            setState(() {
+              _isSplitComplete = true;
+              _currentStep = 4; // Summary page is step 4
+            });
+            
+            // Use jumpToPage for immediate navigation without animation
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _pageController.hasClients) {
+                debugPrint('Navigating to Summary page via notification');
+                _pageController.jumpToPage(4); // Summary page is index 4
+              }
+            });
+            
+            // Return true to indicate we've handled the notification
+            return true;
+          },
+          child: const AssignmentReviewScreen(),
         );
       },
     );
@@ -891,18 +887,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         return Stack(
           children: [
             const FinalSummaryScreen(),
-            // Add a Done button to complete workflow
-            Positioned(
-              bottom: 16,
-              right: 16,
-              child: FloatingActionButton.extended(
-                onPressed: _completeWorkflow,
-                heroTag: 'summary_complete_button',
-                label: const Text('Complete'),
-                icon: const Icon(Icons.done_all),
-                backgroundColor: Theme.of(context).colorScheme.secondary,
-              ),
-            ),
+            // Complete button removed per user request
           ],
         );
       },
@@ -1310,13 +1295,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     }
   }
   
-  Future<void> _autoSaveSplitManagerState() async {
+  Future<void> _autoSaveSplitManagerState(SplitManager splitManager) async {
     try {
       // Create a basic map with the required information
       final Map<String, dynamic> splitManagerState = {};
-      
-      // Get the SplitManager
-      final splitManager = Provider.of<SplitManager>(context, listen: false);
       
       // Add key data we want to preserve
       splitManagerState['people'] = splitManager.people.map((person) => {
@@ -1324,7 +1306,14 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         // Add other person properties as needed
       }).toList();
       
-      // Add other properties as needed
+      // Add other important calculation properties
+      splitManagerState['subtotal'] = splitManager.subtotal;
+      splitManagerState['tax'] = splitManager.tax;
+      splitManagerState['tip'] = splitManager.tip;
+      splitManagerState['tipPercentage'] = splitManager.tipPercentage;
+      if (splitManager.restaurantName != null) {
+        splitManagerState['restaurantName'] = splitManager.restaurantName;
+      }
       
       // Save to Firestore
       await _receiptService.saveSplitManagerState(
