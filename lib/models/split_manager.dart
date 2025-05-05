@@ -226,14 +226,21 @@ class SplitManager extends ChangeNotifier {
 
   double get totalAmount {
     double total = 0;
+    
     // Sum individual assigned items only (not shared items)
     for (var person in _people) {
       total += person.totalAssignedAmount; // Only count individually assigned items
     }
+    
     // Add shared items (counted only once)
     total += _sharedItems.fold(0, (sum, item) => sum + item.total);
+    
     // Add unassigned items
     total += _unassignedItems.fold(0, (sum, item) => sum + item.total);
+    
+    // Ensure we're calculating with the correct subtotal
+    _subtotal = total;
+    
     return total;
   }
 
@@ -488,9 +495,26 @@ class SplitManager extends ChangeNotifier {
   }
 
   // New methods for receipt items management
-  void markAsShared(ReceiptItem item) {
+  void markAsShared(ReceiptItem item, {List<Person>? people}) {
     if (!_sharedItems.contains(item)) {
       _sharedItems.add(item);
+      
+      // If people are specified, assign the shared item to those specific people
+      if (people != null && people.isNotEmpty) {
+        for (final person in people) {
+          if (!person.sharedItems.contains(item)) {
+            person.addSharedItem(item);
+          }
+        }
+      } else {
+        // Default behavior: assign to all people if no specific people are provided
+        for (final person in _people) {
+          if (!person.sharedItems.contains(item)) {
+            person.addSharedItem(item);
+          }
+        }
+      }
+      
       notifyListeners();
     }
   }

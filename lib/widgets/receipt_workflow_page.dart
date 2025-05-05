@@ -5,7 +5,7 @@ import 'dart:math' as math;
 import '../models/receipt.dart';
 import '../models/receipt_item.dart';
 import '../models/split_manager.dart';
-import '../models/person.dart' hide Person;
+import '../models/person.dart';
 import '../services/receipt_service.dart';
 import '../services/receipt_parser_service.dart';
 import '../services/audio_transcription_service.dart' as audio_service;
@@ -997,9 +997,46 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
           // Direct lookup in our ID mapping
           final matchingItem = receiptItemsById[itemId];
           
+          // Check if this shared item specifies which people are sharing it
+          List<String>? peopleNames;
+          if (itemJson.containsKey('people') && itemJson['people'] is List) {
+            peopleNames = (itemJson['people'] as List).map((p) => p.toString()).toList();
+            debugPrint('Found people for shared item: $peopleNames');
+          }
+          
+          // Find the specific people objects if names are provided
+          List<Person>? specificPeople;
+          if (peopleNames != null && peopleNames.isNotEmpty) {
+            specificPeople = splitManager.people
+                .where((person) => peopleNames!.contains(person.name))
+                .toList();
+                
+            // Create people if they don't exist yet
+            for (final name in peopleNames) {
+              if (!splitManager.people.any((p) => p.name == name)) {
+                splitManager.addPerson(name);
+              }
+            }
+            
+            // Refresh the list after potentially adding people
+            if (specificPeople.isEmpty) {
+              specificPeople = splitManager.people
+                  .where((person) => peopleNames!.contains(person.name))
+                  .toList();
+            }
+            
+            debugPrint('Found ${specificPeople.length} people objects for shared item');
+          }
+          
           if (matchingItem != null) {
             debugPrint('Found exact match for shared ID $itemId: ${matchingItem.name} (\$${matchingItem.price})');
-            splitManager.markAsShared(matchingItem);
+            
+            // Use the specific people if available, otherwise share with all people
+            if (specificPeople != null && specificPeople.isNotEmpty) {
+              splitManager.markAsShared(matchingItem, people: specificPeople);
+            } else {
+              splitManager.markAsShared(matchingItem);
+            }
           } else {
             // Same fallback logic as assignments
             final matchingItems = _receiptItems.where((receiptItem) => 
@@ -1011,7 +1048,13 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
             if (matchingItems.isNotEmpty) {
               final item = matchingItems.first;
               debugPrint('Found fuzzy match for shared ID $itemId: ${item.name} (\$${item.price})');
-              splitManager.markAsShared(item);
+              
+              // Use the specific people if available, otherwise share with all people
+              if (specificPeople != null && specificPeople.isNotEmpty) {
+                splitManager.markAsShared(item, people: specificPeople);
+              } else {
+                splitManager.markAsShared(item);
+              }
             } else {
               // Position-based match as last resort
               if (int.tryParse(itemId) != null) {
@@ -1019,7 +1062,13 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
                 if (index >= 0 && index < _receiptItems.length) {
                   final item = _receiptItems[index];
                   debugPrint('Found positional match for shared ID $itemId: ${item.name} (\$${item.price})');
-                  splitManager.markAsShared(item);
+                  
+                  // Use the specific people if available, otherwise share with all people
+                  if (specificPeople != null && specificPeople.isNotEmpty) {
+                    splitManager.markAsShared(item, people: specificPeople);
+                  } else {
+                    splitManager.markAsShared(item);
+                  }
                 } else {
                   debugPrint('Warning: No matching shared item found for ID: $itemId (out of range)');
                 }
