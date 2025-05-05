@@ -35,15 +35,19 @@ class ReceiptWorkflowPage extends StatefulWidget {
   State<ReceiptWorkflowPage> createState() => _ReceiptWorkflowPageState();
 }
 
-class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
+class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with AutomaticKeepAliveClientMixin {
+  // Override keep alive to prevent page disposal
+  @override
+  bool get wantKeepAlive => true;
+  
   final ReceiptService _receiptService = ReceiptService();
   late File? _imageFile;
   late List<ReceiptItem> _receiptItems;
   Map<String, dynamic>? _assignments;
   String? _savedTranscription;
   
-  // Modified PageController to be non-final
-  late PageController _pageController;
+  // Make PageController final to prevent recreation
+  final PageController _pageController = PageController(keepPage: true);
   
   bool _isLoading = false;
   bool _isUploadComplete = false;
@@ -51,6 +55,9 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
   bool _isAssignmentComplete = false;
   bool _isSplitComplete = false;
   int _currentStep = 0; // Track workflow step
+  
+  // Flag to track whether state has been loaded
+  bool _stateLoaded = false;
   
   // Add a key to access VoiceAssignmentScreen state without direct reference to private state class
   final GlobalKey _voiceAssignmentKey = GlobalKey();
@@ -62,9 +69,6 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
     // Initialize state
     _imageFile = null;
     _receiptItems = [];
-    
-    // Initialize page controller with current step
-    _initializePageController();
     
     // Load saved state if available
     _loadSavedState();
@@ -78,62 +82,97 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
       final receipt = await _receiptService.getReceiptById(widget.receipt.id!);
       
       if (receipt != null) {
+        // Prepare data for state update
+        File? imageFile;
+        List<ReceiptItem> receiptItems = [];
+        String? transcription;
+        Map<String, dynamic>? assignments;
+        bool isUploadComplete = false;
+        bool isReviewComplete = false;
+        bool isAssignmentComplete = false;
+        int currentStep = 0;
+        
+        // Set image file path
+        if (receipt.imageUri != null) {
+          imageFile = File(receipt.imageUri!);
+          isUploadComplete = true;
+        }
+        
+        // Set review items
+        if (receipt.parseReceipt != null && 
+            receipt.parseReceipt!.containsKey('items')) {
+          final items = receipt.parseReceipt!['items'] as List<dynamic>;
+          receiptItems = items
+              .map((item) => ReceiptItem.fromJson(item as Map<String, dynamic>))
+              .toList();
+          isReviewComplete = receiptItems.isNotEmpty;
+        }
+        
+        // Set transcription
+        if (receipt.transcribeAudio != null && 
+            receipt.transcribeAudio!.containsKey('transcription')) {
+          transcription = receipt.transcribeAudio!['transcription'] as String?;
+        }
+        
+        // Set assignments
+        if (receipt.assignPeopleToItems != null) {
+          assignments = receipt.assignPeopleToItems!;
+          isAssignmentComplete = true;
+        }
+        
+        // Set appropriate step based on state
+        if (isAssignmentComplete) {
+          currentStep = 3; // Jump to split screen
+        } else if (isReviewComplete) {
+          currentStep = 2; // Jump to assignment screen
+        } else if (isUploadComplete) {
+          currentStep = 1; // Jump to review screen
+        } else {
+          currentStep = 0; // Start at upload screen
+        }
+        
+        // Update state in a single setState call
         setState(() {
-          // Set image file path
-          if (receipt.imageUri != null) {
-            _imageFile = File(receipt.imageUri!);
-            _isUploadComplete = true;
-          }
-          
-          // Set review items
-          if (receipt.parseReceipt != null && 
-              receipt.parseReceipt!.containsKey('items')) {
-            final items = receipt.parseReceipt!['items'] as List<dynamic>;
-            _receiptItems = items
-                .map((item) => ReceiptItem.fromJson(item as Map<String, dynamic>))
-                .toList();
-            _isReviewComplete = _receiptItems.isNotEmpty;
-          }
-          
-          // Set transcription
-          if (receipt.transcribeAudio != null && 
-              receipt.transcribeAudio!.containsKey('transcription')) {
-            _savedTranscription = receipt.transcribeAudio!['transcription'] as String?;
-          }
-          
-          // Set assignments
-          if (receipt.assignPeopleToItems != null) {
-            _assignments = receipt.assignPeopleToItems!;
-            _isAssignmentComplete = true;
-          }
-          
-          // Set appropriate step based on state
-          if (_isAssignmentComplete) {
-            _currentStep = 3; // Jump to split screen
-          } else if (_isReviewComplete) {
-            _currentStep = 2; // Jump to assignment screen
-          } else if (_isUploadComplete) {
-            _currentStep = 1; // Jump to review screen
-          } else {
-            _currentStep = 0; // Start at upload screen
-          }
-          
-          // Re-initialize page controller with updated current step
-          _initializePageController();
-          
+          _imageFile = imageFile;
+          _receiptItems = receiptItems;
+          _savedTranscription = transcription;
+          _assignments = assignments;
+          _isUploadComplete = isUploadComplete;
+          _isReviewComplete = isReviewComplete;
+          _isAssignmentComplete = isAssignmentComplete;
+          _currentStep = currentStep;
           _isLoading = false;
+          _stateLoaded = true;
+        });
+        
+        // Use jumpToPage after state is updated
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _pageController.hasClients) {
+            _pageController.jumpToPage(_currentStep);
+            debugPrint('Initial page set to: $_currentStep');
+          }
         });
       } else {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _stateLoaded = true;
+        });
       }
     } catch (e) {
       debugPrint('Error loading receipt data: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _stateLoaded = true;
+        });
+      }
     }
   }
   
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    
     return WillPopScope(
       // Prevent backing out of workflow - show confirmation dialog instead
       onWillPop: () async {
@@ -161,7 +200,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
         create: (_) => SplitManager(),
         child: Scaffold(
           body: SafeArea(
-            child: _isLoading 
+            child: _isLoading && !_stateLoaded 
               ? const Center(child: CircularProgressIndicator())
               : Column(
                 children: [
@@ -677,13 +716,12 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
           }
         },
         onAssignmentProcessed: (assignments) async {
+          debugPrint('Assignment processing callback triggered');
           try {
-            // We don't need to manually save transcription here anymore
-            // as the VoiceAssignmentScreen will call onTranscriptionChanged
-            // before processing assignments
-            
-            // Show saving indicator
-            setState(() => _isLoading = true);
+            // Show saving indicator immediately to prevent UI interaction
+            if (mounted) {
+              setState(() => _isLoading = true);
+            }
             
             // Debug log
             debugPrint('Saving assignments: ${assignments.toString().substring(0, math.min(100, assignments.toString().length))}...');
@@ -696,28 +734,25 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
             
             debugPrint('Assignment data saved to Firestore successfully');
             
-            // Set state FIRST before navigation attempt
+            // Only proceed if still mounted
+            if (!mounted) return;
+            
+            // Update state and immediately request a page change
             setState(() {
               _assignments = assignments;
               _isAssignmentComplete = true;
+              _currentStep = 3; // Set to Split step in the same setState call
               _isLoading = false;
             });
             
-            // Ensure all relevant state is updated correctly before navigation
-            await Future.delayed(const Duration(milliseconds: 500));
-            
-            // Debug log before navigation
-            debugPrint('About to navigate from Assign (step 2) to Split (step 3), current step: $_currentStep');
-            
-            // Use direct method for reliable navigation
-            setState(() {
-              _currentStep = 3; // Explicitly set to Split step
-            });
-            
             // Use direct jumpToPage without animation to prevent flashing
+            // Wait for the next frame to ensure state update is processed
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && _pageController.hasClients) {
-                debugPrint('Directly jumping to Split screen (page 3)');
+              if (!mounted) return;
+              
+              debugPrint('Post-frame callback: Jumping to Split screen (page 3), current step: $_currentStep');
+              if (_pageController.hasClients) {
+                // Force a jump to the split page
                 _pageController.jumpToPage(3);
                 
                 // Show success toast after navigation
@@ -727,14 +762,16 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
                     duration: Duration(seconds: 2),
                   ),
                 );
+              } else {
+                debugPrint('ERROR: PageController has no clients when trying to navigate');
               }
             });
           } catch (e) {
             debugPrint('Error saving assignments: $e');
-            setState(() => _isLoading = false);
-            
-            // Show error message
             if (mounted) {
+              setState(() => _isLoading = false);
+              
+              // Show error message
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Error saving assignments: $e'),
@@ -1259,15 +1296,21 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
     }
   }
   
-  void _initializePageController() {
-    // Initialize with current step 
-    _pageController = PageController(
-      initialPage: _currentStep,
-      keepPage: true, // Important: keep the page state when switching
-    );
-    
-    // Debug log for initialization
-    debugPrint('Initial page set to: $_currentStep');
+  // Replace the _initializePageController method with a modified version that doesn't recreate the controller
+  void _updatePageControllerPage() {
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(_currentStep);
+      debugPrint('Page controller updated to page: $_currentStep');
+    } else {
+      debugPrint('PageController has no clients yet, deferring page update');
+      // Schedule page update after the controller is attached
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pageController.hasClients) {
+          _pageController.jumpToPage(_currentStep);
+          debugPrint('Page controller updated to page: $_currentStep (delayed)');
+        }
+      });
+    }
   }
   
   // Add a method to save transcription that can be reused
