@@ -45,9 +45,14 @@ The "Create" section will contain all 5 steps of the current workflow, presented
 #### Save Functionality:
 - In the Summary step, add a prominent "Save" button
 - When saving, prompt user to enter restaurant name (required)
+- Saving successfully marks the receipt status as "completed"
 - Allow user to cancel saving process
-- Auto-save draft state when user navigates away from incomplete workflow
-- Clear indication that workflow will be available in History
+- Auto-save draft state when user navigates away from incomplete workflow (e.g., switching main tabs or closing the app)
+- Clear indication that workflow will be available in History (both completed and drafts)
+
+#### State Management:
+- Robust state management (e.g., using Provider, Riverpod, Bloc) is required to handle the nested workflow state reliably.
+- Ensure consistency across all steps, especially during auto-save operations, potentially using atomic writes or transactions where appropriate.
 
 ### 3. "History" Section
 
@@ -65,12 +70,16 @@ This section will display past receipt workflows saved for the current user.
 - People involved (derived from assignments)
 
 #### UI Components:
-- List view of receipt cards (both completed and drafts)
+- List view of receipt cards (both completed and drafts). Consider fetching only summary data (name, date, total, status, thumbnail, people count) for this list view to optimize performance, loading full details only when a card is selected.
 - Visual indication of draft status
-- Search/filter options by date, restaurant name, and people involved
+- Search/filter options by date, restaurant name, and people involved (Requires appropriate Firestore indexing).
 - Detail view when selecting a receipt
-- Edit functionality to modify any aspect of a saved receipt (except re-uploading images)
+- Edit functionality for saved receipts:
+    - Selecting "Edit" on a completed or draft receipt should load its data back into the "Create" workflow, starting at the appropriate step (e.g., Summary or Review, depending on what needs changing).
+    - Initial scope for editing involves manual changes to items, assignments, names, tip, tax, etc. Re-running AI processes (like OCR or voice assignment) on existing data is out of scope for the initial implementation.
+    - Saving edits will overwrite the existing receipt record in Firestore.
 - Delete option with confirmation dialog
+- Flow for resuming drafts: User navigates to History, finds the draft receipt card, and taps an "Edit" or "Continue" action, which transitions them back to the "Create" workflow populated with the draft's state.
 
 #### Database Structure:
 ```
@@ -78,12 +87,14 @@ users/{userId}/receipts/{receiptId}
   - image_uri: String (GCS path)
   - created_at: Timestamp
   - updated_at: Timestamp
+  - userId: String // Store owner's UID for rules/queries
   - restaurant_name: String (required)
   - status: String (enum: "completed" or "draft")
-  - total_amount: Number
+  - total_amount: Number // Final total including tax/tip
   - receipt_data: Map {
       - items: Array<Map> [
         {
+          id: Number,
           item: String, 
           quantity: Number, 
           price: Number
@@ -91,37 +102,15 @@ users/{userId}/receipts/{receiptId}
       ]
       - subtotal: Number
     }
-  - transcription: String
-  - assignment_result: Map {
-      - person_assignments: Array<Map> [
-        {
-          person_name: String,
-          items: Array<Map> [
-            {
-              id: Number,
-              quantity: Number
-            }
-          ]
-        }
-      ],
-      - shared_items: Array<Map> [
-        {
-          id: Number,
-          quantity: Number,
-          shared_by: Array<String> // List of person names who share this item
-        }
-      ],
-      - unassigned_items: Array<Map> [
-        {
-          id: Number,
-          quantity: Number
-        }
-      ]
-    }
+  - transcription: String // Final transcription text (potentially user-edited) used for assignments
   - people: Array<String> (derived from person_assignments for search)
-  - split_manager_state: Map {
+  - person_totals: Array<Map> [ // Store final calculated total per person
+      { name: String, total: Number }
+    ]
+  - split_manager_state: Map { // Captures the complete state needed to restore the UI
       - people: Array<Map> [
         {
+          id: String,
           name: String,
           assignedItems: Array<Map> [
             {
@@ -129,15 +118,6 @@ users/{userId}/receipts/{receiptId}
               item: String,
               quantity: Number,
               price: Number
-            }
-          ],
-          sharedItems: Array<Map> [
-            {
-              id: Number,
-              item: String,
-              quantity: Number,
-              price: Number,
-              sharingCount: Number // How many people share this item
             }
           ]
         }
@@ -148,7 +128,7 @@ users/{userId}/receipts/{receiptId}
           item: String,
           quantity: Number,
           price: Number,
-          shared_by: Array<String> // Person names who share this item
+          shared_by: Array<String>
         }
       ],
       - unassignedItems: Array<Map> [
@@ -165,6 +145,7 @@ users/{userId}/receipts/{receiptId}
       - total: Number
     }
 ```
+*Note on Data Model:* The `split_manager_state` field is designed to capture the complete information necessary to restore the application's state for viewing or editing a receipt. It includes detailed item information within assignments, shared items, unassigned items, and final calculations. The `assignment_result` structure (previously considered) has been removed to avoid redundancy. The `person_totals` field is included for efficient display of summary information.
 
 ### 4. "Settings" Section
 
@@ -197,7 +178,7 @@ This section will provide account management options:
 
 4. **Firestore Security Rules for Receipt History**:
    - Implement strict security rules to ensure users can only access their own data
-   - Include validation rules to ensure data integrity
+   - Include validation rules to ensure data integrity (e.g., status transitions, required fields, data types). Acknowledge that validating complex nested structures like `split_manager_state` within security rules requires careful and thorough rule definition.
    - Example security rules:
 
    ```
@@ -256,13 +237,10 @@ This section will provide account management options:
 - [ ] Create Firestore data models for storing receipt history
 - [ ] Implement service methods for saving completed receipts to history
 - [ ] Add auto-save functionality for drafts
-- [ ] Update Firestore security rules to protect history data
-- [ ] Design and implement history list view with filters
-- [ ] Design and implement receipt detail view
-- [ ] Implement edit functionality for saved receipts
-- [ ] Add delete functionality with confirmation
-- [ ] Implement search by date, restaurant name, and people
-- [ ] Create draft indicator and UI treatment
+- [ ] Update Firestore security rules to protect history data, including comprehensive validation rules.
+- [ ] Design and implement history list view with filters (fetching summary data initially).
+- [ ] Design and implement receipt detail view (loading full data on demand).
+- [ ] Implement edit functionality for saved receipts (loading back into "Create" workflow).
 
 ### 4. Settings Section
 - [ ] Design and implement settings screen
@@ -274,23 +252,26 @@ This section will provide account management options:
 ### 5. Database Changes
 - [ ] Create Firestore collections/documents for receipt history
 - [ ] Update security rules to protect new collections
-- [ ] Implement data migration plan if needed
-- [ ] Add storage triggers to clean up orphaned files when receipts are deleted
-- [ ] Add backup functionality for user data
+- [ ] Define and create necessary Firestore indexes to support required queries (e.g., filtering history by status, date, searching by people).
+- [ ] Implement data migration plan if needed (Assumption: No existing user receipt data requires migration for this new feature).
+- [ ] Add storage triggers or Cloud Functions to clean up orphaned files from Cloud Storage when associated receipt documents are deleted.
+- [ ] Implement secure account deletion process using Cloud Functions triggered by Auth user deletion to ensure complete removal of user data (Firestore documents, Storage files).
+- [ ] Add backup functionality for user data (Consider Firestore's built-in backup or scheduled exports).
 
 ### 6. Testing
 - [ ] Test navigation flow in all screen sizes and orientations
-- [ ] Verify history storage and retrieval functionality
-- [ ] Test account management functions
-- [ ] Perform security testing on new features
+- [ ] Verify history storage and retrieval functionality (including list view performance)
+- [ ] Test account management functions (logout, secure deletion via Cloud Functions)
+- [ ] Perform security testing on new features and Firestore rules
 
 ## UI/UX Considerations
 
 1. **Consistency**: Maintain consistent design language throughout the app
-2. **Feedback**: Provide clear feedback during navigation transitions
+2. **Feedback**: Provide clear feedback during navigation transitions and for background operations like auto-saving (e.g., using snackbars or subtle indicators).
 3. **Accessibility**: Ensure all new navigation elements are accessible
-4. **Error Handling**: Implement proper error states for history loading/viewing
-5. **Empty States**: Design appropriate empty states for the history section
+4. **Error Handling**: Implement detailed error handling and user feedback for key operations like saving receipts, loading history, editing, and deleting. Provide informative messages for network issues, permission errors, or validation failures.
+5. **Empty States**: Design appropriate empty states for the history section (e.g., "No receipts saved yet", "No drafts found").
+6. **Performance**: Optimize history list loading by fetching summary data first.
 
 ## Technical Debt and Future Improvements
 
@@ -551,75 +532,47 @@ Each test receipt will contain:
   'total_amount': 00.00,
   'receipt_data': {
     'items': [
-      {'item': 'Item 1', 'quantity': 1, 'price': 10.99},
-      {'item': 'Item 2', 'quantity': 2, 'price': 8.50},
-      // Additional items...
+      {'id': 0, 'item': 'Item 1', 'quantity': 1, 'price': 10.99},
+      {'id': 1, 'item': 'Item 2', 'quantity': 2, 'price': 8.50},
+      {'id': 2, 'item': 'Item 3', 'quantity': 1, 'price': 8.99},
+      {'id': 3, 'item': 'Item 4', 'quantity': 1, 'price': 12.99},
+      {'id': 4, 'item': 'Item 5', 'quantity': 1, 'price': 15.99},
+      {'id': 5, 'item': 'Item 6', 'quantity': 1, 'price': 5.99},
+      {'id': 6, 'item': 'Item 7', 'quantity': 1, 'price': 9.49},
+      {'id': 7, 'item': 'Item 8', 'quantity': 1, 'price': 7.50}
     ],
-    'subtotal': 00.00
+    'subtotal': 80.44
   },
   'transcription': 'Mock voice transcription data...',
-  'assignment_result': {
-    'person_assignments': [
-      {
-        'person_name': 'Person 1',
-        'items': [
-          {'id': 0, 'quantity': 1},
-          {'id': 2, 'quantity': 1}
-        ]
-      },
-      {
-        'person_name': 'Person 2',
-        'items': [
-          {'id': 1, 'quantity': 2},
-          {'id': 3, 'quantity': 1}
-        ]
-      },
-      {
-        'person_name': 'Person 3',
-        'items': [
-          {'id': 6, 'quantity': 1}
-        ]
-      }
-    ],
-    'shared_items': [
-      {'id': 4, 'quantity': 1, 'shared_by': ['Person 1', 'Person 2']},
-      {'id': 7, 'quantity': 1, 'shared_by': ['Person 1', 'Person 3']}
-    ],
-    'unassigned_items': [
-      {'id': 5, 'quantity': 1}
-    ]
-  },
   'people': ['Person 1', 'Person 2', 'Person 3'],
+  'person_totals': [
+    {'name': 'Person 1', 'total': 30.00}, // Example totals, replace with actual calculated values
+    {'name': 'Person 2', 'total': 35.00},
+    {'name': 'Person 3', 'total': 15.00}
+  ],
   'split_manager_state': {
     'people': [
       {
+        'id': 'Person 1',
         'name': 'Person 1',
         'assignedItems': [
           {'id': 0, 'item': 'Item 1', 'quantity': 1, 'price': 10.99},
           {'id': 2, 'item': 'Item 3', 'quantity': 1, 'price': 8.99}
-        ],
-        'sharedItems': [
-          {'id': 4, 'item': 'Item 5', 'quantity': 1, 'price': 15.99, 'sharingCount': 2},
-          {'id': 7, 'item': 'Item 8', 'quantity': 1, 'price': 7.50, 'sharingCount': 2}
         ]
       },
       {
+        'id': 'Person 2',
         'name': 'Person 2',
         'assignedItems': [
           {'id': 1, 'item': 'Item 2', 'quantity': 2, 'price': 8.50},
           {'id': 3, 'item': 'Item 4', 'quantity': 1, 'price': 12.99}
-        ],
-        'sharedItems': [
-          {'id': 4, 'item': 'Item 5', 'quantity': 1, 'price': 15.99, 'sharingCount': 2}
         ]
       },
       {
+        'id': 'Person 3',
         'name': 'Person 3',
         'assignedItems': [
           {'id': 6, 'item': 'Item 7', 'quantity': 1, 'price': 9.49}
-        ],
-        'sharedItems': [
-          {'id': 7, 'item': 'Item 8', 'quantity': 1, 'price': 7.50, 'sharingCount': 2}
         ]
       }
     ],
@@ -659,6 +612,30 @@ This dual structure ensures that:
 - Each receipt can be fully restored to exactly how it was displayed in all views
 - Shared items properly track who shares them and in what proportion
 
+`split_manager_state` maps directly to the necessary app state, containing:
+- `people`: A list of people with their individually assigned items and their shared items (including full details like price, quantity, and sharing count).
+- `sharedItems`: The global list of shared items including who shares them.
+- `unassignedItems`: The list of unassigned items with full details.
+- Tax, tip, subtotal, and total calculations.
+
+This structure ensures that each receipt's state can be fully restored for viewing or editing.
+
+`person_totals` stores the final calculated amount owed by each person for easy display.
+
+Using person IDs in `shared_by` avoids issues with renaming people.
+
+`person_totals` stores the final calculated amount owed by each person (identified by name, could also use ID if needed for display consistency) for easy summary display.
+
+### Item ID Explanation
+
+In this data structure, "id" fields actually refer to the **array index** of an item in the original receipt items array. The app doesn't assign explicit ID fields to items, but instead uses their position in the array to identify them:
+
+- When an item has `id: 0`, it means the first item in the receipt items array
+- When an item has `id: 4`, it means the fifth item in the receipt items array
+- This matches how the app internally references items in assignment functions
+
+This approach is especially important when saving and retrieving receipt data, as it allows the app to connect assignments back to the original items without modifying the item objects themselves.
+
 ### Integration with Testing Workflow
 
 #### Running the Script:
@@ -673,10 +650,10 @@ This will:
 4. Provide a summary of created test data
 
 #### Usage in Development:
-- Separate test user account for mock data testing 
-- Toggle to use mock data in development builds
+- Separate test user account for mock data testing
+- Toggle to use mock data in development builds (e.g., via environment configuration or a developer menu).
 - Visual indicator when viewing mock data
-- Ability to delete individual mock receipts or all at once
+- Ability to delete individual mock receipts or all at once via the script or a debug tool.
 
 ### Implementation Tasks
 
