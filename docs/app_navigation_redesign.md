@@ -231,7 +231,10 @@ This section will provide account management options:
 ### 2. Create Workflow
 - [x] Restructure the existing 5-step workflow to nest within the "Create" section
 - [x] Implement appropriate navigation indicators within this section
-- [ ] Ensure state preservation between workflow steps
+- [x] Ensure state preservation between workflow steps
+- [x] Implement save button in Summary step with restaurant name prompt
+- [x] Add auto-save functionality when navigating away from the Create workflow
+- [x] Implement navigation between workflow steps with proper state management
 
 ### 3. History Functionality
 - [x] Create Firestore data models for storing receipt history
@@ -240,7 +243,10 @@ This section will provide account management options:
 - [x] Update Firestore security rules to protect history data, including comprehensive validation rules.
 - [x] Design and implement history list view with filters (fetching summary data initially).
 - [x] Design and implement receipt detail view (loading full data on demand).
-- [ ] Implement edit functionality for saved receipts (loading back into "Create" workflow).
+- [x] Implement edit functionality for saved receipts (loading back into "Create" workflow).
+- [x] Add rename functionality for receipts in history
+- [ ] Improve delete functionality with proper resource cleanup
+- [x] Implement transitions between History and Create sections when editing receipts
 
 ### 4. Settings Section
 - [x] Design and implement settings screen
@@ -270,6 +276,7 @@ This section will provide account management options:
 - [ ] Verify history storage and retrieval functionality (including list view performance)
 - [ ] Test account management functions (logout, secure deletion via Cloud Functions)
 - [ ] Perform security testing on new features and Firestore rules
+- [ ] Test state preservation across app restarts and navigation changes
 
 ## Implementation Progress
 
@@ -291,19 +298,74 @@ This section will provide account management options:
 15. ✅ Implemented platform-specific UI adaptations for iOS and Android
 16. ✅ Added graceful fallbacks for authentication and initialization errors
 17. ✅ Fixed data retrieval issues with sorting and filtering operations
+18. ✅ Implemented edit functionality for saved receipts (loading back into "Create" workflow)
+19. ✅ Added rename functionality for receipts in history
+20. ✅ Implemented auto-save functionality when navigating away from the Create workflow
+21. ✅ Added Save functionality in the Summary step with restaurant name prompt
+22. ✅ Implemented navigation between workflow steps with proper state management
+23. ✅ Implemented transitions between History and Create sections when editing receipts
 
 ### In Progress
-1. 🔄 Integration of "Edit" functionality to load receipts back into the Create workflow
-2. 🔄 Account deletion process implementation
-3. 🔄 Create workflow auto-save functionality
-4. 🔄 Cross-device testing across Android and iOS
-5. 🔄 Data population and verification with Firestore
+1. 🔄 Account deletion process implementation
+2. 🔄 Cross-device testing across Android and iOS
+3. 🔄 Data population and verification with Firestore
+4. 🔄 Implementing the Split step in Create workflow 
+5. 🔄 Improving delete functionality with proper resource cleanup
 
 ### Pending
 1. ⏳ Add app-specific settings (appearance, notifications)
 2. ⏳ Testing across different screen sizes
 3. ⏳ Performance testing for history list view
 4. ⏳ Implement Cloud Functions for secure data cleanup
+5. ⏳ State preservation across app restarts
+6. ⏳ Firebase Storage security rules alignment with Firestore rules
+
+## Implementation Summary
+
+### Accomplishments
+We have successfully implemented the following key features:
+
+1. **Create Workflow**
+   - Restructured the existing 5-step workflow to be contained within the "Create" section
+   - Implemented a step indicator to show progress in the workflow
+   - Created a robust state management system that preserves data between steps
+   - Added auto-save functionality to preserve progress when navigating away
+   - Implemented the save dialog to name and store completed receipts
+   - Added proper navigation controls between steps with validation
+
+2. **History Functionality**
+   - Implemented a complete history view with filtering and search capabilities
+   - Added detailed receipt view to examine past receipts
+   - Created edit functionality to load existing receipts back into the workflow
+   - Implemented rename functionality for receipts
+   - Added transitions between History and Create sections
+
+3. **Data Management**
+   - Created a robust data model for storing receipt history
+   - Implemented Firestore integration for persistent storage
+   - Enhanced models with methods to support serialization and deserialization
+   - Added validation to prevent data integrity issues
+
+### Remaining Work
+The following items still need to be addressed:
+
+1. **Split Step Implementation**
+   - Implement the Split step in the Create workflow
+   - Add UI for managing item assignments between people
+   - Implement shared item functionality
+
+2. **Cleanup and Deletion**
+   - Improve receipt deletion to properly clean up resources
+   - Add Firebase Storage cleanup for associated images
+
+3. **Security Enhancements**
+   - Implement account deletion with proper data cleanup
+   - Update Firebase Storage security rules
+
+4. **Testing and Optimization**
+   - Complete cross-device testing
+   - Optimize performance for large datasets
+   - Add comprehensive error handling
 
 ## Things to Consider
 
@@ -312,16 +374,21 @@ This section will provide account management options:
 - **Query Performance**: As users accumulate many receipts, we will need to implement pagination and optimize queries.
 - **Data Integrity**: Consider adding server-side validation through Cloud Functions to ensure data consistency.
 - **Real-world Data**: Now that we're using real Firestore data, we should monitor performance and structure of real user data.
+- **Draft Handling**: We need to implement a strategy for handling draft receipts, including auto-saving when users switch tabs or close the app.
 
 ### Security
 - **Storage Security**: Ensure Firebase Storage rules are updated to protect receipt images in a way that aligns with our Firestore security model.
 - **Deletion Operations**: Implement cascading delete operations to ensure all related resources are properly cleaned up.
 - **Backup Strategy**: Consider implementing regular backups or export options for users to prevent data loss.
+- **Access Control**: Ensure that when users edit a receipt, they can only edit their own receipts and not others'.
 
 ### User Experience
 - **Loading States**: Implement appropriate loading indicators during data fetch operations.
 - **Error Handling**: Add comprehensive error handling with user-friendly messages for all operations.
 - **Offline Support**: Consider implementing offline capabilities for viewing receipt history.
+- **Transition Animations**: Smooth transitions between different steps of the Create workflow and when navigating between sections.
+- **Progress Indication**: Ensure users understand which steps of the workflow they have completed and which remain.
+- **Auto-save Feedback**: Provide subtle notifications when auto-saving occurs.
 
 ### Mobile-Specific Considerations
 - **iOS Adaptations**: 
@@ -346,13 +413,16 @@ This section will provide account management options:
 - **Environment Toggle**: The mock data toggle provides an efficient development workflow but ensure it's disabled in production builds.
 - **Testing Strategy**: Use a combination of unit, widget, and integration tests to verify the new functionality.
 - **CI/CD Integration**: Update CI/CD pipelines to test the new components.
+- **Error Monitoring**: Implement proper error monitoring for production to catch and address issues quickly.
 
 ### Next Steps
 The immediate next steps are:
-1. Complete the "Edit" functionality to allow users to load historical receipts back into the Create workflow
+1. Complete the implementation of the "Split" step in the Create workflow
 2. Implement the account deletion process with proper security measures
-3. Finish the auto-save functionality to preserve user progress in the Create workflow
-4. Conduct thorough testing across various Android and iOS devices
+3. Improve resource cleanup when deleting receipts (removing images from storage)
+4. Add proper error handling for edge cases in the Create workflow
+5. Implement comprehensive testing across various Android and iOS devices
+6. Add unit tests for the new functionality
 
 ## UI/UX Considerations
 

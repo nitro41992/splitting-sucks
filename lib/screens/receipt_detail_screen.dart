@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/receipt_history.dart';
 import '../models/receipt_item.dart';
 import '../services/receipt_history_provider.dart';
+import 'create_workflow_screen.dart';
 
 class ReceiptDetailScreen extends StatefulWidget {
   final ReceiptHistory receipt;
@@ -44,9 +45,21 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
             onSelected: (value) {
               if (value == 'delete') {
                 _deleteReceipt();
+              } else if (value == 'rename') {
+                _showRenameDialog();
               }
             },
             itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'rename',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_note, size: 18),
+                    SizedBox(width: 8),
+                    Text('Rename'),
+                  ],
+                ),
+              ),
               const PopupMenuItem<String>(
                 value: 'delete',
                 child: Row(
@@ -121,26 +134,53 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
 
                   const SizedBox(height: 16),
                   
-                  // Receipt image
+                  // Receipt image - Using FutureBuilder to convert gs:// URI to HTTPS download URL
                   if (widget.receipt.imageUri.isNotEmpty)
                     Center(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          widget.receipt.imageUri,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 200,
-                              width: double.infinity,
-                              color: Colors.grey[200],
-                              child: const Icon(
-                                Icons.receipt,
-                                size: 64,
-                                color: Colors.grey,
-                              ),
-                            );
+                        child: FutureBuilder<String>(
+                          future: _historyProvider.getDownloadURL(widget.receipt.imageUri),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return Container(
+                                height: 200,
+                                width: double.infinity,
+                                color: Colors.grey[200],
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            } else if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                              return Container(
+                                height: 200,
+                                width: double.infinity,
+                                color: Colors.grey[200],
+                                child: const Icon(
+                                  Icons.receipt,
+                                  size: 64,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            } else {
+                              return Image.network(
+                                snapshot.data!,
+                                height: 200,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    height: 200,
+                                    width: double.infinity,
+                                    color: Colors.grey[200],
+                                    child: const Icon(
+                                      Icons.receipt,
+                                      size: 64,
+                                      color: Colors.grey,
+                                    ),
+                                  );
+                                },
+                              );
+                            }
                           },
                         ),
                       ),
@@ -281,15 +321,127 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
   }
 
   void _continueEditing() {
-    // This will be implemented to navigate back to the Create workflow
-    // with this receipt's data loaded
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Edit functionality will be implemented in a future update',
+    // Navigate to the Create workflow with this receipt's data
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CreateWorkflowScreen(
+          existingReceipt: widget.receipt,
         ),
       ),
+    ).then((value) {
+      // Refresh the details page when returning from editing
+      if (value == true) {
+        Navigator.of(context).pop(true); // Receipt was deleted
+      } else {
+        _refreshReceiptData();
+      }
+    });
+  }
+  
+  Future<void> _refreshReceiptData() async {
+    try {
+      final updatedReceipt = await _historyProvider.getReceiptById(widget.receipt.id);
+      if (updatedReceipt != null && mounted) {
+        // If the receipt was modified, replace it
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => ReceiptDetailScreen(receipt: updatedReceipt),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error refreshing receipt: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
+  void _showRenameDialog() {
+    final formKey = GlobalKey<FormState>();
+    String newName = widget.receipt.restaurantName;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Receipt'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            initialValue: newName,
+            decoration: const InputDecoration(
+              labelText: 'Restaurant Name',
+              border: OutlineInputBorder(),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter a name';
+              }
+              return null;
+            },
+            onChanged: (value) {
+              newName = value;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.of(context).pop();
+                _renameReceipt(newName);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
+  }
+  
+  Future<void> _renameReceipt(String newName) async {
+    if (newName == widget.receipt.restaurantName) {
+      return; // No change
+    }
+    
+    setState(() {
+      _isDeleting = true; // Reuse loading indicator
+    });
+    
+    try {
+      final updatedReceipt = widget.receipt.copyWith(restaurantName: newName);
+      await _historyProvider.updateReceipt(updatedReceipt);
+      
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+        _refreshReceiptData();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Receipt renamed successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error renaming receipt: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _deleteReceipt() async {

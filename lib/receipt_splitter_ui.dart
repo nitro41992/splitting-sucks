@@ -1094,7 +1094,10 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
     
     try {
       // Actually parse the receipt using ReceiptParserService
-      final receiptData = await ReceiptParserService.parseReceipt(_imageFile!);
+      // The parseReceipt method now returns a tuple (ReceiptData, String)
+      final result = await ReceiptParserService.parseReceipt(_imageFile!);
+      final receiptData = result.$1; // Extract the ReceiptData from the tuple
+      final imageUri = result.$2;   // Extract the imageUri from the tuple
       
       if (!mounted) return;
       

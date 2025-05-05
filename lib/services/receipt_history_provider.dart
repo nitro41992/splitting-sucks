@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/receipt_history.dart';
 import '../models/split_manager.dart';
 import 'receipt_history_service.dart';
+import 'file_helper.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 /// A provider class for receipt history operations
 /// This class provides a clean interface for receipt history operations
@@ -98,6 +100,31 @@ class ReceiptHistoryProvider {
       restaurantName: restaurantName,
       transcription: transcription,
     );
+  }
+  
+  // Convert a gs:// URI to an HTTPS download URL
+  Future<String> getDownloadURL(String? imageUri) async {
+    if (imageUri == null || imageUri.isEmpty) {
+      debugPrint('Empty or null imageUri provided');
+      return '';
+    }
+    
+    try {
+      // If it's a gs:// URI, convert it to an HTTPS download URL
+      if (imageUri.startsWith('gs://')) {
+        final downloadUrl = await FileHelper.getDownloadURLFromGsURI(imageUri);
+        return downloadUrl;
+      } else if (imageUri.startsWith('http')) {
+        // If it's already an HTTPS URL, return it as is
+        return imageUri;
+      } else {
+        debugPrint('Unrecognized image URI format: $imageUri');
+        return '';
+      }
+    } catch (e) {
+      debugPrint('Error getting download URL: $e');
+      return '';
+    }
   }
   
   // This app always uses real data now

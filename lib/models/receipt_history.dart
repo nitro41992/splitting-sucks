@@ -221,4 +221,37 @@ class ReceiptHistory {
       'total': splitManager.totalAmount,
     };
   }
+
+  // Create a copy of this receipt with updated properties
+  ReceiptHistory copyWith({
+    String? id,
+    String? imageUri,
+    Timestamp? createdAt,
+    Timestamp? updatedAt,
+    String? userId,
+    String? restaurantName,
+    String? status,
+    double? totalAmount,
+    Map<String, dynamic>? receiptData,
+    String? transcription,
+    List<String>? people,
+    List<Map<String, dynamic>>? personTotals,
+    Map<String, dynamic>? splitManagerState,
+  }) {
+    return ReceiptHistory(
+      id: id ?? this.id,
+      imageUri: imageUri ?? this.imageUri,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? Timestamp.now(), // Always update the timestamp
+      userId: userId ?? this.userId,
+      restaurantName: restaurantName ?? this.restaurantName,
+      status: status ?? this.status,
+      totalAmount: totalAmount ?? this.totalAmount,
+      receiptData: receiptData ?? this.receiptData,
+      transcription: transcription ?? this.transcription,
+      people: people ?? this.people,
+      personTotals: personTotals ?? this.personTotals,
+      splitManagerState: splitManagerState ?? this.splitManagerState,
+    );
+  }
 } 

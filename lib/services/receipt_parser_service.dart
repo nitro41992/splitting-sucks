@@ -81,7 +81,8 @@ class ReceiptParserService {
   /// 
   /// Uploads the image to Firebase Storage and then calls the parse_receipt
   /// Cloud Function to process it with OpenAI's API.
-  static Future<ReceiptData> parseReceipt(File imageFile) async {
+  /// Returns a tuple containing the parsed ReceiptData and the Storage imageUri
+  static Future<(ReceiptData, String)> parseReceipt(File imageFile) async {
     // Get instance of Cloud Functions & Storage
     FirebaseFunctions functions = FirebaseFunctions.instance;
     FirebaseStorage storage = FirebaseStorage.instance;
@@ -151,8 +152,8 @@ class ReceiptParserService {
             ? receiptMap['data'] as Map<String, dynamic>
             : receiptMap; // Use the map directly if no 'data' wrapper
 
-        // Parse the map
-        return ReceiptData.fromJson(finalReceiptMap);
+        // Parse the map and return both the receipt data and the image URI
+        return (ReceiptData.fromJson(finalReceiptMap), imageUri);
       } catch (e) {
         debugPrint("Error parsing receipt data: $e");
         throw Exception('Failed to parse receipt data: $e');

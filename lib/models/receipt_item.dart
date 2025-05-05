@@ -146,4 +146,17 @@ class ReceiptItem extends ChangeNotifier {
       itemId: json['itemId'] as String? ?? 'item_${_nextId++}_${json['name']}',
     );
   }
+
+  // Create from Firestore document map
+  static ReceiptItem fromMap(Map<String, dynamic> map) {
+    final id = map['id'] != null ? map['id'].toString() : (_nextId++).toString();
+    final item = map['item'] as String? ?? '';
+    
+    return ReceiptItem(
+      name: item,
+      price: (map['price'] as num?)?.toDouble() ?? 0.0, 
+      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      itemId: 'item_${id}_$item',
+    );
+  }
 } 

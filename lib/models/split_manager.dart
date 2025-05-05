@@ -185,6 +185,11 @@ class SplitManager extends ChangeNotifier {
     return _unassignedItems.fold(0, (sum, item) => sum + item.total);
   }
 
+  // Alias for unassignedItemsTotal to fix compatibility issues
+  double get subtotal {
+    return unassignedItemsTotal;
+  }
+
   // New method to add a single person to an existing shared item
   void addPersonToSharedItem(ReceiptItem item, Person person) {
     // Ensure the item is in the main shared list first (should usually be true)
@@ -424,6 +429,170 @@ class SplitManager extends ChangeNotifier {
     _statePreserved = true;
     
     // Notify listeners about the copied state
+    notifyListeners();
+  }
+
+  // Check if all items are assigned to people
+  bool areAllItemsAssigned() {
+    // Return false if there are unassigned items
+    if (_unassignedItems.isNotEmpty) {
+      return false;
+    }
+    
+    // We consider it fully assigned if all items are either:
+    // 1. Assigned to specific people, or
+    // 2. Added to shared items and assigned to at least one person
+    
+    // Check that all shared items are assigned to at least one person
+    for (var item in _sharedItems) {
+      bool itemAssigned = false;
+      for (var person in _people) {
+        if (person.sharedItems.contains(item)) {
+          itemAssigned = true;
+          break;
+        }
+      }
+      if (!itemAssigned) {
+        return false; // Found a shared item not assigned to anyone
+      }
+    }
+    
+    return true;
+  }
+  
+  // Get all items in the split manager (assigned, shared, unassigned)
+  List<ReceiptItem> getAllItems() {
+    final allItems = <ReceiptItem>[];
+    
+    // Add assigned items
+    for (var person in _people) {
+      allItems.addAll(person.assignedItems);
+    }
+    
+    // Add shared items
+    allItems.addAll(_sharedItems);
+    
+    // Add unassigned items
+    allItems.addAll(_unassignedItems);
+    
+    return allItems;
+  }
+  
+  // Load the split manager state from a Firestore map
+  void loadFromMap(Map<String, dynamic> map) {
+    // Reset current state
+    reset();
+    
+    // Load people and their assigned items
+    final peopleData = map['people'] as List<dynamic>? ?? [];
+    for (var personData in peopleData) {
+      final name = personData['name'] as String;
+      final person = Person(name: name);
+      
+      // Add assigned items
+      final assignedItemsData = personData['assignedItems'] as List<dynamic>? ?? [];
+      for (var itemData in assignedItemsData) {
+        final item = _itemFromMap(itemData as Map<String, dynamic>);
+        person.addAssignedItem(item);
+      }
+      
+      _people.add(person);
+    }
+    
+    // Load shared items and their assignments
+    final sharedItemsData = map['sharedItems'] as List<dynamic>? ?? [];
+    for (var itemData in sharedItemsData) {
+      final item = _itemFromMap(itemData as Map<String, dynamic>);
+      _sharedItems.add(item);
+      
+      // Assign shared item to people
+      final sharedBy = itemData['shared_by'] as List<dynamic>? ?? [];
+      for (var personName in sharedBy) {
+        final person = _people.firstWhere(
+          (p) => p.name == personName,
+          orElse: () => Person(name: personName.toString()),
+        );
+        
+        // If person wasn't found, add them
+        if (!_people.contains(person)) {
+          _people.add(person);
+        }
+        
+        person.addSharedItem(item);
+      }
+    }
+    
+    // Load unassigned items
+    final unassignedItemsData = map['unassignedItems'] as List<dynamic>? ?? [];
+    for (var itemData in unassignedItemsData) {
+      final item = _itemFromMap(itemData as Map<String, dynamic>);
+      _unassignedItems.add(item);
+      setOriginalQuantity(item, item.quantity); // Set original quantity
+    }
+    
+    notifyListeners();
+  }
+  
+  // Helper method to convert a Map to a ReceiptItem
+  ReceiptItem _itemFromMap(Map<String, dynamic> map) {
+    return ReceiptItem(
+      name: map['item'] as String? ?? '',
+      price: (map['price'] as num?)?.toDouble() ?? 0.0,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      itemId: 'item_${map['id']}_${map['item']}',
+    );
+  }
+  
+  // Initialize the split manager from assignment results
+  void initializeFromAssignments(
+    List<ReceiptItem> items,
+    Map<String, List<String>> assignmentResult,
+    double subtotal,
+  ) {
+    reset();
+    
+    // Set original review total
+    _originalReviewTotal = subtotal;
+    
+    // First, create a map of all items by name for quick lookup
+    final itemMap = <String, ReceiptItem>{};
+    for (var item in items) {
+      itemMap[item.name] = item;
+      setOriginalQuantity(item, item.quantity);
+    }
+    
+    // Create people and assign items based on the assignment result
+    for (var entry in assignmentResult.entries) {
+      final personName = entry.key;
+      final assignedItemNames = entry.value;
+      
+      // Create the person
+      final person = Person(name: personName);
+      
+      // Assign items to this person
+      for (var itemName in assignedItemNames) {
+        if (itemMap.containsKey(itemName)) {
+          final item = itemMap[itemName]!;
+          person.addAssignedItem(item);
+        }
+      }
+      
+      // Add the person to the split manager
+      _people.add(person);
+    }
+    
+    // Items not assigned to any person go to unassigned items
+    final assignedItems = <String>{};
+    for (var items in assignmentResult.values) {
+      assignedItems.addAll(items);
+    }
+    
+    for (var item in items) {
+      if (!assignedItems.contains(item.name)) {
+        _unassignedItems.add(item);
+      }
+    }
+    
     notifyListeners();
   }
 } 
