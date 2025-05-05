@@ -113,6 +113,185 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
      }
    }
 
+  // Handle image preview with more robust error handling
+  Widget _buildImagePreview() {
+    if (widget.imageFile == null) {
+      return const SizedBox(); // No image to show
+    }
+    
+    final String imagePath = widget.imageFile!.path;
+    final bool isNetworkImage = imagePath.startsWith('http');
+    
+    // For network images, we don't need to check if file exists locally
+    if (!isNetworkImage) {
+      // Check if local file exists
+      final fileExists = widget.imageFile!.existsSync();
+      if (!fileExists) {
+        debugPrint('Local image file does not exist at path: $imagePath');
+        // Return error UI
+        return _buildErrorUI();
+      }
+    }
+    
+    // File exists or is a network URL, try to display it
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AspectRatio(
+          aspectRatio: 3 / 4, // Portrait ratio for receipt
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Image Preview with Hero tag for smooth transition
+                Hero(
+                  tag: 'receipt_image',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _showFullImage,
+                      child: isNetworkImage 
+                        ? Image.network(
+                            imagePath,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              debugPrint('Error loading network image: $error');
+                              debugPrint('Stack trace: $stackTrace');
+                              return _buildErrorUI();
+                            },
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              );
+                            },
+                          )
+                        : Image.file(
+                            widget.imageFile!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              debugPrint('Error loading local image: $error');
+                              debugPrint('Stack trace: $stackTrace');
+                              return _buildErrorUI();
+                            },
+                          ),
+                    ),
+                  ),
+                ),
+                // Loading indicator overlay
+                if (widget.isLoading)
+                  Container(
+                    color: Colors.black.withOpacity(0.3),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Processing Receipt...',
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: Theme.of(context).colorScheme.onPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        // Action buttons below the image
+        Padding(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (!widget.isLoading) ...[
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: widget.onRetry, // Call the retry callback
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                      foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                      minimumSize: const Size(0, 48),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: widget.onParseReceipt,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Use This'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      minimumSize: const Size(0, 48),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  
+  // Helper method to build error UI
+  Widget _buildErrorUI() {
+    return Container(
+      color: Theme.of(context).colorScheme.errorContainer,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.broken_image,
+              color: Theme.of(context).colorScheme.onErrorContainer,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Image could not be loaded',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onErrorContainer,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: widget.onRetry,
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
@@ -135,202 +314,68 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (widget.imageFile != null)
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
+                  children: widget.imageFile != null
+                    ? [_buildImagePreview()]
+                    : [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              AspectRatio(
-                                aspectRatio: 3 / 4, // Portrait ratio for receipt
-                                child: Container(
-                                  margin: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(24),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      // Image Preview with Hero tag for smooth transition
-                                      Hero(
-                                        tag: 'receipt_image',
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: InkWell(
-                                            onTap: _showFullImage, // Use the method here
-                                            child: Image.file(
-                                              widget.imageFile!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                // Handle image loading errors
-                                                return Container(
-                                                  color: colorScheme.errorContainer,
-                                                  child: Center(
-                                                    child: Column(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Icon(
-                                                          Icons.broken_image,
-                                                          color: colorScheme.onErrorContainer,
-                                                          size: 48,
-                                                        ),
-                                                        const SizedBox(height: 16),
-                                                        Text(
-                                                          'Image could not be loaded',
-                                                          style: textTheme.bodyLarge?.copyWith(
-                                                            color: colorScheme.onErrorContainer,
-                                                          ),
-                                                          textAlign: TextAlign.center,
-                                                        ),
-                                                        const SizedBox(height: 8),
-                                                        ElevatedButton(
-                                                          onPressed: widget.onRetry,
-                                                          child: const Text('Try Again'),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      // Loading indicator overlay
-                                      if (widget.isLoading)
-                                        Container(
-                                          color: Colors.black.withOpacity(0.3),
-                                          child: Center(
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                CircularProgressIndicator(
-                                                  color: colorScheme.onPrimary,
-                                                ),
-                                                const SizedBox(height: 16),
-                                                Text(
-                                                  'Processing Receipt...',
-                                                  style: textTheme.bodyLarge?.copyWith(
-                                                    color: colorScheme.onPrimary,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
+                              Container(
+                                width: 200,
+                                height: 200,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer.withOpacity(0.3),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.camera_alt_outlined,
+                                  size: 80,
+                                  color: colorScheme.primary,
                                 ),
                               ),
-                              // Action buttons below the image
-                              Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    if (!widget.isLoading) ...[
-                                      Expanded(
-                                        child: FilledButton.icon(
-                                          onPressed: widget.onRetry, // Call the retry callback
-                                          icon: const Icon(Icons.refresh),
-                                          label: const Text('Retry'),
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: colorScheme.errorContainer,
-                                            foregroundColor: colorScheme.onErrorContainer,
-                                            minimumSize: const Size(0, 48),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: FilledButton.icon(
-                                          onPressed: widget.onParseReceipt,
-                                          icon: const Icon(Icons.check_circle_outline),
-                                          label: const Text('Use This'),
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor: colorScheme.primary,
-                                            foregroundColor: colorScheme.onPrimary,
-                                            minimumSize: const Size(0, 48),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
+                              const SizedBox(height: 32),
+                              Text(
+                                'Upload Receipt',
+                                style: textTheme.headlineSmall?.copyWith(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
                                 ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Take a picture or select one from your gallery',
+                                textAlign: TextAlign.center,
+                                style: textTheme.bodyLarge?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 40),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _buildUploadButton(
+                                    context,
+                                    icon: Icons.camera_alt,
+                                    label: 'Camera',
+                                    onPressed: _takePicture,
+                                    colorScheme: colorScheme,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  _buildUploadButton(
+                                    context,
+                                    icon: Icons.photo_library,
+                                    label: 'Gallery',
+                                    onPressed: _pickImage,
+                                    colorScheme: colorScheme,
+                                  ),
+                                ],
                               ),
                             ],
-                          );
-                        },
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 32),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 200,
-                              height: 200,
-                              decoration: BoxDecoration(
-                                color: colorScheme.primaryContainer.withOpacity(0.3),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.camera_alt_outlined,
-                                size: 80,
-                                color: colorScheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 32),
-                            Text(
-                              'Upload Receipt',
-                              style: textTheme.headlineSmall?.copyWith(
-                                color: colorScheme.primary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Take a picture or select one from your gallery',
-                              textAlign: TextAlign.center,
-                              style: textTheme.bodyLarge?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 40),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _buildUploadButton(
-                                  context,
-                                  icon: Icons.camera_alt,
-                                  label: 'Camera',
-                                  onPressed: _takePicture,
-                                  colorScheme: colorScheme,
-                                ),
-                                const SizedBox(width: 16),
-                                _buildUploadButton(
-                                  context,
-                                  icon: Icons.photo_library,
-                                  label: 'Gallery',
-                                  onPressed: _pickImage,
-                                  colorScheme: colorScheme,
-                                ),
-                              ],
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                  ],
+                      ],
                 ),
               ),
             ),

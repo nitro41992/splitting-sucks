@@ -3,8 +3,8 @@ import 'receipt_item.dart';
 
 class Person extends ChangeNotifier {
   String _name;
-  List<ReceiptItem> _assignedItems;
-  List<ReceiptItem> _sharedItems;
+  final List<ReceiptItem> _assignedItems;
+  final List<ReceiptItem> _sharedItems;
 
   Person({
     required String name,
@@ -55,5 +55,20 @@ class Person extends ChangeNotifier {
 
   double get totalAmount {
     return totalAssignedAmount + totalSharedAmount;
+  }
+
+  void debugLogItems() {
+    double totalAmount = 0.0;
+    
+    print("DEBUG: Person \"$_name\" assigned items:");
+    for (int i = 0; i < _assignedItems.length; i++) {
+      final item = _assignedItems[i];
+      final itemTotal = item.price * item.quantity;
+      totalAmount += itemTotal;
+      print("  - ${item.name} (${item.itemId}): ${item.quantity} x \$${item.price} = \$${itemTotal.toStringAsFixed(2)}");
+    }
+    
+    print("DEBUG: Total amount: \$${totalAmount.toStringAsFixed(2)}");
+    print("DEBUG: Total from getter: \$${totalAssignedAmount.toStringAsFixed(2)}");
   }
 } 

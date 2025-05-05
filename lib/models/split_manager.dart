@@ -502,11 +502,46 @@ class SplitManager extends ChangeNotifier {
     }
   }
   
-  // Add a method to add receipt items
+  // Add a method to add receipt items with improved duplicate handling
   void addReceiptItem(ReceiptItem item) {
-    if (!_receiptItems.contains(item)) {
+    // Check if the item is already in the list by ID
+    bool exists = _receiptItems.any((existingItem) => existingItem.itemId == item.itemId);
+    
+    if (!exists) {
+      // Add new item
       _receiptItems.add(item);
+      // Track original quantity
+      _originalQuantities[item.itemId] = item.quantity;
+      debugPrint('Added receipt item: ${item.name}, ID: ${item.itemId}, Price: ${item.price}');
       notifyListeners();
+    } else {
+      debugPrint('Item already exists with ID: ${item.itemId}');
     }
+  }
+  
+  // Debug method to log all items in the split manager
+  void logItems() {
+    debugPrint('=== SPLIT MANAGER ITEMS ===');
+    debugPrint('Total items: ${_receiptItems.length}');
+    
+    for (int i = 0; i < _receiptItems.length; i++) {
+      final item = _receiptItems[i];
+      debugPrint('Item $i: ${item.name}, ID: ${item.itemId}, Price: ${item.price}, Quantity: ${item.quantity}');
+    }
+    
+    debugPrint('People count: ${_people.length}');
+    for (final person in _people) {
+      debugPrint('  Person: ${person.name}');
+      for (final item in person.assignedItems) {
+        debugPrint('    - ${item.name}, ID: ${item.itemId}, Price: ${item.price}');
+      }
+    }
+    
+    debugPrint('Shared items count: ${_sharedItems.length}');
+    for (final item in _sharedItems) {
+      debugPrint('  - ${item.name}, ID: ${item.itemId}, Price: ${item.price}');
+    }
+    
+    debugPrint('===========================');
   }
 } 
