@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/receipt_history.dart';
 import '../models/split_manager.dart';
+import 'package:flutter/foundation.dart';
 
 class ReceiptHistoryService {
   final FirebaseFirestore _firestore;
@@ -51,6 +52,7 @@ class ReceiptHistoryService {
     required String restaurantName,
     required String status,
     String? transcription,
+    String? existingReceiptId,
   }) async {
     // Create a ReceiptHistory object from the current state
     final receipt = ReceiptHistory.fromAppState(
@@ -60,10 +62,15 @@ class ReceiptHistoryService {
       restaurantName: restaurantName,
       status: status,
       transcription: transcription,
+      id: existingReceiptId, // Pass the existing ID if provided
     );
     
-    // Save to Firestore
-    await _receiptsCollection.doc(receipt.id).set(receipt.toFirestore());
+    // Save to Firestore - update if existingReceiptId is provided
+    if (existingReceiptId != null) {
+      await _receiptsCollection.doc(existingReceiptId).update(receipt.toFirestore());
+    } else {
+      await _receiptsCollection.doc(receipt.id).set(receipt.toFirestore());
+    }
     
     return receipt;
   }
@@ -132,13 +139,71 @@ class ReceiptHistoryService {
     required String imageUri,
     String restaurantName = 'Draft Receipt',
     String? transcription,
+    Map<String, dynamic>? receiptData,
+    Map<String, dynamic>? splitManagerState,
+    String? existingReceiptId,
   }) async {
-    return saveReceipt(
-      splitManager: splitManager,
-      imageUri: imageUri,
-      restaurantName: restaurantName,
-      status: 'draft',
-      transcription: transcription,
-    );
+    // Use a custom implementation for drafts if receipt data is provided
+    if (receiptData != null) {
+      // Create a ReceiptHistory object from the current state
+      final String documentId = existingReceiptId ?? 
+          FirebaseFirestore.instance.collection('users/$_userId/receipts').doc().id;
+      
+      final receipt = ReceiptHistory(
+        id: documentId,
+        imageUri: imageUri,
+        createdAt: existingReceiptId != null ? 
+            (await _receiptsCollection.doc(existingReceiptId).get())['created_at'] ?? Timestamp.now() :
+            Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        userId: _userId,
+        restaurantName: restaurantName,
+        status: 'draft',
+        totalAmount: receiptData['subtotal'] ?? 0.0,
+        receiptData: receiptData,
+        transcription: transcription,
+        people: [],
+        personTotals: [],
+        splitManagerState: splitManagerState ?? splitManager.getSplitManagerState() ?? {},
+      );
+      
+      // Save to Firestore - either update existing or create new
+      if (existingReceiptId != null) {
+        debugPrint('Updating existing receipt: $existingReceiptId');
+        await _receiptsCollection.doc(existingReceiptId).update(receipt.toFirestore());
+      } else {
+        debugPrint('Creating new receipt');
+        await _receiptsCollection.doc(receipt.id).set(receipt.toFirestore());
+      }
+      
+      return receipt;
+    } else {
+      // Use the standard implementation if no receipt data provided
+      if (existingReceiptId != null) {
+        // For updating existing receipt without receipt data
+        final existingReceipt = await getReceiptById(existingReceiptId);
+        if (existingReceipt != null) {
+          final updatedReceipt = existingReceipt.copyWith(
+            imageUri: imageUri,
+            updatedAt: Timestamp.now(),
+            restaurantName: restaurantName,
+            status: 'draft',
+            transcription: transcription,
+            splitManagerState: splitManager.getSplitManagerState() ?? {},
+          );
+          
+          await updateReceipt(updatedReceipt);
+          return updatedReceipt;
+        }
+      }
+      
+      return saveReceipt(
+        splitManager: splitManager,
+        imageUri: imageUri,
+        restaurantName: restaurantName,
+        status: 'draft',
+        transcription: transcription,
+      );
+    }
   }
 } 

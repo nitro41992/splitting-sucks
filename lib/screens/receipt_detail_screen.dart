@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/receipt_history.dart';
 import '../models/receipt_item.dart';
 import '../services/receipt_history_provider.dart';
@@ -134,7 +135,7 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
 
                   const SizedBox(height: 16),
                   
-                  // Receipt image - Using FutureBuilder to convert gs:// URI to HTTPS download URL
+                  // Receipt image with cached_network_image for better performance
                   if (widget.receipt.imageUri.isNotEmpty)
                     Center(
                       child: ClipRRect(
@@ -163,22 +164,33 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
                                 ),
                               );
                             } else {
-                              return Image.network(
-                                snapshot.data!,
+                              return CachedNetworkImage(
+                                imageUrl: snapshot.data!,
                                 height: 200,
+                                width: double.infinity,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    height: 200,
-                                    width: double.infinity,
-                                    color: Colors.grey[200],
-                                    child: const Icon(
-                                      Icons.receipt,
-                                      size: 64,
-                                      color: Colors.grey,
-                                    ),
-                                  );
-                                },
+                                // Better size caching for improved performance
+                                memCacheHeight: 400, // 2x display size
+                                // Fade in animation for smoother appearance
+                                fadeInDuration: const Duration(milliseconds: 200),
+                                placeholder: (context, url) => Container(
+                                  height: 200,
+                                  width: double.infinity,
+                                  color: Colors.grey[200],
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  height: 200,
+                                  width: double.infinity,
+                                  color: Colors.grey[200],
+                                  child: const Icon(
+                                    Icons.receipt,
+                                    size: 64,
+                                    color: Colors.grey,
+                                  ),
+                                ),
                               );
                             }
                           },
@@ -322,30 +334,36 @@ class _ReceiptDetailScreenState extends State<ReceiptDetailScreen> {
 
   void _continueEditing() {
     // Navigate to the Create workflow with this receipt's data
-    Navigator.of(context).push(
+    // We're using pushReplacement to prevent navigation back to this screen
+    // This avoids the jarring reload when navigating back
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => CreateWorkflowScreen(
           existingReceipt: widget.receipt,
         ),
       ),
-    ).then((value) {
-      // Refresh the details page when returning from editing
-      if (value == true) {
-        Navigator.of(context).pop(true); // Receipt was deleted
-      } else {
-        _refreshReceiptData();
-      }
-    });
+    );
+    // Note: Since we're using pushReplacement, we don't need a .then handler
+    // The user will go directly to the main screen when pressing back in the CreateWorkflowScreen
   }
   
+  // This method is no longer needed with the new navigation approach
+  // We're keeping it for now in case we need it for other functionality
   Future<void> _refreshReceiptData() async {
     try {
       final updatedReceipt = await _historyProvider.getReceiptById(widget.receipt.id);
       if (updatedReceipt != null && mounted) {
         // If the receipt was modified, replace it
+        // But we're using a much smoother transition
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => ReceiptDetailScreen(receipt: updatedReceipt),
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => 
+              ReceiptDetailScreen(receipt: updatedReceipt),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              // Use a fade transition instead of the default slide
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 300),
           ),
         );
       }

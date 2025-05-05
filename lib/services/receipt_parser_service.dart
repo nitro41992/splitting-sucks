@@ -187,4 +187,61 @@ class ReceiptParserService {
        // }
     }
   }
+
+  /// Parses a receipt using an existing Firebase Storage image URI
+  /// 
+  /// Useful when editing an existing receipt with a saved image URI
+  /// Returns a tuple containing the parsed ReceiptData and the original Storage imageUri
+  static Future<(ReceiptData, String)> parseReceiptFromUri(String imageUri) async {
+    // Get instance of Cloud Functions
+    FirebaseFunctions functions = FirebaseFunctions.instance;
+
+    // Ensure the URI is valid
+    if (imageUri.isEmpty || !imageUri.startsWith('gs://')) {
+      throw Exception('Invalid Firebase Storage URI provided: $imageUri');
+    }
+
+    try {
+      // Prepare the callable function reference
+      HttpsCallable callable = functions.httpsCallable('parse_receipt');
+
+      // Call the function with the image URI
+      debugPrint('Calling parse_receipt function with existing URI: $imageUri');
+      final HttpsCallableResult result = await callable.call<Map<String, dynamic>>(
+        {
+          'imageUri': imageUri,
+        },
+      );
+
+      try {
+        // Access the response data
+        final Map<String, dynamic>? receiptMap = result.data is Map<String, dynamic> ? result.data as Map<String, dynamic> : null;
+
+        if (receiptMap == null) {
+          debugPrint("Error: Invalid response structure from Cloud Function");
+          throw Exception('Invalid response from receipt parser');
+        }
+
+        // Check if the response has a nested 'data' field
+        final Map<String, dynamic> finalReceiptMap = receiptMap.containsKey('data') 
+            ? receiptMap['data'] as Map<String, dynamic>
+            : receiptMap; // Use the map directly if no 'data' wrapper
+
+        // Parse the map and return both the receipt data and the image URI
+        return (ReceiptData.fromJson(finalReceiptMap), imageUri);
+      } catch (e) {
+        debugPrint("Error parsing receipt data: $e");
+        throw Exception('Failed to parse receipt data: $e');
+      }
+
+    } on FirebaseFunctionsException catch (e) {
+      // Handle Firebase Cloud Functions specific exceptions
+      debugPrint('Cloud Function error: ${e.code} - ${e.message}');
+      throw Exception('Receipt parsing failed: ${e.message}');
+    } catch (e) {
+      // Catch any other exceptions
+      debugPrint('Receipt processing error: $e');
+      throw Exception('Receipt processing failed: $e');
+    }
+  }
 } 

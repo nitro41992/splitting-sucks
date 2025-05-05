@@ -44,6 +44,7 @@ dependencies:
   shared_preferences: ^2.5.3
   uuid: ^4.3.3
   intl: ^0.19.0
+  cached_network_image: ^3.3.1
   
   # Firebase - use compatible versions
   firebase_core: ^2.24.2

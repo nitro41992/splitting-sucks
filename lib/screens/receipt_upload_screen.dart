@@ -8,6 +8,8 @@ import '../utils/toast_helper.dart'; // Import the toast helper
 
 class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
+  final String? imageUri; // Add Firebase Storage URI parameter
+  final bool isExistingImageUri; // Flag to indicate we have a storage URI but no local file
   final bool isLoading;
   final Function(File?) onImageSelected;
   final Function() onParseReceipt;
@@ -16,6 +18,8 @@ class ReceiptUploadScreen extends StatefulWidget {
   const ReceiptUploadScreen({
     super.key,
     required this.imageFile,
+    this.imageUri, // Optional parameter for Firebase Storage URI
+    this.isExistingImageUri = false, // Default to false
     required this.isLoading,
     required this.onImageSelected,
     required this.onParseReceipt,
@@ -110,6 +114,12 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
   void _showFullImage() {
      if (widget.imageFile != null) {
        showFullImageDialog(context, widget.imageFile!);
+     } else if (widget.isExistingImageUri && widget.imageUri != null) {
+       FileHelper.getDownloadURLFromGsURI(widget.imageUri).then((url) {
+         if (url.isNotEmpty && mounted) {
+           showFullImageDialogFromUrl(context, url);
+         }
+       });
      }
    }
 
@@ -136,7 +146,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (widget.imageFile != null)
+                    if (widget.imageFile != null || widget.isExistingImageUri)
                       LayoutBuilder(
                         builder: (context, constraints) {
                           return Column(
@@ -167,41 +177,32 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                           color: Colors.transparent,
                                           child: InkWell(
                                             onTap: _showFullImage, // Use the method here
-                                            child: Image.file(
-                                              widget.imageFile!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                // Handle image loading errors
-                                                return Container(
-                                                  color: colorScheme.errorContainer,
-                                                  child: Center(
-                                                    child: Column(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Icon(
-                                                          Icons.broken_image,
-                                                          color: colorScheme.onErrorContainer,
-                                                          size: 48,
-                                                        ),
-                                                        const SizedBox(height: 16),
-                                                        Text(
-                                                          'Image could not be loaded',
-                                                          style: textTheme.bodyLarge?.copyWith(
-                                                            color: colorScheme.onErrorContainer,
-                                                          ),
-                                                          textAlign: TextAlign.center,
-                                                        ),
-                                                        const SizedBox(height: 8),
-                                                        ElevatedButton(
-                                                          onPressed: widget.onRetry,
-                                                          child: const Text('Try Again'),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
+                                            child: widget.isExistingImageUri 
+                                              ? FutureBuilder<String>(
+                                                  future: FileHelper.getDownloadURLFromGsURI(widget.imageUri),
+                                                  builder: (context, snapshot) {
+                                                    if (snapshot.connectionState == ConnectionState.waiting) {
+                                                      return const Center(child: CircularProgressIndicator());
+                                                    } else if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                                                      return _buildErrorDisplay(colorScheme, textTheme);
+                                                    } else {
+                                                      return Image.network(
+                                                        snapshot.data!,
+                                                        fit: BoxFit.cover,
+                                                        errorBuilder: (context, error, stackTrace) {
+                                                          return _buildErrorDisplay(colorScheme, textTheme);
+                                                        },
+                                                      );
+                                                    }
+                                                  },
+                                                )
+                                              : Image.file(
+                                                  widget.imageFile!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return _buildErrorDisplay(colorScheme, textTheme);
+                                                  },
+                                                ),
                                           ),
                                         ),
                                       ),
@@ -253,7 +254,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                       const SizedBox(width: 16),
                                       Expanded(
                                         child: FilledButton.icon(
-                                          onPressed: widget.onParseReceipt,
+                                          onPressed: widget.isExistingImageUri ? widget.onParseReceipt : (widget.imageFile != null ? widget.onParseReceipt : null),
                                           icon: const Icon(Icons.check_circle_outline),
                                           label: const Text('Use This'),
                                           style: FilledButton.styleFrom(
@@ -337,6 +338,38 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
           ),
         );
       },
+    );
+  }
+
+  // Helper method to create the error display widget
+  Widget _buildErrorDisplay(ColorScheme colorScheme, TextTheme textTheme) {
+    return Container(
+      color: colorScheme.errorContainer,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.broken_image,
+              color: colorScheme.onErrorContainer,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Image could not be loaded',
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: widget.onRetry,
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

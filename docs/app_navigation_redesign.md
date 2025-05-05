@@ -304,13 +304,18 @@ This section will provide account management options:
 21. ✅ Added Save functionality in the Summary step with restaurant name prompt
 22. ✅ Implemented navigation between workflow steps with proper state management
 23. ✅ Implemented transitions between History and Create sections when editing receipts
+24. ✅ Fixed image display issues when continuing editing draft receipts with Firebase Storage URLs
+25. ✅ Added proper handling of Firebase Storage URLs for receipt images in the Upload screen
+26. ✅ Improved Receipt Upload screen to handle both local files and remote Storage URLs
+27. ✅ Fixed data flow between workflow steps to correctly handle receipt items and assignments
+28. ✅ Fixed issue where editing receipts created duplicate entries by implementing document update logic
+29. ✅ Enhanced receipt saving system to properly update existing documents while preserving original IDs and creation timestamps
 
 ### In Progress
 1. 🔄 Account deletion process implementation
 2. 🔄 Cross-device testing across Android and iOS
-3. 🔄 Data population and verification with Firestore
-4. 🔄 Implementing the Split step in Create workflow 
-5. 🔄 Improving delete functionality with proper resource cleanup
+3. 🔄 Implementing the Split step in Create workflow
+4. 🔄 Improving delete functionality with proper resource cleanup
 
 ### Pending
 1. ⏳ Add app-specific settings (appearance, notifications)
@@ -319,6 +324,7 @@ This section will provide account management options:
 4. ⏳ Implement Cloud Functions for secure data cleanup
 5. ⏳ State preservation across app restarts
 6. ⏳ Firebase Storage security rules alignment with Firestore rules
+7. ⏳ Implement robust error handling for Firebase App Check integration
 
 ## Implementation Summary
 
@@ -332,6 +338,8 @@ We have successfully implemented the following key features:
    - Added auto-save functionality to preserve progress when navigating away
    - Implemented the save dialog to name and store completed receipts
    - Added proper navigation controls between steps with validation
+   - Fixed image handling to properly display and process both local files and Firebase Storage URLs
+   - Implemented correct data flow between workflow steps with distinct handling for each step
 
 2. **History Functionality**
    - Implemented a complete history view with filtering and search capabilities
@@ -339,12 +347,15 @@ We have successfully implemented the following key features:
    - Created edit functionality to load existing receipts back into the workflow
    - Implemented rename functionality for receipts
    - Added transitions between History and Create sections
+   - Fixed draft continuation flow to properly load and display saved receipt images
 
 3. **Data Management**
    - Created a robust data model for storing receipt history
    - Implemented Firestore integration for persistent storage
    - Enhanced models with methods to support serialization and deserialization
    - Added validation to prevent data integrity issues
+   - Improved Firebase Storage URL handling to properly convert gs:// URLs to downloadable https:// URLs
+   - Fixed conceptual issues with data flow to better match the workflow steps
 
 ### Remaining Work
 The following items still need to be addressed:
@@ -361,11 +372,52 @@ The following items still need to be addressed:
 3. **Security Enhancements**
    - Implement account deletion with proper data cleanup
    - Update Firebase Storage security rules
+   - Implement Firebase App Check to prevent unauthorized API usage
 
 4. **Testing and Optimization**
    - Complete cross-device testing
    - Optimize performance for large datasets
    - Add comprehensive error handling
+
+## Workflow Data Flow
+
+### Conceptual Overview
+The Create workflow involves a multi-step process with different data requirements at each step:
+
+1. **Upload Step**
+   - User uploads a receipt image
+   - Image is stored in Firebase Storage
+   - At this point, only the image URI exists, with no parsed items yet
+
+2. **Review Step**
+   - Receipt image is processed by OCR to extract items
+   - Items are stored in `receipt_data.items` field
+   - These items are not yet considered "unassigned" since no assignment has been attempted
+   - Draft saves at this point should store items only in `receipt_data`, not in SplitManager state
+
+3. **Assignment Step**
+   - User provides voice input to assign items to people
+   - Voice is transcribed and processed with AI to generate assignments
+   - Only after this step should items be added to SplitManager's unassigned items
+   - Items are categorized as assigned to specific people or remaining unassigned
+
+4. **Split Step** 
+   - User manually adjusts assignments as needed
+   - All items should now be tracked in SplitManager state
+
+5. **Summary Step**
+   - Displays final breakdown of who owes what
+   - Complete SplitManager state is stored in Firestore
+
+### Implementation Details
+The implementation respects this conceptual flow by:
+
+1. Storing parsed receipt items in `receipt_data.items` without prematurely adding them to `splitManager.unassignedItems`
+2. Only populating `splitManager.unassignedItems` after the voice assignment process
+3. Using different save strategies depending on which workflow step the user is currently on
+4. Ensuring proper data is available when resuming a draft from any step
+
+This approach ensures that the data structure accurately reflects the user's progress through the workflow and prevents confusing state management issues.
 
 ## Things to Consider
 
@@ -381,6 +433,13 @@ The following items still need to be addressed:
 - **Deletion Operations**: Implement cascading delete operations to ensure all related resources are properly cleaned up.
 - **Backup Strategy**: Consider implementing regular backups or export options for users to prevent data loss.
 - **Access Control**: Ensure that when users edit a receipt, they can only edit their own receipts and not others'.
+- **Firebase App Check**: Consider implementing App Check to protect Cloud Functions and Firebase resources from abuse.
+
+### Firebase Storage Considerations
+- **URL Handling**: Always use the FileHelper.getDownloadURLFromGsURI method to convert Storage gs:// URIs to https:// download URLs before displaying images with Image.network.
+- **Image Caching**: Implemented robust image caching with cached_network_image package that provides both memory and disk caching to significantly improve load times and reduce Storage costs.
+- **Error Handling**: Always implement proper error handling for image loading failures, including timeouts and permission errors.
+- **Storage Rules**: Implement Storage rules that align with Firestore security rules to ensure consistent access control.
 
 ### User Experience
 - **Loading States**: Implement appropriate loading indicators during data fetch operations.
@@ -423,6 +482,7 @@ The immediate next steps are:
 4. Add proper error handling for edge cases in the Create workflow
 5. Implement comprehensive testing across various Android and iOS devices
 6. Add unit tests for the new functionality
+7. Fix any remaining issues with Firebase App Check integration
 
 ## UI/UX Considerations
 
@@ -662,34 +722,36 @@ The Settings section will contain user account options and app settings:
    - ✅ Updated ReceiptParserService to return both parsed data and image URI
    - ✅ Fixed tuple handling in all components that use ReceiptParserService
 
+2. **Firebase Storage URL Handling**
+   - ✅ Fixed image display issues when continuing editing draft receipts with Firebase Storage URLs
+   - ✅ Added proper handling of Firebase Storage URLs for receipt images in the Upload screen
+   - ✅ Improved Receipt Upload screen to handle both local files and remote Storage URLs
+   - ✅ Implemented proper conversion of gs:// URLs to HTTPS download URLs before displaying images
+   - ✅ Added caching system for Firebase Storage URLs to improve scrolling performance
+   - ✅ Implemented enhanced image caching with cached_network_image package for both thumbnails and full images
+   - ✅ Added optimized memory and disk caching with size hints to improve loading speed and user experience
+
+3. **Draft Receipts Management**
+   - ✅ Fixed issue causing duplicate receipts when editing drafts
+   - ✅ Modified `saveDraftReceipt` and related methods to update existing receipts instead of creating new ones
+   - ✅ Added proper handling of existing receipt IDs throughout the workflow
+
+4. **Navigation Improvements**  
+   - ✅ Fixed jarring transitions when navigating between screens
+   - ✅ Improved back navigation flow to return to history screen directly after editing
+   - ✅ Added smooth transitions when refreshing receipt data
+   - ✅ Added image caching to prevent thumbnails from refreshing when scrolling in history view
+
 ### Current Known Issues
 
-1. **History Refresh**
-   - ❌ History list doesn't automatically refresh when a new draft is created
-   - ❌ No manual refresh mechanism available in the History screen
-   - ❌ User needs to restart app to see newly created drafts or completed receipts
+1. **Data Synchronization Timing**
+   - ⚠️ Rare edge case where auto-save might not complete before app termination
+   - ⚠️ Receipt status not immediately refreshed in history list after completing workflow
 
-### Pending Implementation Tasks
+2. **UI Refinements Needed**
+   - ⚠️ Loading indicators could be more consistent throughout the app
+   - ⚠️ Animations could be smoother on slower devices
 
-1. **History Refresh Mechanism**
-   - Add pull-to-refresh functionality in the History screen
-   - Implement automatic refresh when navigating to History tab
-   - Add a refresh button in the app bar of the History screen
+## Workflow Data Flow
 
-2. **Split Step Implementation**
-   - Complete the implementation of the Split step in the Create workflow
-   - Add UI for managing item assignments between people
-   - Implement shared item functionality
-
-3. **Resource Cleanup**
-   - Improve receipt deletion to properly clean up resources
-   - Add Firebase Storage cleanup for associated images
-
-4. **Security Enhancements**
-   - Implement account deletion with proper data cleanup
-   - Update Firebase Storage security rules
-
-5. **Testing and Optimization**
-   - Complete cross-device testing
-   - Optimize performance for large datasets
-   - Add comprehensive error handling
+Understanding the correct data flow through the app workflow is critical:

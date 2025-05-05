@@ -47,6 +47,7 @@ class ReceiptHistoryProvider {
     required String restaurantName,
     required String status,
     String? transcription,
+    String? existingReceiptId,
   }) async {
     return _service.saveReceipt(
       splitManager: splitManager,
@@ -54,6 +55,7 @@ class ReceiptHistoryProvider {
       restaurantName: restaurantName,
       status: status,
       transcription: transcription,
+      existingReceiptId: existingReceiptId,
     );
   }
   
@@ -93,12 +95,18 @@ class ReceiptHistoryProvider {
     required String imageUri,
     String restaurantName = 'Draft Receipt',
     String? transcription,
+    Map<String, dynamic>? receiptData,
+    Map<String, dynamic>? splitManagerState,
+    String? existingReceiptId,
   }) async {
     return _service.saveDraftReceipt(
       splitManager: splitManager,
       imageUri: imageUri,
       restaurantName: restaurantName,
       transcription: transcription,
+      receiptData: receiptData,
+      splitManagerState: splitManagerState,
+      existingReceiptId: existingReceiptId,
     );
   }
   

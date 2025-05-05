@@ -595,4 +595,80 @@ class SplitManager extends ChangeNotifier {
     
     notifyListeners();
   }
+
+  // Update all unassigned items with a new list and subtotal
+  // Used primarily during auto-save to ensure consistent state
+  void updateUnassignedItems(List<ReceiptItem> items, double subtotalValue) {
+    // Clear existing unassigned items
+    _unassignedItems.clear();
+    
+    // Add each item to the unassigned items list
+    for (final item in items) {
+      _unassignedItems.add(item);
+      
+      // Track original quantity
+      if (!_originalQuantities.containsKey(item.name)) {
+        _originalQuantities[item.name] = item.quantity;
+      }
+    }
+    
+    // Store the original review total
+    _originalReviewTotal = subtotalValue;
+    
+    notifyListeners();
+  }
+
+  // Retrieve the current split manager state as a map
+  // Used for saving to Firestore
+  Map<String, dynamic> getSplitManagerState() {
+    // Convert people data
+    final peopleData = _people.map((person) {
+      return {
+        'id': person.name,
+        'name': person.name,
+        'assignedItems': person.assignedItems.map((item) => {
+          'id': int.tryParse(item.itemId.split('_')[1]) ?? 0,
+          'item': item.name,
+          'quantity': item.quantity,
+          'price': item.price,
+        }).toList(),
+      };
+    }).toList();
+
+    // Convert shared items
+    final sharedItemsData = _sharedItems.map((item) {
+      // Find which people have this shared item
+      final sharedBy = _people
+          .where((person) => person.sharedItems.contains(item))
+          .map((person) => person.name)
+          .toList();
+
+      return {
+        'id': int.tryParse(item.itemId.split('_')[1]) ?? 0,
+        'item': item.name,
+        'quantity': item.quantity,
+        'price': item.price,
+        'shared_by': sharedBy,
+      };
+    }).toList();
+
+    // Convert unassigned items
+    final unassignedItemsData = _unassignedItems.map((item) => {
+      'id': int.tryParse(item.itemId.split('_')[1]) ?? 0,
+      'item': item.name,
+      'quantity': item.quantity,
+      'price': item.price,
+    }).toList();
+
+    // Create the state object
+    return {
+      'people': peopleData,
+      'sharedItems': sharedItemsData,
+      'unassignedItems': unassignedItemsData,
+      'tipAmount': 0.0, // This should be updated with actual tip data when available
+      'taxAmount': 0.0, // This should be updated with actual tax data when available
+      'subtotal': _unassignedItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity)),
+      'total': totalAmount,
+    };
+  }
 } 

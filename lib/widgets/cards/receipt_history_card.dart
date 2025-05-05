@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/receipt_history.dart';
+import '../../services/file_helper.dart';
 
-class ReceiptHistoryCard extends StatelessWidget {
+// Global cache for storing converted URLs
+// This prevents multiple conversions of the same URL
+final Map<String, String> _downloadUrlCache = {};
+
+class ReceiptHistoryCard extends StatefulWidget {
   final ReceiptHistory receipt;
   final VoidCallback onTap;
   final VoidCallback onDelete;
@@ -15,24 +21,93 @@ class ReceiptHistoryCard extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<ReceiptHistoryCard> createState() => _ReceiptHistoryCardState();
+}
+
+class _ReceiptHistoryCardState extends State<ReceiptHistoryCard> {
+  // Store the converted URL to avoid repeating the conversion
+  String? _cachedDownloadUrl;
+  bool _isLoading = false;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Convert the URL early to avoid redoing it on every build
+    _convertImageUrl();
+  }
+
+  // Convert gs:// URL to https:// URL once and cache it
+  Future<void> _convertImageUrl() async {
+    if (!mounted || widget.receipt.imageUri.isEmpty) return;
+
+    final String imageUri = widget.receipt.imageUri;
+
+    // Check if we already have this URL converted in our global cache
+    if (_downloadUrlCache.containsKey(imageUri)) {
+      setState(() {
+        _cachedDownloadUrl = _downloadUrlCache[imageUri];
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      if (imageUri.startsWith('gs://')) {
+        final downloadUrl = await FileHelper.getDownloadURLFromGsURI(imageUri);
+        // Cache the result globally
+        _downloadUrlCache[imageUri] = downloadUrl;
+        
+        if (mounted) {
+          setState(() {
+            _cachedDownloadUrl = downloadUrl;
+            _isLoading = false;
+          });
+        }
+      } else {
+        // It's already an HTTP URL
+        // We still cache it to avoid any processing
+        _downloadUrlCache[imageUri] = imageUri;
+        
+        setState(() {
+          _cachedDownloadUrl = imageUri;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      // Don't cache errors, so we can retry next time
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dateFormat = DateFormat('MM/dd/yy');
-    final formattedDate = dateFormat.format(receipt.createdAt.toDate());
-    final isDraft = receipt.status == 'draft';
+    final formattedDate = dateFormat.format(widget.receipt.createdAt.toDate());
+    final isDraft = widget.receipt.status == 'draft';
     
     // Format currency
     final currencyFormat = NumberFormat.currency(symbol: '\$');
-    final formattedTotal = currencyFormat.format(receipt.totalAmount);
+    final formattedTotal = currencyFormat.format(widget.receipt.totalAmount);
     
     // Calculate number of people
-    final peopleCount = receipt.people.length;
+    final peopleCount = widget.receipt.people.length;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16.0),
       elevation: 2,
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -47,23 +122,7 @@ class ReceiptHistoryCard extends StatelessWidget {
                       width: 70,
                       height: 70,
                       color: Colors.grey[200],
-                      child: receipt.imageUri.isNotEmpty
-                          ? Image.network(
-                              receipt.imageUri,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.receipt,
-                                  size: 40,
-                                  color: Colors.grey,
-                                );
-                              },
-                            )
-                          : const Icon(
-                              Icons.receipt,
-                              size: 40,
-                              color: Colors.grey,
-                            ),
+                      child: _buildThumbnail(),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -100,7 +159,7 @@ class ReceiptHistoryCard extends StatelessWidget {
                                   if (isDraft) const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      receipt.restaurantName,
+                                      widget.receipt.restaurantName,
                                       style: theme.textTheme.titleMedium,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -112,9 +171,9 @@ class ReceiptHistoryCard extends StatelessWidget {
                               icon: const Icon(Icons.more_vert),
                               onSelected: (value) {
                                 if (value == 'edit') {
-                                  onTap();
+                                  widget.onTap();
                                 } else if (value == 'delete') {
-                                  onDelete();
+                                  widget.onDelete();
                                 }
                               },
                               itemBuilder: (BuildContext context) => [
@@ -177,5 +236,50 @@ class ReceiptHistoryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildThumbnail() {
+    if (_isLoading) {
+      return const Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    } else if (_hasError || _cachedDownloadUrl == null) {
+      return const Icon(
+        Icons.receipt,
+        size: 40,
+        color: Colors.grey,
+      );
+    } else {
+      // Use CachedNetworkImage for better caching performance
+      return CachedNetworkImage(
+        imageUrl: _cachedDownloadUrl!,
+        fit: BoxFit.cover,
+        // The following parameters significantly improve performance
+        memCacheWidth: 140, // Double the display size for better quality
+        memCacheHeight: 140,
+        // Show a proper placeholder while loading
+        placeholder: (context, url) => const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+            ),
+          ),
+        ),
+        // Show a fallback icon if the image can't be loaded
+        errorWidget: (context, url, error) => const Icon(
+          Icons.receipt,
+          size: 40,
+          color: Colors.grey,
+        ),
+      );
+    }
   }
 } 
