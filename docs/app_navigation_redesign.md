@@ -82,33 +82,87 @@ users/{userId}/receipts/{receiptId}
   - status: String (enum: "completed" or "draft")
   - total_amount: Number
   - receipt_data: Map {
-      - items: Array<Map>
+      - items: Array<Map> [
+        {
+          item: String, 
+          quantity: Number, 
+          price: Number
+        }
+      ]
       - subtotal: Number
     }
   - transcription: String
-  - assignments: Map {
-      - person_name: Array<Map> [
+  - assignment_result: Map {
+      - person_assignments: Array<Map> [
+        {
+          person_name: String,
+          items: Array<Map> [
+            {
+              id: Number,
+              quantity: Number
+            }
+          ]
+        }
+      ],
+      - shared_items: Array<Map> [
         {
           id: Number,
           quantity: Number,
-          ownership_type: String (enum: "individual" or "shared"),
-          shared_with: Array<String> (only present if ownership_type is "shared")
+          shared_by: Array<String> // List of person names who share this item
+        }
+      ],
+      - unassigned_items: Array<Map> [
+        {
+          id: Number,
+          quantity: Number
         }
       ]
     }
-  - unassigned_items: Array<Map> [
-      {
-        id: Number,
-        quantity: Number
-      }
-    ]
-  - people: Array<String> (derived from assignments for search)
-  - split_results: Map {
-      - person_totals: Map<String, Number>
-      - tip_amount: Number
-      - tax_amount: Number
-      - subtotal: Number
-      - total_with_tax_tip: Number
+  - people: Array<String> (derived from person_assignments for search)
+  - split_manager_state: Map {
+      - people: Array<Map> [
+        {
+          name: String,
+          assignedItems: Array<Map> [
+            {
+              id: Number,
+              item: String,
+              quantity: Number,
+              price: Number
+            }
+          ],
+          sharedItems: Array<Map> [
+            {
+              id: Number,
+              item: String,
+              quantity: Number,
+              price: Number,
+              sharingCount: Number // How many people share this item
+            }
+          ]
+        }
+      ],
+      - sharedItems: Array<Map> [
+        {
+          id: Number,
+          item: String,
+          quantity: Number,
+          price: Number,
+          shared_by: Array<String> // Person names who share this item
+        }
+      ],
+      - unassignedItems: Array<Map> [
+        {
+          id: Number,
+          item: String,
+          quantity: Number,
+          price: Number
+        }
+      ],
+      - tipAmount: Number,
+      - taxAmount: Number,
+      - subtotal: Number,
+      - total: Number
     }
 ```
 
@@ -504,54 +558,106 @@ Each test receipt will contain:
     'subtotal': 00.00
   },
   'transcription': 'Mock voice transcription data...',
-  'assignments': {
-    'Person 1': [
-      {'id': 0, 'quantity': 1, 'ownership_type': 'individual'},
-      {'id': 4, 'quantity': 1, 'ownership_type': 'shared', 'shared_with': ['Person 2']}
+  'assignment_result': {
+    'person_assignments': [
+      {
+        'person_name': 'Person 1',
+        'items': [
+          {'id': 0, 'quantity': 1},
+          {'id': 2, 'quantity': 1}
+        ]
+      },
+      {
+        'person_name': 'Person 2',
+        'items': [
+          {'id': 1, 'quantity': 2},
+          {'id': 3, 'quantity': 1}
+        ]
+      },
+      {
+        'person_name': 'Person 3',
+        'items': [
+          {'id': 6, 'quantity': 1}
+        ]
+      }
     ],
-    'Person 2': [
-      {'id': 1, 'quantity': 2, 'ownership_type': 'individual'},
-      {'id': 4, 'quantity': 1, 'ownership_type': 'shared', 'shared_with': ['Person 1']}
+    'shared_items': [
+      {'id': 4, 'quantity': 1, 'shared_by': ['Person 1', 'Person 2']},
+      {'id': 7, 'quantity': 1, 'shared_by': ['Person 1', 'Person 3']}
     ],
-    'Person 3': [
-      {'id': 3, 'quantity': 1, 'ownership_type': 'individual'}
+    'unassigned_items': [
+      {'id': 5, 'quantity': 1}
     ]
   },
-  'unassigned_items': [
-    {'id': 5, 'quantity': 1}
-  ],
   'people': ['Person 1', 'Person 2', 'Person 3'],
-  'split_results': {
-    'person_totals': {
-      'Person 1': 00.00,
-      'Person 2': 00.00,
-      'Person 3': 00.00
-    },
-    'tip_amount': 0.00,
-    'tax_amount': 0.00,
+  'split_manager_state': {
+    'people': [
+      {
+        'name': 'Person 1',
+        'assignedItems': [
+          {'id': 0, 'item': 'Item 1', 'quantity': 1, 'price': 10.99},
+          {'id': 2, 'item': 'Item 3', 'quantity': 1, 'price': 8.99}
+        ],
+        'sharedItems': [
+          {'id': 4, 'item': 'Item 5', 'quantity': 1, 'price': 15.99, 'sharingCount': 2},
+          {'id': 7, 'item': 'Item 8', 'quantity': 1, 'price': 7.50, 'sharingCount': 2}
+        ]
+      },
+      {
+        'name': 'Person 2',
+        'assignedItems': [
+          {'id': 1, 'item': 'Item 2', 'quantity': 2, 'price': 8.50},
+          {'id': 3, 'item': 'Item 4', 'quantity': 1, 'price': 12.99}
+        ],
+        'sharedItems': [
+          {'id': 4, 'item': 'Item 5', 'quantity': 1, 'price': 15.99, 'sharingCount': 2}
+        ]
+      },
+      {
+        'name': 'Person 3',
+        'assignedItems': [
+          {'id': 6, 'item': 'Item 7', 'quantity': 1, 'price': 9.49}
+        ],
+        'sharedItems': [
+          {'id': 7, 'item': 'Item 8', 'quantity': 1, 'price': 7.50, 'sharingCount': 2}
+        ]
+      }
+    ],
+    'sharedItems': [
+      {'id': 4, 'item': 'Item 5', 'quantity': 1, 'price': 15.99, 'shared_by': ['Person 1', 'Person 2']},
+      {'id': 7, 'item': 'Item 8', 'quantity': 1, 'price': 7.50, 'shared_by': ['Person 1', 'Person 3']}
+    ],
+    'unassignedItems': [
+      {'id': 5, 'item': 'Item 6', 'quantity': 1, 'price': 5.99}
+    ],
+    'tipAmount': 0.00,
+    'taxAmount': 0.00,
     'subtotal': 00.00,
-    'total_with_tax_tip': 00.00
+    'total': 00.00
   }
 }
 ```
 
-### Item Ownership Logic
+### Item Assignment Logic
 
-The data structure clearly distinguishes between individual and shared items:
+The data structure now supports two complementary methods of tracking item assignments:
 
-1. **Individual Items**: An item assigned to a person with `ownership_type: 'individual'` is only owned by that person.
+1. **`assignment_result`**: Follows the Pydantic model used by the backend API, with:
+   - `person_assignments`: A list of people and their assigned items
+   - `shared_items`: A list of items that are shared, including who shares them
+   - `unassigned_items`: A list of items without assignments
 
-2. **Shared Items**: An item with `ownership_type: 'shared'` appears in multiple people's assignment lists. 
-   - Each assignment includes a `shared_with` array listing the other people who share it.
-   - This avoids duplication while making it clear who shares each item.
+2. **`split_manager_state`**: Maps directly to the app's SplitManager state, with:
+   - `people`: A list of people with both their individual and shared items (with complete item details)
+   - `sharedItems`: The global list of shared items with all metadata (price, quantity, shared_by)
+   - `unassignedItems`: Items that haven't been assigned (with complete details)
+   - Tax, tip, and total calculations for financial summaries
 
-3. **Unassigned Items**: Items not assigned to anyone are in the top-level `unassigned_items` array.
-
-This approach provides a single source of truth for item assignments while making it easy to:
-- Determine what items each person has
-- Filter items by ownership type (individual vs. shared)
-- Calculate accurate split costs
-- Support editing assignments when loading a receipt from history
+This dual structure ensures that:
+- The backend API data format is preserved in `assignment_result`
+- The app's internal state representation is captured in `split_manager_state`
+- Each receipt can be fully restored to exactly how it was displayed in all views
+- Shared items properly track who shares them and in what proportion
 
 ### Integration with Testing Workflow
 
