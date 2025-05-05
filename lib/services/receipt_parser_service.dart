@@ -55,7 +55,9 @@ class ReceiptData {
       final double quantity = (item['quantity'] is int) 
           ? (item['quantity'] as int).toDouble() 
           : item['quantity'] as double;
-          
+      
+      // Create item with only name, price, and quantity
+      // Let the ReceiptItem constructor generate a simple ID
       return ReceiptItem(
         name: item['item'] as String,
         price: price,
@@ -82,6 +84,12 @@ class ReceiptParserService {
   /// Uploads the image to Firebase Storage and then calls the parse_receipt
   /// Cloud Function to process it with OpenAI's API.
   static Future<ReceiptData> parseReceipt(File imageFile) async {
+    // Check if the file is a remote URL
+    if (imageFile.path.startsWith('http')) {
+      debugPrint('Cannot parse remote URL directly: ${imageFile.path}');
+      throw Exception('Cannot process remote image URLs directly. Please use a local image file or skip parsing for already processed receipts.');
+    }
+    
     // Get instance of Cloud Functions & Storage
     FirebaseFunctions functions = FirebaseFunctions.instance;
     FirebaseStorage storage = FirebaseStorage.instance;

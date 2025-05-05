@@ -49,7 +49,7 @@ class AssignedItemRef(BaseModel): # Updated Assignment Model for simplicity
     exactly who is sharing this item. This allows the UI to highlight only the
     relevant people and accurately calculate each person's share of the cost.
     """
-    id: int
+    name: str
     quantity: int
     people: List[str] = Field(default_factory=list, description="List of people names sharing this item")
     
@@ -59,7 +59,7 @@ class PersonItemRef(BaseModel):
     This model represents an item directly assigned to a person, without the 'people' field
     since that's only relevant for shared items.
     """
-    id: int
+    name: str
     quantity: int
 
 class PersonAssignment(BaseModel):
@@ -330,20 +330,20 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
     {
       "assignments": {
         "person_name": [{
-          "id": item_id,  
+          "name": item_name,  
           "quantity": int
         }]
       },
       "shared_items": [
         {
-          "id": item_id, 
+          "name": item_name, 
           "quantity": int, 
           "people": ["person1", "person2"]  # List of people sharing this item
         }
       ],
       "unassigned_items": [
         {
-          "id": item_id, 
+          "name": item_name, 
           "quantity": int
         }
       ]
@@ -413,8 +413,14 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
         print(f"Received Transcription: {transcription[:100]}...")
         print(f"Received Receipt Items: {receipt_items_str[:100]}...")
 
+        # Update prompt to emphasize using item names instead of IDs
+        updated_prompt = prompt_template
+        if "item names" not in prompt_template.lower():
+            # Add guidance to use item names if not already in the prompt
+            updated_prompt = prompt_template + "\n\nIMPORTANT: Use the 'name' field (not ID) as the primary item identifier in your response."
+
         # --- Construct the full prompt ---
-        full_prompt = f"{prompt_template}\n\nTranscription:\n{transcription}\n\nReceipt Items JSON:\n{receipt_items_str}"
+        full_prompt = f"{updated_prompt}\n\nTranscription:\n{transcription}\n\nReceipt Items JSON:\n{receipt_items_str}"
 
         # --- Provider-Specific API Call --- 
         assignment_result: AssignmentResult = None

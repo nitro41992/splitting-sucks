@@ -211,7 +211,6 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       print('DEBUG: Making API call for item assignment');
       print('DEBUG: Using transcription: $editedTranscription');
       
-      // Important: We use 1-based indexing for the API to match what's shown in the UI
       final request = {
         'data': {
           'transcription': editedTranscription,
@@ -219,16 +218,11 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
             final index = entry.key;
             final item = entry.value;
             
-            // Use 1-based indexing for the API (to match UI display of item numbers)
-            final apiItemId = index + 1;
-            
-            print('DEBUG: Mapping item "${item.name}" (internal ID: ${item.itemId}, internal index: $index) → API ID: $apiItemId');
-            
             return {
-              'id': apiItemId, // 1-based ID for the API
-              'item': item.name,
+              'name': item.name,
               'quantity': item.quantity,
               'price': item.price,
+              'position': index + 1, // Keep position only as a fallback reference (1-based)
             };
           }).toList(),
         }

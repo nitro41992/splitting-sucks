@@ -74,31 +74,32 @@ Return *only* the JSON object."""}
     "assign_people_to_items": {
         "prompts": {
             "openai": {"prompt_text": """You are a helpful assistant that assigns items from a receipt to people based on voice instructions.
-Analyze the voice transcription and the provided JSON list of receipt items to determine who ordered what. Each item in the receipt list has a numeric 'id'.
+Analyze the voice transcription and the provided JSON list of receipt items to determine who ordered what.
 
 **Instructions:**
 1.  Analyze the voice transcription carefully.
-2.  Use the provided item 'id's when assigning items.
-3.  Include ALL people mentioned in the transcription in the output.
-4.  Assign every item from the receipt list to a person, mark it as 'shared', or add it to 'unassigned_items'.
-5.  Ensure quantities in the assignments match the receipt (provide positive integers).
-6.  If not all instances of an item are assigned via transcription, place the remaining quantity/item in 'unassigned_items'.
-7.  Pay close attention if the transcription uses numbers that seem to correspond to item 'id's.
-8.  For "shared_items", ALWAYS include a "people" field with a list of names of exactly who is sharing each item.
+2.  Each receipt item has a 'name', 'quantity', 'price', and 'position' (position is the item's number in the receipt list).
+3.  Use the item 'name' as the primary identifier for all assignments in your response.
+4.  If the transcription references items by number (e.g., "#1" or "item 2"), use the 'position' field to identify which item they're talking about.
+5.  Include ALL people mentioned in the transcription in the output.
+6.  Assign every item from the receipt list to a person, mark it as 'shared', or add it to 'unassigned_items'.
+7.  Ensure quantities in the assignments match the receipt (provide positive integers).
+8.  If not all instances of an item are assigned via transcription, place the remaining quantity/item in 'unassigned_items'.
+9.  For "shared_items", ALWAYS include a "people" field with a list of names of exactly who is sharing each item.
 
 Return ONLY a JSON object matching the following structure:
 {
   "assignments": {
     "<person_name>": [
-      {"id": <item_id>, "quantity": <int>}
+      {"name": "<item_name>", "quantity": <int>}
     ],
     ...
   },
   "shared_items": [
-    {"id": <item_id>, "quantity": <int>, "people": ["person1", "person2"]}
+    {"name": "<item_name>", "quantity": <int>, "people": ["person1", "person2"]}
   ],
   "unassigned_items": [
-    {"id": <item_id>, "quantity": <int>}
+    {"name": "<item_name>", "quantity": <int>}
   ]
 }
 """},
@@ -106,32 +107,33 @@ Return ONLY a JSON object matching the following structure:
 
 **Input:**
 1.  Voice Transcription (string)
-2.  Receipt Items (JSON list, each item has an integer 'id', 'item', 'quantity', 'price')
+2.  Receipt Items (JSON list, each item has 'name', 'quantity', 'price', and 'position' fields where 'position' is the item's number in the receipt list)
 
 **Output:** Return ONLY a valid JSON object (no extra text or markdown) with the following structure:
 {
   "assignments": {
     "<person_name>": [
-      {"id": <item_id>, "quantity": <integer_assignment_quantity>}
+      {"name": "<item_name>", "quantity": <integer_assignment_quantity>}
     ],
     ...
   },
   "shared_items": [
-    {"id": <item_id>, "quantity": <integer_shared_quantity>, "people": ["person1", "person2"]}
+    {"name": "<item_name>", "quantity": <integer_shared_quantity>, "people": ["person1", "person2"]}
   ],
   "unassigned_items": [
-    {"id": <item_id>, "quantity": <integer_unassigned_quantity>}
+    {"name": "<item_name>", "quantity": <integer_unassigned_quantity>}
   ]
 }
 
 **Assignment Rules:**
-1.  Carefully parse the transcription to identify people and the items (referencing by 'id') they claim.
-2.  Include ALL people mentioned in the output JSON's "assignments" section (even if they claim nothing).
-3.  Every item from the input receipt list must be accounted for. Assign it to a person, list it under "shared_items", or list it under "unassigned_items".
-4.  The sum of quantities for a specific item ID across "assignments", "shared_items", and "unassigned_items" must equal the original quantity of that item in the input receipt list.
-5.  If the transcription mentions item numbers, assume they correspond to the item 'id's.
-6.  If an item is mentioned but not all quantity is claimed, assign the claimed amount and put the remainder in "unassigned_items".
-7.  For "shared_items", ALWAYS include a "people" field with a list of names of exactly who is sharing each item.
+1.  Carefully parse the transcription to identify people and the items they ordered.
+2.  Use the 'name' as the primary identifier for all items in your response.
+3.  If the transcription references items by number (e.g., "#1" or "item 2"), use the 'position' field to determine which item is being referenced.
+4.  Include ALL people mentioned in the output JSON's "assignments" section (even if they claim nothing).
+5.  Every item from the input receipt list must be accounted for. Assign it to a person, list it under "shared_items", or list it under "unassigned_items".
+6.  The sum of quantities for a specific item across "assignments", "shared_items", and "unassigned_items" must equal the original quantity of that item in the input receipt list.
+7.  If an item is mentioned but not all quantity is claimed, assign the claimed amount and put the remainder in "unassigned_items".
+8.  For "shared_items", ALWAYS include a "people" field with a list of names of exactly who is sharing each item.
 
 Return *only* the JSON object."""}
         },

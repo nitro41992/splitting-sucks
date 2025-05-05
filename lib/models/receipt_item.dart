@@ -33,7 +33,7 @@ class ReceiptItem extends ChangeNotifier {
       price: price,
       quantity: quantity,
       originalQuantity: quantity, // Initialize original quantity
-      itemId: itemId ?? 'item_${_nextId++}_$name',
+      itemId: itemId ?? 'Item_${_nextId++}_$name',
     );
   }
 
@@ -143,7 +143,7 @@ class ReceiptItem extends ChangeNotifier {
       price: (json['price'] as num).toDouble(),
       quantity: json['quantity'] as int,
       originalQuantity: json['originalQuantity'] as int? ?? json['quantity'] as int,
-      itemId: json['itemId'] as String? ?? 'item_${_nextId++}_${json['name']}',
+      itemId: json['itemId'] as String? ?? 'Item_${_nextId++}_${json['name']}',
     );
   }
 } 

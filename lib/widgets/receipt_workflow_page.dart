@@ -500,6 +500,45 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             // Show saving status
             setState(() => _isLoading = true);
             
+            // Check if the image file path is a remote URL
+            final isRemoteUrl = _imageFile!.path.startsWith('http');
+            
+            if (isRemoteUrl) {
+              debugPrint('Image is already a remote URL, skipping parse: ${_imageFile!.path}');
+              
+              // If we have the URL but no items, that means we need to retrieve them
+              if (_receiptItems.isEmpty && widget.receipt.parseReceipt != null) {
+                debugPrint('Loading previously parsed receipt items from Firestore');
+                
+                // Try to load items from stored parseReceipt data
+                if (widget.receipt.parseReceipt!.containsKey('items')) {
+                  final items = widget.receipt.parseReceipt!['items'] as List<dynamic>;
+                  _receiptItems = items
+                      .map((item) => ReceiptItem.fromJson(item as Map<String, dynamic>))
+                      .toList();
+                  debugPrint('Loaded ${_receiptItems.length} items from stored data');
+                }
+              }
+              
+              setState(() {
+                _isUploadComplete = true;
+                _isLoading = false;
+              });
+              
+              // Navigate to review screen
+              setState(() {
+                _currentStep = 1; // Explicitly set to Review step
+              });
+              
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && _pageController.hasClients) {
+                  _pageController.jumpToPage(1);
+                }
+              });
+              
+              return;
+            }
+            
             // Upload image and get URLs
             debugPrint('Uploading image to Firebase Storage...');
             final urls = await _receiptService.uploadReceiptImage(
@@ -908,76 +947,42 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       debugPrint('Unassigned items count: ${unassignedItems.length}');
       debugPrint('=========================');
       
-      // Create a mapping of numeric IDs to receipt items for easier lookup
-      final Map<String, ReceiptItem> receiptItemsById = {};
+      // Create a mapping of names to receipt items for easier lookup
+      final Map<String, ReceiptItem> receiptItemsByName = {};
       
-      // Important: The voice assignment API uses 1-based IDs (item #1, #2, etc.)
-      // but our internal IDs might be 0-based or have different formats
       for (int i = 0; i < _receiptItems.length; i++) {
         final item = _receiptItems[i];
+        receiptItemsByName[item.name.toLowerCase()] = item;
         
-        // Store by original itemId (which might be like "item_0_Hummus Garlic")
-        receiptItemsById[item.itemId] = item;
-        
-        // Also extract and store by numeric portion if it exists
-        if (item.itemId.contains('_')) {
-          final parts = item.itemId.split('_');
-          for (final part in parts) {
-            if (int.tryParse(part) != null) {
-              final numericId = part;
-              receiptItemsById[numericId] = item;
-              debugPrint('Mapped numeric ID from itemId: $numericId -> ${item.name}');
-              
-              // Also map the 1-based equivalent that the API might return
-              final oneBased = (int.parse(numericId) + 1).toString();
-              receiptItemsById[oneBased] = item;
-              debugPrint('Also mapped 1-based ID: $oneBased -> ${item.name}');
-              break;
-            }
-          }
-        }
-        
-        // Always store by position - but we need BOTH 0-based and 1-based indexes
-        // 0-based index (internal)
-        receiptItemsById[i.toString()] = item;
-        debugPrint('Mapped 0-based position: $i -> ${item.name}');
-        
-        // 1-based index (as shown in UI and used by API)
+        // Also store by position (1-based) as a fallback
         final oneBasedIndex = i + 1;
-        receiptItemsById[oneBasedIndex.toString()] = item;
-        debugPrint('Mapped 1-based position: $oneBasedIndex -> ${item.name}');
+        receiptItemsByName['position_$oneBasedIndex'] = item;
       }
       
-      // Add debug logging for all receipt items and their IDs
+      // Add debug logging for all receipt items
       debugPrint('=== RECEIPT ITEMS DEBUG ===');
       for (int i = 0; i < _receiptItems.length; i++) {
         final item = _receiptItems[i];
-        debugPrint('Receipt item #${i+1}: ${item.name}, ID: ${item.itemId}, internal index: $i');
+        debugPrint('Receipt item #${i+1}: ${item.name}, ID: ${item.itemId}, Price: \$${item.price}, Quantity: ${item.quantity}');
       }
-      
-      // Print ID mapping
-      debugPrint('=== ID MAPPING DEBUG ===');
-      receiptItemsById.forEach((id, item) {
-        debugPrint('ID mapping: $id -> ${item.name}');
-      });
       
       // Add all receipt items to the manager
       for (final item in _receiptItems) {
         splitManager.addReceiptItem(item);
       }
       
-      // Assign items to people - with improved ID mapping
-      assignments.forEach((name, items) {
-        if (name.isEmpty) return;
+      // Assign items to people - with name-based matching
+      assignments.forEach((personName, items) {
+        if (personName.isEmpty) return;
         
-        debugPrint('Processing assignments for person: $name');
+        debugPrint('Processing assignments for person: $personName');
         
         final person = splitManager.people.firstWhere(
-          (p) => p.name == name,
+          (p) => p.name == personName,
           orElse: () {
             // Create person if not found
-            splitManager.addPerson(name);
-            return splitManager.people.firstWhere((p) => p.name == name);
+            splitManager.addPerson(personName);
+            return splitManager.people.firstWhere((p) => p.name == personName);
           },
         );
         
@@ -985,77 +990,121 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         for (final itemData in items as List<dynamic>) {
           try {
             final itemJson = itemData as Map<String, dynamic>;
-            // Get the item ID from the API response
-            final itemId = itemJson['id'] != null ? itemJson['id'].toString() : null;
-            if (itemId == null) {
-              debugPrint('Warning: Item ID is null in assignment data: $itemJson');
+            
+            // Get the item name or id from the API response
+            final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
+            final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
+            final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
+            
+            if (itemName == null && itemId == null && position == null) {
+              debugPrint('Warning: Item has no identifiers in assignment data: $itemJson');
               continue;
             }
             
-            debugPrint('Looking for matching item with ID: $itemId for person: ${person.name}');
+            ReceiptItem? matchingItem;
             
-            // Direct lookup in our ID mapping
-            ReceiptItem? matchingItem = receiptItemsById[itemId];
+            // Try matching by name first (preferred)
+            if (itemName != null) {
+              matchingItem = receiptItemsByName[itemName.toLowerCase()];
+              if (matchingItem != null) {
+                debugPrint('Found name match: "$itemName" for person: ${person.name}');
+                splitManager.assignItemToPerson(matchingItem, person);
+                continue;
+              }
+            }
             
-            if (matchingItem != null) {
-              debugPrint('Found exact match for ID $itemId: ${matchingItem.name} (\$${matchingItem.price})');
-              splitManager.assignItemToPerson(matchingItem, person);
-            } else {
-              // Fallback to more flexible matching if direct lookup fails
-              final matchingItems = _receiptItems.where((receiptItem) => 
-                receiptItem.itemId.endsWith('_$itemId') || // Match by numeric ID suffix
-                receiptItem.itemId.contains('_$itemId\_') || // Match by numeric ID in middle 
-                receiptItem.itemId == itemId.toString() // Exact string match
-              ).toList();
-              
-              if (matchingItems.isNotEmpty) {
-                final item = matchingItems.first;
-                debugPrint('Found fuzzy match for ID $itemId: ${item.name} (\$${item.price})');
-                splitManager.assignItemToPerson(item, person);
-              } else {
-                // Last resort - try matching by position in the list (1-indexed)
-                if (int.tryParse(itemId) != null) {
-                  final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
-                  if (index >= 0 && index < _receiptItems.length) {
-                    final item = _receiptItems[index];
-                    debugPrint('Found positional match for ID $itemId: ${item.name} (\$${item.price})');
-                    splitManager.assignItemToPerson(item, person);
-                  } else {
-                    debugPrint('Warning: No matching item found for ID: $itemId (out of range)');
-                  }
-                } else {
-                  debugPrint('Warning: No matching item found for ID: $itemId');
+            // Try matching by id if provided (legacy support)
+            if (itemId != null) {
+              // Legacy position-based matching 
+              if (int.tryParse(itemId) != null) {
+                final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
+                if (index >= 0 && index < _receiptItems.length) {
+                  matchingItem = _receiptItems[index];
+                  debugPrint('Found position match using id field: $itemId: ${matchingItem.name} for person: ${person.name}');
+                  splitManager.assignItemToPerson(matchingItem, person);
+                  continue;
                 }
               }
             }
+            
+            // Try matching by position field if provided 
+            if (position != null) {
+              matchingItem = receiptItemsByName['position_$position'];
+              if (matchingItem != null) {
+                debugPrint('Found position match: $position: ${matchingItem.name} for person: ${person.name}');
+                splitManager.assignItemToPerson(matchingItem, person);
+                continue;
+              }
+            }
+            
+            // If we got here, no match was found
+            debugPrint('Warning: No matching item found for assignment: $itemJson');
+            
           } catch (e) {
             debugPrint('Error assigning item: $e');
           }
         }
       });
-      
-      // Use same improved matching for shared items
+
+      // Use name-based matching for shared items
       for (final itemData in sharedItems) {
         try {
           final itemJson = itemData as Map<String, dynamic>;
-          final itemId = itemJson['id'] != null ? itemJson['id'].toString() : null;
-          if (itemId == null) {
-            debugPrint('Warning: Item ID is null in shared item data: $itemJson');
+            
+          // Get the item name or id from the API response
+          final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
+          final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
+          final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
+          
+          if (itemName == null && itemId == null && position == null) {
+            debugPrint('Warning: Shared item has no identifiers: $itemJson');
             continue;
           }
           
-          debugPrint('Looking for matching shared item with ID: $itemId');
-          debugPrint('Raw shared item data: $itemJson');
+          ReceiptItem? matchingItem;
+          
+          // Try matching by name first (preferred)
+          if (itemName != null) {
+            matchingItem = receiptItemsByName[itemName.toLowerCase()];
+            if (matchingItem != null) {
+              debugPrint('Found name match for shared item: "$itemName"');
+            }
+          }
+          
+          // Try matching by id if provided (legacy support)
+          if (matchingItem == null && itemId != null) {
+            // Legacy position-based matching 
+            if (int.tryParse(itemId) != null) {
+              final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
+              if (index >= 0 && index < _receiptItems.length) {
+                matchingItem = _receiptItems[index];
+                debugPrint('Found position match using id field for shared item: $itemId: ${matchingItem.name}');
+              }
+            }
+          }
+          
+          // Try matching by position field if provided 
+          if (matchingItem == null && position != null) {
+            matchingItem = receiptItemsByName['position_$position'];
+            if (matchingItem != null) {
+              debugPrint('Found position match for shared item: $position: ${matchingItem.name}');
+            }
+          }
+          
+          if (matchingItem == null) {
+            debugPrint('Warning: No matching item found for shared item: $itemJson');
+            continue;
+          }
           
           // Get the list of people who are sharing this item
           List<String> peopleNames = [];
           if (itemJson.containsKey('people') && itemJson['people'] is List) {
             peopleNames = (itemJson['people'] as List).map((p) => p.toString()).toList();
-            debugPrint('Found people for shared item $itemId: $peopleNames');
+            debugPrint('Found people for shared item ${matchingItem.name}: $peopleNames');
           } else {
             // If no people specified, default to all people sharing (legacy behavior)
             peopleNames = splitManager.people.map((p) => p.name).toList();
-            debugPrint('No people specified in shared item $itemId, defaulting to all people: $peopleNames');
+            debugPrint('No people specified in shared item ${matchingItem.name}, defaulting to all people: $peopleNames');
           }
           
           // Find the specific Person objects for these people names
@@ -1073,98 +1122,74 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             specificPeople.add(person);
           }
           
-          // Direct lookup in our ID mapping
-          ReceiptItem? matchingItem = receiptItemsById[itemId];
+          debugPrint('Marking ${matchingItem.name} as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")}');
           
-          if (matchingItem != null) {
-            debugPrint('Found exact match for shared ID $itemId: ${matchingItem.name} (\$${matchingItem.price})');
-            debugPrint('Marking as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")}');
-            
-            if (specificPeople.isNotEmpty) {
-              splitManager.markAsShared(matchingItem, people: specificPeople);
-            } else {
-              debugPrint('WARNING: No people found to share item with, using default behavior');
-              splitManager.markAsShared(matchingItem);
-            }
+          if (specificPeople.isNotEmpty) {
+            splitManager.markAsShared(matchingItem, people: specificPeople);
           } else {
-            // Same fallback logic as assignments
-            final matchingItems = _receiptItems.where((receiptItem) => 
-              receiptItem.itemId.endsWith('_$itemId') || 
-              receiptItem.itemId.contains('_$itemId\_') ||
-              receiptItem.itemId == itemId.toString()
-            ).toList();
-            
-            if (matchingItems.isNotEmpty) {
-              final item = matchingItems.first;
-              debugPrint('Found fuzzy match for shared ID $itemId: ${item.name} (\$${item.price})');
-              debugPrint('Marking as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")}');
-              
-              if (specificPeople.isNotEmpty) {
-                splitManager.markAsShared(item, people: specificPeople);
-              } else {
-                debugPrint('WARNING: No people found to share item with, using default behavior');
-                splitManager.markAsShared(item);
-              }
-            } else {
-              // Position-based match as last resort
-              if (int.tryParse(itemId) != null) {
-                final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
-                if (index >= 0 && index < _receiptItems.length) {
-                  final item = _receiptItems[index];
-                  debugPrint('Found positional match for shared ID $itemId: ${item.name} (\$${item.price})');
-                  debugPrint('Marking as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")}');
-                  
-                  if (specificPeople.isNotEmpty) {
-                    splitManager.markAsShared(item, people: specificPeople);
-                  } else {
-                    debugPrint('WARNING: No people found to share item with, using default behavior');
-                    splitManager.markAsShared(item);
-                  }
-                } else {
-                  debugPrint('Warning: No matching shared item found for ID: $itemId (out of range)');
-                }
-              } else {
-                debugPrint('Warning: No matching shared item found for ID: $itemId');
-              }
-            }
+            debugPrint('WARNING: No people found to share item with, using default behavior');
+            splitManager.markAsShared(matchingItem);
           }
+          
         } catch (e) {
           debugPrint('Error processing shared item: $e');
         }
       }
       
-      // And use the same improved logic for unassigned items
+      // Use the same name-based matching for unassigned items
       for (final itemData in unassignedItems) {
         try {
           final itemJson = itemData as Map<String, dynamic>;
-          final itemId = itemJson['id'] != null ? itemJson['id'].toString() : null;
-          if (itemId == null) continue;
-          
-          // Direct lookup in our ID mapping
-          final matchingItem = receiptItemsById[itemId];
-          
-          if (matchingItem != null) {
-            splitManager.markAsUnassigned(matchingItem);
-          } else {
-            // Same fallback logic as assignments
-            final matchingItems = _receiptItems.where((receiptItem) => 
-              receiptItem.itemId.endsWith('_$itemId') || 
-              receiptItem.itemId.contains('_$itemId\_') ||
-              receiptItem.itemId == itemId.toString()
-            ).toList();
             
-            if (matchingItems.isNotEmpty) {
-              splitManager.markAsUnassigned(matchingItems.first);
-            } else {
-              // Position-based match as last resort
-              if (int.tryParse(itemId) != null) {
-                final index = int.parse(itemId) - 1;
-                if (index >= 0 && index < _receiptItems.length) {
-                  splitManager.markAsUnassigned(_receiptItems[index]);
-                }
+          // Get the item name or id from the API response
+          final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
+          final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
+          final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
+          
+          if (itemName == null && itemId == null && position == null) {
+            debugPrint('Warning: Unassigned item has no identifiers: $itemJson');
+            continue;
+          }
+          
+          ReceiptItem? matchingItem;
+          
+          // Try matching by name first (preferred)
+          if (itemName != null) {
+            matchingItem = receiptItemsByName[itemName.toLowerCase()];
+            if (matchingItem != null) {
+              debugPrint('Found name match for unassigned item: "$itemName"');
+              splitManager.markAsUnassigned(matchingItem);
+              continue;
+            }
+          }
+          
+          // Try matching by id if provided (legacy support)
+          if (itemId != null) {
+            // Legacy position-based matching 
+            if (int.tryParse(itemId) != null) {
+              final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
+              if (index >= 0 && index < _receiptItems.length) {
+                matchingItem = _receiptItems[index];
+                debugPrint('Found position match using id field for unassigned item: $itemId: ${matchingItem.name}');
+                splitManager.markAsUnassigned(matchingItem);
+                continue;
               }
             }
           }
+          
+          // Try matching by position field if provided 
+          if (position != null) {
+            matchingItem = receiptItemsByName['position_$position'];
+            if (matchingItem != null) {
+              debugPrint('Found position match for unassigned item: $position: ${matchingItem.name}');
+              splitManager.markAsUnassigned(matchingItem);
+              continue;
+            }
+          }
+          
+          // If we got here, no match was found
+          debugPrint('Warning: No matching item found for unassigned item: $itemJson');
+          
         } catch (e) {
           debugPrint('Error processing unassigned item: $e');
         }

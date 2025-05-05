@@ -83,14 +83,14 @@ users/{userId}/receipts/{receiptId}
   - assign_people_to_items: Map {
       - assignments: Map<String, List<Map>> {  // Person name to items
           "<person_name>": [
-            {"id": <item_id>, "quantity": <integer>}
+            {"name": "<item_name>", "quantity": <integer>}
           ]
         }
       - shared_items: List<Map> [
-          {"id": <item_id>, "quantity": <integer>, "people": ["person1", "person2"]}  // List of people sharing this item
+          {"name": "<item_name>", "quantity": <integer>, "people": ["person1", "person2"]}  // List of people sharing this item
         ]
       - unassigned_items: List<Map> [
-          {"id": <item_id>, "quantity": <integer>}
+          {"name": "<item_name>", "quantity": <integer>}
         ]
     }
   - split_manager_state: Map  // Final app state with all calculations
@@ -109,6 +109,7 @@ This model:
 - Links data to the corresponding image and user
 - Includes minimal metadata for list display and search
 - Stores reference to a pre-generated thumbnail for fast loading in lists
+- **Uses item names as primary identifiers** instead of complex ID systems
 - **Explicitly tracks which people are sharing each shared item** through the "people" field in shared_items
 
 ## Implementation Approach
@@ -121,6 +122,7 @@ This model:
 4. **Preserve Navigation Patterns**: Maintain existing in-screen buttons and swipe gestures
 5. **Add Persistence**: Save function outputs to Firestore without transformations
 6. **Update Receipts Screen**: Create a simple list view of stored receipts
+7. **Simplify Item References**: Use item names as primary identifiers throughout the workflow
 
 ### Efficient Image Handling
 
@@ -235,6 +237,38 @@ The application should implement the following data integrity checks to ensure c
 3. **Shared Item Consistency**: Validate that each shared item has at least two people listed in its `people` field (otherwise it should be individually assigned or unassigned).
 
 4. **Fallback Handling**: If the `people` field is missing in legacy data or from older cloud function responses, fall back to sharing the item among all people in the receipt.
+
+## Item Reference Requirements
+
+To ensure a consistent and user-friendly experience, the application must handle item references flexibly during the voice assignment step:
+
+1. **Dual Reference Support**:
+   - Allow users to refer to items by **name** ("the burger" or "fries")
+   - Allow users to refer to items by **position number** ("item #1" or "number 3")
+   - The UI should display clear numeric indicators next to items in the receipt summary to facilitate this
+
+2. **Data Structure**:
+   - When sending items to the AI for assignment processing, include:
+     - `name`: The item's display name
+     - `quantity`: The item's quantity
+     - `price`: The item's price
+     - `position`: The item's position in the receipt list (1-based index)
+   - AI responses should always use consistent `name` fields in assignments
+
+3. **Voice Interface Guidance**:
+   - The UI should clearly display numbered items in the receipt summary section
+   - Provide user tips explaining that they can use either item names or numbers
+   - Example tip: "Use the item numbers! Say things like 'Emma got #2 and we all shared #5'"
+
+4. **Response Processing**:
+   - The system should prioritize matching by name for better maintainability
+   - Use position as a fallback when direct name matching fails
+   - Handle cases where item names are updated in the Review step by consistently using the final edited names
+
+5. **Model Requirements**:
+   - AI prompts must instruct models to recognize and handle both reference methods
+   - When transcripts mention item numbers, models should map them to the correct names
+   - AI responses must always use item names as the primary identifier
 
 ## UI Mockups
 

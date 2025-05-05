@@ -6,6 +6,15 @@ class FileHelper {
     if (file == null) return false;
     
     try {
+      // Check if file is a remote URL (starts with http)
+      if (file.path.startsWith('http')) {
+        // For remote URLs, we can't easily validate the file
+        // Just check if it has a valid image extension
+        final validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
+        final fileExtension = file.path.toLowerCase().split('.').last.split('?').first;
+        return validExtensions.contains(fileExtension);
+      }
+      
       // Check if file exists
       if (!file.existsSync()) {
         print('File does not exist: ${file.path}');
