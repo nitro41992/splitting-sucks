@@ -416,9 +416,8 @@ This redesign maintains all existing functionality while improving the user expe
      - Fixed: Updated SplitManager's handling of items with the same name but different quantities
    - ✅ Fix inability to modify item quantities in the People view when a person has multiple of an item
      - Fixed: Improved tracking of items by name and proper quantity assignment
-   - New bug: Navigation to Summary view fails. Users cannot navigate to the Summary step by clicking either:
-     - The Summary step indicator in the workflow header
-     - The "Go to Summary" button in the Split view
+   - ✅ Navigation to Summary view fails. Users cannot navigate to the Summary step by clicking either:
+     - Fixed: Added proper notification listeners and updated step navigation logic
    - Update existing workflow screens to work with the new modal container
    - Fix any issues with the AppRoot component
 
@@ -483,14 +482,14 @@ We've made significant progress on the app navigation redesign with the followin
    - Ensured the name is propagated throughout the workflow and saved with the receipt
 
 #### Current Issues
-1. **Navigation to Summary**: Users are unable to navigate to the Summary view using either:
+1. **Navigation to Summary**: ✅ Fixed - Users were unable to navigate to the Summary view using either:
    - The Summary step indicator in the workflow header
    - The "Go to Summary" button in the Split view
-   This appears to be a regression that needs urgent fixing for workflow completion.
+   This issue was resolved by adding proper notification listeners and updating the step navigation logic.
 
 #### Next Steps
 1. **Remaining Bug Fixes**:
-   - Fix navigation to Summary screen from Split view
+   - ✅ Fix navigation to Summary screen from Split view
    - Complete edits in split summary saving to state
    - Update existing workflow screens to work with the new modal container
    - Fix any issues with the AppRoot component

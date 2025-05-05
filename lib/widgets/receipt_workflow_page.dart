@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
+import 'dart:async'; // Add Timer import
 import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart'; // Add import for Timestamp
 import '../models/receipt.dart';
@@ -38,7 +39,7 @@ class ReceiptWorkflowPage extends StatefulWidget {
   State<ReceiptWorkflowPage> createState() => _ReceiptWorkflowPageState();
 }
 
-class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with AutomaticKeepAliveClientMixin {
+class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   // Override keep alive to prevent page disposal
   @override
   bool get wantKeepAlive => true;
@@ -53,6 +54,9 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   // Make PageController final to prevent recreation
   final PageController _pageController = PageController(keepPage: true);
   
+  // Timer for batching assignment saves
+  Timer? _saveTimer;
+  
   bool _isLoading = false;
   bool _isUploadComplete = false;
   bool _isReviewComplete = false;
@@ -66,9 +70,15 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   // Add a key to access VoiceAssignmentScreen state without direct reference to private state class
   final GlobalKey _voiceAssignmentKey = GlobalKey();
   
+  // Add a flag to prevent multiple concurrent save operations
+  bool _isSaving = false;
+  
   @override
   void initState() {
     super.initState();
+    
+    // Add observer to detect lifecycle changes (app going to background)
+    WidgetsBinding.instance.addObserver(this);
     
     // Initialize state
     _imageFile = null;
@@ -76,6 +86,112 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     
     // Load saved state if available
     _loadSavedState();
+  }
+  
+  @override
+  void dispose() {
+    // Remove observer when disposed
+    WidgetsBinding.instance.removeObserver(this);
+    
+    // Cancel any pending save timer
+    _saveTimer?.cancel();
+    
+    // Save state before disposing
+    // Use a try/catch to avoid crashing if the provider is not available
+    SplitManager? splitManagerRef;
+    
+    try {
+      // Only try to access the provider if we're mounted
+      if (mounted) {
+        try {
+          splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+        } catch (e) {
+          debugPrint('Provider not available during dispose: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error during dispose: $e');
+    }
+    
+    // Save changes if we got a reference to the SplitManager
+    if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
+      try {
+        // Get the assignment data from the split manager
+        final Map<String, dynamic> assignmentData = splitManagerRef.getAssignmentData();
+        
+        // Reset the modified flag
+        splitManagerRef.assignmentsModified = false;
+        
+        // Fire and forget - don't wait for the save to complete
+        _receiptService.saveAssignPeopleToItemsResults(
+          widget.receipt.id!,
+          assignmentData
+        ).then((_) {
+          debugPrint('Assignment changes saved during dispose');
+        }).catchError((e) {
+          debugPrint('Error saving assignments during dispose: $e');
+        });
+      } catch (e) {
+        debugPrint('Error saving during dispose: $e');
+      }
+    }
+    
+    _pageController.dispose();
+    super.dispose();
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When app is paused (moved to background), save any pending changes
+    if (state == AppLifecycleState.paused) {
+      debugPrint('App paused - saving assignments');
+      
+      // Cancel any pending save timer
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      
+      SplitManager? splitManagerRef;
+      
+      try {
+        // Check if context is still valid and mounted
+        if (mounted) {
+          // Use try/catch to safely attempt to get the provider
+          try {
+            splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+          } catch (providerError) {
+            debugPrint('Provider not available for app lifecycle save: $providerError');
+          }
+        }
+      } catch (e) {
+        debugPrint('Error saving assignments on app pause: $e');
+      }
+      
+      // Only proceed with saving if we got a valid reference to the SplitManager
+      if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
+        try {
+          // Get the assignment data directly
+          final assignmentData = splitManagerRef.getAssignmentData();
+          
+          // Reset the flag right away
+          splitManagerRef.assignmentsModified = false;
+          
+          // Fire and forget - don't await the result
+          _receiptService.saveAssignPeopleToItemsResults(
+            widget.receipt.id!,
+            assignmentData
+          ).then((_) {
+            debugPrint('Successfully saved assignments during app pause');
+          }).catchError((e) {
+            debugPrint('Error during background save: $e');
+          });
+        } catch (e) {
+          debugPrint('Error preparing assignment data: $e');
+        }
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      // When app is resumed, we might need to refresh data
+      debugPrint('App resumed - checking for data refresh');
+    }
   }
   
   Future<void> _loadSavedState() async {
@@ -179,88 +295,123 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     
-    return WillPopScope(
-      // Handle back gesture to navigate to previous step instead of showing exit dialog
-      onWillPop: () async {
-        // If on the first step, show the standard exit dialog
-        if (_currentStep == 0) {
-          final shouldPop = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Exit Receipt Workflow?'),
-              content: const Text('Progress will be saved, but you will need to restart from the beginning if you exit now.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Stay'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('Exit'),
-                ),
-              ],
-            ),
-          );
+    return ChangeNotifierProvider(
+      create: (context) {
+        final splitManager = SplitManager();
+        
+        // Use a post-frame callback to listen for changes in the split manager
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           
-          return shouldPop ?? false;
-        } else {
-          // If on any other step, navigate to the previous step
-          _navigateToPreviousStep();
-          
-          // Always return false since we're handling navigation internally
-          return false;
-        }
+          splitManager.addListener(() {
+            // Only auto-save when changes are made and the manager is initialized
+            if (splitManager.assignmentsModified && splitManager.initialized) {
+              // Cancel previous timer if there's one running
+              _saveTimer?.cancel();
+              
+              // Set a new timer to save changes after a short delay (batch changes)
+              _saveTimer = Timer(const Duration(milliseconds: 500), () {
+                _autoSaveAssignments(splitManager);
+              });
+            }
+          });
+        });
+        
+        return splitManager;
       },
-      child: ChangeNotifierProvider(
-        create: (_) => SplitManager(),
-        child: Scaffold(
-          body: SafeArea(
-            child: _isLoading && !_stateLoaded 
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                children: [
-                  _buildStepIndicator(),
-                  Expanded(
-                    child: NotificationListener<NavigateToPageNotification>(
-                      onNotification: (notification) {
-                        // Navigate to the requested page
-                        debugPrint('Received NavigateToPageNotification to page: ${notification.pageIndex}');
-                        setState(() {
-                          _currentStep = notification.pageIndex;
-                        });
-                        
-                        // Use jumpToPage for immediate transition without animation to prevent flashing
-                        if (_pageController.hasClients) {
-                          _pageController.jumpToPage(_currentStep);
-                        } else {
-                          debugPrint('ERROR: PageController has no clients when trying to navigate');
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => _handleBackNavigation(),
+          ),
+          title: const Text('Receipt Workflow'),
+          actions: [
+            // Only show Skip buttons on first three screens
+            if (_currentStep < 3)
+              TextButton(
+                onPressed: () => _navigateToNextStep(),
+                child: const Text('SKIP'),
+              ),
+          ],
+        ),
+        body: SafeArea(
+          child: _isLoading && !_stateLoaded 
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+              children: [
+                _buildStepIndicator(),
+                Expanded(
+                  child: NotificationListener<NavigateToPageNotification>(
+                    onNotification: (notification) {
+                      // Auto-save before navigation
+                      try {
+                        if (mounted) {
+                          try {
+                            // Try to get the SplitManager, but don't crash if it's not available
+                            final splitManager = Provider.of<SplitManager>(context, listen: false);
+                            if (splitManager.assignmentsModified) {
+                              // Get data and clear modified flag
+                              final assignmentData = splitManager.getAssignmentData();
+                              splitManager.assignmentsModified = false;
+                              
+                              // Fire and forget
+                              _receiptService.saveAssignPeopleToItemsResults(
+                                widget.receipt.id!,
+                                assignmentData
+                              ).then((_) {
+                                debugPrint('Assignment changes saved before notification navigation');
+                              }).catchError((e) {
+                                debugPrint('Error saving assignments during notification: $e');
+                              });
+                            }
+                          } catch (e) {
+                            debugPrint('Provider not available for notification save: $e');
+                          }
                         }
-                        
-                        // Return true to stop notification propagation
-                        return true;
-                      },
-                      child: PageView(
-                        controller: _pageController,
-                        physics: const NeverScrollableScrollPhysics(), // Disable swipe navigation
-                        onPageChanged: (index) {
-                          // Update current step when page changes
+                      } catch (e) {
+                        debugPrint('Error during notification handling: $e');
+                      }
+                      
+                      // Navigate to the requested page
+                      debugPrint('Received NavigateToPageNotification to page: ${notification.pageIndex}');
+                      setState(() {
+                        _currentStep = notification.pageIndex;
+                      });
+                      
+                      // Use jumpToPage for immediate transition without animation to prevent flashing
+                      if (_pageController.hasClients) {
+                        _pageController.jumpToPage(_currentStep);
+                      } else {
+                        debugPrint('ERROR: PageController has no clients when trying to navigate');
+                      }
+                      
+                      // Return true to stop notification propagation
+                      return true;
+                    },
+                    child: PageView(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(), // Disable swiping between pages
+                      onPageChanged: (index) {
+                        // Update current step if it's changed via the controller
+                        if (index != _currentStep) {
                           setState(() {
                             _currentStep = index;
                           });
-                        },
-                        children: [
-                          _buildUploadScreen(),
-                          _buildReviewScreen(),
-                          _buildAssignScreen(),
-                          _buildSplitScreen(),
-                          _buildSummaryScreen(),
-                        ],
-                      ),
+                        }
+                      },
+                      children: [
+                        _buildUploadScreen(),
+                        _buildReviewScreen(),
+                        _buildAssignScreen(),
+                        _buildSplitScreen(),
+                        _buildSummaryScreen(),
+                      ],
                     ),
                   ),
-                ],
-              ),
-          ),
+                ),
+              ],
+            ),
         ),
       ),
     );
@@ -330,7 +481,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         case 3: // Split step
           canNavigate = _isAssignmentComplete;
           break;
-        case 4: // Summary step - special case, always allow if we're on Split (step 3)
+        case 4: // Summary step - special case, always allow if we're on Split
           canNavigate = _currentStep == 3; // Always allow going to Summary from Split
           break;
       }
@@ -412,14 +563,62 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   
   void _navigateToPreviousStep() {
     if (_currentStep > 0) {
+      // Cancel any pending save timer
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      
+      // Try to save changes before navigation
+      SplitManager? splitManagerRef;
+      
+      try {
+        if (mounted) {
+          try {
+            splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+          } catch (e) {
+            debugPrint('Provider not available during back navigation: $e');
+          }
+        }
+      } catch (e) {
+        debugPrint('Error during back navigation: $e');
+      }
+      
+      // Save changes if we got a reference to the SplitManager
+      if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
+        try {
+          // Get data and clear modified flag
+          final assignmentData = splitManagerRef.getAssignmentData();
+          splitManagerRef.assignmentsModified = false;
+          
+          // Fire and forget
+          _receiptService.saveAssignPeopleToItemsResults(
+            widget.receipt.id!,
+            assignmentData
+          ).then((_) {
+            debugPrint('Assignment changes saved before previous step');
+          }).catchError((e) {
+            debugPrint('Error saving assignments during navigation: $e');
+          });
+        } catch (e) {
+          debugPrint('Error preparing assignment data: $e');
+        }
+      }
+      
       setState(() {
         _currentStep--;
       });
-      _pageController.animateToPage(
-        _currentStep,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      
+      // Wait for the next frame to ensure state update is processed
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        
+        // Use jumpToPage for immediate transition without animation to prevent flashing
+        if (_pageController.hasClients) {
+          debugPrint('Jumping directly to page $_currentStep');
+          _pageController.jumpToPage(_currentStep);
+        } else {
+          debugPrint('WARNING: PageController has no clients, navigation may fail');
+        }
+      });
     }
   }
   
@@ -427,6 +626,46 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     debugPrint('_navigateToNextStep called - Current step: $_currentStep');
     
     if (_currentStep < 4) {
+      // Cancel any pending save timer
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      
+      // Try to save changes before navigation
+      SplitManager? splitManagerRef;
+      
+      try {
+        if (mounted) {
+          try {
+            splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+          } catch (e) {
+            debugPrint('Provider not available during next navigation: $e');
+          }
+        }
+      } catch (e) {
+        debugPrint('Error during next navigation: $e');
+      }
+      
+      // Save changes if we got a reference to the SplitManager
+      if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
+        try {
+          // Get data and clear modified flag
+          final assignmentData = splitManagerRef.getAssignmentData();
+          splitManagerRef.assignmentsModified = false;
+          
+          // Fire and forget
+          _receiptService.saveAssignPeopleToItemsResults(
+            widget.receipt.id!,
+            assignmentData
+          ).then((_) {
+            debugPrint('Assignment changes saved before next step');
+          }).catchError((e) {
+            debugPrint('Error saving assignments during navigation: $e');
+          });
+        } catch (e) {
+          debugPrint('Error preparing assignment data: $e');
+        }
+      }
+      
       final nextStep = _currentStep + 1;
       debugPrint('Advancing to step: $nextStep');
       
@@ -450,11 +689,81 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     } else {
       // Finish the workflow
       debugPrint('Workflow complete, calling _completeWorkflow()');
-      _completeWorkflow(context.read<SplitManager>());
+      // Try to safely complete the workflow
+      try {
+        SplitManager? splitManagerRef;
+        
+        if (mounted) {
+          try {
+            splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+          } catch (e) {
+            debugPrint('Provider not available for workflow completion: $e');
+          }
+        }
+        
+        if (splitManagerRef != null) {
+          _completeWorkflow(splitManagerRef);
+        } else {
+          // Just go back to the receipts list as fallback
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      } catch (e) {
+        debugPrint('Error during workflow completion: $e');
+        // Just go back to the receipts list as fallback
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
     }
   }
   
   void _confirmCancel() {
+    // Try to safely save any pending changes first, but don't crash if provider is not available
+    SplitManager? splitManagerRef;
+    
+    try {
+      // Cancel any pending save timer
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      
+      // Safely try to get the SplitManager and save changes before showing dialog
+      if (mounted) {
+        try {
+          splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+        } catch (providerError) {
+          debugPrint('Provider not available for cancel dialog: $providerError');
+        }
+      }
+    } catch (e) {
+      // Safely ignore other errors
+      debugPrint('Error during cancel dialog: $e');
+    }
+    
+    // Save changes if we got a reference to the SplitManager
+    if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
+      try {
+        // Get the assignment data from the split manager
+        final Map<String, dynamic> assignmentData = splitManagerRef.getAssignmentData();
+        
+        // Reset the modified flag since we've saved the changes
+        splitManagerRef.assignmentsModified = false;
+        
+        // Fire and forget - don't wait for the save to complete
+        _receiptService.saveAssignPeopleToItemsResults(
+          widget.receipt.id!,
+          assignmentData
+        ).then((_) {
+          debugPrint('Assignment changes saved on exit');
+        }).catchError((e) {
+          debugPrint('Error saving assignments on exit: $e');
+        });
+      } catch (e) {
+        debugPrint('Error saving before exit: $e');
+      }
+    }
+    
     showDialog(
       context: context,
       builder: (context) {
@@ -469,6 +778,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
+                // We don't try to access the provider again on exit
                 Navigator.of(context).pop(); // Return to previous screen
               },
               child: const Text('EXIT'),
@@ -483,6 +793,9 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     try {
       // First save the split manager state
       await _autoSaveSplitManagerState(splitManager);
+      
+      // Also save assignments
+      await _autoSaveAssignments(splitManager);
       
       // Show saving indicator
       setState(() => _isLoading = true);
@@ -838,9 +1151,13 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             // Only proceed if still mounted
             if (!mounted) return;
             
+            // Cancel any pending save timer if it exists
+            _saveTimer?.cancel();
+            
             // Update state and immediately request a page change
+            // DON'T try to access SplitManager here - it will be created when we navigate
             setState(() {
-              _assignments = assignments;
+              _assignments = assignments; // Replace the assignments with the new ones
               _isAssignmentComplete = true;
               _currentStep = 3; // Set to Split step in the same setState call
               _isLoading = false;
@@ -896,8 +1213,68 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           debugPrint('Updating state in response to SplitManagerUpdateNotification');
         });
         
-        // Save the SplitManager state automatically
-        _autoSaveSplitManagerState(notification.splitManager);
+        // Cancel any pending save timer
+        _saveTimer?.cancel();
+        _saveTimer = null;
+        
+        // Try to save SplitManager state safely
+        try {
+          // Save split manager state if we received it in the notification
+          if (notification.splitManager != null) {
+            // Save the SplitManager state automatically
+            final splitManager = notification.splitManager;
+            
+            try {
+              // Get data for saving
+              final splitManagerState = <String, dynamic>{
+                'people': splitManager.people.map((person) => {
+                  'name': person.name,
+                  'assignedItems': person.assignedItems.map((item) => item.toJson()).toList(),
+                  'sharedItems': person.sharedItems.map((item) => item.toJson()).toList(),
+                }).toList(),
+                'unassignedItems': splitManager.unassignedItems.map((item) => item.toJson()).toList(),
+                'sharedItems': splitManager.sharedItems.map((item) => item.toJson()).toList(),
+                'subtotal': splitManager.subtotal,
+                'tax': splitManager.tax,
+                'tip': splitManager.tip,
+                'tipPercentage': splitManager.tipPercentage,
+                'restaurantName': _restaurantName ?? splitManager.restaurantName,
+              };
+              
+              // Fire and forget - don't await
+              _receiptService.saveSplitManagerState(
+                widget.receipt.id!,
+                splitManagerState
+              ).then((_) {
+                debugPrint('Split manager state saved from notification');
+              }).catchError((e) {
+                debugPrint('Error saving split manager state from notification: $e');
+              });
+              
+              // Also save assignment data
+              if (splitManager.assignmentsModified) {
+                final assignmentData = splitManager.getAssignmentData();
+                
+                // Reset flag to prevent duplicate saves
+                splitManager.assignmentsModified = false;
+                
+                // Fire and forget - don't await
+                _receiptService.saveAssignPeopleToItemsResults(
+                  widget.receipt.id!,
+                  assignmentData
+                ).then((_) {
+                  debugPrint('Assignments saved from notification');
+                }).catchError((e) {
+                  debugPrint('Error saving assignments from notification: $e');
+                });
+              }
+            } catch (e) {
+              debugPrint('Error processing split manager for save: $e');
+            }
+          }
+        } catch (e) {
+          debugPrint('Error handling SplitManagerUpdateNotification: $e');
+        }
         
         // Return true to stop notification propagation
         return true;
@@ -907,27 +1284,64 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           // Debug log to check if assignments data is available
           debugPrint('_buildSplitScreen called, assignments: ${_assignments != null ? 'available' : 'null'}, items: ${_receiptItems.length}, splitManager initialized: ${splitManager.initialized}');
           
-          // Explicitly trigger initialization here if we have assignments but manager isn't initialized
-          if (_assignments != null && !splitManager.initialized) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              debugPrint('Explicitly initializing SplitManager from _buildSplitScreen');
+          // This is like a useEffect hook in React - runs after build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            
+            // Check if we need to initialize or re-initialize the manager
+            final bool needsInitialization = !splitManager.initialized || 
+                                           splitManager.people.isEmpty;
+            
+            // Only try to initialize if we have the necessary data
+            if (needsInitialization && _assignments != null && _receiptItems.isNotEmpty) {
+              debugPrint('Initializing SplitManager from _buildSplitScreen');
               _initializeSplitManager(splitManager);
-              
-              // Force a rebuild after initialization
-              if (mounted) {
-                setState(() {
-                  debugPrint('Triggering rebuild after SplitManager initialization');
-                });
-              }
-            });
-          } else if (_assignments != null && splitManager.initialized) {
-            // Check if the SplitManager has people data
-            debugPrint('SplitManager is initialized with ${splitManager.people.length} people and ${splitManager.unassignedItems.length} unassigned items');
-          }
+            }
+          });
           
-          return SplitView(
-            key: UniqueKey(), // Ensure SplitView reinitializes when rebuilt
-          );
+          // Return split view screen
+          if (splitManager.initialized) {
+            return SplitView();
+          } else if (_assignments == null || _receiptItems.isEmpty) {
+            // Show error state if we don't have necessary data
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    _assignments == null 
+                        ? 'Assignment data not available' 
+                        : 'Receipt items not available',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Try to initialize the manager again
+                      setState(() {
+                        // This will trigger a rebuild and another initialization attempt
+                      });
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          } else {
+            // Show loading state while waiting for initialization
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Preparing split view...'),
+                ],
+              ),
+            );
+          }
         },
       ),
     );
@@ -936,51 +1350,61 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   Widget _buildSummaryScreen() {
     return Consumer<SplitManager>(
       builder: (context, splitManager, _) {
-        // Handle initialization synchronously before building the UI
-        if (_assignments != null && !splitManager.initialized) {
-          debugPrint('Initializing SplitManager from _buildSummaryScreen');
-          _initializeSplitManager(splitManager);
-          
-          // Even though we just initialized, check if it worked
-          if (!splitManager.initialized) {
-            debugPrint('WARNING: SplitManager initialization failed!');
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Failed to initialize split data',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Try again
-                      setState(() {
-                        // Force a rebuild
-                      });
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-        }
+        // Store current assignments reference to detect changes
+        final Map<String, dynamic>? currentAssignments = _assignments;
         
-        // Check if we have assignments data but no people in the split manager after initialization
-        if (_assignments != null && splitManager.initialized && splitManager.people.isEmpty) {
-          debugPrint('WARNING: SplitManager is initialized but has no people! Assignments: $_assignments');
+        // This is like a useEffect hook in React - runs after build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           
-          // Try to debug what's happening
-          final Map<String, dynamic>? assignments = _assignments?['assignments'] as Map<String, dynamic>?;
-          if (assignments != null) {
-            debugPrint('Assignments keys: ${assignments.keys.join(', ')}');
-          } else {
-            debugPrint('No assignments data available');
+          // Check if we need to initialize or re-initialize the manager
+          final bool needsInitialization = !splitManager.initialized || 
+                                         splitManager.people.isEmpty;
+          
+          // If we have assignments and need to initialize the manager
+          if (currentAssignments != null && needsInitialization) {
+            debugPrint('Initializing SplitManager for summary screen');
+            
+            // Reset the manager first
+            splitManager.reset();
+            
+            // Then initialize with current assignments
+            _initializeSplitManager(splitManager);
+            
+            // Force a rebuild after initialization if needed
+            if (mounted) {
+              setState(() {
+                debugPrint('Triggering rebuild after SplitManager initialization for summary');
+              });
+            }
           }
+        });
+        
+        // Check if initialization failed - show error screen
+        if (currentAssignments != null && !splitManager.initialized) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text(
+                  'Failed to initialize split data',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    // Try again
+                    setState(() {
+                      // Force a rebuild
+                    });
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
         }
         
         return Stack(
@@ -995,20 +1419,16 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   
   void _initializeSplitManager(SplitManager splitManager) {
     try {
-      // Prevent repeated calls if already initialized
-      if (splitManager.initialized) {
-        debugPrint('SplitManager already initialized, skipping initialization');
-        return;
-      }
+      // Always reset the manager completely before initialization
+      // This ensures any old state is cleared when Start Splitting is clicked again
+      debugPrint('Completely resetting SplitManager to clear old data before initialization');
+      splitManager.reset();
       
       // Check for required data
       if (_assignments == null || _receiptItems.isEmpty) {
         debugPrint('Cannot initialize split manager: Missing assignments or receipt items');
         return;
       }
-      
-      // Reset the manager
-      splitManager.reset();
       
       // Set restaurant name if available
       if (_restaurantName != null) {
@@ -1060,6 +1480,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         splitManager.addReceiptItem(item);
       }
       
+      // Mark as initialized - we'll set this to true before processing assignments
+      // This prevents auto-saving during the initialization process
+      splitManager.initialized = true;
+      
       // Track which items have been processed to avoid duplicate assignments
       final Set<String> processedItemNames = {};
       
@@ -1078,267 +1502,179 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           },
         );
         
-        // Process each item in the assignment
-        for (final itemData in items as List<dynamic>) {
+        // Process each item for this person
+        for (final itemJson in items as List) {
           try {
-            final itemJson = itemData as Map<String, dynamic>;
+            final itemData = itemJson as Map<String, dynamic>;
+            final String itemName = itemData['name'] as String;
+            final dynamic itemIdData = itemData['id'];
+            final int itemId = itemIdData is int 
+                ? itemIdData 
+                : int.tryParse(itemIdData.toString()) ?? 0;
+            final int quantity = (itemData['quantity'] as num).toInt();
+            final double price = (itemData['price'] as num).toDouble();
             
-            // Get the item name or id from the API response
-            final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
-            final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
-            final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
-            // Get the quantity from the assignment data (defaulting to 1 if not specified)
-            final quantity = itemJson.containsKey('quantity') ? (itemJson['quantity'] is int ? itemJson['quantity'] as int : 1) : 1;
+            debugPrint('  - Processing item: $itemName (ID: $itemId, Quantity: $quantity, Price: \$${price.toStringAsFixed(2)})');
             
-            if (itemName == null && itemId == null && position == null) {
-              debugPrint('Warning: Item has no identifiers in assignment data: $itemJson');
-              continue;
+            // First try to find an exact match by name
+            ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
+            
+            // If no exact match, try matching item by position (1-based) if ID is valid
+            if (matchingItem == null && itemId > 0 && itemId <= _receiptItems.length) {
+              matchingItem = _receiptItems[itemId - 1];
+              debugPrint('    No name match, using position match: ${matchingItem.name}');
             }
             
-            ReceiptItem? matchingItem;
-            
-            // Try matching by name first (preferred)
-            if (itemName != null) {
-              matchingItem = receiptItemsByName[itemName.toLowerCase()];
-              if (matchingItem != null) {
-                debugPrint('Found name match: "$itemName" for person: ${person.name} with quantity: $quantity');
-                // Create a copy of the item with the exact quantity from the assignment
-                final itemToAssign = matchingItem.copyWithQuantity(quantity);
-                splitManager.assignItemToPerson(itemToAssign, person);
-                // Mark this item as processed by this person
-                processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
-                continue;
-              }
+            if (matchingItem != null) {
+              // Create a copy with the correct quantity and price
+              final itemToAssign = matchingItem.copyWith(
+                quantity: quantity,
+                price: price,
+              );
+              
+              debugPrint('    Assigning item to ${person.name}: ${itemToAssign.name} (Quantity: ${itemToAssign.quantity})');
+              
+              // Assign to the person
+              splitManager.assignItemToPerson(itemToAssign, person);
+              
+              // Add to processed list
+              processedItemNames.add(itemName.toLowerCase());
+            } else {
+              debugPrint('    WARNING: Could not find matching item for: $itemName');
             }
-            
-            // Try matching by id if provided (legacy support)
-            if (itemId != null) {
-              // Legacy position-based matching 
-              if (int.tryParse(itemId) != null) {
-                final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
-                if (index >= 0 && index < _receiptItems.length) {
-                  matchingItem = _receiptItems[index];
-                  debugPrint('Found position match using id field: $itemId: ${matchingItem.name} for person: ${person.name} with quantity: $quantity');
-                  // Create a copy of the item with the exact quantity from the assignment
-                  final itemToAssign = matchingItem.copyWithQuantity(quantity);
-                  splitManager.assignItemToPerson(itemToAssign, person);
-                  // Mark this item as processed by this person
-                  processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
-                  continue;
-                }
-              }
-            }
-            
-            // Try matching by position field if provided 
-            if (position != null) {
-              matchingItem = receiptItemsByName['position_$position'];
-              if (matchingItem != null) {
-                debugPrint('Found position match: $position: ${matchingItem.name} for person: ${person.name} with quantity: $quantity');
-                // Create a copy of the item with the exact quantity from the assignment
-                final itemToAssign = matchingItem.copyWithQuantity(quantity);
-                splitManager.assignItemToPerson(itemToAssign, person);
-                // Mark this item as processed by this person
-                processedItemNames.add('${personName}:${matchingItem.name.toLowerCase()}');
-                continue;
-              }
-            }
-            
-            // If we got here, no match was found
-            debugPrint('Warning: No matching item found for assignment: $itemJson');
-            
           } catch (e) {
-            debugPrint('Error assigning item: $e');
+            debugPrint('Error processing item assignment: $e');
           }
         }
       });
-
-      // Track which items have been processed as shared to avoid duplicate shared item processing
-      final Set<String> processedSharedItemNames = {};
       
-      // Use name-based matching for shared items
-      for (final itemData in sharedItems) {
+      // Process shared items
+      for (final itemJson in sharedItems) {
         try {
-          final itemJson = itemData as Map<String, dynamic>;
-            
-          // Get the item name or id from the API response
-          final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
-          final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
-          final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
-          // Get the quantity from the shared item data (defaulting to 1 if not specified)
-          final quantity = itemJson.containsKey('quantity') ? (itemJson['quantity'] is int ? itemJson['quantity'] as int : 1) : 1;
+          final itemData = itemJson as Map<String, dynamic>;
+          final String itemName = itemData['name'] as String;
+          final dynamic itemIdData = itemData['id'];
+          final int itemId = itemIdData is int 
+              ? itemIdData 
+              : int.tryParse(itemIdData.toString()) ?? 0;
+          final int quantity = (itemData['quantity'] as num).toInt();
+          final double price = (itemData['price'] as num).toDouble();
+          final List<String> sharingPeople = itemData.containsKey('people')
+              ? List<String>.from(itemData['people'] as List)
+              : splitManager.people.map((p) => p.name).toList();
           
-          if (itemName == null && itemId == null && position == null) {
-            debugPrint('Warning: Shared item has no identifiers: $itemJson');
-            continue;
+          debugPrint('  - Processing shared item: $itemName (ID: $itemId, Quantity: $quantity, Price: \$${price.toStringAsFixed(2)})');
+          debugPrint('    Shared by: ${sharingPeople.join(', ')}');
+          
+          // First try to find an exact match by name
+          ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
+          
+          // If no exact match, try matching item by position (1-based) if ID is valid
+          if (matchingItem == null && itemId > 0 && itemId <= _receiptItems.length) {
+            matchingItem = _receiptItems[itemId - 1];
+            debugPrint('    No name match, using position match: ${matchingItem.name}');
           }
           
-          // Skip items that have already been processed as shared
-          if (itemName != null && processedSharedItemNames.contains(itemName.toLowerCase())) {
-            debugPrint('Skipping already processed shared item: $itemName');
-            continue;
-          }
-          
-          ReceiptItem? matchingItem;
-          
-          // Try matching by name first (preferred)
-          if (itemName != null) {
-            matchingItem = receiptItemsByName[itemName.toLowerCase()];
-            if (matchingItem != null) {
-              debugPrint('Found name match for shared item: "$itemName" with quantity: $quantity');
-            }
-          }
-          
-          // Try matching by id if provided (legacy support)
-          if (matchingItem == null && itemId != null) {
-            // Legacy position-based matching 
-            if (int.tryParse(itemId) != null) {
-              final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
-              if (index >= 0 && index < _receiptItems.length) {
-                matchingItem = _receiptItems[index];
-                debugPrint('Found position match using id field for shared item: $itemId: ${matchingItem.name} with quantity: $quantity');
-              }
-            }
-          }
-          
-          // Try matching by position field if provided 
-          if (matchingItem == null && position != null) {
-            matchingItem = receiptItemsByName['position_$position'];
-            if (matchingItem != null) {
-              debugPrint('Found position match for shared item: $position: ${matchingItem.name} with quantity: $quantity');
-            }
-          }
-          
-          if (matchingItem == null) {
-            debugPrint('Warning: No matching item found for shared item: $itemJson');
-            continue;
-          }
-          
-          // Get the list of people who are sharing this item
-          List<String> peopleNames = [];
-          if (itemJson.containsKey('people') && itemJson['people'] is List) {
-            peopleNames = (itemJson['people'] as List).map((p) => p.toString()).toList();
-            debugPrint('Found people for shared item ${matchingItem.name}: $peopleNames');
-          } else {
-            // If no people specified, default to all people sharing (legacy behavior)
-            peopleNames = splitManager.people.map((p) => p.name).toList();
-            debugPrint('No people specified in shared item ${matchingItem.name}, defaulting to all people: $peopleNames');
-          }
-          
-          // Check if any of these people have already been individually assigned this exact item
-          bool isAlreadyAssigned = false;
-          for (final personName in peopleNames) {
-            if (processedItemNames.contains('${personName}:${matchingItem.name.toLowerCase()}')) {
-              debugPrint('WARNING: Item ${matchingItem.name} was already assigned to $personName individually, ' +
-                         'but also appears in shared items. Skipping to avoid duplication.');
-              isAlreadyAssigned = true;
-              break;
-            }
-          }
-          
-          // Skip shared item processing if it was already individually assigned
-          if (isAlreadyAssigned) {
-            continue;
-          }
-          
-          // Mark this item as processed for shared
-          if (itemName != null) {
-            processedSharedItemNames.add(itemName.toLowerCase());
-          }
-          
-          // Find the specific Person objects for these people names
-          List<Person> specificPeople = [];
-          for (final name in peopleNames) {
-            // Find or create person if needed
-            Person? person = splitManager.people.firstWhere(
-              (p) => p.name == name,
-              orElse: () {
-                debugPrint('Creating missing person "$name" for shared item');
-                splitManager.addPerson(name);
-                return splitManager.people.firstWhere((p) => p.name == name);
-              }
+          if (matchingItem != null) {
+            // Create a copy with the correct quantity and price
+            final itemToShare = matchingItem.copyWith(
+              quantity: quantity,
+              price: price,
             );
-            specificPeople.add(person);
-          }
-          
-          debugPrint('Marking ${matchingItem.name} as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")} with quantity: $quantity');
-          
-          // Create a copy with the correct quantity
-          final itemToShare = matchingItem.copyWithQuantity(quantity);
-          
-          if (specificPeople.isNotEmpty) {
-            splitManager.markAsShared(itemToShare, people: specificPeople);
+            
+            // Get the list of people who should share this item
+            List<Person> peopleToShare = [];
+            
+            // If specific people were listed, use those
+            if (sharingPeople.isNotEmpty) {
+              for (final personName in sharingPeople) {
+                final matchingPerson = splitManager.people.firstWhere(
+                  (p) => p.name == personName,
+                  orElse: () => Person(name: personName), // Create if not found
+                );
+                
+                if (matchingPerson.name.isNotEmpty) {
+                  peopleToShare.add(matchingPerson);
+                  // Ensure the person is added to the split manager if they're new
+                  if (!splitManager.people.contains(matchingPerson)) {
+                    splitManager.addPerson(matchingPerson.name);
+                  }
+                }
+              }
+            } else {
+              // If no specific people, share with everyone
+              peopleToShare = splitManager.people;
+            }
+            
+            debugPrint('    Adding shared item: ${itemToShare.name} (Quantity: ${itemToShare.quantity})');
+            debugPrint('    Shared by ${peopleToShare.length} people');
+            
+            // Add to shared items
+            splitManager.addItemToShared(itemToShare, peopleToShare);
+            
+            // Add to processed list
+            processedItemNames.add(itemName.toLowerCase());
           } else {
-            debugPrint('WARNING: No people found to share item with, using default behavior');
-            splitManager.markAsShared(itemToShare);
+            debugPrint('    WARNING: Could not find matching item for shared item: $itemName');
           }
-          
         } catch (e) {
           debugPrint('Error processing shared item: $e');
         }
       }
       
-      // Use the same name-based matching for unassigned items
-      for (final itemData in unassignedItems) {
+      // Process unassigned items
+      for (final itemJson in unassignedItems) {
         try {
-          final itemJson = itemData as Map<String, dynamic>;
-            
-          // Get the item name or id from the API response
-          final itemName = itemJson.containsKey('name') ? itemJson['name'] as String? : null;
-          final itemId = itemJson.containsKey('id') ? itemJson['id']?.toString() : null;
-          final position = itemJson.containsKey('position') ? itemJson['position']?.toString() : null;
-          // Get the quantity from the unassigned item data (defaulting to 1 if not specified)
-          final quantity = itemJson.containsKey('quantity') ? (itemJson['quantity'] is int ? itemJson['quantity'] as int : 1) : 1;
+          final itemData = itemJson as Map<String, dynamic>;
+          final String itemName = itemData['name'] as String;
+          final dynamic itemIdData = itemData['id'];
+          final int itemId = itemIdData is int 
+              ? itemIdData 
+              : int.tryParse(itemIdData.toString()) ?? 0;
+          final int quantity = (itemData['quantity'] as num).toInt();
+          final double price = (itemData['price'] as num).toDouble();
+          final dynamic position = itemData['position'];
           
-          if (itemName == null && itemId == null && position == null) {
-            debugPrint('Warning: Unassigned item has no identifiers: $itemJson');
-            continue;
-          }
+          debugPrint('  - Processing unassigned item: $itemName (ID: $itemId, Quantity: $quantity, Price: \$${price.toStringAsFixed(2)})');
           
-          ReceiptItem? matchingItem;
+          // First try to find an exact match by name
+          ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
           
-          // Try matching by name first (preferred)
-          if (itemName != null) {
-            matchingItem = receiptItemsByName[itemName.toLowerCase()];
-            if (matchingItem != null) {
-              debugPrint('Found name match for unassigned item: "$itemName" with quantity: $quantity');
-              // Create a copy with the correct quantity
-              final itemToUnassign = matchingItem.copyWithQuantity(quantity);
-              splitManager.markAsUnassigned(itemToUnassign);
-              continue;
-            }
-          }
-          
-          // Try matching by id if provided (legacy support)
-          if (itemId != null) {
-            // Legacy position-based matching 
-            if (int.tryParse(itemId) != null) {
-              final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
-              if (index >= 0 && index < _receiptItems.length) {
-                matchingItem = _receiptItems[index];
-                debugPrint('Found position match using id field for unassigned item: $itemId: ${matchingItem.name} with quantity: $quantity');
-                // Create a copy with the correct quantity
-                final itemToUnassign = matchingItem.copyWithQuantity(quantity);
-                splitManager.markAsUnassigned(itemToUnassign);
-                continue;
-              }
-            }
+          // If no exact match, try matching item by position (1-based) if ID is valid
+          if (matchingItem == null && itemId > 0 && itemId <= _receiptItems.length) {
+            matchingItem = _receiptItems[itemId - 1];
+            debugPrint('    No name match, using position match: ${matchingItem.name}');
           }
           
           // Try matching by position field if provided 
-          if (position != null) {
-            matchingItem = receiptItemsByName['position_$position'];
-            if (matchingItem != null) {
-              debugPrint('Found position match for unassigned item: $position: ${matchingItem.name} with quantity: $quantity');
-              // Create a copy with the correct quantity
-              final itemToUnassign = matchingItem.copyWithQuantity(quantity);
-              splitManager.markAsUnassigned(itemToUnassign);
-              continue;
+          if (matchingItem == null && position != null) {
+            final int positionInt = position is int 
+                ? position 
+                : int.tryParse(position.toString()) ?? 0;
+                
+            if (positionInt > 0 && positionInt <= _receiptItems.length) {
+              matchingItem = _receiptItems[positionInt - 1];
+              debugPrint('    Using explicit position match: ${matchingItem.name}');
             }
           }
           
-          // If we got here, no match was found
-          debugPrint('Warning: No matching item found for unassigned item: $itemJson');
-          
+          if (matchingItem != null) {
+            // Create a copy with the correct quantity and price
+            final itemToUnassign = matchingItem.copyWith(
+              quantity: quantity,
+              price: price,
+            );
+            
+            debugPrint('    Marking as unassigned: ${itemToUnassign.name} (Quantity: ${itemToUnassign.quantity})');
+            
+            // Mark as unassigned
+            splitManager.markAsUnassigned(itemToUnassign);
+            
+            // Add to processed list
+            processedItemNames.add(itemName.toLowerCase());
+          } else {
+            debugPrint('    WARNING: Could not find matching item for unassigned item: $itemName');
+          }
         } catch (e) {
           debugPrint('Error processing unassigned item: $e');
         }
@@ -1390,9 +1726,6 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
         debugPrint('Setting initial subtotal to original total: $originalTotal');
       }
       
-      // Mark as initialized only after successful completion
-      splitManager.initialized = true;
-      
       // Log all items for debugging
       splitManager.logItems();
       
@@ -1404,7 +1737,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       debugPrint('Error initializing split manager: $e');
       debugPrint('Stack trace: $stackTrace');
       
-      // Don't set initialized to false to prevent further init attempts in this session
+      // Mark as initialized to prevent further init attempts in this session
       splitManager.initialized = true;
       
       // Show error notification
@@ -1629,9 +1962,108 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     debugPrint('=========================\n');
   }
   
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  // Add a method to save assignment changes to the database
+  Future<void> _autoSaveAssignments(SplitManager splitManager) async {
+    // Prevent multiple concurrent save operations
+    if (_isSaving) {
+      debugPrint('Already saving assignments, skipping duplicate save');
+      return;
+    }
+    
+    _isSaving = true;
+    
+    try {
+      // Only save if changes have been made and the manager is initialized
+      if (!splitManager.assignmentsModified || !splitManager.initialized) {
+        debugPrint('No assignment changes to save or manager not initialized');
+        return;
+      }
+      
+      // Check if there are actually people/items to save
+      if (splitManager.people.isEmpty && splitManager.sharedItems.isEmpty && splitManager.unassignedItems.isEmpty) {
+        debugPrint('No assignment data to save (empty state)');
+        return;
+      }
+      
+      // Check if the receipt has an ID
+      if (widget.receipt.id == null) {
+        debugPrint('ERROR: Receipt has no ID, cannot save assignments');
+        return;
+      }
+      
+      // Get the assignment data from the split manager
+      final Map<String, dynamic> assignmentData = splitManager.getAssignmentData();
+      
+      debugPrint('Auto-saving assignment changes to database');
+      
+      // Save to the database
+      await _receiptService.saveAssignPeopleToItemsResults(
+        widget.receipt.id!,
+        assignmentData
+      );
+      
+      // Reset the modified flag since we've saved the changes
+      splitManager.assignmentsModified = false;
+      
+      debugPrint('Assignment changes saved successfully');
+    } catch (e) {
+      debugPrint('Error auto-saving assignments: $e');
+    } finally {
+      _isSaving = false;
+    }
+  }
+
+  // Handle back button press
+  void _handleBackNavigation() {
+    // Try to safely save any pending changes first
+    SplitManager? splitManagerRef;
+    
+    try {
+      // Cancel any pending save timer
+      _saveTimer?.cancel();
+      _saveTimer = null;
+      
+      // Safely try to get the SplitManager and save changes
+      if (mounted) {
+        try {
+          splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+        } catch (providerError) {
+          debugPrint('Provider not available for back navigation: $providerError');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error during back navigation: $e');
+    }
+    
+    // Save changes if we got a reference to the SplitManager
+    if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
+      try {
+        // Get the assignment data from the split manager
+        final Map<String, dynamic> assignmentData = splitManagerRef.getAssignmentData();
+        
+        // Reset the modified flag since we've saved the changes
+        splitManagerRef.assignmentsModified = false;
+        
+        // Fire and forget - don't wait for the save to complete
+        _receiptService.saveAssignPeopleToItemsResults(
+          widget.receipt.id!,
+          assignmentData
+        ).then((_) {
+          debugPrint('Assignment changes saved on back navigation');
+        }).catchError((e) {
+          debugPrint('Error saving assignments on back: $e');
+        });
+      } catch (e) {
+        debugPrint('Error saving before back: $e');
+      }
+    }
+    
+    // If on the first step, show exit dialog
+    if (_currentStep == 0) {
+      _confirmCancel();
+    } else {
+      // Otherwise navigate to previous step
+      _navigateToPreviousStep();
+    }
   }
 } 

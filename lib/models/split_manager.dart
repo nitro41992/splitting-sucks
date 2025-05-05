@@ -19,6 +19,9 @@ class SplitManager extends ChangeNotifier {
   // Flag to track whether manager has been initialized from saved state
   bool _initialized = false;
   
+  // Flag to track if assignments have been modified and need saving
+  bool _assignmentsModified = false;
+  
   // Calculation properties
   double _subtotal = 0.0;
   double _tax = 0.0;
@@ -52,8 +55,12 @@ class SplitManager extends ChangeNotifier {
   // Add getters and setters for properties used in ReceiptWorkflowModal
   bool get initialized => _initialized;
   set initialized(bool value) {
+    // Set the flag without marking assignments as modified
     _initialized = value;
-    notifyListeners();
+    
+    // Use the parent notifyListeners directly to bypass our override
+    // that would mark assignments as modified
+    super.notifyListeners();
   }
   
   set originalReviewTotal(double? value) {
@@ -91,6 +98,21 @@ class SplitManager extends ChangeNotifier {
     notifyListeners();
   }
   // --- END EDIT ---
+
+  // Add these getters near other getters
+  bool get assignmentsModified => _assignmentsModified;
+  set assignmentsModified(bool value) { _assignmentsModified = value; }
+
+  // Override the notifyListeners method to mark assignments as modified
+  @override
+  void notifyListeners() {
+    // Only mark assignments as modified if the manager is initialized
+    // This prevents unnecessary auto-saves during initialization
+    if (_initialized) {
+      _assignmentsModified = true;
+    }
+    super.notifyListeners();
+  }
 
   void reset() {
     initialized = false;
@@ -753,5 +775,92 @@ class SplitManager extends ChangeNotifier {
     }
     
     debugPrint('===========================');
+  }
+
+  // Add a method to extract assignment data for the database
+  Map<String, dynamic> getAssignmentData() {
+    // Convert the current state to the format expected by the database
+    final Map<String, dynamic> assignments = {};
+    
+    // Process people and their assigned items
+    for (final person in _people) {
+      final List<Map<String, dynamic>> personItems = [];
+      
+      for (final item in person.assignedItems) {
+        // Find the position (1-based) for this item in receipt items
+        int position = 0;
+        for (int i = 0; i < _receiptItems.length; i++) {
+          if (_receiptItems[i].name == item.name) {
+            position = i + 1; // 1-based index
+            break;
+          }
+        }
+        
+        personItems.add({
+          'name': item.name,
+          'id': position,
+          'quantity': item.quantity,
+          'price': item.price,
+        });
+      }
+      
+      assignments[person.name] = personItems;
+    }
+    
+    // Process shared items
+    final List<Map<String, dynamic>> sharedItems = [];
+    for (final item in _sharedItems) {
+      // Find the position (1-based) for this item in receipt items
+      int position = 0;
+      for (int i = 0; i < _receiptItems.length; i++) {
+        if (_receiptItems[i].name == item.name) {
+          position = i + 1; // 1-based index
+          break;
+        }
+      }
+      
+      // Get the list of people sharing this item
+      final List<String> sharingPeople = [];
+      for (final person in _people) {
+        if (person.sharedItems.any((sharedItem) => sharedItem.name == item.name)) {
+          sharingPeople.add(person.name);
+        }
+      }
+      
+      sharedItems.add({
+        'name': item.name,
+        'id': position,
+        'quantity': item.quantity,
+        'price': item.price,
+        'people': sharingPeople,
+      });
+    }
+    
+    // Process unassigned items
+    final List<Map<String, dynamic>> unassignedItems = [];
+    for (final item in _unassignedItems) {
+      // Find the position (1-based) for this item in receipt items
+      int position = 0;
+      for (int i = 0; i < _receiptItems.length; i++) {
+        if (_receiptItems[i].name == item.name) {
+          position = i + 1; // 1-based index
+          break;
+        }
+      }
+      
+      unassignedItems.add({
+        'name': item.name,
+        'id': position,
+        'quantity': item.quantity,
+        'price': item.price,
+      });
+    }
+    
+    // Create the final data structure
+    return {
+      'assignments': assignments,
+      'shared_items': sharedItems,
+      'unassigned_items': unassignedItems,
+    };
   }
 } 
