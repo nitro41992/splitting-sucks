@@ -39,14 +39,44 @@ class ReceiptData(BaseModel):
     subtotal: float
 
 class AssignedItemRef(BaseModel): # Updated Assignment Model for simplicity
+    """Reference to a receipt item and its assigned quantity.
+    
+    This model represents an assignment of a receipt item to either:
+    1. A shared group (when used in shared_items)
+    2. The unassigned category (when used in unassigned_items)
+    
+    For shared items, the 'people' field contains a list of person names indicating
+    exactly who is sharing this item. This allows the UI to highlight only the
+    relevant people and accurately calculate each person's share of the cost.
+    """
+    id: int
+    quantity: int
+    people: List[str] = Field(default_factory=list, description="List of people names sharing this item")
+    
+class PersonItemRef(BaseModel):
+    """Reference to a receipt item assigned to a specific person.
+    
+    This model represents an item directly assigned to a person, without the 'people' field
+    since that's only relevant for shared items.
+    """
     id: int
     quantity: int
 
 class PersonAssignment(BaseModel):
     person_name: str
-    items: List[AssignedItemRef]
+    items: List[PersonItemRef]
 
 class AssignmentResult(BaseModel):
+    """Structured result from the assign_people_to_items function.
+    
+    This model reflects the data structure returned by the LLM when processing
+    voice assignment transcriptions. It includes information about which items
+    are assigned to which people, which items are shared, and which remain unassigned.
+    
+    For shared items, the 'people' field in each AssignedItemRef specifies exactly
+    which people are sharing that item, allowing for accurate highlighting and
+    cost distribution in the UI.
+    """
     person_assignments: List[PersonAssignment] # List of person assignments instead of Dict
     shared_items: List[AssignedItemRef]
     unassigned_items: List[AssignedItemRef]
@@ -294,7 +324,34 @@ def parse_receipt(req: https_fn.Request) -> https_fn.Response:
     timeout_sec=120
 )
 def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
-    """Receives transcription and receipt items, calls selected AI for assignment, returns structured result."""
+    """Receives transcription and receipt items, calls selected AI for assignment, returns structured result.
+    
+    Expected response format:
+    {
+      "assignments": {
+        "person_name": [{
+          "id": item_id,  
+          "quantity": int
+        }]
+      },
+      "shared_items": [
+        {
+          "id": item_id, 
+          "quantity": int, 
+          "people": ["person1", "person2"]  # List of people sharing this item
+        }
+      ],
+      "unassigned_items": [
+        {
+          "id": item_id, 
+          "quantity": int
+        }
+      ]
+    }
+    
+    The internal data model uses separate classes for items assigned directly to people (PersonItemRef) 
+    versus shared/unassigned items (AssignedItemRef), where only AssignedItemRef includes the 'people' field.
+    """
     print("--- ASSIGN PEOPLE FUNCTION HANDLER ENTERED ---")
     openai_client = None # Patched client
     gemini_client = None # Patched client for Gemini
@@ -431,9 +488,18 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
                 assignments_dict = {}
                 for person_assignment in result_dict['person_assignments']:
                     person_name = person_assignment['person_name']
+                    # Convert PersonItemRef to simple dict format for assignments
                     assignments_dict[person_name] = person_assignment['items']
                 result_dict['assignments'] = assignments_dict
                 del result_dict['person_assignments']
+                
+                # Ensure each shared item has the 'people' field populated
+                # If not explicitly set by the model, set default (all people)
+                all_people = list(assignments_dict.keys())
+                for shared_item in result_dict.get('shared_items', []):
+                    if 'people' not in shared_item or not shared_item['people']:
+                        print(f"Adding missing 'people' field to shared item: {shared_item}")
+                        shared_item['people'] = all_people
             return {"data": result_dict}
         else:
             raise Exception("Internal error: No assignment result was processed.")

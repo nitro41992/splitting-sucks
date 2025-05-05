@@ -152,7 +152,7 @@ class PersonCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                '\$${(person.totalAssignedAmount + calculatedSharedAmount).toStringAsFixed(2)}',
+                '\$${person.totalAssignedAmount.toStringAsFixed(2)}',
                 style: textTheme.labelLarge?.copyWith(
                   color: colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.bold,

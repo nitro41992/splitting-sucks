@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/receipt_item.dart';
 import '../../models/split_manager.dart';
+import '../../models/person.dart';
 import '../shared/quantity_selector.dart';
 
 class SharedItemCard extends StatelessWidget {
@@ -14,14 +15,25 @@ class SharedItemCard extends StatelessWidget {
     final splitManager = context.read<SplitManager>();
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final people = context.select((SplitManager sm) => sm.people);
+    
+    // Get only the people who are sharing this specific item
+    final sharingPeople = context.select<SplitManager, List<Person>>(
+      (sm) => sm.getPeopleForSharedItem(item)
+    );
+    
+    // Debug output
+    debugPrint('SharedItemCard: ${item.name} (ID: ${item.itemId}) is shared by ${sharingPeople.length} people: ${sharingPeople.map((p) => p.name).join(", ")}');
+    
+    // Get all people for potential assignment
+    final allPeople = context.select<SplitManager, List<Person>>((sm) => sm.people);
+    debugPrint('SharedItemCard: All people count: ${allPeople.length}');
 
     // Function to show toast message for assigned items
     void _showAssignedItemToast(BuildContext context) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Changes to price and quanitty can only be made if not assigned to a person'),
+          content: Text('Changes to price and quantity can only be made if not assigned to a person'),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
         )
@@ -83,15 +95,36 @@ class SharedItemCard extends StatelessWidget {
                 Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
                 const SizedBox(height: 16),
 
-                Text(
-                  'Shared with:',
-                  style: textTheme.titleSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
+                // Shared with section header with count
+                Row(
+                  children: [
+                    Text(
+                      'Shared with:',
+                      style: textTheme.titleSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${sharingPeople.length} ${sharingPeople.length == 1 ? 'person' : 'people'}',
+                        style: textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
-                if (people.isEmpty)
+                
+                // People section
+                if (allPeople.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4.0),
                     child: Text(
@@ -104,8 +137,8 @@ class SharedItemCard extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
-                    children: people.map((person) {
-                      final isSelected = person.sharedItems.contains(item);
+                    children: allPeople.map((person) {
+                      final isSelected = sharingPeople.contains(person);
                       return FilterChip(
                         label: Text(person.name, overflow: TextOverflow.ellipsis),
                         selected: isSelected,
@@ -114,9 +147,7 @@ class SharedItemCard extends StatelessWidget {
                             splitManager.addPersonToSharedItem(item, person);
                           } else {
                             splitManager.removePersonFromSharedItem(item, person);
-                            final remainingSharers = splitManager.people
-                                .where((p) => p.sharedItems.contains(item))
-                                .toList();
+                            final remainingSharers = splitManager.getPeopleForSharedItem(item);
                             if (remainingSharers.isEmpty) {
                               splitManager.removeItemFromShared(item);
                               splitManager.addUnassignedItem(item);
@@ -129,7 +160,7 @@ class SharedItemCard extends StatelessWidget {
                           color: isSelected
                               ? colorScheme.onPrimaryContainer
                               : colorScheme.onSurface,
-                          fontWeight: FontWeight.normal,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         visualDensity: VisualDensity.compact,
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -140,6 +171,7 @@ class SharedItemCard extends StatelessWidget {
             ),
           ),
 
+          // Total price
           Positioned(
             top: 8,
             right: 8,

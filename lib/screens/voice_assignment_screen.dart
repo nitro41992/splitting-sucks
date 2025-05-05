@@ -211,17 +211,24 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       print('DEBUG: Making API call for item assignment');
       print('DEBUG: Using transcription: $editedTranscription');
       
+      // Important: We use 1-based indexing for the API to match what's shown in the UI
       final request = {
         'data': {
           'transcription': editedTranscription,
           'receipt_items': widget.itemsToAssign.asMap().entries.map((entry) {
             final index = entry.key;
             final item = entry.value;
+            
+            // Use 1-based indexing for the API (to match UI display of item numbers)
+            final apiItemId = index + 1;
+            
+            print('DEBUG: Mapping item "${item.name}" (internal ID: ${item.itemId}, internal index: $index) → API ID: $apiItemId');
+            
             return {
-              'id': index + 1, // 1-based ID for the API
-              'item': item.name,  // Use the current name (which may have been edited)
-              'quantity': item.quantity, // Use the current quantity (which may have been edited)
-              'price': item.price, // Use the current price (which may have been edited)
+              'id': apiItemId, // 1-based ID for the API
+              'item': item.name,
+              'quantity': item.quantity,
+              'price': item.price,
             };
           }).toList(),
         }
@@ -666,17 +673,20 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                           width: 35,
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            // decoration: BoxDecoration(
-                                            //   color: colorScheme.secondaryContainer,
-                                            //   borderRadius: BorderRadius.circular(4),
-                                            // ),
-                                            child: Text(
-                                              '${index + 1}.', // 1-based index
-                                              style: textTheme.titleSmall?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: colorScheme.primary,
+                                            decoration: BoxDecoration(
+                                              color: colorScheme.primaryContainer,
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Tooltip(
+                                              message: 'Item #${index + 1} (internal ID: ${item.itemId})',
+                                              child: Text(
+                                                '${index + 1}', // 1-based index displayed more prominently
+                                                style: textTheme.titleSmall?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: colorScheme.onPrimaryContainer,
+                                                ),
+                                                textAlign: TextAlign.center,
                                               ),
-                                              textAlign: TextAlign.center,
                                             ),
                                           ),
                                         ),

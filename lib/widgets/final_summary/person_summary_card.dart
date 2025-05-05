@@ -26,10 +26,13 @@ class PersonSummaryCard extends StatelessWidget {
     final double tipRate = tipPercentage / 100.0;
 
     final double personSubtotal = person.totalAssignedAmount +
-        splitManager.sharedItems.where((item) => person.sharedItems.contains(item)).fold(
+        splitManager.sharedItems.where((item) => 
+          splitManager.getPeopleForSharedItem(item).contains(person)
+        ).fold(
             0.0,
             (sum, item) {
-              final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
+              final sharingPeople = splitManager.getPeopleForSharedItem(item);
+              final sharingCount = sharingPeople.length;
               return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
             },
           );
@@ -112,7 +115,8 @@ class PersonSummaryCard extends StatelessWidget {
             String details = '';
             double itemCost = item.price * item.quantity;
             if (isShared) {
-              final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
+              final sharingPeople = splitManager.getPeopleForSharedItem(item);
+              final sharingCount = sharingPeople.length;
               final individualShare = sharingCount > 0 ? (itemCost / sharingCount) : 0.0;
               details = '(${sharingCount}-way split: \$${individualShare.toStringAsFixed(2)})';
             } else {

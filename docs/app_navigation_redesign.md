@@ -80,7 +80,19 @@ users/{userId}/receipts/{receiptId}
   - thumbnail_uri: String  // Cached thumbnail reference for fast loading
   - parse_receipt: Map  // Direct output from parse_receipt function
   - transcribe_audio: Map  // Output from voice transcription function
-  - assign_people_to_items: Map  // Output from item assignment function
+  - assign_people_to_items: Map {
+      - assignments: Map<String, List<Map>> {  // Person name to items
+          "<person_name>": [
+            {"id": <item_id>, "quantity": <integer>}
+          ]
+        }
+      - shared_items: List<Map> [
+          {"id": <item_id>, "quantity": <integer>, "people": ["person1", "person2"]}  // List of people sharing this item
+        ]
+      - unassigned_items: List<Map> [
+          {"id": <item_id>, "quantity": <integer>}
+        ]
+    }
   - split_manager_state: Map  // Final app state with all calculations
   - metadata: Map {
       - created_at: Timestamp
@@ -97,6 +109,7 @@ This model:
 - Links data to the corresponding image and user
 - Includes minimal metadata for list display and search
 - Stores reference to a pre-generated thumbnail for fast loading in lists
+- **Explicitly tracks which people are sharing each shared item** through the "people" field in shared_items
 
 ## Implementation Approach
 
@@ -156,12 +169,25 @@ The data model and persistence approach fully supports user edits at all workflo
    - Changing which items are assigned to which people
    - Moving items between assigned, shared, and unassigned categories
    - Adjusting sharing proportions
+   - **Specifying which people share each shared item** using the `people` field in `shared_items`
    
    These will all be captured in the `assign_people_to_items` field and the `split_manager_state`.
 
 4. **Final Calculation Adjustments**: Any modifications to tax, tip, or other calculations will be reflected in the stored `split_manager_state`.
 
 This ensures that all user input and customizations are preserved when resuming a draft or viewing a completed receipt.
+
+### Improved Shared Item Handling
+
+The enhanced data model provides significant improvements in how shared items are handled:
+
+1. **Accurate Person Highlighting**: By explicitly tracking which people are sharing each item through the `people` field in `shared_items`, the UI can accurately highlight only the relevant people rather than assuming all people share every item.
+
+2. **Precise Cost Distribution**: The application can calculate each person's portion of shared items correctly by looking at exactly who is sharing each item, improving the accuracy of the final bill split.
+
+3. **Better UI Feedback**: In the Shared Items view, the app displays visual indicators showing exactly who is participating in each shared item, making it easier for users to verify that assignments are correct.
+
+4. **Flexible Sharing Patterns**: Users can create varied sharing patterns where different subsets of people share different items, supporting more complex real-world scenarios like appetizers shared by some people but not others.
 
 ## Key Implementation Tasks
 
@@ -193,6 +219,22 @@ This ensures that all user input and customizations are preserved when resuming 
 1. **Firestore Rules**: Ensure users can only access their own receipts
 2. **Secure Deletion**: Properly handle account and data deletion
 3. **Authentication**: Maintain secure auth flow in Settings section
+4. **Data Validation**: 
+   - Validate that people listed in shared items' "people" field exist in the receipt's people list
+   - Ensure quantities across assignments, shared items, and unassigned items match original receipt quantities
+   - Validate that calculations (tax, tip, total) are mathematically correct
+
+## Data Integrity Checks
+
+The application should implement the following data integrity checks to ensure consistent splitting:
+
+1. **Person Reference Validation**: When processing the `people` field in shared items, verify that all referenced people exist in the assignments section.
+
+2. **Quantity Accounting**: Ensure the sum of quantities for each item across assignments, shared items, and unassigned items equals the original quantity from the receipt.
+
+3. **Shared Item Consistency**: Validate that each shared item has at least two people listed in its `people` field (otherwise it should be individually assigned or unassigned).
+
+4. **Fallback Handling**: If the `people` field is missing in legacy data or from older cloud function responses, fall back to sharing the item among all people in the receipt.
 
 ## UI Mockups
 

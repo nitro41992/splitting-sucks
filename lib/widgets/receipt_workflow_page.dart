@@ -871,42 +871,57 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
       debugPrint('Unassigned items count: ${unassignedItems.length}');
       debugPrint('=========================');
       
-      // Add people first, ensuring we have valid people
-      assignments.forEach((name, _) {
-        if (name.isNotEmpty && !splitManager.people.any((p) => p.name == name)) {
-          splitManager.addPerson(name);
-          debugPrint('Added person: $name');
-        }
-      });
-      
       // Create a mapping of numeric IDs to receipt items for easier lookup
       final Map<String, ReceiptItem> receiptItemsById = {};
-      for (final item in _receiptItems) {
-        // Extract the numeric ID if possible (handle various ID formats)
-        String? numericId;
+      
+      // Important: The voice assignment API uses 1-based IDs (item #1, #2, etc.)
+      // but our internal IDs might be 0-based or have different formats
+      for (int i = 0; i < _receiptItems.length; i++) {
+        final item = _receiptItems[i];
+        
+        // Store by original itemId (which might be like "item_0_Hummus Garlic")
+        receiptItemsById[item.itemId] = item;
+        
+        // Also extract and store by numeric portion if it exists
         if (item.itemId.contains('_')) {
-          // Try to extract numeric ID from patterns like "item_123_name"
           final parts = item.itemId.split('_');
           for (final part in parts) {
             if (int.tryParse(part) != null) {
-              numericId = part;
+              final numericId = part;
+              receiptItemsById[numericId] = item;
+              debugPrint('Mapped numeric ID from itemId: $numericId -> ${item.name}');
+              
+              // Also map the 1-based equivalent that the API might return
+              final oneBased = (int.parse(numericId) + 1).toString();
+              receiptItemsById[oneBased] = item;
+              debugPrint('Also mapped 1-based ID: $oneBased -> ${item.name}');
               break;
             }
           }
         }
         
-        // If no numeric ID found, just use the full ID
-        final idKey = numericId ?? item.itemId;
-        receiptItemsById[idKey] = item;
+        // Always store by position - but we need BOTH 0-based and 1-based indexes
+        // 0-based index (internal)
+        receiptItemsById[i.toString()] = item;
+        debugPrint('Mapped 0-based position: $i -> ${item.name}');
         
-        // Also store by simple position (1-indexed as used by API)
-        final index = _receiptItems.indexOf(item) + 1;
-        receiptItemsById[index.toString()] = item;
+        // 1-based index (as shown in UI and used by API)
+        final oneBasedIndex = i + 1;
+        receiptItemsById[oneBasedIndex.toString()] = item;
+        debugPrint('Mapped 1-based position: $oneBasedIndex -> ${item.name}');
       }
       
-      debugPrint('Created ID mapping with ${receiptItemsById.length} entries:');
+      // Add debug logging for all receipt items and their IDs
+      debugPrint('=== RECEIPT ITEMS DEBUG ===');
+      for (int i = 0; i < _receiptItems.length; i++) {
+        final item = _receiptItems[i];
+        debugPrint('Receipt item #${i+1}: ${item.name}, ID: ${item.itemId}, internal index: $i');
+      }
+      
+      // Print ID mapping
+      debugPrint('=== ID MAPPING DEBUG ===');
       receiptItemsById.forEach((id, item) {
-        debugPrint('  ID: $id -> ${item.name} (\$${item.price})');
+        debugPrint('ID mapping: $id -> ${item.name}');
       });
       
       // Add all receipt items to the manager
@@ -914,7 +929,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
         splitManager.addReceiptItem(item);
       }
       
-      // Assign items to people - with improved ID matching
+      // Assign items to people - with improved ID mapping
       assignments.forEach((name, items) {
         if (name.isEmpty) return;
         
@@ -940,10 +955,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
               continue;
             }
             
-            debugPrint('Looking for matching item with ID: $itemId');
+            debugPrint('Looking for matching item with ID: $itemId for person: ${person.name}');
             
             // Direct lookup in our ID mapping
-            final matchingItem = receiptItemsById[itemId];
+            ReceiptItem? matchingItem = receiptItemsById[itemId];
             
             if (matchingItem != null) {
               debugPrint('Found exact match for ID $itemId: ${matchingItem.name} (\$${matchingItem.price})');
@@ -963,7 +978,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
               } else {
                 // Last resort - try matching by position in the list (1-indexed)
                 if (int.tryParse(itemId) != null) {
-                  final index = int.parse(itemId) - 1;
+                  final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
                   if (index >= 0 && index < _receiptItems.length) {
                     final item = _receiptItems[index];
                     debugPrint('Found positional match for ID $itemId: ${item.name} (\$${item.price})');
@@ -993,48 +1008,45 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
           }
           
           debugPrint('Looking for matching shared item with ID: $itemId');
+          debugPrint('Raw shared item data: $itemJson');
           
-          // Direct lookup in our ID mapping
-          final matchingItem = receiptItemsById[itemId];
-          
-          // Check if this shared item specifies which people are sharing it
-          List<String>? peopleNames;
+          // Get the list of people who are sharing this item
+          List<String> peopleNames = [];
           if (itemJson.containsKey('people') && itemJson['people'] is List) {
             peopleNames = (itemJson['people'] as List).map((p) => p.toString()).toList();
-            debugPrint('Found people for shared item: $peopleNames');
+            debugPrint('Found people for shared item $itemId: $peopleNames');
+          } else {
+            // If no people specified, default to all people sharing (legacy behavior)
+            peopleNames = splitManager.people.map((p) => p.name).toList();
+            debugPrint('No people specified in shared item $itemId, defaulting to all people: $peopleNames');
           }
           
-          // Find the specific people objects if names are provided
-          List<Person>? specificPeople;
-          if (peopleNames != null && peopleNames.isNotEmpty) {
-            specificPeople = splitManager.people
-                .where((person) => peopleNames!.contains(person.name))
-                .toList();
-                
-            // Create people if they don't exist yet
-            for (final name in peopleNames) {
-              if (!splitManager.people.any((p) => p.name == name)) {
+          // Find the specific Person objects for these people names
+          List<Person> specificPeople = [];
+          for (final name in peopleNames) {
+            // Find or create person if needed
+            Person? person = splitManager.people.firstWhere(
+              (p) => p.name == name,
+              orElse: () {
+                debugPrint('Creating missing person "$name" for shared item');
                 splitManager.addPerson(name);
+                return splitManager.people.firstWhere((p) => p.name == name);
               }
-            }
-            
-            // Refresh the list after potentially adding people
-            if (specificPeople.isEmpty) {
-              specificPeople = splitManager.people
-                  .where((person) => peopleNames!.contains(person.name))
-                  .toList();
-            }
-            
-            debugPrint('Found ${specificPeople.length} people objects for shared item');
+            );
+            specificPeople.add(person);
           }
+          
+          // Direct lookup in our ID mapping
+          ReceiptItem? matchingItem = receiptItemsById[itemId];
           
           if (matchingItem != null) {
             debugPrint('Found exact match for shared ID $itemId: ${matchingItem.name} (\$${matchingItem.price})');
+            debugPrint('Marking as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")}');
             
-            // Use the specific people if available, otherwise share with all people
-            if (specificPeople != null && specificPeople.isNotEmpty) {
+            if (specificPeople.isNotEmpty) {
               splitManager.markAsShared(matchingItem, people: specificPeople);
             } else {
+              debugPrint('WARNING: No people found to share item with, using default behavior');
               splitManager.markAsShared(matchingItem);
             }
           } else {
@@ -1048,25 +1060,27 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> {
             if (matchingItems.isNotEmpty) {
               final item = matchingItems.first;
               debugPrint('Found fuzzy match for shared ID $itemId: ${item.name} (\$${item.price})');
+              debugPrint('Marking as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")}');
               
-              // Use the specific people if available, otherwise share with all people
-              if (specificPeople != null && specificPeople.isNotEmpty) {
+              if (specificPeople.isNotEmpty) {
                 splitManager.markAsShared(item, people: specificPeople);
               } else {
+                debugPrint('WARNING: No people found to share item with, using default behavior');
                 splitManager.markAsShared(item);
               }
             } else {
               // Position-based match as last resort
               if (int.tryParse(itemId) != null) {
-                final index = int.parse(itemId) - 1;
+                final index = int.parse(itemId) - 1; // Convert from 1-indexed to 0-indexed
                 if (index >= 0 && index < _receiptItems.length) {
                   final item = _receiptItems[index];
                   debugPrint('Found positional match for shared ID $itemId: ${item.name} (\$${item.price})');
+                  debugPrint('Marking as shared among ${specificPeople.length} people: ${specificPeople.map((p) => p.name).join(", ")}');
                   
-                  // Use the specific people if available, otherwise share with all people
-                  if (specificPeople != null && specificPeople.isNotEmpty) {
+                  if (specificPeople.isNotEmpty) {
                     splitManager.markAsShared(item, people: specificPeople);
                   } else {
+                    debugPrint('WARNING: No people found to share item with, using default behavior');
                     splitManager.markAsShared(item);
                   }
                 } else {

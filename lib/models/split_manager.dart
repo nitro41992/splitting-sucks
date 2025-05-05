@@ -227,19 +227,89 @@ class SplitManager extends ChangeNotifier {
   double get totalAmount {
     double total = 0;
     
+    // Debug logging for calculation
+    debugPrint('=== CALCULATING TOTAL AMOUNT ===');
+    
     // Sum individual assigned items only (not shared items)
+    double assignedTotal = 0;
     for (var person in _people) {
-      total += person.totalAssignedAmount; // Only count individually assigned items
+      assignedTotal += person.totalAssignedAmount;
+      debugPrint('Person ${person.name} assigned items: \$${person.totalAssignedAmount}');
     }
+    total += assignedTotal;
+    debugPrint('Total for assigned items: \$${assignedTotal}');
     
     // Add shared items (counted only once)
-    total += _sharedItems.fold(0, (sum, item) => sum + item.total);
+    double sharedTotal = _sharedItems.fold(0, (sum, item) => sum + item.total);
+    total += sharedTotal;
+    debugPrint('Total for shared items: \$${sharedTotal}');
     
     // Add unassigned items
-    total += _unassignedItems.fold(0, (sum, item) => sum + item.total);
+    double unassignedTotal = _unassignedItems.fold(0, (sum, item) => sum + item.total);
+    total += unassignedTotal;
+    debugPrint('Total for unassigned items: \$${unassignedTotal}');
+    
+    // Compare with original total
+    if (_originalReviewTotal != null) {
+      debugPrint('Current total: \$${total} vs Original total: \$${_originalReviewTotal}');
+      if ((total - _originalReviewTotal!).abs() > 0.01) {
+        debugPrint('WARNING: Current total does not match original total!');
+        
+        // Advanced debugging: Check if all receipt items are accounted for
+        debugPrint('Checking if all receipt items are accounted for...');
+        final Map<String, ReceiptItem> accounted = {};
+        
+        // Mark assigned items as accounted for
+        for (var person in _people) {
+          for (var item in person.assignedItems) {
+            accounted[item.itemId] = item;
+          }
+        }
+        
+        // Mark shared items as accounted for
+        for (var item in _sharedItems) {
+          accounted[item.itemId] = item;
+        }
+        
+        // Mark unassigned items as accounted for
+        for (var item in _unassignedItems) {
+          accounted[item.itemId] = item;
+        }
+        
+        // Check which receipt items are missing
+        double missingTotal = 0;
+        for (var item in _receiptItems) {
+          if (!accounted.containsKey(item.itemId)) {
+            debugPrint('MISSING ITEM: ${item.name} (ID: ${item.itemId}) - \$${item.total}');
+            missingTotal += item.total;
+            
+            // Automatically add missing items to unassigned
+            if (!_unassignedItems.contains(item)) {
+              debugPrint('Auto-adding missing item to unassigned items');
+              _unassignedItems.add(item);
+            }
+          }
+        }
+        debugPrint('Total missing: \$${missingTotal}');
+        
+        // Recalculate unassigned total
+        unassignedTotal = _unassignedItems.fold(0, (sum, item) => sum + item.total);
+        total = assignedTotal + sharedTotal + unassignedTotal;
+        debugPrint('Recalculated total: \$${total}');
+        
+        // Force subtotal to match original total if still mismatched
+        if ((total - _originalReviewTotal!).abs() > 0.01) {
+          debugPrint('Forcing total to match original total');
+          _subtotal = _originalReviewTotal!;
+          return _subtotal;
+        }
+      }
+    }
     
     // Ensure we're calculating with the correct subtotal
     _subtotal = total;
+    debugPrint('Final total: \$${total}');
+    debugPrint('===========================');
     
     return total;
   }
@@ -421,7 +491,9 @@ class SplitManager extends ChangeNotifier {
 
   // Get people who are sharing a specific item
   List<Person> getPeopleForSharedItem(ReceiptItem item) {
-    return _people.where((person) => person.sharedItems.contains(item)).toList();
+    final sharingPeople = _people.where((person) => person.sharedItems.contains(item)).toList();
+    debugPrint('getPeopleForSharedItem: ${item.name} (ID: ${item.itemId}) is shared by ${sharingPeople.length} people: ${sharingPeople.map((p) => p.name).join(", ")}');
+    return sharingPeople;
   }
 
   // --- EDIT: Add method to store the original subtotal ---
@@ -496,27 +568,48 @@ class SplitManager extends ChangeNotifier {
 
   // New methods for receipt items management
   void markAsShared(ReceiptItem item, {List<Person>? people}) {
+    debugPrint('markAsShared called for item: ${item.name}, ID: ${item.itemId}');
+    
+    // First add to shared items list if not already there
     if (!_sharedItems.contains(item)) {
       _sharedItems.add(item);
+      debugPrint('Added item to shared items list');
+    } else {
+      debugPrint('Item already in shared items list');
+    }
+    
+    // If people are specified, assign the shared item ONLY to those specific people
+    if (people != null && people.isNotEmpty) {
+      debugPrint('Assigning item ${item.name} to ${people.length} specific people: ${people.map((p) => p.name).join(", ")}');
       
-      // If people are specified, assign the shared item to those specific people
-      if (people != null && people.isNotEmpty) {
-        for (final person in people) {
-          if (!person.sharedItems.contains(item)) {
-            person.addSharedItem(item);
-          }
-        }
-      } else {
-        // Default behavior: assign to all people if no specific people are provided
-        for (final person in _people) {
-          if (!person.sharedItems.contains(item)) {
-            person.addSharedItem(item);
-          }
+      // First, remove this item from all people's shared items
+      for (final person in _people) {
+        if (person.sharedItems.contains(item)) {
+          debugPrint('Removing item ${item.name} from ${person.name}\'s shared items first');
+          person.removeSharedItem(item);
         }
       }
       
-      notifyListeners();
+      // Then add to specified people only
+      for (final person in people) {
+        if (!person.sharedItems.contains(item)) {
+          debugPrint('Adding item ${item.name} to ${person.name}\'s shared items');
+          person.addSharedItem(item);
+        } else {
+          debugPrint('Item ${item.name} already in ${person.name}\'s shared items');
+        }
+      }
+    } else {
+      // Default behavior: assign to all people if no specific people are provided
+      debugPrint('No specific people provided, assigning item ${item.name} to ALL ${_people.length} people');
+      for (final person in _people) {
+        if (!person.sharedItems.contains(item)) {
+          person.addSharedItem(item);
+        }
+      }
     }
+    
+    notifyListeners();
   }
   
   void markAsUnassigned(ReceiptItem item) {

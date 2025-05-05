@@ -84,6 +84,7 @@ Analyze the voice transcription and the provided JSON list of receipt items to d
 5.  Ensure quantities in the assignments match the receipt (provide positive integers).
 6.  If not all instances of an item are assigned via transcription, place the remaining quantity/item in 'unassigned_items'.
 7.  Pay close attention if the transcription uses numbers that seem to correspond to item 'id's.
+8.  For "shared_items", ALWAYS include a "people" field with a list of names of exactly who is sharing each item.
 
 Return ONLY a JSON object matching the following structure:
 {
@@ -94,7 +95,7 @@ Return ONLY a JSON object matching the following structure:
     ...
   },
   "shared_items": [
-    {"id": <item_id>, "quantity": <int>}
+    {"id": <item_id>, "quantity": <int>, "people": ["person1", "person2"]}
   ],
   "unassigned_items": [
     {"id": <item_id>, "quantity": <int>}
@@ -116,7 +117,7 @@ Return ONLY a JSON object matching the following structure:
     ...
   },
   "shared_items": [
-    {"id": <item_id>, "quantity": <integer_shared_quantity>}
+    {"id": <item_id>, "quantity": <integer_shared_quantity>, "people": ["person1", "person2"]}
   ],
   "unassigned_items": [
     {"id": <item_id>, "quantity": <integer_unassigned_quantity>}
@@ -130,6 +131,7 @@ Return ONLY a JSON object matching the following structure:
 4.  The sum of quantities for a specific item ID across "assignments", "shared_items", and "unassigned_items" must equal the original quantity of that item in the input receipt list.
 5.  If the transcription mentions item numbers, assume they correspond to the item 'id's.
 6.  If an item is mentioned but not all quantity is claimed, assign the claimed amount and put the remainder in "unassigned_items".
+7.  For "shared_items", ALWAYS include a "people" field with a list of names of exactly who is sharing each item.
 
 Return *only* the JSON object."""}
         },

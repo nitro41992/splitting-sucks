@@ -113,9 +113,10 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
     for (var person in people) {
       final double personSubtotal = person.totalAssignedAmount +
           splitManager.sharedItems.where((item) =>
-            person.sharedItems.contains(item)).fold(0.0,
+            splitManager.getPeopleForSharedItem(item).contains(person)).fold(0.0,
             (sum, item) {
-              final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
+              final sharingPeople = splitManager.getPeopleForSharedItem(item);
+              final sharingCount = sharingPeople.length;
               return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
             });
       final double personTax = personSubtotal * taxRate;
