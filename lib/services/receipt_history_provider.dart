@@ -1,13 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../env/env.dart';
 import '../models/receipt_history.dart';
 import '../models/split_manager.dart';
 import 'receipt_history_service.dart';
-import 'mock_receipt_history_service.dart';
 
-/// A provider class that decides whether to use the real or mock receipt history service
-/// This follows the strategy pattern to provide a consistent interface regardless of implementation
+/// A provider class for receipt history operations
+/// This class provides a clean interface for receipt history operations
 class ReceiptHistoryProvider {
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
@@ -35,13 +33,9 @@ class ReceiptHistoryProvider {
     return _instance!;
   }
   
-  // Get the appropriate service implementation based on the environment
-  dynamic get _service {
-    if (Env.useMockReceiptHistory) {
-      return MockReceiptHistoryService(auth: _auth);
-    } else {
-      return ReceiptHistoryService(firestore: _firestore, auth: _auth);
-    }
+  // Always use the real Firestore service
+  ReceiptHistoryService get _service {
+    return ReceiptHistoryService(firestore: _firestore, auth: _auth);
   }
   
   // Save a receipt
@@ -106,6 +100,6 @@ class ReceiptHistoryProvider {
     );
   }
   
-  // Check if mock data is being used
-  bool get isMockData => Env.useMockReceiptHistory;
+  // This app always uses real data now
+  bool get isMockData => false;
 } 

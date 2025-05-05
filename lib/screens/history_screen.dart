@@ -7,6 +7,7 @@ import '../services/receipt_history_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cards/receipt_history_card.dart';
+import '../utils/env_checker.dart';
 import 'receipt_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -30,6 +31,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
+    // Log environment status for this screen
+    EnvironmentChecker.logStatus('HistoryScreen');
     _loadReceipts();
     
     // Add scroll listener to show/hide scroll-to-top button
@@ -74,26 +77,40 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   void _applyFilters() {
-    setState(() {
+    try {
+      // Create a modifiable copy of receipts
+      List<ReceiptHistory> filtered = [];
+      
       if (_filterStatus == 'all') {
-        _filteredReceipts = _receipts;
+        filtered = List<ReceiptHistory>.from(_receipts);
       } else {
-        _filteredReceipts = _receipts
+        filtered = _receipts
             .where((receipt) => receipt.status == _filterStatus)
             .toList();
       }
 
       if (_searchQuery.isNotEmpty) {
         final lowerQuery = _searchQuery.toLowerCase();
-        _filteredReceipts = _filteredReceipts
+        filtered = filtered
             .where((receipt) =>
                 receipt.restaurantName.toLowerCase().contains(lowerQuery))
             .toList();
       }
 
       // Sort by date (newest first)
-      _filteredReceipts.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    });
+      filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      setState(() {
+        _filteredReceipts = filtered;
+      });
+    } catch (e) {
+      debugPrint('Error applying filters: $e');
+      // Fallback to avoid UI issues
+      setState(() {
+        _filteredReceipts = [];
+      });
+      _showErrorMessage('Error filtering receipts: Using empty list');
+    }
   }
 
   void _onFilterChanged(String status) {
@@ -411,23 +428,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return CupertinoPageScaffold(
         navigationBar: CupertinoNavigationBar(
           middle: const Text('History'),
-          trailing: _historyProvider.isMockData
-              ? Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.activeOrange,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'MOCK',
-                    style: TextStyle(
-                      color: CupertinoColors.black,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                )
-              : null,
         ),
         child: _buildBody(),
       );
@@ -435,14 +435,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return Scaffold(
         appBar: AppBar(
           title: const Text('History'),
-          actions: [
-            if (_historyProvider.isMockData)
-              Chip(
-                label: const Text('MOCK DATA'),
-                backgroundColor: Colors.amber,
-                labelStyle: const TextStyle(color: Colors.black),
-              ),
-          ],
         ),
         body: _buildBody(),
         // Floating action button for Android to scroll to top
@@ -464,32 +456,38 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
   
   Widget _buildBody() {
-    return _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : Column(
-            children: [
-              _buildSearchField(),
-              _buildFilterChips(),
-              const SizedBox(height: 8),
-              Expanded(
-                child: _filteredReceipts.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16.0),
-                        itemCount: _filteredReceipts.length,
-                        itemBuilder: (context, index) {
-                          final receipt = _filteredReceipts[index];
-                          return ReceiptHistoryCard(
-                            receipt: receipt,
-                            onTap: () => _viewReceiptDetails(receipt),
-                            onDelete: () => _deleteReceipt(receipt),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          );
+    // Show loading indicator
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    // History screen doesn't need environment warnings
+    // The core functionality works without special environment variables
+    
+    return Column(
+      children: [
+        _buildSearchField(),
+        _buildFilterChips(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: _filteredReceipts.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16.0),
+                  itemCount: _filteredReceipts.length,
+                  itemBuilder: (context, index) {
+                    final receipt = _filteredReceipts[index];
+                    return ReceiptHistoryCard(
+                      receipt: receipt,
+                      onTap: () => _viewReceiptDetails(receipt),
+                      onDelete: () => _deleteReceipt(receipt),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
   }
 
   @override

@@ -6,7 +6,8 @@ import 'mock_data_service.dart';
 import 'package:flutter/foundation.dart';
 
 /// A mock implementation of the receipt history service that uses in-memory data
-/// This service is used when mock data is enabled in the app
+/// This service is DEPRECATED and should not be used in production
+/// It's kept for reference and future testing utilities
 class MockReceiptHistoryService {
   final FirebaseAuth _auth;
   List<ReceiptHistory> _mockReceipts = [];
@@ -27,6 +28,10 @@ class MockReceiptHistoryService {
     _instance ??= MockReceiptHistoryService._(
       auth: auth,
     );
+    
+    // Log that we're using mock service - helps with debugging
+    debugPrint("⚠️ WARNING: MockReceiptHistoryService is deprecated. Please use real Firestore data.");
+    
     return _instance!;
   }
   
@@ -47,22 +52,24 @@ class MockReceiptHistoryService {
   
   // Initialize mock data
   Future<void> _initializeIfNeeded() async {
+    if (_initialized) return;
+    
+    debugPrint("Initializing MockReceiptHistoryService...");
+    
     try {
-      if (_initialized) return;
-      
+      // Create mock receipts through the MockDataService
       _mockReceipts = MockDataService.createMockReceiptHistories(
         userId: _userId,
         count: 5, // Create 5 mock receipts
       );
       
-      _initialized = true;
-      debugPrint("MockReceiptHistoryService initialized successfully with 5 mock receipts");
+      debugPrint("MockReceiptHistoryService initialized with ${_mockReceipts.length} mock receipts");
     } catch (e) {
       debugPrint("Error initializing mock receipt history: $e");
-      // Set empty list as fallback
       _mockReceipts = [];
-      _initialized = true;
     }
+    
+    _initialized = true;
   }
   
   // Save a receipt
@@ -109,7 +116,8 @@ class MockReceiptHistoryService {
   Future<List<ReceiptHistory>> getAllReceipts() async {
     await _initializeIfNeeded();
     
-    return List.unmodifiable(_mockReceipts);
+    // Return a copy of the list instead of an unmodifiable list
+    return List<ReceiptHistory>.from(_mockReceipts);
   }
   
   // Get receipts filtered by status

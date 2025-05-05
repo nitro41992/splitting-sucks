@@ -15,9 +15,30 @@ import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
 import 'routes.dart';
 import 'firebase_options.dart';
+import 'env/env.dart';
 
 // Global variable to track initialization
 bool firebaseInitialized = false;
+
+// Debug function to print all environment variables
+void printEnvVariables() {
+  debugPrint('=== Environment Variables ===');
+  debugPrint('dotenv initialized: ${dotenv.isInitialized}');
+  debugPrint('dotenv env size: ${dotenv.env.length}');
+  
+  if (dotenv.isInitialized) {
+    dotenv.env.forEach((key, value) {
+      // Mask sensitive values
+      final maskedValue = key.contains('KEY') || key.contains('SECRET') 
+        ? '${value.substring(0, 3)}...${value.substring(value.length - 3)}' 
+        : value;
+      debugPrint('$key: $maskedValue');
+    });
+  }
+  
+  debugPrint('USE_MOCK_RECEIPT_HISTORY: ${dotenv.env['USE_MOCK_RECEIPT_HISTORY']}');
+  debugPrint('=== End Environment Variables ===');
+}
 
 void main() async {
   // Wait for Flutter to be fully initialized
@@ -27,10 +48,12 @@ void main() async {
   try {
     await dotenv.load(fileName: ".env");
     debugPrint("Environment variables loaded successfully");
+    // Log environment status
+    Env.logEnvStatus();
   } catch (e) {
     debugPrint("Error loading .env file: $e - using default values");
-    // Set fallback environment values if .env file is missing
-    dotenv.env['USE_MOCK_RECEIPT_HISTORY'] = 'true';
+    // Log environment status with fallbacks
+    Env.logEnvStatus();
   }
   
   // Initialize Firebase at the entry point

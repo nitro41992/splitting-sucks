@@ -275,31 +275,29 @@ This section will provide account management options:
 
 ### Completed Items
 1. ✅ Created data model class (`ReceiptHistory`) for storing receipt history in Firestore
-2. ✅ Implemented service layer for receipt history operations:
-   - `ReceiptHistoryService` - Actual Firestore implementation
-   - `MockReceiptHistoryService` - Mock implementation for testing
-   - `ReceiptHistoryProvider` - Strategy pattern provider for selecting implementation
-3. ✅ Created environment flag (`USE_MOCK_RECEIPT_HISTORY`) for toggling between real and mock data
+2. ✅ Implemented service layer for receipt history operations with direct Firestore integration
+3. ✅ Removed environment flag toggle; app now always uses real Firestore data
 4. ✅ Updated Firestore security rules to protect receipt history data
 5. ✅ Added comprehensive data validation in security rules
-6. ✅ Enhanced `MockDataService` with receipt history generation capabilities
-7. ✅ Created test data population script (`scripts/populate_test_data.dart`)
-8. ✅ Successfully populated Firestore with mock receipt history data using Node.js script
-9. ✅ Created 3 test receipts in the database (2 completed, 1 draft) with proper structure
-10. ✅ Implemented new app navigation structure with bottom navigation bar (Create, History, Settings)
-11. ✅ Designed and implemented History screen with filtering and search capabilities
-12. ✅ Developed Receipt Detail view for viewing saved receipt information
-13. ✅ Created step indicator for the Create workflow to improve user experience
-14. ✅ Implemented Settings screen with user profile display and logout functionality
-15. ✅ Added robust error handling for environment configuration issues
-16. ✅ Implemented platform-specific UI adaptations for iOS and Android
-17. ✅ Added graceful fallbacks for authentication and initialization errors
+6. ✅ Enhanced `MockDataService` to generate realistic test data for Firestore
+7. ✅ Created utilities for populating test data in development environments
+8. ✅ Successfully populated Firestore with receipt history test data
+9. ✅ Implemented new app navigation structure with bottom navigation bar (Create, History, Settings)
+10. ✅ Designed and implemented History screen with filtering and search capabilities
+11. ✅ Developed Receipt Detail view for viewing saved receipt information
+12. ✅ Created step indicator for the Create workflow to improve user experience
+13. ✅ Implemented Settings screen with user profile display and logout functionality
+14. ✅ Added robust error handling for environment configuration issues
+15. ✅ Implemented platform-specific UI adaptations for iOS and Android
+16. ✅ Added graceful fallbacks for authentication and initialization errors
+17. ✅ Fixed data retrieval issues with sorting and filtering operations
 
 ### In Progress
 1. 🔄 Integration of "Edit" functionality to load receipts back into the Create workflow
 2. 🔄 Account deletion process implementation
 3. 🔄 Create workflow auto-save functionality
 4. 🔄 Cross-device testing across Android and iOS
+5. 🔄 Data population and verification with Firestore
 
 ### Pending
 1. ⏳ Add app-specific settings (appearance, notifications)
@@ -313,6 +311,7 @@ This section will provide account management options:
 - **State Preservation**: The current implementation stores the complete state for restoration, but we may need to optimize storage size for very large receipts.
 - **Query Performance**: As users accumulate many receipts, we will need to implement pagination and optimize queries.
 - **Data Integrity**: Consider adding server-side validation through Cloud Functions to ensure data consistency.
+- **Real-world Data**: Now that we're using real Firestore data, we should monitor performance and structure of real user data.
 
 ### Security
 - **Storage Security**: Ensure Firebase Storage rules are updated to protect receipt images in a way that aligns with our Firestore security model.
@@ -583,28 +582,65 @@ The Settings section will contain user account options and app settings:
 └─────────────────┴─────────────────┴─────────────────┘
 ```
 
-## Mock Data Implementation for Testing
+## Firestore Data for Receipt History
 
-To facilitate testing of the new History functionality without incurring AI processing costs, we'll implement a comprehensive mock data approach:
+The History screen uses data directly from Firestore. This approach offers several benefits:
 
-### Mock Receipt Data Script
+### Real Database Testing
+- Testing against the actual database structure and Firebase SDK
+- Validating Firestore security rules in real scenarios
+- Ability to test with varying amounts of data for performance analysis
 
-Create a script to populate the Firestore database with realistic test receipt data:
+### Data Population Methods
+There are multiple ways to populate test data:
 
+1. **Creating Receipts Through the App**: 
+   - Use the "Create" tab to generate real receipts with real data
+   - Go through the complete workflow and save them to Firestore
+
+2. **Using Test Data Generation Utilities**:
+   - `MockDataService` - Provides utilities to generate test receipt data
+   - This service only generates test data with realistic values
+   - Data generated is saved to the real Firestore database
+
+3. **Direct Firebase Console Creation**:
+   - Create documents directly in the Firebase Console for testing
+
+### Test Data vs. Mock Services
+
+It's important to understand the distinction:
+
+- **Test Data**: Realistic sample data used for testing that is stored in your actual Firestore database
+- **Mock Services**: An implementation that bypasses the real backend service (no longer used)
+
+The app now always uses the real Firestore database with real services, but can be populated with test data for development and testing purposes.
+
+### Database Structure
+The receipt history data is stored in Firestore following this structure:
 ```
-├── scripts
-│   ├── populate_test_data.dart  # New script to populate test data
+users/{userId}/receipts/{receiptId}
+  - image_uri: String (GCS path)
+  - created_at: Timestamp
+  - updated_at: Timestamp 
+  - userId: String
+  - restaurant_name: String
+  - status: String ('completed' or 'draft')
+  - total_amount: Number
+  - receipt_data: Map { items: Array<Map> }
+  - transcription: String (optional)
+  - people: Array<String>
+  - person_totals: Array<Map>
+  - split_manager_state: Map
 ```
 
-#### Script Features:
-- Populate 4-5 test receipts with varying characteristics
-- Include both completed and draft receipts
-- Use real stored receipt images from Firebase Storage
-- Follow the exact database structure defined in this plan
-- Easily runnable to restore test data after deletion testing
+### Testing Considerations
+- Test with multiple user accounts to validate security rules
+- Create receipts with varying complexity (different number of items, people)
+- Include both 'completed' and 'draft' status receipts
+- Test with realistic image references to validate thumbnail generation
 
-#### Test Receipt Images:
-The following images are already uploaded to Firebase Storage and will be referenced in the mock data:
+### Receipt Images
+For testing, the following images are stored in Firebase Storage:
 - `gs://billfie.firebasestorage.app/receipts/PXL_20240815_225730738.jpg` (Restaurant receipt)
 - `gs://billfie.firebasestorage.app/receipts/PXL_20241207_220416408.MP.jpg` (Grocery receipt)
 - `gs://billfie.firebasestorage.app/receipts/PXL_20250419_011719007.jpg` (Coffee shop receipt)

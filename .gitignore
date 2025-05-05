@@ -50,6 +50,7 @@ functions/firebase-tools/.env
 .pub-cache/
 .pub/
 /build/
+flutter_*.png
 
 # Symbolication related
 app.*.symbols
