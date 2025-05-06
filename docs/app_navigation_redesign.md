@@ -43,19 +43,19 @@ A robust data model and a clear persistence strategy are crucial for enabling dr
 users/{userId}/receipts/{receiptId}
   - image_uri: String  // Image reference for the receipt
   - thumbnail_uri: String  // Cached thumbnail reference for fast loading
-  - parse_receipt: Map  // Direct output from parse_receipt function
+  - parse_receipt: Map  // Direct output from parse_receipt function (each item includes name, quantity, price)
   - transcribe_audio: Map  // Output from voice transcription function
   - assign_people_to_items: Map {
       - assignments: Map<String, List<Map>> {  // Person name to items
           "<person_name>": [
-            {"name": "<item_name>", "quantity": <integer>}
+            {"name": "<item_name>", "quantity": <integer>, "price": <float>}
           ]
         }
       - shared_items: List<Map> [
-          {"name": "<item_name>", "quantity": <integer>, "people": ["person1", "person2"]}
+          {"name": "<item_name>", "quantity": <integer>, "price": <float>, "people": ["person1", "person2"]}
         ]
       - unassigned_items: List<Map> [
-          {"name": "<item_name>", "quantity": <integer>}
+          {"name": "<item_name>", "quantity": <integer>, "price": <float>}
         ]
     }
   - split_manager_state: Map  // Final app state with all calculations
@@ -113,10 +113,12 @@ The data model and persistence logic ensure all user modifications are saved:
     class ItemDetail(BaseModel):
         name: str
         quantity: int
+        price: float
 
     class SharedItemDetail(BaseModel):
         name: str
         quantity: int
+        price: float
         people: List[str]
 
     class AssignPeopleToItemsNewOutput(BaseModel):

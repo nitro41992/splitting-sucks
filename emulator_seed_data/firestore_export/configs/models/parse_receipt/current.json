@@ -1,0 +1,13 @@
+{
+  "selected_provider": "gemini",
+  "providers": {
+    "openai": {
+      "model_name": "gpt-4o",
+      "max_tokens": 4096
+    },
+    "gemini": {
+      "model_name": "gemini-2.5-flash-preview-04-17",
+      "max_tokens": 8192
+    }
+  }
+} 

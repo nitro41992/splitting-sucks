@@ -1,0 +1,13 @@
+{
+  "selected_provider": "openai",
+  "providers": {
+    "openai": {
+      "model_name": "whisper-1",
+      "max_tokens": null
+    },
+    "gemini": {
+      "model_name": "gemini-2.5-flash-preview-04-17",
+      "max_tokens": null
+    }
+  }
+} 

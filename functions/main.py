@@ -55,6 +55,23 @@ class AssignmentResult(BaseModel):
 class TranscriptionResult(BaseModel):
     text: str
 
+# --- New Pydantic Models for Redesigned Receipt Data Structure ---
+class ItemDetail(BaseModel):
+    name: str
+    quantity: int
+    price: float
+
+class SharedItemDetail(BaseModel):
+    name: str
+    quantity: int
+    price: float
+    people: List[str]
+
+class AssignPeopleToItems(BaseModel):
+    assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
+    shared_items: List[SharedItemDetail] = Field(default_factory=list)
+    unassigned_items: List[ItemDetail] = Field(default_factory=list)
+
 # --- Helper Functions ---
 
 def _download_blob_to_tempfile(bucket_name, blob_name):

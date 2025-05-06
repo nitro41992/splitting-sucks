@@ -1,0 +1,10 @@
+{
+  "providers": {
+    "openai": {
+      "prompt_text": null
+    },
+    "gemini": {
+      "prompt_text": null
+    }
+  }
+} 
