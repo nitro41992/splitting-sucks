@@ -38,6 +38,7 @@ The app currently uses a bottom navigation bar with 5 items representing steps i
 - Contains the existing 5 steps (Upload, Review, Assign, Split, Summary)
 - Step indicator at top (functions exactly like current tab navigation)
 - Same progression logic as current app
+- **Maintains existing in-memory caching between steps within the modal flow**
 - Auto-saves data after each cloud function returns results
 - Option to cancel workflow and return to Receipts screen
 
@@ -108,7 +109,9 @@ This model:
    - When user adjusts shared items or unassigned items
    - When user modifies final calculations (tip, tax, etc.)
 
-3. Use a consistent `receiptId` throughout the workflow to update the same document
+3. **If the user exits the modal workflow (e.g., by navigating back to the Receipts screen or closing the app) before completion, the current cached state of the workflow will be persisted to Firestore. The `metadata.status` will be set to "draft", allowing the user to resume later.**
+
+4. Use a consistent `receiptId` throughout the workflow to update the same document
 
 ### Preserving User Edits
 
