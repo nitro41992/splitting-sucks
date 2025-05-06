@@ -21,6 +21,19 @@
 
 ---
 
+# Key Implementation Decisions (as of May 2024)
+
+- **Modal Workflow:** The 5-step receipt workflow is a full-page modal (not a popup), accessible only from the Receipts screen via the Floating Action Button (FAB). Modal cannot be dismissed by tapping outside; navigation is via explicit actions and back gesture.
+- **State Management:** Provider (with ChangeNotifier) is used for in-modal state. State is memory-only during the modal session; no periodic auto-save. On exit (via Save & Exit or app close), user is prompted to save as draft or discard.
+- **Drafts:** Drafts are visible and editable from the Receipts screen. Editing a completed receipt reverts it to draft, with a user prompt if data may be overwritten.
+- **Image Handling:** Receipt image is uploaded in the first step and cannot be changed after upload. Thumbnails are generated and cached for fast loading in the Receipts list.
+- **Restaurant Name:** A blocking dialog prompts for the restaurant name before entering the modal workflow. This name is required and can be edited later from the receipt view.
+- **Firestore Integration:** All CRUD operations for receipts/drafts are handled by a dedicated Firestore service class. No offline support for now; app relies on cloud functions for parsing and assignment.
+- **UI/UX:** All new UI follows the existing theme and Material You guidelines. User-friendliness and cohesion are prioritized. Further UX improvements will be iterative.
+- **Testing:** Widget and unit tests will be scaffolded for modal navigation, Firestore service, and workflow logic.
+
+---
+
 # App Navigation and Workflow Redesign
 
 ## 1. Introduction & Key Goals
@@ -28,8 +41,8 @@
 This document outlines a significant redesign of the app's navigation and receipt processing workflow. The primary objectives are to:
 
 1.  **Enhance User Experience:** Streamline navigation by making "Receipts" the central view and introducing a more intuitive "Add Receipt" flow.
-2.  **Improve Workflow Efficiency:** Convert the existing multi-tab workflow into a transient modal, maintaining current in-memory caching within the flow for responsiveness.
-3.  **Enable Persistent Drafts:** Implement robust data persistence, allowing users to save incomplete receipts as drafts and resume them later. This involves storing the workflow's cached state to Firestore upon exiting the modal or the app.
+2.  **Improve Workflow Efficiency:** Convert the existing multi-tab workflow into a transient, full-page modal, maintaining current in-memory caching within the flow for responsiveness.
+3.  **Enable Persistent Drafts:** Implement robust data persistence, allowing users to save incomplete receipts as drafts and resume them later. This involves storing the workflow's cached state to Firestore upon exiting the modal or the app, with a user prompt to save/discard.
 4.  **Maintain Backend Stability:** Leverage existing backend Cloud Functions without immediate modification, ensuring a phased rollout.
 5.  **Uphold Code Quality:** Implement all changes following best coding practices, focusing on reusability, clarity, and maintainability.
 
@@ -37,28 +50,12 @@ This document outlines a significant redesign of the app's navigation and receip
 
 ### 2.1. Navigation and UI Transformation
 
-The app's navigation will be simplified for a more focused user experience:
-
-*   **Main Navigation:**
-    *   A **Bottom Navigation Bar** with two primary items: "Receipts" and "Settings".
-    *   A **Floating Action Button (FAB)** for "Add Receipt" to initiate the new receipt workflow.
-*   **Receipts Screen (Primary View):**
-    *   Displays a list of all saved receipts (both completed and drafts).
-    *   Features search and filter capabilities.
-    *   Allows users to select receipts for viewing details or editing drafts.
-    *   The FAB for adding new receipts will be prominently displayed here.
-*   **Workflow Modal (Transient Flow):**
-    *   The current 5-step workflow (Upload, Review, Assign, Split, Summary) will be encapsulated within a **transient modal dialog**.
-    *   A **step indicator** at the top of the modal will replicate the functionality of the current tab navigation, guiding users through the process.
-    *   Progression logic (Back/Next navigation) within the modal remains consistent with the current app.
-    *   **Existing in-memory caching between steps within the modal flow will be maintained** to ensure a smooth and fast user experience while actively working on a receipt.
-    *   The modal will provide options to "Save and Exit" (creating/updating a draft) or "Cancel".
-
-*(Refer to Section 6: UI Mockups for visual representations.)*
+- The app's navigation is simplified for a focused user experience:
+  - **Bottom Navigation Bar:** Two primary items: "Receipts" and "Settings".
+  - **Receipts Screen:** Central view displaying all receipts (completed and drafts), with search/filter and a prominent FAB for adding new receipts.
+  - **Workflow Modal:** The 5-step workflow (Upload, Review, Assign, Split, Summary) is encapsulated in a full-page modal, accessible only from the Receipts screen FAB. The modal includes a step indicator, explicit navigation, and a Save & Exit button in the app bar. Back gesture navigates steps; exiting prompts to save/discard.
 
 ### 2.2. Data Model and Persistence Strategy
-
-A robust data model and a clear persistence strategy are crucial for enabling drafts, ensuring data integrity, and supporting scalability.
 
 **Data Model Definition:**
 
@@ -88,6 +85,8 @@ users/{userId}/receipts/{receiptId}
       - status: String  // "draft" or "completed"
       - restaurant_name: String  // Required when completed
       - people: Array<String>  // List of people involved (for search)
+      - tip: Float  // Tip amount or percentage (default: 20%)
+      - tax: Float  // Tax amount or percentage (default: 8.875%)
     }
 ```
 
@@ -95,110 +94,38 @@ users/{userId}/receipts/{receiptId}
 
 *   **Raw Function Outputs:** Initially stores direct outputs from existing Cloud Functions to ensure backward compatibility and minimize immediate backend changes. For `assign_people_to_items`, the structure shown is the target detailed format. The current cloud function might output a more generic `Map`; the client application may need to adapt this, or the function will be updated later.
 *   **User-Centric:** All receipt data is linked to a specific user.
-*   **Metadata for Efficiency:** Includes essential metadata (`status`, `restaurant_name`, `people`) for list display, filtering, and search functionalities on the "Receipts" screen.
+*   **Metadata for Efficiency:** Includes essential metadata (`status`, `restaurant_name`, `people`, `tip`, `tax`) for list display, filtering, and search functionalities on the "Receipts" screen. **Tip and tax are required for completed receipts and default to 20% and 8.875% respectively if not set.**
 
 **Caching, Persistence, and Scalability:**
 
-This strategy is designed for both a responsive UI and scalable data management, avoiding hacky solutions by clearly defining when data is cached versus persisted:
-
-1.  **In-Modal Caching (Performance):** While a user is actively in the workflow modal, data (e.g., OCR results, user edits to items, assignments) is cached in memory. This allows for instant screen transitions and interactions within the modal without constant database reads/writes. This maintains the current workflow's performant caching.
-2.  **Auto-Save to Firestore (Data Integrity & Drafts):**
-    *   **After Cloud Function Calls:** Results from each Cloud Function (`parse_receipt`, `transcribe_audio`, `assign_people_to_items`) are immediately saved to the corresponding fields in the Firestore `receipt` document.
-    *   **After User Edits:** Any modifications made by the user within a step (e.g., editing item names/prices in Review, correcting transcriptions, changing assignments) are also saved to Firestore, updating the relevant fields (`parse_receipt`, `transcribe_audio`, `assign_people_to_items`, `split_manager_state`).
-    *   **On Workflow Exit (Draft Creation):** If the user explicitly saves and exits the modal, or exits the app mid-workflow, the **current in-memory cached state of the entire workflow is persisted to Firestore**. The `metadata.status` is set to "draft". This ensures no data loss and allows the user to resume seamlessly. This is a critical step for scalability, as it prevents re-processing from scratch if a user returns to a draft.
-3.  **`receiptId` Consistency:** A consistent `receiptId` is used throughout the workflow (from initiation in the modal to all Firestore operations) to ensure updates are applied to the correct document.
-4.  **Scalability Benefits:**
+1.  **In-Modal Caching (Performance):** While a user is actively in the workflow modal, data (e.g., OCR results, user edits to items, assignments) is cached in memory using Provider. This allows for instant screen transitions and interactions within the modal without constant database reads/writes. No periodic auto-save is performed for performance.
+2.  **Prompted Save on Exit (Draft Creation):** If the user explicitly saves and exits the modal, or exits the app mid-workflow, the current in-memory cached state of the entire workflow is persisted to Firestore. The user is prompted to save as draft or discard. The `metadata.status` is set to "draft". This ensures no data loss and allows the user to resume seamlessly.
+3.  **Draft Visibility and Editing:** Drafts are visible and editable from the Receipts screen. Editing a completed receipt reverts it to draft, with a user prompt if data may be overwritten. Only steps after upload are editable after completion; image cannot be changed.
+4.  **`receiptId` Consistency:** A consistent `receiptId` is used throughout the workflow (from initiation in the modal to all Firestore operations) to ensure updates are applied to the correct document.
+5.  **Scalability Benefits:**
     *   Reduces redundant AI function calls by saving intermediate results.
     *   Allows users to resume complex splits without starting over, improving user satisfaction.
     *   Firestore's scalability handles the storage of individual receipt documents efficiently.
 
 **Preserving User Edits:**
 
-The data model and persistence logic ensure all user modifications are saved:
-
-*   **Receipt Item Edits:** Changes to item names, prices, quantities in the Review screen update `parse_receipt`.
-*   **Transcription Edits:** Corrections to transcribed text update `transcribe_audio`.
-*   **Assignment Modifications:** Changes to people, item assignments, shared/unassigned items, and sharing proportions update `assign_people_to_items` and potentially `split_manager_state`.
-*   **Final Calculation Adjustments:** Modifications to tax, tip, etc., update `split_manager_state`.
-
-**Guidance for `functions/main.py` (Pydantic Models):**
-
-(This subsection remains largely the same as your previous version, detailing how Pydantic models should evolve, ensuring current functions are not broken while new structures are adopted for storage.)
-
-1.  **Existing Function Outputs:** Current Cloud Functions (e.g., `assign_people_to_items`) continue outputting their existing data structure. Pydantic models for *responses* of these specific functions should *not* change yet.
-2.  **Client-Side Handling (Flutter App):** The Flutter app will save data to Firestore (drafts or completed receipts) using the *new, detailed structure* for fields like `assign_people_to_items`. When reading, it expects this new structure.
-3.  **New/Updated Functions Reading from Firestore:** Any *new* Cloud Functions, or existing ones updated to process stored receipt documents, will need Pydantic models reflecting the *new, detailed structure* as stored by the app.
-4.  **Pydantic Models for New Structure (Conceptual):**
-    ```python
-    from typing import List, Dict, Any
-    from pydantic import BaseModel, Field
-
-    class ItemDetail(BaseModel):
-        name: str
-        quantity: int
-        price: float
-
-    class SharedItemDetail(BaseModel):
-        name: str
-        quantity: int
-        price: float
-        people: List[str]
-
-    class AssignPeopleToItems(BaseModel):
-        assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
-        shared_items: List[SharedItemDetail] = Field(default_factory=list)
-        unassigned_items: List[ItemDetail] = Field(default_factory=list)
-    ```
-This allows the Flutter app to use the richer data model in Firestore immediately, while Cloud Functions evolve.
+- Receipt item edits, transcription corrections, assignment modifications, and final calculation adjustments are all saved to Firestore on Save & Exit or when marking as completed.
+- **Summary view:** When the user reaches the summary view, the receipt is automatically marked as completed. Default tax is 8.875% and default tip is 20% if not set.
 
 ### 2.3. Efficient Image Handling
 
-To ensure fast loading and a smooth experience, especially on the "Receipts" list:
-
-1.  **Thumbnail Generation:** Generate a smaller thumbnail when the receipt image is first uploaded. Store it in Firebase Storage alongside the original. References to both are saved in the receipt document.
-2.  **Image Caching (Local):** Use Flutter's `cached_network_image` (or similar) for local caching of thumbnails. Pre-cache visible thumbnails in lists. Use a memory cache for recently viewed full receipts.
-3.  **Lazy Loading:** Load thumbnails on-demand when scrolling. Load full-resolution images only when viewing receipt details.
+- **Upload:** Image is uploaded in the first step and cannot be changed after upload. If the user wants to modify the upload, they must create a new receipt.
+- **Thumbnails:** Thumbnails are generated and cached for fast loading in the Receipts list.
+- **No Edit After Upload:** Only steps after upload are editable after completion. Editing a completed receipt reverts it to draft, with a user prompt if data may be overwritten.
 
 ## 3. Implementation Roadmap & Best Practices
 
-### 3.1. Guiding Coding Principles
-
-Development should adhere to best practices to ensure a high-quality, maintainable, and scalable application:
-
-*   **Non-Duplication (DRY - Don't Repeat Yourself):** Abstract common logic into reusable functions, services, and widgets.
-*   **Reusability:** Design components (UI and logic) to be adaptable for different contexts. For instance, the existing workflow screens should be reused within the new modal container with minimal changes.
-*   **Clean Code & Readability:** Write clear, concise, and well-documented code. Break down large code files and complex widgets into smaller, manageable units.
-*   **Modularity:** Structure the codebase into logical layers (UI, services, state management, models) to improve separation of concerns.
-*   **Testability:** Write code that is easy to test, including unit tests for logic and widget tests for UI components.
-*   **Scalability:** Design with future growth in mind, particularly for data handling and asynchronous operations. The described caching and persistence strategy is a core part of this.
-*   **No Hacky Solutions:** Avoid temporary fixes or workarounds that compromise code quality or long-term stability.
-
-### 3.2. Key Implementation Tasks
-
-1.  **Navigation & Core UI Shell:**
-    *   Implement the 2-item Bottom Navigation Bar (Receipts, Settings).
-    *   Create the main "Receipts" screen (list view, search/filter placeholders).
-    *   Add the global Floating Action Button for initiating the receipt workflow.
-2.  **Workflow Modal Implementation:**
-    *   Develop the modal container to host the existing 5 workflow screens.
-    *   Implement the step indicator navigation within the modal.
-    *   Ensure smooth transitions between steps, leveraging existing screen logic.
-    *   Implement "Save & Exit" (to draft) and "Cancel" functionalities.
-3.  **Firestore Persistence & Services:**
-    *   Develop service methods for creating, reading, updating, and deleting receipt documents in Firestore.
-    *   Implement the auto-save logic:
-        *   After each Cloud Function result is received by the client.
-        *   After user edits within each step of the workflow.
-        *   Crucially, on modal exit (saving the complete cached state as a draft if not completed).
-4.  **Receipt Management Features:**
-    *   Populate the "Receipts" screen list with data from Firestore (drafts and completed).
-    *   Implement receipt detail view.
-    *   Enable editing of "draft" receipts (re-opening the modal pre-filled with stored data).
-    *   Implement delete functionality for receipts.
-5.  **Image Handling:**
-    *   Integrate thumbnail generation (client-side or via a new lightweight function if necessary).
-    *   Implement image uploading to Firebase Storage (original and thumbnail).
-    *   Set up local image caching and lazy loading in the UI.
+- **Provider** is used for state management throughout the modal workflow.
+- **Firestore service class** handles all CRUD operations for receipts and drafts.
+- **No offline support** for now; the app relies on cloud functions for parsing and assignment.
+- **UI/UX** follows the existing theme and Material You guidelines. Modal workflow is full-page, not a popup, and is accessible only from the Receipts screen FAB.
+- **Testing:** Widget and unit tests will be scaffolded for modal navigation, Firestore service, and workflow logic.
+- **Code Cleanup:** As the refactor proceeds, opportunities for modularization and reduction of redundancy will be documented and implemented where safe.
 
 ## 4. Cloud Function Development and Deployment Strategy
 
