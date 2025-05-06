@@ -1,3 +1,26 @@
+# Project Progress Summary
+
+**Completed:**
+- Firestore emulator successfully seeded with dynamic prompt/model configuration data using a Python script (`init_firestore_config.py`).
+- App navigation and workflow redesign plan documented, including:
+  - Bottom navigation bar structure (Receipts, Settings)
+  - Centralized Receipts screen with FAB for adding receipts
+  - Workflow modal design for the 5-step receipt process
+  - Detailed data model and persistence strategy for receipts, drafts, and workflow state
+  - Cloud Function and backend integration strategy
+  - Security and best practices outlined
+
+**Pending:**
+- Implementation of redesigned UI components in Flutter (navigation bar, Receipts screen, workflow modal, etc.)
+- Firestore service methods for CRUD operations and auto-save logic
+- Draft management (save, resume, edit, delete) in the app
+- Integration of image upload, thumbnail generation, and caching
+- Connecting UI to backend (Cloud Functions, Firestore persistence)
+- Widget and logic reusability refactor as per new design
+- Comprehensive testing (unit, widget, integration)
+
+---
+
 # App Navigation and Workflow Redesign
 
 ## 1. Introduction & Key Goals
@@ -267,4 +290,67 @@ To manage changes to Cloud Functions effectively and avoid impacting the product
 ├─────────────────────────────────────────────────┤
 │    ← Back         [Save & Exit to Draft]         Next →         │
 └─────────────────────────────────────────────────┘
-``` 
+```
+
+## 7. Firestore Emulator Seeding: Configuration and SOP
+
+### What Was Done
+
+To enable local development and testing with dynamic prompts and model configurations, the Firestore emulator was seeded with initial configuration data using a Python script. This ensures that the emulator environment closely mirrors production/staging for workflows that depend on Firestore-stored prompts and model settings. The process leverages the `init_firestore_config.py` script in the `functions/` directory, which writes default prompt and model provider configurations for all relevant AI-powered workflows (e.g., `parse_receipt`, `assign_people_to_items`, `transcribe_audio`).
+
+**Key Points:**
+- The Firestore emulator is started using the Firebase CLI.
+- The Python Admin SDK requires a service account key, even for the emulator. This key is used only locally and should be kept out of version control.
+- The script seeds the emulator with all necessary configuration documents for prompts and models, supporting multiple AI providers.
+
+### Standard Operating Procedure (SOP): Reseeding the Firestore Emulator
+
+**Prerequisites:**
+- You have the Firebase CLI installed and configured.
+- You have a service account key JSON file (e.g., `functions/emulator-service-account.json` or similar) available locally (never commit this to git).
+- The `init_firestore_config.py` script exists in the `functions/` directory.
+
+**Step-by-Step:**
+
+1. **Start the Firebase Emulator Suite**
+   - From the project root, run:
+     ```sh
+     firebase emulators:start
+     ```
+   - This will start the Firestore emulator (and any other configured emulators).
+
+2. **Open a New Terminal for Seeding**
+   - Keep the emulator running in its own terminal window/tab.
+   - Open a new terminal for the seeding process.
+
+3. **Set the Firestore Emulator Environment Variable**
+   - On Windows (Command Prompt):
+     ```sh
+     set FIRESTORE_EMULATOR_HOST=localhost:8080
+     ```
+   - On Windows (PowerShell):
+     ```sh
+     $env:FIRESTORE_EMULATOR_HOST="localhost:8080"
+     ```
+   - On Mac/Linux:
+     ```sh
+     export FIRESTORE_EMULATOR_HOST=localhost:8080
+     ```
+
+4. **Run the Seeding Script**
+   - Provide the path to your service account key (replace with your actual filename):
+     ```sh
+     python functions/init_firestore_config.py --admin-uid=admin --cred-path=functions/emulator-service-account.json
+     ```
+   - You should see output confirming that prompt and model configurations have been set for each workflow.
+
+5. **Verify**
+   - Visit [http://localhost:4000/firestore](http://localhost:4000/firestore) in your browser to confirm the seeded data is present in the emulator.
+
+**Security Note:**
+- Always add your service account key file to `.gitignore` to prevent accidental commits.
+- The key is only used locally for emulator access and is not sent to Google when the emulator is running.
+
+**Troubleshooting:**
+- If you see credential errors, double-check the path to your service account key and ensure the environment variable is set in the same terminal session as your Python command.
+- If the emulator is not running, the script will attempt to connect to production—always confirm the emulator is active before running the script. 
