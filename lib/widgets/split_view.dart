@@ -553,147 +553,151 @@ class _SplitViewState extends State<SplitView> {
     required ScrollController scrollController,
     required Widget Function(BuildContext) builder,
   }) {
-    return ListView(
+    // Use SingleChildScrollView instead of ListView to avoid unbounded height issues
+    return SingleChildScrollView(
       controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120), // Increased bottom padding for two FABs
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120), // Extra bottom padding for FABs
+      child: builder(context),
+    );
+  }
+
+  // Method to build the people list
+  Widget _buildPeopleList(BuildContext context, SplitManager splitManager) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
+    // Log available people data
+    debugPrint('SplitView._buildPeopleList: People count: ${splitManager.people.length}');
+    for (final person in splitManager.people) {
+      debugPrint('Person: ${person.name}, Assigned items: ${person.assignedItems.length}, Shared items: ${person.sharedItems.length}');
+    }
+    
+    if (splitManager.people.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.person_outline, size: 48, color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
+            const SizedBox(height: 16),
+            Text(
+              'No people to show',
+              style: textTheme.titleMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add people to assign receipt items',
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // Use Column instead of ListView.builder to avoid unbounded height issues
+    return Column(
       children: [
-        builder(context),
+        for (final person in splitManager.people)
+          PersonCard(person: person)
       ],
     );
   }
 
-  Widget _buildPeopleList(BuildContext context, SplitManager splitManager) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
-    if (splitManager.people.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.people_outlined, // Icon indicating no people
-                size: 60,
-                color: colorScheme.primary, // Use primary color for distinction
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'No People Added Yet!',
-                textAlign: TextAlign.center,
-                style: textTheme.headlineSmall?.copyWith(
-                  color: colorScheme.primary, // Use primary color
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Add people to assign receipt items to them.',
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    } else {
-      return Column(
-        children: splitManager.people.map((person) => PersonCard(person: person)).toList(),
-      );
-    }
-  }
-
+  // Method to build the shared items list
   Widget _buildSharedItemsList(BuildContext context, SplitManager splitManager) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
+    // Log available shared items data
+    debugPrint('SplitView._buildSharedItemsList: Shared items count: ${splitManager.sharedItems.length}');
+    for (final item in splitManager.sharedItems) {
+      final sharingPeople = splitManager.getPeopleForSharedItem(item);
+      debugPrint('Shared item: ${item.name}, Price: \$${item.price}, People sharing: ${sharingPeople.map((p) => p.name).join(", ")}');
+    }
+    
     if (splitManager.sharedItems.isEmpty) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.group_off_outlined, // Icon indicating no sharing
-                size: 60,
-                color: colorScheme.secondary, // Use secondary color for distinction
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.group_outlined, size: 48, color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
+            const SizedBox(height: 16),
+            Text(
+              'No shared items to show',
+              style: textTheme.titleMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(height: 24),
-              Text(
-                'Nothing Shared Yet!',
-                textAlign: TextAlign.center,
-                style: textTheme.headlineSmall?.copyWith(
-                  color: colorScheme.secondary, // Use secondary color
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Assign items to multiple people from the People or Unassigned tabs',
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Assign items to multiple people to share them.',
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       );
-    } else {
-      return Column(
-        children: splitManager.sharedItems.map((item) => SharedItemCard(item: item)).toList(),
-      );
     }
+    
+    // Use Column instead of ListView.builder to avoid unbounded height issues
+    return Column(
+      children: [
+        for (final item in splitManager.sharedItems)
+          SharedItemCard(item: item)
+      ],
+    );
   }
 
+  // Method to build the unassigned items list
   Widget _buildUnassignedItemsList(BuildContext context, SplitManager splitManager) {
-    final TextTheme textTheme = Theme.of(context).textTheme;
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
+    // Log available unassigned items data
+    debugPrint('SplitView._buildUnassignedItemsList: Unassigned items count: ${splitManager.unassignedItems.length}');
+    for (final item in splitManager.unassignedItems) {
+      debugPrint('Unassigned item: ${item.name}, Price: \$${item.price}');
+    }
+    
     if (splitManager.unassignedItems.isEmpty) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 48.0, horizontal: 16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-               Icon(
-                Icons.celebration_rounded, // Fun icon
-                size: 60,
-                color: colorScheme.primary,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inventory_2_outlined, size: 48, color: colorScheme.onSurfaceVariant.withOpacity(0.5)),
+            const SizedBox(height: 16),
+            Text(
+              'No unassigned items to show',
+              style: textTheme.titleMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(height: 24),
-              Text(
-                'All Items Assigned!',
-                textAlign: TextAlign.center,
-                style: textTheme.headlineSmall?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'All items have been assigned!',
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Everything\'s assigned, nothing to see here.',
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       );
-    } else {
-      return Column(
-        children: [
-          ...splitManager.unassignedItems.reversed.map((item) => UnassignedItemCard(item: item)).toList(),
-        ],
-      );
     }
+    
+    // Use Column instead of ListView.builder to avoid unbounded height issues
+    return Column(
+      children: [
+        for (final item in splitManager.unassignedItems)
+          UnassignedItemCard(item: item)
+      ],
+    );
   }
 
   Widget _buildTabItem({

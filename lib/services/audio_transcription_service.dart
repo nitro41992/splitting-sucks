@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../env/firebase_config.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
@@ -128,6 +129,8 @@ class AudioTranscriptionService {
   final FirebaseFunctions _functions = FirebaseFunctions.instance;
   // Firebase Storage instance for uploading audio
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  // Firebase Firestore instance for database operations
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   AudioTranscriptionService();
 
@@ -269,5 +272,98 @@ class AudioTranscriptionService {
         return item;
       }
     }).toList();
+  }
+
+  Future<void> saveAssignmentsToService(String receiptId, Map<String, dynamic> assignments) async {
+    debugPrint('STARTING SAVE ASSIGNMENTS: ${assignments.keys.join(", ")}');
+    
+    // Debug logging for assignments structure
+    if (assignments.containsKey('assignments')) {
+      final assignmentsMap = assignments['assignments'] as Map<String, dynamic>;
+      debugPrint('Assignments map has ${assignmentsMap.length} people');
+      assignmentsMap.forEach((person, items) {
+        final itemsList = items as List<dynamic>;
+        debugPrint('  Person $person has ${itemsList.length} assigned items');
+      });
+    } else {
+      debugPrint('WARNING: No "assignments" key found in assignments map!');
+    }
+    
+    // Debug logging for shared items
+    if (assignments.containsKey('shared_items')) {
+      final sharedItems = assignments['shared_items'] as List<dynamic>;
+      debugPrint('Shared items list has ${sharedItems.length} items');
+      for (final sharedItem in sharedItems) {
+        final itemMap = sharedItem as Map<String, dynamic>;
+        final itemName = itemMap['name'] as String;
+        List<String> peopleList = [];
+        if (itemMap.containsKey('people') && itemMap['people'] is List<dynamic>) {
+          final people = itemMap['people'] as List<dynamic>;
+          peopleList = people.map((p) => p.toString()).toList();
+        }
+        debugPrint('  Shared item $itemName is shared among ${peopleList.length} people: ${peopleList.join(", ")}');
+      }
+    } else {
+      debugPrint('WARNING: No "shared_items" key found in assignments map!');
+    }
+    
+    // Debug logging for unassigned items
+    if (assignments.containsKey('unassigned_items')) {
+      final unassignedItems = assignments['unassigned_items'] as List<dynamic>;
+      debugPrint('Unassigned items list has ${unassignedItems.length} items');
+      for (final item in unassignedItems) {
+        final itemMap = item as Map<String, dynamic>;
+        final itemName = itemMap['name'] as String;
+        final price = itemMap['price'] as num;
+        debugPrint('  Unassigned item: $itemName, Price: \$${price.toStringAsFixed(2)}');
+      }
+    } else {
+      debugPrint('WARNING: No "unassigned_items" key found in assignments map!');
+    }
+    
+    try {
+      // The key here MUST match receiptService.saveAssignPeopleToItemsResults
+      debugPrint('SAVING TO FIRESTORE: ${assignments.keys.join(", ")}');
+      await _firestore.collection('receipts').doc(receiptId).update({
+        'assign_people_to_items': assignments,
+      });
+      
+      // Additional check to ensure data was written as expected
+      final savedDoc = await _firestore.collection('receipts').doc(receiptId).get();
+      final savedData = savedDoc.data();
+      if (savedData != null && savedData.containsKey('assign_people_to_items')) {
+        final savedAssignments = savedData['assign_people_to_items'] as Map<String, dynamic>;
+        
+        // Check assignments
+        if (savedAssignments.containsKey('assignments')) {
+          final assignmentsMap = savedAssignments['assignments'] as Map<String, dynamic>;
+          debugPrint('Firestore assignments map has ${assignmentsMap.length} people');
+          assignmentsMap.forEach((person, items) {
+            final itemsList = items as List<dynamic>;
+            debugPrint('  Person $person items type: ${items.runtimeType}');
+            debugPrint('  Person $person has ${itemsList.length} assigned items');
+          });
+        }
+        
+        // Check shared items
+        if (savedAssignments.containsKey('shared_items')) {
+          final sharedItems = savedAssignments['shared_items'] as List<dynamic>;
+          debugPrint('Firestore shared_items has ${sharedItems.length} items');
+        }
+        
+        // Check unassigned items
+        if (savedAssignments.containsKey('unassigned_items')) {
+          final unassignedItems = savedAssignments['unassigned_items'] as List<dynamic>;
+          debugPrint('Firestore unassigned_items has ${unassignedItems.length} items');
+        }
+        
+        debugPrint('ASSIGNMENTS SAVED SUCCESSFULLY TO FIRESTORE');
+      } else {
+        debugPrint('WARNING: Could not verify saved data in Firestore!');
+      }
+    } catch (e) {
+      debugPrint('Error saving assignments to Firestore: $e');
+      rethrow;
+    }
   }
 } 

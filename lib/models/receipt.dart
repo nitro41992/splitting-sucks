@@ -34,14 +34,91 @@ class Receipt {
   }
   
   Map<String, dynamic> toFirestore() {
-    return {
+    // Need to create deep copies of the nested structures
+    final Map<String, dynamic> result = {
       'image_uri': imageUri,
       'thumbnail_uri': thumbnailUri,
-      'parse_receipt': parseReceipt,
-      'transcribe_audio': transcribeAudio,
-      'assign_people_to_items': assignPeopleToItems,
+      'parse_receipt': parseReceipt != null ? Map<String, dynamic>.from(parseReceipt!) : null,
+      'transcribe_audio': transcribeAudio != null ? Map<String, dynamic>.from(transcribeAudio!) : null,
       'metadata': metadata.toMap(),
     };
+    
+    // Special handling for assign_people_to_items to ensure correct structure
+    if (assignPeopleToItems != null) {
+      final Map<String, dynamic> deepCopiedAssignments = {};
+      
+      // Handle assignments map
+      if (assignPeopleToItems!.containsKey('assignments')) {
+        final Map<String, dynamic> assignmentsMap = Map<String, dynamic>.from(assignPeopleToItems!['assignments'] as Map<String, dynamic>);
+        final Map<String, dynamic> deepAssignments = {};
+        
+        // Handle each person's assignments
+        assignmentsMap.forEach((person, items) {
+          if (items is List) {
+            // Deep copy each item in the list
+            final List<dynamic> deepItems = [];
+            for (final item in items) {
+              if (item is Map<String, dynamic>) {
+                deepItems.add(Map<String, dynamic>.from(item));
+              } else {
+                deepItems.add(item);
+              }
+            }
+            deepAssignments[person] = deepItems;
+          } else {
+            // If somehow not a list, maintain structure
+            deepAssignments[person] = items;
+          }
+        });
+        
+        deepCopiedAssignments['assignments'] = deepAssignments;
+      }
+      
+      // Handle shared_items list
+      if (assignPeopleToItems!.containsKey('shared_items')) {
+        final List<dynamic> sharedItems = assignPeopleToItems!['shared_items'] as List<dynamic>;
+        final List<dynamic> deepSharedItems = [];
+        
+        // Deep copy each shared item
+        for (final item in sharedItems) {
+          if (item is Map<String, dynamic>) {
+            final Map<String, dynamic> deepItem = Map<String, dynamic>.from(item);
+            
+            // Handle the 'people' list inside each shared item
+            if (deepItem.containsKey('people') && deepItem['people'] is List) {
+              deepItem['people'] = List<dynamic>.from(deepItem['people'] as List<dynamic>);
+            }
+            
+            deepSharedItems.add(deepItem);
+          } else {
+            deepSharedItems.add(item);
+          }
+        }
+        
+        deepCopiedAssignments['shared_items'] = deepSharedItems;
+      }
+      
+      // Handle unassigned_items list
+      if (assignPeopleToItems!.containsKey('unassigned_items')) {
+        final List<dynamic> unassignedItems = assignPeopleToItems!['unassigned_items'] as List<dynamic>;
+        final List<dynamic> deepUnassignedItems = [];
+        
+        // Deep copy each unassigned item
+        for (final item in unassignedItems) {
+          if (item is Map<String, dynamic>) {
+            deepUnassignedItems.add(Map<String, dynamic>.from(item));
+          } else {
+            deepUnassignedItems.add(item);
+          }
+        }
+        
+        deepCopiedAssignments['unassigned_items'] = deepUnassignedItems;
+      }
+      
+      result['assign_people_to_items'] = deepCopiedAssignments;
+    }
+    
+    return result;
   }
   
   factory Receipt.createDraft() {

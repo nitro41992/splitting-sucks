@@ -53,7 +53,18 @@ class SplitManager extends ChangeNotifier {
         _originalQuantities = {};
 
   List<Person> get people => List.unmodifiable(_people);
-  List<ReceiptItem> get sharedItems => List.unmodifiable(_sharedItems);
+  List<ReceiptItem> get sharedItems {
+    debugPrint('SHARED ITEMS GETTER CALLED. Count: ${_sharedItems.length}');
+    if (_sharedItems.isEmpty) {
+      debugPrint('WARNING: Shared items list is empty!');
+    } else {
+      debugPrint('Shared items available:');
+      for (final item in _sharedItems) {
+        debugPrint('  - ${item.name} (ID: ${item.itemId})');
+      }
+    }
+    return List.unmodifiable(_sharedItems);
+  }
   List<ReceiptItem> get unassignedItems => List.unmodifiable(_unassignedItems);
   List<ReceiptItem> get receiptItems => List.unmodifiable(_receiptItems);
 
@@ -183,8 +194,24 @@ class SplitManager extends ChangeNotifier {
   }
 
   void addSharedItem(ReceiptItem item) {
-    if (!_sharedItems.contains(item)) {
+    // Debug the operations
+    debugPrint('SplitManager.addSharedItem called for item: ${item.name} (ID: ${item.itemId})');
+    
+    bool itemAlreadyExists = false;
+    for (final existingItem in _sharedItems) {
+      if (existingItem.isSameItem(item)) {
+        itemAlreadyExists = true;
+        debugPrint('  Item already exists in shared items list');
+        break;
+      }
+    }
+    
+    if (!itemAlreadyExists) {
+      debugPrint('  Adding item to shared items list');
       _sharedItems.add(item);
+      
+      // Important: Mark assignments as modified to trigger save
+      _assignmentsModified = true;
       notifyListeners();
     }
   }
@@ -713,6 +740,8 @@ class SplitManager extends ChangeNotifier {
       }
     }
     
+    // Explicitly mark assignments as modified to ensure they're saved
+    _assignmentsModified = true;
     notifyListeners();
   }
   
@@ -811,9 +840,13 @@ class SplitManager extends ChangeNotifier {
   // Add a method to extract assignment data for the database
   Map<String, dynamic> getAssignmentData() {
     // Convert the current state to the format expected by the database
+    debugPrint('SplitManager.getAssignmentData called');
     final Map<String, dynamic> assignments = {};
     
     // Process people and their assigned items
+    final Map<String, List<Map<String, dynamic>>> peopleAssignments = {};
+    
+    debugPrint('Processing ${_people.length} people for assignments data:');
     for (final person in _people) {
       final List<Map<String, dynamic>> personItems = [];
       
@@ -827,6 +860,24 @@ class SplitManager extends ChangeNotifier {
           }
         }
         
+        // If position wasn't found, use a fallback ID (better than nothing)
+        if (position == 0) {
+          // Try to extract ID from the itemId if it's in the format Item_X_Name
+          final idParts = item.itemId.split('_');
+          if (idParts.length > 1) {
+            try {
+              position = int.parse(idParts[1]) + 1; // Add 1 for 1-based index
+            } catch (e) {
+              // If parsing fails, just use a placeholder position
+              position = personItems.length + 1;
+            }
+          } else {
+            // Fallback to item count + 1
+            position = personItems.length + 1;
+          }
+          debugPrint('  Warning: Using fallback position $position for ${item.name} (missing in receiptItems)');
+        }
+        
         personItems.add({
           'name': item.name,
           'id': position,
@@ -835,11 +886,17 @@ class SplitManager extends ChangeNotifier {
         });
       }
       
-      assignments[person.name] = personItems;
+      if (personItems.isNotEmpty) {
+        debugPrint('  Person ${person.name}: ${personItems.length} assigned items');
+        peopleAssignments[person.name] = personItems;
+      } else {
+        debugPrint('  Person ${person.name}: No assigned items');
+      }
     }
     
     // Process shared items
     final List<Map<String, dynamic>> sharedItems = [];
+    debugPrint('Processing ${_sharedItems.length} shared items:');
     for (final item in _sharedItems) {
       // Find the position (1-based) for this item in receipt items
       int position = 0;
@@ -850,6 +907,24 @@ class SplitManager extends ChangeNotifier {
         }
       }
       
+      // Fallback position if not found
+      if (position == 0) {
+        // Try to extract ID from the itemId if it's in the format Item_X_Name
+        final idParts = item.itemId.split('_');
+        if (idParts.length > 1) {
+          try {
+            position = int.parse(idParts[1]) + 1; // Add 1 for 1-based index
+          } catch (e) {
+            // If parsing fails, just use a placeholder position
+            position = sharedItems.length + 1;
+          }
+        } else {
+          // Fallback to item count + 1
+          position = sharedItems.length + 1;
+        }
+        debugPrint('  Warning: Using fallback position $position for ${item.name} (missing in receiptItems)');
+      }
+      
       // Get the list of people sharing this item
       final List<String> sharingPeople = [];
       for (final person in _people) {
@@ -858,6 +933,7 @@ class SplitManager extends ChangeNotifier {
         }
       }
       
+      debugPrint('  Shared item: ${item.name}, ID: $position, Shared by: ${sharingPeople.join(", ")}');
       sharedItems.add({
         'name': item.name,
         'id': position,
@@ -869,6 +945,7 @@ class SplitManager extends ChangeNotifier {
     
     // Process unassigned items
     final List<Map<String, dynamic>> unassignedItems = [];
+    debugPrint('Processing ${_unassignedItems.length} unassigned items:');
     for (final item in _unassignedItems) {
       // Find the position (1-based) for this item in receipt items
       int position = 0;
@@ -879,6 +956,25 @@ class SplitManager extends ChangeNotifier {
         }
       }
       
+      // Fallback position if not found
+      if (position == 0) {
+        // Try to extract ID from the itemId if it's in the format Item_X_Name
+        final idParts = item.itemId.split('_');
+        if (idParts.length > 1) {
+          try {
+            position = int.parse(idParts[1]) + 1; // Add 1 for 1-based index
+          } catch (e) {
+            // If parsing fails, just use a placeholder position
+            position = unassignedItems.length + 1; 
+          }
+        } else {
+          // Fallback to item count + 1
+          position = unassignedItems.length + 1;
+        }
+        debugPrint('  Warning: Using fallback position $position for ${item.name} (missing in receiptItems)');
+      }
+      
+      debugPrint('  Unassigned item: ${item.name}, ID: $position, Price: \$${item.price}');
       unassignedItems.add({
         'name': item.name,
         'id': position,
@@ -888,11 +984,16 @@ class SplitManager extends ChangeNotifier {
     }
     
     // Create the final data structure
-    return {
-      'assignments': assignments,
-      'shared_items': sharedItems,
-      'unassigned_items': unassignedItems,
-    };
+    assignments['assignments'] = peopleAssignments;
+    assignments['shared_items'] = sharedItems;
+    assignments['unassigned_items'] = unassignedItems;
+    
+    debugPrint('Final assignments data structure:');
+    debugPrint('  assignments count: ${peopleAssignments.length} people');
+    debugPrint('  shared_items count: ${sharedItems.length} items');
+    debugPrint('  unassigned_items count: ${unassignedItems.length} items');
+    
+    return assignments;
   }
 
   // Add a new method to safely save state using the current SplitManager instance
@@ -904,6 +1005,8 @@ class SplitManager extends ChangeNotifier {
     }
     
     try {
+      debugPrint('SplitManager.saveAssignmentsToService: Preparing to save to receipt $receiptId');
+      
       // Get the assignment data directly from this instance
       final assignmentData = getAssignmentData();
       
@@ -911,6 +1014,7 @@ class SplitManager extends ChangeNotifier {
       _assignmentsModified = false;
       
       // Save to the receipt service
+      debugPrint('Calling receiptService.saveAssignPeopleToItemsResults with receipt ID: $receiptId');
       await receiptService.saveAssignPeopleToItemsResults(
         receiptId,
         assignmentData

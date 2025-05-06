@@ -224,6 +224,28 @@ class ReceiptService {
   // Save assign people to items results
   Future<void> saveAssignPeopleToItemsResults(String receiptId, Map<String, dynamic> assignmentResults) async {
     try {
+      debugPrint('STARTING SAVE ASSIGNMENTS: ${assignmentResults.keys.join(', ')}');
+      
+      // Debug log the structure of the data
+      if (assignmentResults.containsKey('assignments')) {
+        final assignmentsMap = assignmentResults['assignments'] as Map<String, dynamic>;
+        debugPrint('Assignments map has ${assignmentsMap.length} people');
+        assignmentsMap.forEach((person, items) {
+          final itemsList = items as List<dynamic>;
+          debugPrint('  Person $person has ${itemsList.length} assigned items');
+        });
+      }
+      
+      if (assignmentResults.containsKey('shared_items')) {
+        final sharedItems = assignmentResults['shared_items'] as List<dynamic>;
+        debugPrint('Shared items list has ${sharedItems.length} items');
+        for (final item in sharedItems) {
+          final itemMap = item as Map<String, dynamic>;
+          final people = itemMap['people'] as List<dynamic>;
+          debugPrint('  Shared item ${itemMap['name']} is shared among ${people.length} people: ${people.join(', ')}');
+        }
+      }
+      
       final receipt = await getReceiptById(receiptId);
       if (receipt == null) {
         throw Exception('Receipt not found');
@@ -244,7 +266,31 @@ class ReceiptService {
         ),
       );
       
+      // Log the final data being sent to Firestore
+      final Map<String, dynamic> firestoreData = updatedReceipt.toFirestore();
+      debugPrint('SAVING TO FIRESTORE: ${firestoreData.keys.join(', ')}');
+      
+      if (firestoreData.containsKey('assign_people_to_items')) {
+        final savedAssignments = firestoreData['assign_people_to_items'] as Map<String, dynamic>;
+        debugPrint('Firestore assign_people_to_items has ${savedAssignments.keys.join(', ')}');
+        
+        if (savedAssignments.containsKey('assignments')) {
+          final assignmentsMap = savedAssignments['assignments'] as Map<String, dynamic>;
+          debugPrint('Firestore assignments map has ${assignmentsMap.length} people');
+          assignmentsMap.forEach((person, items) {
+            debugPrint('  Person $person items type: ${items.runtimeType}');
+            if (items is List) {
+              debugPrint('  Person $person has ${items.length} assigned items');
+            } else {
+              debugPrint('  Person $person items is NOT a list: $items');
+            }
+          });
+        }
+      }
+      
       await updateReceipt(updatedReceipt);
+      
+      debugPrint('ASSIGNMENTS SAVED SUCCESSFULLY TO FIRESTORE');
     } catch (e) {
       debugPrint('Error saving assignment results: $e');
       rethrow;

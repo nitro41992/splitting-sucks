@@ -525,13 +525,31 @@ We implemented a multi-tiered solution to fix issues with state persistence acro
 3. **Data Processing Logic Improvements**:
    - Fixed handling of missing price information in assignment data
    - Resolved type casting errors when processing assignments without price fields
+   - Added proper initialization of receipt items in SplitManager
+   - Improved item matching logic to prioritize name matching over ID matching
+   - Enhanced error handling for assignment data processing
+   - Fixed direct item assignment to people by correctly updating collections
 
 4. **Data Model Cleanup**:
    - Removed the redundant `split_manager_state` field from the Receipt model
-   - Simplified data persistence by relying on the more specific fields (`parseReceipt`, `transcribeAudio`, `assignPeopleToItems`)
-   - Updated code to initialize SplitManager directly from parse results and assignment data
-   - Fixed method compatibility issues between workflow page and SplitManager
-   - Corrected types and method parameters to match the actual implementation
+   - Simplified data persistence by relying on the more specific fields
+   - Enhanced assignment data handling with more direct collection manipulation
+   - Fixed issue where items were loaded into SplitManager but not properly assigned to people
+   - Implemented proper shared item distribution among multiple people
+
+5. **Shared Item Processing Fix**:
+   - Added direct manipulation of shared items collection
+   - Fixed how shared items are added to each person's items list
+   - Improved debug logging to track shared item assignments
+   - Implemented more robust error handling for shared item processing
+   - Added check to verify shared items appear correctly in the UI
+
+6. **Data Serialization Fix**:
+   - Identified and fixed a major issue where nested assignment data was being lost during Firebase serialization
+   - Implemented proper deep copying of complex nested structures when saving to Firestore
+   - Fixed special handling for assignments, shared items, and their nested person references
+   - Added detailed logging to trace data flow through serialization process
+   - Ensured assignment data integrity is preserved when stored in and retrieved from Firestore
 
 These improvements make the state management more robust across all workflow steps and navigation scenarios by not relying solely on the Provider context, which could become invalid during:
 - Navigation between different steps in the receipt workflow

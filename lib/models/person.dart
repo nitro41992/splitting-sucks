@@ -60,7 +60,35 @@ class Person extends ChangeNotifier {
   }
 
   void addSharedItem(ReceiptItem item) {
-    _sharedItems.add(item);
+    debugPrint('Person.addSharedItem: Adding shared item "${item.name}" to ${_name} with price ${item.price} and quantity ${item.quantity}');
+    
+    // Check if this exact item instance already exists
+    bool itemExists = false;
+    for (var existingItem in _sharedItems) {
+      if (identical(existingItem, item)) {
+        itemExists = true;
+        debugPrint('  WARNING: This exact shared item instance already exists');
+        break;
+      }
+    }
+    
+    // Check if an item with the same name exists but different instance
+    for (var existingItem in _sharedItems) {
+      if (!identical(existingItem, item) && existingItem.name == item.name) {
+        debugPrint('  WARNING: Shared item with same name "${item.name}" already exists but with different instance');
+        debugPrint('  Existing: ID=${existingItem.itemId}, Price=${existingItem.price}, Quantity=${existingItem.quantity}');
+        debugPrint('  New: ID=${item.itemId}, Price=${item.price}, Quantity=${item.quantity}');
+      }
+    }
+    
+    // Add the item if it doesn't exist
+    if (!itemExists) {
+      _sharedItems.add(item);
+      debugPrint('  Successfully added shared item - current shared items count: ${_sharedItems.length}');
+    } else {
+      debugPrint('  Did not add duplicate shared item');
+    }
+    
     notifyListeners();
   }
 
