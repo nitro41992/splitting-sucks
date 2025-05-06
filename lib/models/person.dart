@@ -105,7 +105,14 @@ class Person extends ChangeNotifier {
     return _sharedItems.fold(0, (sum, item) => sum + (item.price * item.quantity));
   }
 
+  // The total amount a person owes - this includes:
+  // 1. Full price of all individually assigned items
+  // 2. Full price of all shared items
+  // Note: When calculating the split total, you should only count shared items ONCE
+  // and not add up each person's shared items (which would double-count)
   double get totalAmount {
+    // This would typically be divided by the number of people sharing each item
+    // in the final summary screen, but here we show the raw total
     return totalAssignedAmount + totalSharedAmount;
   }
 

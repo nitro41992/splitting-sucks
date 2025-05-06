@@ -313,6 +313,7 @@ class SplitManager extends ChangeNotifier {
     // Sum individual assigned items only (not shared items)
     double assignedTotal = 0;
     for (var person in _people) {
+      // IMPORTANT: Only count assigned items here, NOT shared items
       assignedTotal += person.totalAssignedAmount;
       debugPrint('Person ${person.name} assigned items: \$${person.totalAssignedAmount}');
     }
@@ -329,60 +330,25 @@ class SplitManager extends ChangeNotifier {
     total += unassignedTotal;
     debugPrint('Total for unassigned items: \$${unassignedTotal}');
     
+    // Debug output the final calculation breakdown
+    debugPrint('TOTAL CALCULATION: $assignedTotal (assigned) + $sharedTotal (shared) + $unassignedTotal (unassigned) = $total');
+    
     // Compare with original total
     if (_originalReviewTotal != null) {
       debugPrint('Current total: \$${total} vs Original total: \$${_originalReviewTotal}');
       if ((total - _originalReviewTotal!).abs() > 0.01) {
-        debugPrint('WARNING: Current total does not match original total!');
+        debugPrint('WARNING: Current total ($total) differs from original total (${_originalReviewTotal})');
+        debugPrint('Using calculated total instead of forcing original total');
         
-        // Advanced debugging: Check if all receipt items are accounted for
-        debugPrint('Checking if all receipt items are accounted for...');
-        final Map<String, ReceiptItem> accounted = {};
+        // DISABLED: Don't force the total to match the original - use actual calculated total
+        /*
+        debugPrint('Forcing total to match original total');
+        _subtotal = _originalReviewTotal!;
+        return _subtotal;
+        */
         
-        // Mark assigned items as accounted for
-        for (var person in _people) {
-          for (var item in person.assignedItems) {
-            accounted[item.itemId] = item;
-          }
-        }
-        
-        // Mark shared items as accounted for
-        for (var item in _sharedItems) {
-          accounted[item.itemId] = item;
-        }
-        
-        // Mark unassigned items as accounted for
-        for (var item in _unassignedItems) {
-          accounted[item.itemId] = item;
-        }
-        
-        // Check which receipt items are missing
-        double missingTotal = 0;
-        for (var item in _receiptItems) {
-          if (!accounted.containsKey(item.itemId)) {
-            debugPrint('MISSING ITEM: ${item.name} (ID: ${item.itemId}) - \$${item.total}');
-            missingTotal += item.total;
-            
-            // Automatically add missing items to unassigned
-            if (!_unassignedItems.contains(item)) {
-              debugPrint('Auto-adding missing item to unassigned items');
-              _unassignedItems.add(item);
-            }
-          }
-        }
-        debugPrint('Total missing: \$${missingTotal}');
-        
-        // Recalculate unassigned total
-        unassignedTotal = _unassignedItems.fold(0, (sum, item) => sum + item.total);
-        total = assignedTotal + sharedTotal + unassignedTotal;
-        debugPrint('Recalculated total: \$${total}');
-        
-        // Force subtotal to match original total if still mismatched
-        if ((total - _originalReviewTotal!).abs() > 0.01) {
-          debugPrint('Forcing total to match original total');
-          _subtotal = _originalReviewTotal!;
-          return _subtotal;
-        }
+        // Just update the subtotal with our calculated value
+        _subtotal = total;
       }
     }
     

@@ -163,16 +163,25 @@ class _SplitViewState extends State<SplitView> {
         final TextTheme textTheme = Theme.of(context).textTheme;
         
         // Calculate total values for the header
+        // NOTE: person.totalAssignedAmount already only includes assigned (not shared) items
         final double individualTotal = splitManager.people.fold(0.0, (sum, person) => sum + person.totalAssignedAmount);
+        
+        // Shared items are counted only once in total
         final double sharedTotal = splitManager.sharedItemsTotal;
-        final double assignedTotal = individualTotal + sharedTotal;
+        
+        // Unassigned items
         final double unassignedTotal = splitManager.unassignedItemsTotal;
-        final double subtotal = assignedTotal + unassignedTotal;
+        
+        // Total of all items
+        final double subtotal = individualTotal + sharedTotal + unassignedTotal;
+        
+        // Use the more accurate calculation from SplitManager if available
+        final double finalSubtotal = splitManager.totalAmount;
 
         // --- EDIT: Create persistent warning widget logic --- 
         Widget? warningWidget;
         final originalTotal = splitManager.originalReviewTotal;
-        final currentTotal = subtotal; // Current total in split view
+        final currentTotal = finalSubtotal; // Use the correctly calculated total
         final bool totalsMatch = originalTotal == null 
             ? currentTotal < 0.01 // Only consider a match if current is effectively zero
             : (currentTotal - originalTotal).abs() < 0.001;
@@ -263,7 +272,7 @@ class _SplitViewState extends State<SplitView> {
                                   ),
                                 ),
                                 Text(
-                                  '\$${subtotal.toStringAsFixed(2)}',
+                                  '\$${finalSubtotal.toStringAsFixed(2)}',
                                   style: textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: colorScheme.primary,
@@ -357,7 +366,7 @@ class _SplitViewState extends State<SplitView> {
                                       style: textTheme.titleMedium,
                                     ),
                                     Text(
-                                      '\$${assignedTotal.toStringAsFixed(2)}',
+                                      '\$${(individualTotal + sharedTotal).toStringAsFixed(2)}',
                                       style: textTheme.titleMedium?.copyWith(
                                         fontWeight: FontWeight.bold,
                                         color: colorScheme.primary,
@@ -400,7 +409,7 @@ class _SplitViewState extends State<SplitView> {
                                         ),
                                       ),
                                       Text(
-                                        '\$${subtotal.toStringAsFixed(2)}',
+                                        '\$${finalSubtotal.toStringAsFixed(2)}',
                                         style: textTheme.titleMedium?.copyWith(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,

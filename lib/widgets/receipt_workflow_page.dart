@@ -1719,7 +1719,16 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       
       // Mark initialization as complete
       splitManager.initialized = true;
-      splitManager.originalReviewTotal = originalTotal;
+      
+      // Calculate the actual total based on all items
+      double actualTotal = 0.0;
+      for (final item in _receiptItems) {
+        actualTotal += item.price * item.quantity;
+      }
+      
+      // Set the original total to the calculated actual total
+      splitManager.originalReviewTotal = actualTotal;
+      debugPrint('Setting original review total to actual items total: $actualTotal');
       
       // Final debugging - check and log all collections
       debugPrint('VERIFICATION - Final state:');
