@@ -102,7 +102,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     
     // Import the Firebase BoM
-    implementation platform('com.google.firebase:firebase-bom:32.7.4')
+    implementation platform('com.google.firebase:firebase-bom:33.13.0')
     
     // Add Analytics
     implementation 'com.google.firebase:firebase-analytics'

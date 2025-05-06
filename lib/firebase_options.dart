@@ -36,8 +36,8 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDO7J9bVAhIrnNNXoXhptSure6LoU9OBSw',
-    appId: '1:700235738899:ios:5558c352c48abf031774e6',
+    apiKey: 'AIzaSyARiiMNhNHGhmLXkh0PQBRrn9AXtwY_dc',
+    appId: '1:700235738899:web:5558c352c48abf031774e6',
     messagingSenderId: '700235738899',
     projectId: 'billfie',
     authDomain: 'billfie.firebaseapp.com',
@@ -55,12 +55,12 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDO7J9bVAhIrnNNXoXhptSure6LoU9OBSw',
-    appId: '1:700235738899:android:f9581c3a91ecf6891774e6',  // Updated with actual Android appId from google-services.json
+    apiKey: 'AIzaSyDTvGYCjKJ9-6mX3cC9xqZ9xkEZUR9IUmg',
+    appId: '1:700235738899:android:f2b0756dfe3bca2f1774e6',
     messagingSenderId: '700235738899',
     projectId: 'billfie',
     storageBucket: 'billfie.firebasestorage.app',
-    androidClientId: '700235738899-pq86318m7pafrmqc6agi2qcu1g13c8vv.apps.googleusercontent.com',
+    androidClientId: '700235738899-krhi4m6jic3p2poq36tpiag5eqr1ev46.apps.googleusercontent.com',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
