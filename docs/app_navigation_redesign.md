@@ -253,21 +253,22 @@ To enable local development and testing with dynamic prompts and model configura
 3. **Set the Firestore Emulator Environment Variable**
    - On Windows (Command Prompt):
      ```sh
-     set FIRESTORE_EMULATOR_HOST=localhost:8080
+     set FIRESTORE_EMULATOR_HOST=localhost:8081
      ```
    - On Windows (PowerShell):
      ```sh
-     $env:FIRESTORE_EMULATOR_HOST="localhost:8080"
+     $env:FIRESTORE_EMULATOR_HOST="localhost:8081"
      ```
    - On Mac/Linux:
      ```sh
-     export FIRESTORE_EMULATOR_HOST=localhost:8080
+     export FIRESTORE_EMULATOR_HOST=localhost:8081
      ```
 
 4. **Run the Seeding Script**
    - Provide the path to your service account key (replace with your actual filename):
      ```sh
-     python functions/init_firestore_config.py --admin-uid=admin --cred-path=functions/emulator-service-account.json
+     export FIRESTORE_EMULATOR_HOST=localhost:8081 
+     python init_firestore_config.py --admin-uid=admin --cred-path=billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json --seed-data-dir=../emulator_seed_data # Use venv in functions
      ```
    - You should see output confirming that prompt and model configurations have been set for each workflow.
 
