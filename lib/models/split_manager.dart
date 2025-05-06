@@ -1,8 +1,18 @@
 import 'package:flutter/foundation.dart';
+import '../services/receipt_service.dart';
 import 'person.dart';
 import 'receipt_item.dart';
 
 class SplitManager extends ChangeNotifier {
+  // Static instance for global access
+  static SplitManager? _instance;
+  static SplitManager get instance => _instance ??= SplitManager();
+  
+  // Use this to explicitly set the instance (useful when you already have a reference)
+  static void setInstance(SplitManager manager) {
+    _instance = manager;
+  }
+  
   List<Person> _people;
   List<ReceiptItem> _sharedItems;
   List<ReceiptItem> _unassignedItems;
@@ -191,6 +201,11 @@ class SplitManager extends ChangeNotifier {
   void assignItemToPerson(ReceiptItem item, Person person) {
     debugPrint('SplitManager.assignItemToPerson: Assigning ${item.name} with quantity ${item.quantity} to ${person.name}');
     
+    // Add more debugging for item details
+    debugPrint('  Item details: ID=${item.itemId}, Price=${item.price}, Total=${item.total}');
+    debugPrint('  Person exists in people list: ${_people.contains(person)}');
+    debugPrint('  Person\'s current items count: ${person.assignedItems.length}');
+    
     // First, remove any existing instance of this item if it exists
     for (int i = 0; i < person.assignedItems.length; i++) {
       if (person.assignedItems[i].isSameItem(item)) {
@@ -201,7 +216,23 @@ class SplitManager extends ChangeNotifier {
     }
     
     // Now add the item with its exact quantity
+    debugPrint('  Adding item directly to person');
     person.addAssignedItem(item);
+    
+    // Check if the item was successfully added
+    debugPrint('  After assignment - Person\'s items count: ${person.assignedItems.length}');
+    bool itemFound = false;
+    for (var assignedItem in person.assignedItems) {
+      if (assignedItem.name == item.name) {
+        itemFound = true;
+        debugPrint('  Confirmed item was added successfully: ${assignedItem.name}, Price: ${assignedItem.price}');
+        break;
+      }
+    }
+    if (!itemFound) {
+      debugPrint('  WARNING: Item not found in person\'s assigned items after addition!');
+    }
+    
     notifyListeners();
   }
 
@@ -862,5 +893,35 @@ class SplitManager extends ChangeNotifier {
       'shared_items': sharedItems,
       'unassigned_items': unassignedItems,
     };
+  }
+
+  // Add a new method to safely save state using the current SplitManager instance
+  // This allows saving without needing Provider context
+  Future<void> saveAssignmentsToService(ReceiptService receiptService, String receiptId) async {
+    if (!_initialized || !_assignmentsModified) {
+      debugPrint('No changes to save or not initialized yet');
+      return;
+    }
+    
+    try {
+      // Get the assignment data directly from this instance
+      final assignmentData = getAssignmentData();
+      
+      // Reset the flag right away
+      _assignmentsModified = false;
+      
+      // Save to the receipt service
+      await receiptService.saveAssignPeopleToItemsResults(
+        receiptId,
+        assignmentData
+      );
+      
+      debugPrint('Successfully saved assignments directly from SplitManager');
+    } catch (e) {
+      debugPrint('Error saving assignments directly from SplitManager: $e');
+      // Re-mark as modified since save failed
+      _assignmentsModified = true;
+      rethrow;
+    }
   }
 } 

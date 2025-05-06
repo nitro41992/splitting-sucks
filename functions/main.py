@@ -51,6 +51,7 @@ class AssignedItemRef(BaseModel): # Updated Assignment Model for simplicity
     """
     name: str
     quantity: int
+    price: float  # Added price field to match the expected response structure
     people: List[str] = Field(default_factory=list, description="List of people names sharing this item")
     
 class PersonItemRef(BaseModel):
@@ -61,6 +62,7 @@ class PersonItemRef(BaseModel):
     """
     name: str
     quantity: int
+    price: float  # Added price field to match the expected response structure
 
 class PersonAssignment(BaseModel):
     person_name: str

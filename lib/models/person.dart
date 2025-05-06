@@ -26,7 +26,31 @@ class Person extends ChangeNotifier {
   }
 
   void addAssignedItem(ReceiptItem item) {
+    debugPrint('Person.addAssignedItem: Adding item "${item.name}" to ${_name} with price ${item.price} and quantity ${item.quantity}');
+    
+    // Check if this exact item instance already exists
+    bool itemExists = false;
+    for (var existingItem in _assignedItems) {
+      if (identical(existingItem, item)) {
+        itemExists = true;
+        debugPrint('  WARNING: This exact item instance already exists in assigned items');
+        break;
+      }
+    }
+    
+    // Check if an item with the same name exists
+    for (var existingItem in _assignedItems) {
+      if (existingItem.name == item.name) {
+        debugPrint('  WARNING: Item with same name "${item.name}" already exists but with different instance');
+        debugPrint('  Existing: ID=${existingItem.itemId}, Price=${existingItem.price}, Quantity=${existingItem.quantity}');
+        debugPrint('  New: ID=${item.itemId}, Price=${item.price}, Quantity=${item.quantity}');
+      }
+    }
+    
+    // Add the item
     _assignedItems.add(item);
+    debugPrint('  Successfully added item - current assigned items count: ${_assignedItems.length}');
+    
     notifyListeners();
   }
 

@@ -51,6 +51,9 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   String? _savedTranscription;
   String? _restaurantName; // Add variable to track restaurant name
   
+  // Keep a direct reference to SplitManager that doesn't rely on Provider
+  SplitManager? _directSplitManagerRef;
+  
   // Make PageController final to prevent recreation
   final PageController _pageController = PageController(keepPage: true);
   
@@ -96,43 +99,46 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     // Cancel any pending save timer
     _saveTimer?.cancel();
     
-    // Save state before disposing
-    // Use a try/catch to avoid crashing if the provider is not available
-    SplitManager? splitManagerRef;
-    
-    try {
-      // Only try to access the provider if we're mounted
-      if (mounted) {
-        try {
-          splitManagerRef = Provider.of<SplitManager>(context, listen: false);
-        } catch (e) {
-          debugPrint('Provider not available during dispose: $e');
-        }
-      }
-    } catch (e) {
-      debugPrint('Error during dispose: $e');
+    // Try direct reference first (most reliable)
+    if (_directSplitManagerRef != null && widget.receipt.id != null) {
+      debugPrint('Using direct SplitManager reference during dispose (ID: ${_directSplitManagerRef.hashCode})');
+      // Fire and forget - don't wait for the save to complete
+      _directSplitManagerRef!.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+        .then((_) => debugPrint('Assignment changes saved during dispose via direct ref'))
+        .catchError((e) => debugPrint('Error saving assignments during dispose: $e'));
+    } 
+    // Then try static instance (should always be available)
+    else if (widget.receipt.id != null) {
+      final staticInstance = SplitManager.instance;
+      debugPrint('Using static SplitManager instance during dispose (ID: ${staticInstance.hashCode})');
+      // Fire and forget - don't wait for completion
+      staticInstance.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+        .then((_) => debugPrint('Assignment changes saved during dispose via static instance'))
+        .catchError((e) => debugPrint('Error saving assignments during dispose: $e'));
     }
-    
-    // Save changes if we got a reference to the SplitManager
-    if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
+    // Last resort - try Provider
+    else {
+      // Fallback to Provider only if our direct references are null
       try {
-        // Get the assignment data from the split manager
-        final Map<String, dynamic> assignmentData = splitManagerRef.getAssignmentData();
-        
-        // Reset the modified flag
-        splitManagerRef.assignmentsModified = false;
-        
-        // Fire and forget - don't wait for the save to complete
-        _receiptService.saveAssignPeopleToItemsResults(
-          widget.receipt.id!,
-          assignmentData
-        ).then((_) {
-          debugPrint('Assignment changes saved during dispose');
-        }).catchError((e) {
-          debugPrint('Error saving assignments during dispose: $e');
-        });
+        // Only try to access the provider if we're mounted
+        if (mounted) {
+          try {
+            final splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+            debugPrint('Using Provider during dispose (ID: ${splitManagerRef.hashCode})');
+            
+            // Use the direct save method
+            if (widget.receipt.id != null) {
+              // Fire and forget - don't wait for the save to complete
+              splitManagerRef.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+                .then((_) => debugPrint('Assignment changes saved during dispose via Provider'))
+                .catchError((e) => debugPrint('Error saving assignments during dispose: $e'));
+            }
+          } catch (e) {
+            debugPrint('Provider not available during dispose: $e');
+          }
+        }
       } catch (e) {
-        debugPrint('Error saving during dispose: $e');
+        debugPrint('Error during dispose: $e');
       }
     }
     
@@ -150,43 +156,48 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       _saveTimer?.cancel();
       _saveTimer = null;
       
-      SplitManager? splitManagerRef;
+      // Try direct reference first (most reliable)
+      if (_directSplitManagerRef != null && widget.receipt.id != null) {
+        debugPrint('Using direct SplitManager reference for app lifecycle save (ID: ${_directSplitManagerRef.hashCode})');
+        // Use the direct save method 
+        _directSplitManagerRef!.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+          .then((_) => debugPrint('Successfully saved assignments during app pause via direct ref'))
+          .catchError((e) => debugPrint('Error during background save: $e'));
+        return;
+      }
       
+      // Then try static instance (should always be available)
+      if (widget.receipt.id != null) {
+        final staticInstance = SplitManager.instance;
+        debugPrint('Using static SplitManager instance for app lifecycle save (ID: ${staticInstance.hashCode})');
+        // Use the direct save method
+        staticInstance.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+          .then((_) => debugPrint('Successfully saved assignments during app pause via static instance'))
+          .catchError((e) => debugPrint('Error during background save: $e'));
+        return;
+      }
+      
+      // Last resort - try Provider (might fail if context is invalid)
       try {
         // Check if context is still valid and mounted
         if (mounted) {
           // Use try/catch to safely attempt to get the provider
           try {
-            splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+            final splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+            debugPrint('Using Provider for app lifecycle save (ID: ${splitManagerRef.hashCode})');
+            
+            // Use the direct save method with the receipt ID
+            if (widget.receipt.id != null) {
+              splitManagerRef.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+                .then((_) => debugPrint('Successfully saved assignments during app pause via Provider'))
+                .catchError((e) => debugPrint('Error during background save: $e'));
+            }
           } catch (providerError) {
             debugPrint('Provider not available for app lifecycle save: $providerError');
           }
         }
       } catch (e) {
         debugPrint('Error saving assignments on app pause: $e');
-      }
-      
-      // Only proceed with saving if we got a valid reference to the SplitManager
-      if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
-        try {
-          // Get the assignment data directly
-          final assignmentData = splitManagerRef.getAssignmentData();
-          
-          // Reset the flag right away
-          splitManagerRef.assignmentsModified = false;
-          
-          // Fire and forget - don't await the result
-          _receiptService.saveAssignPeopleToItemsResults(
-            widget.receipt.id!,
-            assignmentData
-          ).then((_) {
-            debugPrint('Successfully saved assignments during app pause');
-          }).catchError((e) {
-            debugPrint('Error during background save: $e');
-          });
-        } catch (e) {
-          debugPrint('Error preparing assignment data: $e');
-        }
       }
     } else if (state == AppLifecycleState.resumed) {
       // When app is resumed, we might need to refresh data
@@ -299,6 +310,12 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       create: (context) {
         final splitManager = SplitManager();
         
+        // Store direct reference and set static instance for global access
+        _directSplitManagerRef = splitManager;
+        SplitManager.setInstance(splitManager);
+        
+        debugPrint('Created new SplitManager instance (ID: ${splitManager.hashCode})');
+        
         // Use a post-frame callback to listen for changes in the split manager
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -344,34 +361,8 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
                 Expanded(
                   child: NotificationListener<NavigateToPageNotification>(
                     onNotification: (notification) {
-                      // Auto-save before navigation
-                      try {
-                        if (mounted) {
-                          try {
-                            // Try to get the SplitManager, but don't crash if it's not available
-                            final splitManager = Provider.of<SplitManager>(context, listen: false);
-                            if (splitManager.assignmentsModified) {
-                              // Get data and clear modified flag
-                              final assignmentData = splitManager.getAssignmentData();
-                              splitManager.assignmentsModified = false;
-                              
-                              // Fire and forget
-                              _receiptService.saveAssignPeopleToItemsResults(
-                                widget.receipt.id!,
-                                assignmentData
-                              ).then((_) {
-                                debugPrint('Assignment changes saved before notification navigation');
-                              }).catchError((e) {
-                                debugPrint('Error saving assignments during notification: $e');
-                              });
-                            }
-                          } catch (e) {
-                            debugPrint('Provider not available for notification save: $e');
-                          }
-                        }
-                      } catch (e) {
-                        debugPrint('Error during notification handling: $e');
-                      }
+                      // Save state before navigation
+                      _saveStateBeforeNavigation(_currentStep, notification.pageIndex);
                       
                       // Navigate to the requested page
                       debugPrint('Received NavigateToPageNotification to page: ${notification.pageIndex}');
@@ -393,6 +384,11 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
                       controller: _pageController,
                       physics: const NeverScrollableScrollPhysics(), // Disable swiping between pages
                       onPageChanged: (index) {
+                        // Save state before changing pages
+                        if (_currentStep != index) {
+                          _saveStateBeforeNavigation(_currentStep, index);
+                        }
+                        
                         // Update current step if it's changed via the controller
                         if (index != _currentStep) {
                           setState(() {
@@ -492,6 +488,10 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       child: GestureDetector(
         onTap: canNavigate ? () {
           debugPrint('Navigating to step $step from $_currentStep');
+          
+          // Save state before navigation
+          _saveStateBeforeNavigation(_currentStep, step);
+          
           setState(() {
             _currentStep = step;
           });
@@ -720,48 +720,53 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   }
   
   void _confirmCancel() {
-    // Try to safely save any pending changes first, but don't crash if provider is not available
-    SplitManager? splitManagerRef;
-    
+    // Try to safely save any pending changes first using our direct method
     try {
       // Cancel any pending save timer
       _saveTimer?.cancel();
       _saveTimer = null;
       
-      // Safely try to get the SplitManager and save changes before showing dialog
-      if (mounted) {
-        try {
-          splitManagerRef = Provider.of<SplitManager>(context, listen: false);
-        } catch (providerError) {
-          debugPrint('Provider not available for cancel dialog: $providerError');
+      // Try direct reference first (most reliable)
+      if (_directSplitManagerRef != null && widget.receipt.id != null) {
+        debugPrint('Using direct SplitManager reference when exiting workflow (ID: ${_directSplitManagerRef.hashCode})');
+        // Fire and forget - don't wait for completion
+        _directSplitManagerRef!.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+          .then((_) => debugPrint('State saved successfully when exiting workflow via direct ref'))
+          .catchError((e) => debugPrint('Error saving state when exiting workflow: $e'));
+      }
+      // Then try static instance (should always be available)
+      else if (widget.receipt.id != null) {
+        final staticInstance = SplitManager.instance;
+        debugPrint('Using static SplitManager instance when exiting workflow (ID: ${staticInstance.hashCode})');
+        // Fire and forget - don't wait for completion
+        staticInstance.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+          .then((_) => debugPrint('State saved successfully when exiting workflow via static instance'))
+          .catchError((e) => debugPrint('Error saving state when exiting workflow: $e'));
+      }
+      // Last resort - try Provider
+      else {
+        // Fallback to Provider only if our direct references are null
+        // Safely try to get the SplitManager and save changes before showing dialog
+        if (mounted) {
+          try {
+            final splitManagerRef = Provider.of<SplitManager>(context, listen: false);
+            debugPrint('Using Provider when exiting workflow (ID: ${splitManagerRef.hashCode})');
+            
+            // Use the direct save method if we have a valid receipt ID
+            if (widget.receipt.id != null) {
+              // Fire and forget - don't wait for completion
+              splitManagerRef.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+                .then((_) => debugPrint('State saved successfully when exiting workflow via Provider'))
+                .catchError((e) => debugPrint('Error saving state when exiting workflow: $e'));
+            }
+          } catch (providerError) {
+            debugPrint('Provider not available for cancel dialog: $providerError');
+          }
         }
       }
     } catch (e) {
       // Safely ignore other errors
       debugPrint('Error during cancel dialog: $e');
-    }
-    
-    // Save changes if we got a reference to the SplitManager
-    if (splitManagerRef != null && splitManagerRef.assignmentsModified) {
-      try {
-        // Get the assignment data from the split manager
-        final Map<String, dynamic> assignmentData = splitManagerRef.getAssignmentData();
-        
-        // Reset the modified flag since we've saved the changes
-        splitManagerRef.assignmentsModified = false;
-        
-        // Fire and forget - don't wait for the save to complete
-        _receiptService.saveAssignPeopleToItemsResults(
-          widget.receipt.id!,
-          assignmentData
-        ).then((_) {
-          debugPrint('Assignment changes saved on exit');
-        }).catchError((e) {
-          debugPrint('Error saving assignments on exit: $e');
-        });
-      } catch (e) {
-        debugPrint('Error saving before exit: $e');
-      }
     }
     
     showDialog(
@@ -778,7 +783,6 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                // We don't try to access the provider again on exit
                 Navigator.of(context).pop(); // Return to previous screen
               },
               child: const Text('EXIT'),
@@ -1511,10 +1515,11 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             final int itemId = itemIdData is int 
                 ? itemIdData 
                 : int.tryParse(itemIdData.toString()) ?? 0;
-            final int quantity = (itemData['quantity'] as num).toInt();
-            final double price = (itemData['price'] as num).toDouble();
             
-            debugPrint('  - Processing item: $itemName (ID: $itemId, Quantity: $quantity, Price: \$${price.toStringAsFixed(2)})');
+            // Safely handle quantity - default to 1 if missing
+            final int quantity = itemData.containsKey('quantity') && itemData['quantity'] != null
+                ? (itemData['quantity'] as num).toInt() 
+                : 1;
             
             // First try to find an exact match by name
             ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
@@ -1526,6 +1531,16 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
             }
             
             if (matchingItem != null) {
+              // Extract price from assignment data or use original price from receipt item
+              double price;
+              if (itemData.containsKey('price') && itemData['price'] != null) {
+                price = (itemData['price'] as num).toDouble();
+                debugPrint('  - Processing item: $itemName (ID: $itemId, Quantity: $quantity, Price from assignment: \$${price.toStringAsFixed(2)})');
+              } else {
+                price = matchingItem.price; // Use the price from the receipt item
+                debugPrint('  - Processing item: $itemName (ID: $itemId, Quantity: $quantity, Using original price: \$${price.toStringAsFixed(2)})');
+              }
+              
               // Create a copy with the correct quantity and price
               final itemToAssign = matchingItem.copyWith(
                 quantity: quantity,
@@ -1557,14 +1572,15 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           final int itemId = itemIdData is int 
               ? itemIdData 
               : int.tryParse(itemIdData.toString()) ?? 0;
-          final int quantity = (itemData['quantity'] as num).toInt();
-          final double price = (itemData['price'] as num).toDouble();
+          
+          // Safely handle quantity - default to 1 if missing
+          final int quantity = itemData.containsKey('quantity') && itemData['quantity'] != null
+              ? (itemData['quantity'] as num).toInt() 
+              : 1;
+          
           final List<String> sharingPeople = itemData.containsKey('people')
               ? List<String>.from(itemData['people'] as List)
               : splitManager.people.map((p) => p.name).toList();
-          
-          debugPrint('  - Processing shared item: $itemName (ID: $itemId, Quantity: $quantity, Price: \$${price.toStringAsFixed(2)})');
-          debugPrint('    Shared by: ${sharingPeople.join(', ')}');
           
           // First try to find an exact match by name
           ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
@@ -1576,6 +1592,17 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           }
           
           if (matchingItem != null) {
+            // Extract price from assignment data or use original price from receipt item
+            double price;
+            if (itemData.containsKey('price') && itemData['price'] != null) {
+              price = (itemData['price'] as num).toDouble();
+              debugPrint('  - Processing shared item: $itemName (ID: $itemId, Quantity: $quantity, Price from assignment: \$${price.toStringAsFixed(2)})');
+            } else {
+              price = matchingItem.price; // Use the price from the receipt item
+              debugPrint('  - Processing shared item: $itemName (ID: $itemId, Quantity: $quantity, Using original price: \$${price.toStringAsFixed(2)})');
+            }
+            debugPrint('    Shared by: ${sharingPeople.join(', ')}');
+            
             // Create a copy with the correct quantity and price
             final itemToShare = matchingItem.copyWith(
               quantity: quantity,
@@ -1631,11 +1658,13 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           final int itemId = itemIdData is int 
               ? itemIdData 
               : int.tryParse(itemIdData.toString()) ?? 0;
-          final int quantity = (itemData['quantity'] as num).toInt();
-          final double price = (itemData['price'] as num).toDouble();
-          final dynamic position = itemData['position'];
           
-          debugPrint('  - Processing unassigned item: $itemName (ID: $itemId, Quantity: $quantity, Price: \$${price.toStringAsFixed(2)})');
+          // Safely handle quantity - default to 1 if missing
+          final int quantity = itemData.containsKey('quantity') && itemData['quantity'] != null
+              ? (itemData['quantity'] as num).toInt() 
+              : 1;
+          
+          final dynamic position = itemData['position'];
           
           // First try to find an exact match by name
           ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
@@ -1659,6 +1688,16 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
           }
           
           if (matchingItem != null) {
+            // Extract price from assignment data or use original price from receipt item
+            double price;
+            if (itemData.containsKey('price') && itemData['price'] != null) {
+              price = (itemData['price'] as num).toDouble();
+              debugPrint('  - Processing unassigned item: $itemName (ID: $itemId, Quantity: $quantity, Price from assignment: \$${price.toStringAsFixed(2)})');
+            } else {
+              price = matchingItem.price; // Use the price from the receipt item
+              debugPrint('  - Processing unassigned item: $itemName (ID: $itemId, Quantity: $quantity, Using original price: \$${price.toStringAsFixed(2)})');
+            }
+            
             // Create a copy with the correct quantity and price
             final itemToUnassign = matchingItem.copyWith(
               quantity: quantity,
@@ -2064,6 +2103,58 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     } else {
       // Otherwise navigate to previous step
       _navigateToPreviousStep();
+    }
+  }
+
+  // Add a new method to save state when navigating between workflow steps
+  void _saveStateBeforeNavigation(int fromStep, int toStep) {
+    debugPrint('Saving state before navigating from step $fromStep to step $toStep');
+    
+    // Cancel any pending save timer
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    
+    // First try our direct reference (most reliable)
+    if (_directSplitManagerRef != null && widget.receipt.id != null) {
+      debugPrint('Using direct SplitManager reference for navigation save (ID: ${_directSplitManagerRef.hashCode})');
+      // Fire and forget - don't wait for completion
+      _directSplitManagerRef!.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+        .then((_) => debugPrint('State saved successfully during navigation via direct ref'))
+        .catchError((e) => debugPrint('Error saving state during navigation: $e'));
+      return;
+    }
+    
+    // Then try the static instance (should always be available)
+    if (widget.receipt.id != null) {
+      final staticInstance = SplitManager.instance;
+      debugPrint('Using static SplitManager instance for navigation save (ID: ${staticInstance.hashCode})');
+      // Fire and forget - don't wait for completion
+      staticInstance.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+        .then((_) => debugPrint('State saved successfully during navigation via static instance'))
+        .catchError((e) => debugPrint('Error saving state during navigation: $e'));
+      return;
+    }
+    
+    // Last resort - try Provider (might fail if Provider context is invalid)
+    try {
+      // Only try if we're mounted
+      if (mounted) {
+        try {
+          final splitManager = Provider.of<SplitManager>(context, listen: false);
+          debugPrint('Using Provider for navigation save (ID: ${splitManager.hashCode})');
+          
+          // Fire and forget - don't wait for completion
+          if (widget.receipt.id != null) {
+            splitManager.saveAssignmentsToService(_receiptService, widget.receipt.id!)
+              .then((_) => debugPrint('State saved successfully during navigation via Provider'))
+              .catchError((e) => debugPrint('Error saving state during navigation: $e'));
+          }
+        } catch (e) {
+          debugPrint('Provider not available during navigation save: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error during navigation save: $e');
     }
   }
 } 

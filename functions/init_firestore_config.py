@@ -86,20 +86,21 @@ Analyze the voice transcription and the provided JSON list of receipt items to d
 7.  Ensure quantities in the assignments match the receipt (provide positive integers).
 8.  If not all instances of an item are assigned via transcription, place the remaining quantity/item in 'unassigned_items'.
 9.  For "shared_items", ALWAYS include a "people" field with a list of names of exactly who is sharing each item.
+10. ALWAYS include the "price" field from the original receipt items in your response for each assigned, shared, or unassigned item.
 
 Return ONLY a JSON object matching the following structure:
 {
   "assignments": {
     "<person_name>": [
-      {"name": "<item_name>", "quantity": <int>}
+      {"name": "<item_name>", "quantity": <int>, "price": <float>}
     ],
     ...
   },
   "shared_items": [
-    {"name": "<item_name>", "quantity": <int>, "people": ["person1", "person2"]}
+    {"name": "<item_name>", "quantity": <int>, "price": <float>, "people": ["person1", "person2"]}
   ],
   "unassigned_items": [
-    {"name": "<item_name>", "quantity": <int>}
+    {"name": "<item_name>", "quantity": <int>, "price": <float>}
   ]
 }
 """},
@@ -113,15 +114,15 @@ Return ONLY a JSON object matching the following structure:
 {
   "assignments": {
     "<person_name>": [
-      {"name": "<item_name>", "quantity": <integer_assignment_quantity>}
+      {"name": "<item_name>", "quantity": <integer_assignment_quantity>, "price": <float_price>}
     ],
     ...
   },
   "shared_items": [
-    {"name": "<item_name>", "quantity": <integer_shared_quantity>, "people": ["person1", "person2"]}
+    {"name": "<item_name>", "quantity": <integer_shared_quantity>, "price": <float_price>, "people": ["person1", "person2"]}
   ],
   "unassigned_items": [
-    {"name": "<item_name>", "quantity": <integer_unassigned_quantity>}
+    {"name": "<item_name>", "quantity": <integer_unassigned_quantity>, "price": <float_price>}
   ]
 }
 
@@ -134,6 +135,7 @@ Return ONLY a JSON object matching the following structure:
 6.  The sum of quantities for a specific item across "assignments", "shared_items", and "unassigned_items" must equal the original quantity of that item in the input receipt list.
 7.  If an item is mentioned but not all quantity is claimed, assign the claimed amount and put the remainder in "unassigned_items".
 8.  For "shared_items", ALWAYS include a "people" field with a list of names of exactly who is sharing each item.
+9.  IMPORTANT: ALWAYS include the original "price" field value for every item in your response.
 
 Return *only* the JSON object."""}
         },
