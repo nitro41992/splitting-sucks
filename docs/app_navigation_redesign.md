@@ -1,48 +1,43 @@
-# App Navigation Redesign Plan
+# App Navigation and Workflow Redesign
 
-## Overview
+## 1. Introduction & Key Goals
 
-This document outlines the plan to redesign the app's navigation structure by:
+This document outlines a significant redesign of the app's navigation and receipt processing workflow. The primary objectives are to:
 
-1. Making "Receipts" the main view to display past and draft receipts
-2. Adding a floating action button for "Add Receipt" to initiate the workflow
-3. Converting the current 5-step workflow into a transient modal flow
-4. Maintaining the existing backend/cloud function integration
+1.  **Enhance User Experience:** Streamline navigation by making "Receipts" the central view and introducing a more intuitive "Add Receipt" flow.
+2.  **Improve Workflow Efficiency:** Convert the existing multi-tab workflow into a transient modal, maintaining current in-memory caching within the flow for responsiveness.
+3.  **Enable Persistent Drafts:** Implement robust data persistence, allowing users to save incomplete receipts as drafts and resume them later. This involves storing the workflow's cached state to Firestore upon exiting the modal or the app.
+4.  **Maintain Backend Stability:** Leverage existing backend Cloud Functions without immediate modification, ensuring a phased rollout.
+5.  **Uphold Code Quality:** Implement all changes following best coding practices, focusing on reusability, clarity, and maintainability.
 
-## Current Structure
+## 2. Core Redesign Pillars
 
-The app currently uses a bottom navigation bar with 5 items representing steps in the receipt splitting workflow:
-- Upload
-- Review
-- Assign
-- Split
-- Summary
+### 2.1. Navigation and UI Transformation
 
-## New Structure
+The app's navigation will be simplified for a more focused user experience:
 
-### Main Navigation
+*   **Main Navigation:**
+    *   A **Bottom Navigation Bar** with two primary items: "Receipts" and "Settings".
+    *   A **Floating Action Button (FAB)** for "Add Receipt" to initiate the new receipt workflow.
+*   **Receipts Screen (Primary View):**
+    *   Displays a list of all saved receipts (both completed and drafts).
+    *   Features search and filter capabilities.
+    *   Allows users to select receipts for viewing details or editing drafts.
+    *   The FAB for adding new receipts will be prominently displayed here.
+*   **Workflow Modal (Transient Flow):**
+    *   The current 5-step workflow (Upload, Review, Assign, Split, Summary) will be encapsulated within a **transient modal dialog**.
+    *   A **step indicator** at the top of the modal will replicate the functionality of the current tab navigation, guiding users through the process.
+    *   Progression logic (Back/Next navigation) within the modal remains consistent with the current app.
+    *   **Existing in-memory caching between steps within the modal flow will be maintained** to ensure a smooth and fast user experience while actively working on a receipt.
+    *   The modal will provide options to "Save and Exit" (creating/updating a draft) or "Cancel".
 
-- **Bottom Navigation Bar**: Two items only - "Receipts" and "Settings"
-- **Floating Action Button**: Add Receipt (initiates the workflow)
-- **Receipt Workflow**: Becomes a transient modal flow rather than persistent tabs
+*(Refer to Section 6: UI Mockups for visual representations.)*
 
-### Receipts Screen (Main View)
+### 2.2. Data Model and Persistence Strategy
 
-- List of all saved receipts (both completed and drafts)
-   - A receipt is draft until the assignment and summary are created. Keep in mind that a summary is additional calculation on teh data produced in the assignment view so if assignemnt is avialable, consider it complete.
-- Floating action button to add new receipt
-- Search and filter capabilities
-- Ability to select receipts for viewing details or editing
+A robust data model and a clear persistence strategy are crucial for enabling drafts, ensuring data integrity, and supporting scalability.
 
-### Workflow Modal
-
-- Contains the existing 5 steps (Upload, Review, Assign, Split, Summary)
-- Step indicator at top (functions exactly like current tab navigation)
-- Same progression logic as current app
-- **Maintains existing in-memory caching between steps within the modal flow**
-- Option to save and exit workflow and return to Receipts screen. If this happens, save the cache state in the data model below.
-
-## Data Model
+**Data Model Definition:**
 
 ```
 users/{userId}/receipts/{receiptId}
@@ -57,7 +52,7 @@ users/{userId}/receipts/{receiptId}
           ]
         }
       - shared_items: List<Map> [
-          {"name": "<item_name>", "quantity": <integer>, "people": ["person1", "person2"]}  // List of people sharing this item
+          {"name": "<item_name>", "quantity": <integer>, "people": ["person1", "person2"]}
         ]
       - unassigned_items: List<Map> [
           {"name": "<item_name>", "quantity": <integer>}
@@ -73,152 +68,122 @@ users/{userId}/receipts/{receiptId}
     }
 ```
 
-This model:
-- Stores raw cloud function outputs directly without transformation. For `assign_people_to_items`, the structure shown above is the target detailed format. The current `assign_people_to_items` cloud function (which remains unchanged for now) might output a more generic `Map`. The client application may need to transform this raw data, or this detailed structure will be implemented in a future update of the cloud function.
-- Maintains backward compatibility with existing functions
-- Links data to the corresponding image and user
-- Includes minimal metadata for list display and search
-- Stores reference to a pre-generated thumbnail for fast loading in lists
+**Key Aspects of the Data Model:**
 
-### Guidance for `functions/main.py` (Pydantic Models)
+*   **Raw Function Outputs:** Initially stores direct outputs from existing Cloud Functions to ensure backward compatibility and minimize immediate backend changes. For `assign_people_to_items`, the structure shown is the target detailed format. The current cloud function might output a more generic `Map`; the client application may need to adapt this, or the function will be updated later.
+*   **User-Centric:** All receipt data is linked to a specific user.
+*   **Metadata for Efficiency:** Includes essential metadata (`status`, `restaurant_name`, `people`) for list display, filtering, and search functionalities on the "Receipts" screen.
 
-Given the updated data model for `assign_people_to_items` and the requirement to keep existing Firebase Functions unchanged initially, consider the following for your Pydantic models in `functions/main.py`:
+**Caching, Persistence, and Scalability:**
 
-1.  **Existing Function Outputs (e.g., `assign_people_to_items` function):
-    *   The current `assign_people_to_items` cloud function will continue to output its existing data structure (likely a generic `Map` or a simpler Pydantic model).
-    *   Pydantic models used for the *response* of this specific function should *not* be changed yet to maintain compatibility with any current consumers.
+This strategy is designed for both a responsive UI and scalable data management, avoiding hacky solutions by clearly defining when data is cached versus persisted:
 
-2.  **Client-Side Handling (Flutter App):
-    *   When the Flutter app saves receipt data to Firestore (either as a draft or a completed receipt), it will save the `assign_people_to_items` field in the *new, detailed structure* outlined in the data model above.
-    *   When the app reads receipt data from Firestore, it should expect `assign_people_to_items` to be in this new, detailed structure.
+1.  **In-Modal Caching (Performance):** While a user is actively in the workflow modal, data (e.g., OCR results, user edits to items, assignments) is cached in memory. This allows for instant screen transitions and interactions within the modal without constant database reads/writes. This maintains the current workflow's performant caching.
+2.  **Auto-Save to Firestore (Data Integrity & Drafts):**
+    *   **After Cloud Function Calls:** Results from each Cloud Function (`parse_receipt`, `transcribe_audio`, `assign_people_to_items`) are immediately saved to the corresponding fields in the Firestore `receipt` document.
+    *   **After User Edits:** Any modifications made by the user within a step (e.g., editing item names/prices in Review, correcting transcriptions, changing assignments) are also saved to Firestore, updating the relevant fields (`parse_receipt`, `transcribe_audio`, `assign_people_to_items`, `split_manager_state`).
+    *   **On Workflow Exit (Draft Creation):** If the user explicitly saves and exits the modal, or exits the app mid-workflow, the **current in-memory cached state of the entire workflow is persisted to Firestore**. The `metadata.status` is set to "draft". This ensures no data loss and allows the user to resume seamlessly. This is a critical step for scalability, as it prevents re-processing from scratch if a user returns to a draft.
+3.  **`receiptId` Consistency:** A consistent `receiptId` is used throughout the workflow (from initiation in the modal to all Firestore operations) to ensure updates are applied to the correct document.
+4.  **Scalability Benefits:**
+    *   Reduces redundant AI function calls by saving intermediate results.
+    *   Allows users to resume complex splits without starting over, improving user satisfaction.
+    *   Firestore's scalability handles the storage of individual receipt documents efficiently.
 
-3.  **New or Updated Functions Reading from Firestore:
-    *   Any *new* Cloud Functions, or existing functions that are *updated* to process receipt documents from Firestore (e.g., a function for final processing, aggregation, or data migration), will need Pydantic models capable of parsing the *new, detailed structure* of the `assign_people_to_items` field as stored in Firestore by the app.
-    *   For example, if a function reads a `/users/{userId}/receipts/{receiptId}` document, its Pydantic model for that document should reflect the new `assign_people_to_items` structure.
+**Preserving User Edits:**
 
-4.  **Pydantic Models for the New Structure:**
-    *   When you are ready to update the `assign_people_to_items` function itself, or for new functions that will produce/consume this detailed structure, you can use Pydantic models like the following (conceptual example):
+The data model and persistence logic ensure all user modifications are saved:
 
-      ```python
-      from typing import List, Dict, Any
-      from pydantic import BaseModel, Field
+*   **Receipt Item Edits:** Changes to item names, prices, quantities in the Review screen update `parse_receipt`.
+*   **Transcription Edits:** Corrections to transcribed text update `transcribe_audio`.
+*   **Assignment Modifications:** Changes to people, item assignments, shared/unassigned items, and sharing proportions update `assign_people_to_items` and potentially `split_manager_state`.
+*   **Final Calculation Adjustments:** Modifications to tax, tip, etc., update `split_manager_state`.
 
-      class ItemDetail(BaseModel):
-          name: str
-          quantity: int
+**Guidance for `functions/main.py` (Pydantic Models):**
 
-      class SharedItemDetail(BaseModel):
-          name: str
-          quantity: int
-          people: List[str]
+(This subsection remains largely the same as your previous version, detailing how Pydantic models should evolve, ensuring current functions are not broken while new structures are adopted for storage.)
 
-      class AssignPeopleToItemsNewOutput(BaseModel): # New model for the detailed structure
-          assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
-          shared_items: List[SharedItemDetail] = Field(default_factory=list)
-          unassigned_items: List[ItemDetail] = Field(default_factory=list)
-      ```
+1.  **Existing Function Outputs:** Current Cloud Functions (e.g., `assign_people_to_items`) continue outputting their existing data structure. Pydantic models for *responses* of these specific functions should *not* change yet.
+2.  **Client-Side Handling (Flutter App):** The Flutter app will save data to Firestore (drafts or completed receipts) using the *new, detailed structure* for fields like `assign_people_to_items`. When reading, it expects this new structure.
+3.  **New/Updated Functions Reading from Firestore:** Any *new* Cloud Functions, or existing ones updated to process stored receipt documents, will need Pydantic models reflecting the *new, detailed structure* as stored by the app.
+4.  **Pydantic Models for New Structure (Conceptual):**
+    ```python
+    from typing import List, Dict, Any
+    from pydantic import BaseModel, Field
 
-This approach allows the Flutter app to immediately benefit from the richer data model for `assign_people_to_items` stored in Firestore, while existing Cloud Functions remain operational. Future updates to Cloud Functions can then adopt the new Pydantic models as they are developed or refactored.
+    class ItemDetail(BaseModel):
+        name: str
+        quantity: int
 
-## Implementation Approach
+    class SharedItemDetail(BaseModel):
+        name: str
+        quantity: int
+        people: List[str]
 
-### Minimal Changes Strategy
+    class AssignPeopleToItemsNewOutput(BaseModel):
+        assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
+        shared_items: List[SharedItemDetail] = Field(default_factory=list)
+        unassigned_items: List[ItemDetail] = Field(default_factory=list)
+    ```
+This allows the Flutter app to use the richer data model in Firestore immediately, while Cloud Functions evolve.
 
-1. **Reuse Existing Screens**: Keep all existing workflow screens with their current logic
-2. **Simple Container Change**: Wrap workflow in a modal container instead of tabs
-3. **Transform Navigation**: Convert bottom tabs to a step indicator with the same functionality
-4. **Add Persistence**: Save function outputs to Firestore without transformations
-5. **Update Receipts Screen**: Create a simple list view of stored receipts
+### 2.3. Efficient Image Handling
 
-### Efficient Image Handling
+To ensure fast loading and a smooth experience, especially on the "Receipts" list:
 
-1. **Thumbnail Generation**:
-   - Generate a smaller thumbnail version when the receipt image is first uploaded
-   - Store the thumbnail in Firebase Storage alongside the original
-   - Save reference to both original and thumbnail in the receipt document
+1.  **Thumbnail Generation:** Generate a smaller thumbnail when the receipt image is first uploaded. Store it in Firebase Storage alongside the original. References to both are saved in the receipt document.
+2.  **Image Caching (Local):** Use Flutter's `cached_network_image` (or similar) for local caching of thumbnails. Pre-cache visible thumbnails in lists. Use a memory cache for recently viewed full receipts.
+3.  **Lazy Loading:** Load thumbnails on-demand when scrolling. Load full-resolution images only when viewing receipt details.
 
-2. **Image Caching**:
-   - Implement local caching for thumbnails using Flutter's `cached_network_image` package
-   - Pre-cache visible thumbnails in the receipt list for instant loading
-   - Use a memory cache for recently viewed receipts to reduce storage operations
+## 3. Implementation Roadmap & Best Practices
 
-3. **Lazy Loading**:
-   - Load thumbnails as needed when scrolling through the receipt list
-   - Only load full-resolution images when viewing receipt details
+### 3.1. Guiding Coding Principles
 
-### Auto-save Workflow
+Development should adhere to best practices to ensure a high-quality, maintainable, and scalable application:
 
-1. After each cloud function returns data, immediately store in Firestore:
-   - Save `parse_receipt` results after OCR
-   - Save `transcribe_audio` results after voice recording
-   - Save `assign_people_to_items` results after assignments
-   - Save final calculations in `split_manager_state`
+*   **Non-Duplication (DRY - Don't Repeat Yourself):** Abstract common logic into reusable functions, services, and widgets.
+*   **Reusability:** Design components (UI and logic) to be adaptable for different contexts. For instance, the existing workflow screens should be reused within the new modal container with minimal changes.
+*   **Clean Code & Readability:** Write clear, concise, and well-documented code. Break down large code files and complex widgets into smaller, manageable units.
+*   **Modularity:** Structure the codebase into logical layers (UI, services, state management, models) to improve separation of concerns.
+*   **Testability:** Write code that is easy to test, including unit tests for logic and widget tests for UI components.
+*   **Scalability:** Design with future growth in mind, particularly for data handling and asynchronous operations. The described caching and persistence strategy is a core part of this.
+*   **No Hacky Solutions:** Avoid temporary fixes or workarounds that compromise code quality or long-term stability.
 
-2. After any user edits, update the corresponding data:
-   - When user edits receipt items in the Review screen
-   - When user modifies the transcription text
-   - When user changes assignments (adding/removing people, changing item assignments)
-   - When user adjusts shared items or unassigned items
-   - When user modifies final calculations (tip, tax, etc.)
+### 3.2. Key Implementation Tasks
 
-3. **If the user exits the modal workflow (e.g., by navigating back to the Receipts screen or closing the app) before completion, the current cached state of the workflow will be persisted to Firestore. The `metadata.status` will be set to "draft", allowing the user to resume later.**
+1.  **Navigation & Core UI Shell:**
+    *   Implement the 2-item Bottom Navigation Bar (Receipts, Settings).
+    *   Create the main "Receipts" screen (list view, search/filter placeholders).
+    *   Add the global Floating Action Button for initiating the receipt workflow.
+2.  **Workflow Modal Implementation:**
+    *   Develop the modal container to host the existing 5 workflow screens.
+    *   Implement the step indicator navigation within the modal.
+    *   Ensure smooth transitions between steps, leveraging existing screen logic.
+    *   Implement "Save & Exit" (to draft) and "Cancel" functionalities.
+3.  **Firestore Persistence & Services:**
+    *   Develop service methods for creating, reading, updating, and deleting receipt documents in Firestore.
+    *   Implement the auto-save logic:
+        *   After each Cloud Function result is received by the client.
+        *   After user edits within each step of the workflow.
+        *   Crucially, on modal exit (saving the complete cached state as a draft if not completed).
+4.  **Receipt Management Features:**
+    *   Populate the "Receipts" screen list with data from Firestore (drafts and completed).
+    *   Implement receipt detail view.
+    *   Enable editing of "draft" receipts (re-opening the modal pre-filled with stored data).
+    *   Implement delete functionality for receipts.
+5.  **Image Handling:**
+    *   Integrate thumbnail generation (client-side or via a new lightweight function if necessary).
+    *   Implement image uploading to Firebase Storage (original and thumbnail).
+    *   Set up local image caching and lazy loading in the UI.
 
-4. Use a consistent `receiptId` throughout the workflow to update the same document
+## 4. Cloud Function Development and Deployment Strategy
 
-### Preserving User Edits
-
-The data model and persistence approach fully supports user edits at all workflow stages:
-
-1. **Receipt Item Edits**: When a user edits items in the Review screen (names, prices, quantities), these changes will be saved to Firestore, updating the `parse_receipt` results with the user-modified values.
-
-2. **Transcription Edits**: If a user corrects or modifies the transcription text, the updated text will be stored in the `transcribe_audio` field, preserving these changes.
-
-3. **Assignment Modifications**: All changes to people and item assignments, including:
-   - Adding or removing people
-   - Changing which items are assigned to which people
-   - Moving items between assigned, shared, and unassigned categories
-   - Adjusting sharing proportions
-   
-   These will all be captured in the `assign_people_to_items` field and the `split_manager_state`.
-
-4. **Final Calculation Adjustments**: Any modifications to tax, tip, or other calculations will be reflected in the stored `split_manager_state`.
-
-This ensures that all user input and customizations are preserved when resuming a draft or viewing a completed receipt.
-
-## Key Implementation Tasks
-
-1. **Navigation Structure**
-   - Create 2-item bottom navigation (Receipts and Settings)
-   - Add receipt list screen
-   - Add floating action button
-
-2. **Workflow Container**
-   - Create modal container for the 5 existing workflow screens
-   - Convert tab navigation to step indicator
-   - Add save/cancel functionality
-
-3. **Persistence**
-   - Implement auto-save after each cloud function call
-   - Create service methods to retrieve and update receipts
-   - Add security rules for user data protection
-
-4. **Receipt Management**
-   - Implement receipt list and detail views
-   - Add edit and delete functionality
-
-## Security Considerations
-
-1. **Firestore Rules**: Ensure users can only access their own receipts
-2. **Secure Deletion**: Properly handle account and data deletion
-3. **Authentication**: Maintain secure auth flow in Settings section
-
-## Cloud Function Development and Deployment Strategy
+(This section remains largely the same as your previous version, detailing local testing with Emulator Suite, dedicated Firebase projects, dev workflow, promotion to production, version control with Git, environment configuration, and managing function changes, including the handling of dynamic prompts.)
 
 To manage changes to Cloud Functions effectively and avoid impacting the production environment, the following strategy is recommended:
 
 1.  **Local Development and Testing (Firebase Emulator Suite):**
     *   Utilize the Firebase Emulator Suite for local development and testing of Cloud Functions ([Firebase Documentation](https://firebase.google.com/docs/functions/get-started#emulate_execution_of_your_functions)).
-    *   This allows you to run and debug your functions, including those triggered by Firestore, Authentication, and HTTP requests, on your local machine.
+    *   This allows you to run and debug your functions, including those triggered by Firestore, Authentication, and HTTP requests, on your local machine. The **Emulator UI (usually at `http://localhost:4000`)** provides a way to inspect and manage emulated services like Firestore.
     *   **Testing Prompts and Configuration:** If your functions fetch dynamic configurations (like prompts for AI services that dictate JSON structure, as managed by `config_helper.py`), you will also run the emulators for the services hosting this configuration (e.g., Firestore Emulator, Remote Config Emulator).
         *   You will need to **seed these emulated services with the development/test versions of your prompts/configurations**. These test configurations should align with any local changes to your Pydantic models or other code that expects specific structures.
         *   The Firebase SDKs used in your functions (and `config_helper.py`) will automatically connect to these emulated services when the emulators are active, ensuring your local tests use your local configurations.
@@ -226,43 +191,38 @@ To manage changes to Cloud Functions effectively and avoid impacting the product
 
 2.  **Dedicated Firebase Projects (Dev/Staging and Production):**
     *   **Production Project:** Your current live Firebase project.
-    *   **Development/Staging Project:** Create a separate, new Firebase project dedicated to development and staging. This project will have its own isolated instances of Firestore, Cloud Functions, Authentication, etc.
-    *   Your Flutter application can be configured with different Firebase project configurations (e.g., using different `google-services.json` or Flutter build flavors) to target the dev/staging project during development and testing, and the production project for release builds.
+    *   **Development/Staging Project:** Create a separate, new Firebase project for development and staging.
+    *   Configure your Flutter app to target the appropriate Firebase project based on the build environment.
 
 3.  **Development Workflow:**
-    *   Develop new functions or changes to existing functions in your local environment, testing thoroughly with the Emulator Suite.
-    *   Once locally tested, deploy the functions to your dedicated dev/staging Firebase project.
-    *   Conduct integration testing with your app pointing to this dev/staging environment.
+    *   Develop and test functions locally with the Emulator Suite.
+    *   Deploy to the dev/staging Firebase project for integration testing.
 
 4.  **Promotion to Production:**
-    *   After successful testing in the dev/staging environment, deploy the same function code to your production Firebase project.
-    *   The Firebase CLI facilitates deployment to specific projects. You can use project aliases (`firebase use <project_alias>`) or specify the project ID directly during deployment (`firebase deploy --project <YOUR_PROJECT_ID> --only functions`).
+    *   After successful staging, deploy to the production Firebase project using Firebase CLI project aliases or direct project ID specification.
 
 5.  **Version Control (Git):**
-    *   Maintain all your Cloud Function code in a Git repository.
-    *   Use branches for developing new features or fixes (e.g., `feature/new-receipt-processing`, `fix/user-auth-bug`).
-    *   Merge tested changes into a `develop` or `staging` branch for deployment to the dev/staging project.
-    *   Merge thoroughly tested and approved changes into a `main` or `production` branch before deploying to the production project.
+    *   Maintain Cloud Function code in Git, using branches for features/fixes.
+    *   Merge to `develop`/`staging` branches for dev/staging deployment, and to `main`/`production` for production deployment.
     *   **Consider versioning your prompt seed files or Remote Config templates alongside your function code if they are tightly coupled.**
 
 6.  **Environment Configuration for Functions:**
-    *   For any external API keys, service URLs, or other configuration values that differ between dev/staging and production, use Firebase's environment configuration for Functions (`functions.config()`).
-    *   Set configuration using the Firebase CLI: `firebase functions:config:set someservice.key="API_KEY_FOR_DEV" myparam="dev_value"`.
-    *   Access these in your functions via `functions.config().someservice.key`.
-    *   This avoids hardcoding sensitive or environment-specific values directly in your function code. Remember to set the appropriate config for each Firebase project.
-    *   **Distinction from Dynamic Prompts:** While `functions.config()` is excellent for secrets and stable environment-specific settings, dynamic prompts (especially those dictating evolving JSON structures tied to Pydantic models) are often better managed in Firestore or Remote Config. The key is that your *emulated* Firestore/Remote Config will hold the *development version* of these prompts, while your *deployed* dev/staging and production Firebase projects will hold their respective versions of the prompts.
+    *   Use Firebase's environment configuration (`functions.config()`) for API keys, service URLs, etc., that differ between environments.
+    *   Set via Firebase CLI: `firebase functions:config:set someservice.key="API_KEY_FOR_DEV"`.
+    *   **Distinction from Dynamic Prompts:** While `functions.config()` is for secrets/stable settings, dynamic prompts (tied to Pydantic models) are better managed in Firestore/Remote Config. Emulated services hold dev prompt versions; deployed projects hold their respective versions.
 
-7.  **Managing Function Changes (Avoiding Impact on Existing Functions):**
-    *   **Non-Breaking Changes:** If a change is backward compatible, you can update the existing function.
-    *   **Breaking Changes:** If you need to introduce a breaking change to a function's trigger, request signature, or response structure:
-        *   Consider deploying the new logic as a *new* function (e.g., `myFunction_v2`) instead of modifying the existing one directly.
-        *   Update your client application to call the new function version.
-        *   The old function version can remain active to support older clients until they are deprecated.
-    *   This is particularly important for the `assign_people_to_items` function, as you wish to keep the current version live while the new data model is adopted by the app.
+7.  **Managing Function Changes:**
+    *   For non-breaking changes, update existing functions.
+    *   For breaking changes, consider deploying as new functions (e.g., `myFunction_v2`) and update clients gradually. This is relevant for `assign_people_to_items` if its core output structure changes in the future beyond the client-side adoption of the new detailed model for storage.
 
-This approach ensures that your production environment remains stable while allowing for iterative development and testing of Cloud Functions.
+## 5. Security Considerations
 
-## UI Mockups
+1.  **Firestore Rules:** Implement robust Firestore security rules to ensure users can only access and modify their own receipt data.
+2.  **Secure Deletion:** Properly handle user account deletion, ensuring associated data is also securely removed or anonymized according to policy.
+3.  **Authentication:** Maintain a secure authentication flow, especially within any settings or account management sections.
+4.  **Input Validation:** Continue to validate all inputs on the client-side and, critically, within Cloud Functions before processing or storing data.
+
+## 6. UI Mockups
 
 ### Main Receipts Screen with FAB
 
@@ -299,20 +259,10 @@ This approach ensures that your production environment remains stable while allo
 │                                                 │
 │                                                 │
 │            Current Step Content                 │
-│                                                 │
-│                                                 │
+│            (Leveraging existing screens)        │
 │                                                 │
 │                                                 │
 ├─────────────────────────────────────────────────┤
-│    ← Back                        Next →         │
+│    ← Back         [Save & Exit to Draft]         Next →         │
 └─────────────────────────────────────────────────┘
-```
-
-## Summary
-
-This redesign maintains all existing functionality while improving the user experience through:
-1. A focused main screen showing all receipts
-2. Easy access to create new receipts via FAB
-3. A streamlined workflow experience in a modal container
-4. Persistent storage of all receipt data
-5. Minimal changes to existing code and cloud functions 
+``` 
