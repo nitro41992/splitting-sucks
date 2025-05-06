@@ -121,7 +121,7 @@ The data model and persistence logic ensure all user modifications are saved:
         price: float
         people: List[str]
 
-    class AssignPeopleToItemsNewOutput(BaseModel):
+    class AssignPeopleToItems(BaseModel):
         assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
         shared_items: List[SharedItemDetail] = Field(default_factory=list)
         unassigned_items: List[ItemDetail] = Field(default_factory=list)

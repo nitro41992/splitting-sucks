@@ -377,13 +377,13 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
         full_prompt = f"{prompt_template}\n\nTranscription:\n{transcription}\n\nReceipt Items JSON:\n{receipt_items_str}"
 
         # --- Provider-Specific API Call --- 
-        assignment_result: AssignmentResult = None
+        assignment_result: AssignPeopleToItems = None
 
         if provider == 'openai':
             print("Sending request to OpenAI API via Instructor...")
             assignment_result = openai_client.chat.completions.create(
                 model=model_name,
-                response_model=AssignmentResult,
+                response_model=AssignPeopleToItems,
                 messages=[{"role": "user", "content": full_prompt}]
             )
             print("Received and validated response from OpenAI via Instructor.")
@@ -398,15 +398,15 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
             # Configure generation settings including schema and thinking budget using legacy types
             generation_config = genai_legacy_types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=AssignmentResult.model_json_schema(), # Use JSON schema directly instead of model
+                response_schema=AssignPeopleToItems.model_json_schema(),
                 thinking_config=genai_legacy_types.ThinkingConfig(thinking_budget=8000)
             )
 
             # Send request using client.models.generate_content
             response = client.models.generate_content(
-                model=f'models/{gemini_model_name}', # Use the stored model name
-                contents=[full_prompt], # Send the combined prompt
-                config=generation_config # Correct keyword: 'config'
+                model=f'models/{gemini_model_name}',
+                contents=[full_prompt],
+                config=generation_config
             )
 
             print("Received response from Gemini API.")
@@ -417,7 +417,7 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
                     # Parse the JSON response
                     json_response = json.loads(response.text)
                     # Validate with Pydantic model
-                    assignment_result = AssignmentResult.model_validate(json_response)
+                    assignment_result = AssignPeopleToItems.model_validate(json_response)
                     print("Successfully parsed and validated Gemini JSON response.")
                 except (json.JSONDecodeError, ValidationError) as e:
                     print(f"Failed to parse/validate Gemini response: {e}")
@@ -441,17 +441,9 @@ def assign_people_to_items(req: https_fn.Request) -> https_fn.Response:
 
         # --- Return Success Response --- 
         if assignment_result:
-            # Convert from new format to old format for backward compatibility
-            result_dict = assignment_result.model_dump()
-            # If using new format, convert to the format expected by frontend
-            if 'person_assignments' in result_dict:
-                assignments_dict = {}
-                for person_assignment in result_dict['person_assignments']:
-                    person_name = person_assignment['person_name']
-                    assignments_dict[person_name] = person_assignment['items']
-                result_dict['assignments'] = assignments_dict
-                del result_dict['person_assignments']
-            return {"data": result_dict}
+            # The AI output now directly matches AssignPeopleToItems, so no major transformation needed.
+            # The Pydantic model ensures the structure (e.g. assignments as Dict) is correct.
+            return {"data": assignment_result.model_dump()}
         else:
             raise Exception("Internal error: No assignment result was processed.")
 
