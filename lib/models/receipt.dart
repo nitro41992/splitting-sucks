@@ -8,7 +8,6 @@ class Receipt {
   Map<String, dynamic>? parseReceipt;
   Map<String, dynamic>? transcribeAudio;
   Map<String, dynamic>? assignPeopleToItems;
-  Map<String, dynamic>? splitManagerState;
   ReceiptMetadata metadata;
   
   Receipt({
@@ -18,7 +17,6 @@ class Receipt {
     this.parseReceipt,
     this.transcribeAudio,
     this.assignPeopleToItems,
-    this.splitManagerState,
     required this.metadata,
   });
   
@@ -31,7 +29,6 @@ class Receipt {
       parseReceipt: data['parse_receipt'],
       transcribeAudio: data['transcribe_audio'],
       assignPeopleToItems: data['assign_people_to_items'],
-      splitManagerState: data['split_manager_state'],
       metadata: ReceiptMetadata.fromMap(data['metadata'] ?? {}),
     );
   }
@@ -43,7 +40,6 @@ class Receipt {
       'parse_receipt': parseReceipt,
       'transcribe_audio': transcribeAudio,
       'assign_people_to_items': assignPeopleToItems,
-      'split_manager_state': splitManagerState,
       'metadata': metadata.toMap(),
     };
   }
@@ -65,7 +61,6 @@ class Receipt {
     Map<String, dynamic>? parseReceipt,
     Map<String, dynamic>? transcribeAudio,
     Map<String, dynamic>? assignPeopleToItems,
-    Map<String, dynamic>? splitManagerState,
     ReceiptMetadata? metadata,
   }) {
     return Receipt(
@@ -75,7 +70,6 @@ class Receipt {
       parseReceipt: parseReceipt ?? this.parseReceipt,
       transcribeAudio: transcribeAudio ?? this.transcribeAudio,
       assignPeopleToItems: assignPeopleToItems ?? this.assignPeopleToItems,
-      splitManagerState: splitManagerState ?? this.splitManagerState,
       metadata: metadata ?? this.metadata,
     );
   }

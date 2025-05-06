@@ -160,10 +160,23 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> {
 
     // Calculate total if available in splitManagerState
     String totalText = '';
-    if (receipt.splitManagerState != null && 
-        receipt.splitManagerState!.containsKey('finalTotalWithTax')) {
-      final totalAmount = receipt.splitManagerState!['finalTotalWithTax'] as double;
-      totalText = '\$${totalAmount.toStringAsFixed(2)}';
+    if (receipt.assignPeopleToItems != null &&
+        receipt.assignPeopleToItems!.containsKey('subtotal')) {
+      // Try to get subtotal from assignments
+      final totalAmount = receipt.assignPeopleToItems!['subtotal'];
+      if (totalAmount is num) {
+        totalText = '\$${totalAmount.toStringAsFixed(2)}';
+      }
+    } else if (receipt.parseReceipt != null && 
+        receipt.parseReceipt!.containsKey('subtotal')) {
+      // Fall back to parsed receipt data
+      final subtotalStr = receipt.parseReceipt!['subtotal'] as String?;
+      if (subtotalStr != null) {
+        final totalAmount = double.tryParse(subtotalStr);
+        if (totalAmount != null) {
+          totalText = '\$${totalAmount.toStringAsFixed(2)}';
+        }
+      }
     }
     
     return Card(

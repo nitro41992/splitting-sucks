@@ -505,3 +505,38 @@ We've made significant progress on the app navigation redesign with the followin
    - Test on various devices and screen sizes
 
 The restaurant name implementation serves as a foundation for further UI improvements, demonstrating how we can enhance the workflow while maintaining compatibility with the existing architecture. 
+
+## Latest Progress Update
+
+### State Management Improvements
+
+We implemented a multi-tiered solution to fix issues with state persistence across the receipt workflow:
+
+1. **Multiple Reference Access**: Added multiple ways to access the SplitManager:
+   - Added a direct reference to SplitManager (_directSplitManagerRef) in the ReceiptWorkflowPage
+   - Created a static singleton instance (SplitManager.instance) for global access
+   - Maintained existing Provider context access as a fallback
+
+2. **State Persistence Fixes**: Modified state-saving methods to try multiple approaches in sequence:
+   - First try the direct reference
+   - Then try the static instance
+   - Finally fall back to Provider
+
+3. **Data Processing Logic Improvements**:
+   - Fixed handling of missing price information in assignment data
+   - Resolved type casting errors when processing assignments without price fields
+
+4. **Data Model Cleanup**:
+   - Removed the redundant `split_manager_state` field from the Receipt model
+   - Simplified data persistence by relying on the more specific fields (`parseReceipt`, `transcribeAudio`, `assignPeopleToItems`)
+   - Updated code to initialize SplitManager directly from parse results and assignment data
+   - Fixed method compatibility issues between workflow page and SplitManager
+   - Corrected types and method parameters to match the actual implementation
+
+These improvements make the state management more robust across all workflow steps and navigation scenarios by not relying solely on the Provider context, which could become invalid during:
+- Navigation between different steps in the receipt workflow
+- Backgrounding the app
+- Lifecycle events
+- Exiting and re-entering the workflow
+
+The changes maintain the existing functionality while ensuring state consistency throughout the user experience. 

@@ -21,10 +21,10 @@ import '../widgets/split_view.dart'; // Import for NavigateToPageNotification
 import '../utils/toast_helper.dart'; // Import ToastHelper
 
 // Create a new notification for split manager updates
-class SplitManagerUpdateNotification extends Notification {
-  final SplitManager splitManager;
+class NavigateToPageNotification extends Notification {
+  final int pageIndex;
   
-  SplitManagerUpdateNotification(this.splitManager);
+  NavigateToPageNotification(this.pageIndex);
 }
 
 class ReceiptWorkflowPage extends StatefulWidget {
@@ -796,7 +796,7 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   void _completeWorkflow(SplitManager splitManager) async {
     try {
       // First save the split manager state
-      await _autoSaveSplitManagerState(splitManager);
+      await _autoSaveSplitManager(splitManager);
       
       // Also save assignments
       await _autoSaveAssignments(splitManager);
@@ -1206,148 +1206,70 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
   }
   
   Widget _buildSplitScreen() {
-    return NotificationListener<SplitManagerUpdateNotification>(
-      onNotification: (notification) {
-        // Log that we received a notification
-        debugPrint('SplitManagerUpdateNotification received in _buildSplitScreen');
+    return Consumer<SplitManager>(
+      builder: (context, splitManager, child) {
+        // Debug log to check if assignments data is available
+        debugPrint('_buildSplitScreen called, assignments: ${_assignments != null ? 'available' : 'null'}, items: ${_receiptItems.length}, splitManager initialized: ${splitManager.initialized}');
         
-        // Update receipts items with any changes from the SplitManager
-        setState(() {
-          // The SplitManager has been updated
-          debugPrint('Updating state in response to SplitManagerUpdateNotification');
+        // This is like a useEffect hook in React - runs after build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          
+          // Check if we need to initialize or re-initialize the manager
+          final bool needsInitialization = !splitManager.initialized || 
+                                          splitManager.people.isEmpty;
+          
+          // Only try to initialize if we have the necessary data
+          if (needsInitialization && _assignments != null && _receiptItems.isNotEmpty) {
+            debugPrint('Initializing SplitManager from _buildSplitScreen');
+            _initializeSplitManager(splitManager);
+          }
         });
         
-        // Cancel any pending save timer
-        _saveTimer?.cancel();
-        _saveTimer = null;
-        
-        // Try to save SplitManager state safely
-        try {
-          // Save split manager state if we received it in the notification
-          if (notification.splitManager != null) {
-            // Save the SplitManager state automatically
-            final splitManager = notification.splitManager;
-            
-            try {
-              // Get data for saving
-              final splitManagerState = <String, dynamic>{
-                'people': splitManager.people.map((person) => {
-                  'name': person.name,
-                  'assignedItems': person.assignedItems.map((item) => item.toJson()).toList(),
-                  'sharedItems': person.sharedItems.map((item) => item.toJson()).toList(),
-                }).toList(),
-                'unassignedItems': splitManager.unassignedItems.map((item) => item.toJson()).toList(),
-                'sharedItems': splitManager.sharedItems.map((item) => item.toJson()).toList(),
-                'subtotal': splitManager.subtotal,
-                'tax': splitManager.tax,
-                'tip': splitManager.tip,
-                'tipPercentage': splitManager.tipPercentage,
-                'restaurantName': _restaurantName ?? splitManager.restaurantName,
-              };
-              
-              // Fire and forget - don't await
-              _receiptService.saveSplitManagerState(
-                widget.receipt.id!,
-                splitManagerState
-              ).then((_) {
-                debugPrint('Split manager state saved from notification');
-              }).catchError((e) {
-                debugPrint('Error saving split manager state from notification: $e');
-              });
-              
-              // Also save assignment data
-              if (splitManager.assignmentsModified) {
-                final assignmentData = splitManager.getAssignmentData();
-                
-                // Reset flag to prevent duplicate saves
-                splitManager.assignmentsModified = false;
-                
-                // Fire and forget - don't await
-                _receiptService.saveAssignPeopleToItemsResults(
-                  widget.receipt.id!,
-                  assignmentData
-                ).then((_) {
-                  debugPrint('Assignments saved from notification');
-                }).catchError((e) {
-                  debugPrint('Error saving assignments from notification: $e');
-                });
-              }
-            } catch (e) {
-              debugPrint('Error processing split manager for save: $e');
-            }
-          }
-        } catch (e) {
-          debugPrint('Error handling SplitManagerUpdateNotification: $e');
+        // Return split view screen
+        if (splitManager.initialized) {
+          return SplitView();
+        } else if (_assignments == null || _receiptItems.isEmpty) {
+          // Show error state if we don't have necessary data
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  _assignments == null 
+                      ? 'Assignment data not available' 
+                      : 'Receipt items not available',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    // Try to initialize the manager again
+                    setState(() {
+                      // This will trigger a rebuild and another initialization attempt
+                    });
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // Show loading state while waiting for initialization
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Preparing split view...'),
+              ],
+            ),
+          );
         }
-        
-        // Return true to stop notification propagation
-        return true;
       },
-      child: Consumer<SplitManager>(
-        builder: (context, splitManager, child) {
-          // Debug log to check if assignments data is available
-          debugPrint('_buildSplitScreen called, assignments: ${_assignments != null ? 'available' : 'null'}, items: ${_receiptItems.length}, splitManager initialized: ${splitManager.initialized}');
-          
-          // This is like a useEffect hook in React - runs after build
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            
-            // Check if we need to initialize or re-initialize the manager
-            final bool needsInitialization = !splitManager.initialized || 
-                                           splitManager.people.isEmpty;
-            
-            // Only try to initialize if we have the necessary data
-            if (needsInitialization && _assignments != null && _receiptItems.isNotEmpty) {
-              debugPrint('Initializing SplitManager from _buildSplitScreen');
-              _initializeSplitManager(splitManager);
-            }
-          });
-          
-          // Return split view screen
-          if (splitManager.initialized) {
-            return SplitView();
-          } else if (_assignments == null || _receiptItems.isEmpty) {
-            // Show error state if we don't have necessary data
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                  const SizedBox(height: 16),
-                  Text(
-                    _assignments == null 
-                        ? 'Assignment data not available' 
-                        : 'Receipt items not available',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Try to initialize the manager again
-                      setState(() {
-                        // This will trigger a rebuild and another initialization attempt
-                      });
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          } else {
-            // Show loading state while waiting for initialization
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Preparing split view...'),
-                ],
-              ),
-            );
-          }
-        },
-      ),
     );
   }
   
@@ -1437,332 +1359,323 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
       // Set restaurant name if available
       if (_restaurantName != null) {
         splitManager.restaurantName = _restaurantName;
+      } else if (widget.receipt.metadata.restaurantName != null) {
+        splitManager.restaurantName = widget.receipt.metadata.restaurantName;
       }
       
-      // Set original review total for validation
-      final originalTotal = _receiptItems.fold(
-        0.0, 
-        (sum, item) => sum + (item.price * item.quantity)
-      );
-      debugPrint('DEBUG (SplitView): Setting original review total: $originalTotal');
-      splitManager.originalReviewTotal = originalTotal;
-      splitManager.subtotal = originalTotal;
+      // Get assignment map
+      final Map<String, dynamic> assignmentsMap = _assignments!;
       
-      // Process saved assignments
-      final Map<String, dynamic> assignments = _assignments!['assignments'] as Map<String, dynamic>;
-      final List<dynamic> sharedItems = _assignments!['shared_items'] as List<dynamic>;
-      final List<dynamic> unassignedItems = _assignments!['unassigned_items'] as List<dynamic>? ?? [];
-      
-      debugPrint('=== INITIALIZATION DATA ===');
-      debugPrint('Original review total: $originalTotal');
-      debugPrint('People count in assignments: ${assignments.keys.length}');
-      debugPrint('Shared items count: ${sharedItems.length}');
-      debugPrint('Unassigned items count: ${unassignedItems.length}');
-      debugPrint('=========================');
-      
-      // Create a mapping of names to receipt items for easier lookup
-      final Map<String, ReceiptItem> receiptItemsByName = {};
-      
-      for (int i = 0; i < _receiptItems.length; i++) {
-        final item = _receiptItems[i];
-        receiptItemsByName[item.name.toLowerCase()] = item;
+      // First, process any shared items
+      double originalTotal = 0.0;
+      if (assignmentsMap.containsKey('shared_items')) {
+        final sharedItems = assignmentsMap['shared_items'] as List<dynamic>;
+        debugPrint('Processing ${sharedItems.length} shared items');
         
-        // Also store by position (1-based) as a fallback
-        final oneBasedIndex = i + 1;
-        receiptItemsByName['position_$oneBasedIndex'] = item;
-      }
-      
-      // Add debug logging for all receipt items
-      debugPrint('=== RECEIPT ITEMS DEBUG ===');
-      for (int i = 0; i < _receiptItems.length; i++) {
-        final item = _receiptItems[i];
-        debugPrint('Receipt item #${i+1}: ${item.name}, ID: ${item.itemId}, Price: \$${item.price}, Quantity: ${item.quantity}');
-      }
-      
-      // Add all receipt items to the manager
-      for (final item in _receiptItems) {
-        splitManager.addReceiptItem(item);
-      }
-      
-      // Mark as initialized - we'll set this to true before processing assignments
-      // This prevents auto-saving during the initialization process
-      splitManager.initialized = true;
-      
-      // Track which items have been processed to avoid duplicate assignments
-      final Set<String> processedItemNames = {};
-      
-      // Assign items to people - with name-based matching
-      assignments.forEach((personName, items) {
-        if (personName.isEmpty) return;
-        
-        debugPrint('Processing assignments for person: $personName');
-        
-        final person = splitManager.people.firstWhere(
-          (p) => p.name == personName,
-          orElse: () {
-            // Create person if not found
-            splitManager.addPerson(personName);
-            return splitManager.people.firstWhere((p) => p.name == personName);
-          },
-        );
-        
-        // Process each item for this person
-        for (final itemJson in items as List) {
-          try {
-            final itemData = itemJson as Map<String, dynamic>;
-            final String itemName = itemData['name'] as String;
-            final dynamic itemIdData = itemData['id'];
-            final int itemId = itemIdData is int 
-                ? itemIdData 
-                : int.tryParse(itemIdData.toString()) ?? 0;
-            
-            // Safely handle quantity - default to 1 if missing
-            final int quantity = itemData.containsKey('quantity') && itemData['quantity'] != null
-                ? (itemData['quantity'] as num).toInt() 
-                : 1;
-            
-            // First try to find an exact match by name
-            ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
-            
-            // If no exact match, try matching item by position (1-based) if ID is valid
-            if (matchingItem == null && itemId > 0 && itemId <= _receiptItems.length) {
-              matchingItem = _receiptItems[itemId - 1];
-              debugPrint('    No name match, using position match: ${matchingItem.name}');
-            }
-            
-            if (matchingItem != null) {
-              // Extract price from assignment data or use original price from receipt item
-              double price;
-              if (itemData.containsKey('price') && itemData['price'] != null) {
-                price = (itemData['price'] as num).toDouble();
-                debugPrint('  - Processing item: $itemName (ID: $itemId, Quantity: $quantity, Price from assignment: \$${price.toStringAsFixed(2)})');
-              } else {
-                price = matchingItem.price; // Use the price from the receipt item
-                debugPrint('  - Processing item: $itemName (ID: $itemId, Quantity: $quantity, Using original price: \$${price.toStringAsFixed(2)})');
+        for (final sharedItem in sharedItems) {
+          final Map<String, dynamic> itemMap = sharedItem as Map<String, dynamic>;
+          
+          if (itemMap.containsKey('id')) {
+            try {
+              final id = itemMap['id'];
+              final quantity = itemMap['quantity'] ?? 1;
+              final List<String> people = [];
+              
+              if (itemMap.containsKey('people')) {
+                final peopleList = itemMap['people'] as List<dynamic>;
+                for (final person in peopleList) {
+                  people.add(person.toString());
+                }
               }
               
-              // Create a copy with the correct quantity and price
-              final itemToAssign = matchingItem.copyWith(
-                quantity: quantity,
-                price: price,
-              );
+              debugPrint('Processing shared item: $id, quantity: $quantity, people: $people');
               
-              debugPrint('    Assigning item to ${person.name}: ${itemToAssign.name} (Quantity: ${itemToAssign.quantity})');
+              // Find matching receipt item
+              ReceiptItem? matchingItem;
               
-              // Assign to the person
-              splitManager.assignItemToPerson(itemToAssign, person);
+              // Try to find by exact ID match first (preferred)
+              for (final item in _receiptItems) {
+                if (item.itemId == id.toString()) {
+                  matchingItem = item;
+                  break;
+                }
+              }
               
-              // Add to processed list
-              processedItemNames.add(itemName.toLowerCase());
-            } else {
-              debugPrint('    WARNING: Could not find matching item for: $itemName');
-            }
-          } catch (e) {
-            debugPrint('Error processing item assignment: $e');
-          }
-        }
-      });
-      
-      // Process shared items
-      for (final itemJson in sharedItems) {
-        try {
-          final itemData = itemJson as Map<String, dynamic>;
-          final String itemName = itemData['name'] as String;
-          final dynamic itemIdData = itemData['id'];
-          final int itemId = itemIdData is int 
-              ? itemIdData 
-              : int.tryParse(itemIdData.toString()) ?? 0;
-          
-          // Safely handle quantity - default to 1 if missing
-          final int quantity = itemData.containsKey('quantity') && itemData['quantity'] != null
-              ? (itemData['quantity'] as num).toInt() 
-              : 1;
-          
-          final List<String> sharingPeople = itemData.containsKey('people')
-              ? List<String>.from(itemData['people'] as List)
-              : splitManager.people.map((p) => p.name).toList();
-          
-          // First try to find an exact match by name
-          ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
-          
-          // If no exact match, try matching item by position (1-based) if ID is valid
-          if (matchingItem == null && itemId > 0 && itemId <= _receiptItems.length) {
-            matchingItem = _receiptItems[itemId - 1];
-            debugPrint('    No name match, using position match: ${matchingItem.name}');
-          }
-          
-          if (matchingItem != null) {
-            // Extract price from assignment data or use original price from receipt item
-            double price;
-            if (itemData.containsKey('price') && itemData['price'] != null) {
-              price = (itemData['price'] as num).toDouble();
-              debugPrint('  - Processing shared item: $itemName (ID: $itemId, Quantity: $quantity, Price from assignment: \$${price.toStringAsFixed(2)})');
-            } else {
-              price = matchingItem.price; // Use the price from the receipt item
-              debugPrint('  - Processing shared item: $itemName (ID: $itemId, Quantity: $quantity, Using original price: \$${price.toStringAsFixed(2)})');
-            }
-            debugPrint('    Shared by: ${sharingPeople.join(', ')}');
-            
-            // Create a copy with the correct quantity and price
-            final itemToShare = matchingItem.copyWith(
-              quantity: quantity,
-              price: price,
-            );
-            
-            // Get the list of people who should share this item
-            List<Person> peopleToShare = [];
-            
-            // If specific people were listed, use those
-            if (sharingPeople.isNotEmpty) {
-              for (final personName in sharingPeople) {
-                final matchingPerson = splitManager.people.firstWhere(
-                  (p) => p.name == personName,
-                  orElse: () => Person(name: personName), // Create if not found
-                );
-                
-                if (matchingPerson.name.isNotEmpty) {
-                  peopleToShare.add(matchingPerson);
-                  // Ensure the person is added to the split manager if they're new
-                  if (!splitManager.people.contains(matchingPerson)) {
-                    splitManager.addPerson(matchingPerson.name);
+              // If no direct match, try with trailing ID (frequent pattern)
+              if (matchingItem == null) {
+                for (final item in _receiptItems) {
+                  if (item.itemId.endsWith('_$id')) {
+                    matchingItem = item;
+                    break;
                   }
                 }
               }
-            } else {
-              // If no specific people, share with everyone
-              peopleToShare = splitManager.people;
+              
+              // Last resort: try position match if id is integer (1-based)
+              if (matchingItem == null && id is int && id > 0 && id <= _receiptItems.length) {
+                matchingItem = _receiptItems[id - 1];
+                debugPrint('Using position match for item $id: ${matchingItem.name}');
+              }
+              
+              // If still no match, log and continue
+              if (matchingItem == null) {
+                debugPrint('WARNING: No matching item found for shared item with ID: $id');
+                continue;
+              }
+              
+              // Calculate the shared amount
+              final actualQuantity = quantity is int ? quantity : 1;
+              
+              // Add item to split manager but don't assign to people yet
+              splitManager.addUnassignedItem(matchingItem);
+              
+              // Now mark as shared with people who should share it
+              List<Person> peopleToShare = [];
+              if (people.isNotEmpty) {
+                for (final personName in people) {
+                  // Add person if they don't exist
+                  // Find person by name
+                  Person? existingPerson;
+                  for (final p in splitManager.people) {
+                    if (p.name == personName) {
+                      existingPerson = p;
+                      break;
+                    }
+                  }
+                  
+                  // If not found, add a new person
+                  if (existingPerson == null) {
+                    splitManager.addPerson(personName);
+                    // Get the newly added person (assuming it's added to the end)
+                    existingPerson = splitManager.people.last;
+                  }
+                  
+                  // Add to our list of people to share with
+                  peopleToShare.add(existingPerson);
+                }
+              }
+              
+              // Mark the item as shared among specific people
+              splitManager.markAsShared(matchingItem, people: peopleToShare);
+              
+              // Add to original total
+              originalTotal += matchingItem.price * actualQuantity;
+            } catch (e) {
+              debugPrint('Error processing shared item: $e');
             }
-            
-            debugPrint('    Adding shared item: ${itemToShare.name} (Quantity: ${itemToShare.quantity})');
-            debugPrint('    Shared by ${peopleToShare.length} people');
-            
-            // Add to shared items
-            splitManager.addItemToShared(itemToShare, peopleToShare);
-            
-            // Add to processed list
-            processedItemNames.add(itemName.toLowerCase());
-          } else {
-            debugPrint('    WARNING: Could not find matching item for shared item: $itemName');
           }
-        } catch (e) {
-          debugPrint('Error processing shared item: $e');
         }
+      }
+      
+      // Now process individual assignments
+      if (assignmentsMap.containsKey('assignments')) {
+        final assignments = assignmentsMap['assignments'] as Map<String, dynamic>;
+        debugPrint('Processing assignments for ${assignments.length} people');
+        
+        assignments.forEach((personName, items) {
+          // Add person if they don't exist already
+          Person? existingPerson;
+          for (final p in splitManager.people) {
+            if (p.name == personName) {
+              existingPerson = p;
+              break;
+            }
+          }
+          
+          // If not found, add a new person
+          if (existingPerson == null) {
+            splitManager.addPerson(personName);
+            // Get the newly added person (assuming it's added to the end)
+            existingPerson = splitManager.people.last;
+          }
+          
+          // Process this person's items
+          for (final itemData in items as List<dynamic>) {
+            final Map<String, dynamic> itemMap = itemData as Map<String, dynamic>;
+            
+            // Extract required fields
+            if (itemMap.containsKey('id')) {
+              try {
+                final id = itemMap['id'];
+                final quantity = itemMap['quantity'] ?? 1;
+                
+                debugPrint('Processing item for $personName: $id, quantity: $quantity');
+                
+                // Find matching receipt item
+                ReceiptItem? matchingItem;
+                
+                // Try to find by exact ID match first (preferred)
+                for (final item in _receiptItems) {
+                  if (item.itemId == id.toString()) {
+                    matchingItem = item;
+                    break;
+                  }
+                }
+                
+                // If no direct match, try with trailing ID (frequent pattern)
+                if (matchingItem == null) {
+                  for (final item in _receiptItems) {
+                    if (item.itemId.endsWith('_$id')) {
+                      matchingItem = item;
+                      break;
+                    }
+                  }
+                }
+                
+                // Last resort: try position match if id is integer (1-based)
+                if (matchingItem == null && id is int && id > 0 && id <= _receiptItems.length) {
+                  matchingItem = _receiptItems[id - 1];
+                  debugPrint('Using position match for item $id: ${matchingItem.name}');
+                }
+                
+                // If still no match, log and continue
+                if (matchingItem == null) {
+                  debugPrint('WARNING: No matching item found for item with ID: $id assigned to $personName');
+                  continue;
+                }
+                
+                // Calculate the actual quantity
+                final actualQuantity = quantity is int ? quantity : 1;
+                
+                // Add to split manager as unassigned first
+                splitManager.addUnassignedItem(matchingItem);
+                
+                // Then assign to person
+                Person person = existingPerson;
+                person.addAssignedItem(matchingItem);
+                
+                // Add to original total
+                originalTotal += matchingItem.price * actualQuantity;
+              } catch (e) {
+                debugPrint('Error processing item for $personName: $e');
+              }
+            }
+          }
+        });
       }
       
       // Process unassigned items
-      for (final itemJson in unassignedItems) {
-        try {
-          final itemData = itemJson as Map<String, dynamic>;
-          final String itemName = itemData['name'] as String;
-          final dynamic itemIdData = itemData['id'];
-          final int itemId = itemIdData is int 
-              ? itemIdData 
-              : int.tryParse(itemIdData.toString()) ?? 0;
+      if (assignmentsMap.containsKey('unassigned_items')) {
+        final unassignedItems = assignmentsMap['unassigned_items'] as List<dynamic>;
+        debugPrint('Processing ${unassignedItems.length} unassigned items');
+        
+        for (final itemData in unassignedItems) {
+          final Map<String, dynamic> itemMap = itemData as Map<String, dynamic>;
           
-          // Safely handle quantity - default to 1 if missing
-          final int quantity = itemData.containsKey('quantity') && itemData['quantity'] != null
-              ? (itemData['quantity'] as num).toInt() 
-              : 1;
-          
-          final dynamic position = itemData['position'];
-          
-          // First try to find an exact match by name
-          ReceiptItem? matchingItem = receiptItemsByName[itemName.toLowerCase()];
-          
-          // If no exact match, try matching item by position (1-based) if ID is valid
-          if (matchingItem == null && itemId > 0 && itemId <= _receiptItems.length) {
-            matchingItem = _receiptItems[itemId - 1];
-            debugPrint('    No name match, using position match: ${matchingItem.name}');
-          }
-          
-          // Try matching by position field if provided 
-          if (matchingItem == null && position != null) {
-            final int positionInt = position is int 
-                ? position 
-                : int.tryParse(position.toString()) ?? 0;
-                
-            if (positionInt > 0 && positionInt <= _receiptItems.length) {
-              matchingItem = _receiptItems[positionInt - 1];
-              debugPrint('    Using explicit position match: ${matchingItem.name}');
+          if (itemMap.containsKey('id')) {
+            try {
+              final id = itemMap['id'];
+              final quantity = itemMap['quantity'] ?? 1;
+              
+              debugPrint('Processing unassigned item: $id, quantity: $quantity');
+              
+              // Find matching receipt item
+              ReceiptItem? matchingItem;
+              
+              // Try to find by exact ID match first (preferred)
+              for (final item in _receiptItems) {
+                if (item.itemId == id.toString()) {
+                  matchingItem = item;
+                  break;
+                }
+              }
+              
+              // If no direct match, try with trailing ID (frequent pattern)
+              if (matchingItem == null) {
+                for (final item in _receiptItems) {
+                  if (item.itemId.endsWith('_$id')) {
+                    matchingItem = item;
+                    break;
+                  }
+                }
+              }
+              
+              // Last resort: try position match if id is integer (1-based)
+              if (matchingItem == null && id is int && id > 0 && id <= _receiptItems.length) {
+                matchingItem = _receiptItems[id - 1];
+                debugPrint('Using position match for item $id: ${matchingItem.name}');
+              }
+              
+              // If still no match, log and continue
+              if (matchingItem == null) {
+                debugPrint('WARNING: No matching item found for unassigned item with ID: $id');
+                continue;
+              }
+              
+              // Calculate the actual quantity
+              final actualQuantity = quantity is int ? quantity : 1;
+              
+              // Add to split manager as unassigned
+              splitManager.addUnassignedItem(matchingItem);
+              
+              // Add to original total
+              originalTotal += matchingItem.price * actualQuantity;
+            } catch (e) {
+              debugPrint('Error processing unassigned item: $e');
             }
           }
-          
-          if (matchingItem != null) {
-            // Extract price from assignment data or use original price from receipt item
-            double price;
-            if (itemData.containsKey('price') && itemData['price'] != null) {
-              price = (itemData['price'] as num).toDouble();
-              debugPrint('  - Processing unassigned item: $itemName (ID: $itemId, Quantity: $quantity, Price from assignment: \$${price.toStringAsFixed(2)})');
-            } else {
-              price = matchingItem.price; // Use the price from the receipt item
-              debugPrint('  - Processing unassigned item: $itemName (ID: $itemId, Quantity: $quantity, Using original price: \$${price.toStringAsFixed(2)})');
-            }
-            
-            // Create a copy with the correct quantity and price
-            final itemToUnassign = matchingItem.copyWith(
-              quantity: quantity,
-              price: price,
-            );
-            
-            debugPrint('    Marking as unassigned: ${itemToUnassign.name} (Quantity: ${itemToUnassign.quantity})');
-            
-            // Mark as unassigned
-            splitManager.markAsUnassigned(itemToUnassign);
-            
-            // Add to processed list
-            processedItemNames.add(itemName.toLowerCase());
-          } else {
-            debugPrint('    WARNING: Could not find matching item for unassigned item: $itemName');
-          }
-        } catch (e) {
-          debugPrint('Error processing unassigned item: $e');
         }
       }
       
-      // Debug log people's assigned items for verification
+      // Mark initialization as complete
+      splitManager.initialized = true;
+      splitManager.originalReviewTotal = originalTotal;
+      
+      // Final setup after all data processing - log items for debugging
       for (final person in splitManager.people) {
         person.debugLogItems();
       }
       
-      // Safely restore calculation values from saved state
-      if (widget.receipt.splitManagerState != null) {
-        final state = widget.receipt.splitManagerState!;
-        
-        if (state.containsKey('restaurantName')) {
-          splitManager.restaurantName = state['restaurantName'] as String?;
-        }
-        
-        if (state.containsKey('subtotal')) {
-          final subtotal = state['subtotal'];
-          if (subtotal is double) {
-            splitManager.subtotal = subtotal;
+      // Initialize with reasonable defaults from the parse results
+      if (widget.receipt.parseReceipt != null) {
+        final parseReceipt = widget.receipt.parseReceipt!;
+        if (parseReceipt.containsKey('subtotal')) {
+          try {
+            final subtotalStr = parseReceipt['subtotal'] as String?;
+            if (subtotalStr != null) {
+              final subtotal = double.tryParse(subtotalStr);
+              if (subtotal != null) {
+                splitManager.subtotal = subtotal;
+              }
+            }
+          } catch (e) {
+            debugPrint('Error parsing subtotal: $e');
           }
         }
         
-        if (state.containsKey('tax')) {
-          final tax = state['tax'];
-          if (tax is double) {
-            splitManager.tax = tax;
+        if (parseReceipt.containsKey('tax')) {
+          try {
+            final taxStr = parseReceipt['tax'] as String?;
+            if (taxStr != null) {
+              final tax = double.tryParse(taxStr);
+              if (tax != null) {
+                splitManager.tax = tax;
+              }
+            }
+          } catch (e) {
+            debugPrint('Error parsing tax: $e');
           }
         }
         
-        if (state.containsKey('tip')) {
-          final tip = state['tip'];
-          if (tip is double) {
-            splitManager.tip = tip;
+        if (parseReceipt.containsKey('tip')) {
+          try {
+            final tipStr = parseReceipt['tip'] as String?;
+            if (tipStr != null) {
+              final tip = double.tryParse(tipStr);
+              if (tip != null) {
+                splitManager.tip = tip;
+              }
+            }
+          } catch (e) {
+            debugPrint('Error parsing tip: $e');
           }
         }
-        
-        if (state.containsKey('tipPercentage')) {
-          final tipPercentage = state['tipPercentage'];
-          if (tipPercentage is double) {
-            splitManager.tipPercentage = tipPercentage;
-          }
-        }
-      } else {
-        // If no saved state, initialize with reasonable defaults
-        splitManager.subtotal = originalTotal;
-        debugPrint('Setting initial subtotal to original total: $originalTotal');
+      }
+      
+      // If no parsed values, initialize with reasonable defaults
+      if (splitManager.subtotal == 0) {
+        splitManager.subtotal = originalTotal > 0 ? originalTotal : splitManager.totalAmount;
+        debugPrint('Setting initial subtotal to: ${splitManager.subtotal}');
       }
       
       // Log all items for debugging
@@ -1790,44 +1703,14 @@ class _ReceiptWorkflowPageState extends State<ReceiptWorkflowPage> with Automati
     }
   }
   
-  Future<void> _autoSaveSplitManagerState(SplitManager splitManager) async {
+  Future<void> _autoSaveSplitManager(SplitManager splitManager) async {
     try {
-      // First check if the receipt has an ID
-      if (widget.receipt.id == null) {
-        debugPrint('ERROR: Receipt has no ID, cannot save state');
-        return;
-      }
+      debugPrint('Auto-saving split manager state');
       
-      // Build data for saving
-      final splitManagerState = <String, dynamic>{
-        'people': splitManager.people.map((person) => {
-          'name': person.name,
-          'assignedItems': person.assignedItems.map((item) => item.toJson()).toList(),
-          'sharedItems': person.sharedItems.map((item) => item.toJson()).toList(),
-        }).toList(),
-        'unassignedItems': splitManager.unassignedItems.map((item) => item.toJson()).toList(),
-        'sharedItems': splitManager.sharedItems.map((item) => item.toJson()).toList(),
-        'subtotal': splitManager.subtotal,
-        'tax': splitManager.tax,
-        'tip': splitManager.tip,
-        'tipPercentage': splitManager.tipPercentage,
-        'restaurantName': _restaurantName ?? splitManager.restaurantName, // Save restaurant name
-      };
-      
-      // If we have a restaurant name, update the metadata
-      if (_restaurantName != null) {
-        // Update the receipt using the service
-        final updatedReceipt = widget.receipt.copyWith(
-          splitManagerState: splitManagerState,
-          metadata: widget.receipt.metadata.copyWith(
-            restaurantName: _restaurantName,
-            updatedAt: Timestamp.now(),
-          ),
-        );
-        await _receiptService.updateReceipt(updatedReceipt);
-      } else {
-        // Just update the split manager state
-        await _receiptService.saveSplitManagerState(widget.receipt.id!, splitManagerState);
+      // Save restaurant name if it changed
+      if (_restaurantName != null && _restaurantName != splitManager.restaurantName) {
+        splitManager.restaurantName = _restaurantName;
+        await _receiptService.updateRestaurantName(widget.receipt.id!, _restaurantName);
       }
       
     } catch (e) {

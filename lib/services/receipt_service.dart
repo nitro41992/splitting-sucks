@@ -251,31 +251,24 @@ class ReceiptService {
     }
   }
   
-  // Save split manager state
-  Future<void> saveSplitManagerState(String receiptId, Map<String, dynamic> splitManagerState) async {
+  // Update restaurant name
+  Future<void> updateRestaurantName(String receiptId, String? restaurantName) async {
     try {
       final receipt = await getReceiptById(receiptId);
       if (receipt == null) {
         throw Exception('Receipt not found');
       }
       
-      // Extract restaurant name if available
-      String? restaurantName;
-      if (splitManagerState.containsKey('restaurantName')) {
-        restaurantName = splitManagerState['restaurantName'] as String?;
-      }
-      
       final updatedReceipt = receipt.copyWith(
-        splitManagerState: splitManagerState,
         metadata: receipt.metadata.copyWith(
+          restaurantName: restaurantName,
           updatedAt: Timestamp.now(),
-          restaurantName: restaurantName ?? receipt.metadata.restaurantName,
         ),
       );
       
       await updateReceipt(updatedReceipt);
     } catch (e) {
-      debugPrint('Error saving split manager state: $e');
+      debugPrint('Error updating restaurant name: $e');
       rethrow;
     }
   }
