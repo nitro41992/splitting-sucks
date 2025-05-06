@@ -29,6 +29,7 @@ The app currently uses a bottom navigation bar with 5 items representing steps i
 ### Receipts Screen (Main View)
 
 - List of all saved receipts (both completed and drafts)
+   - A receipt is draft until the assignment and summary are created. Keep in mind that a summary is additional calculation on teh data produced in the assignment view so if assignemnt is avialable, consider it complete.
 - Floating action button to add new receipt
 - Search and filter capabilities
 - Ability to select receipts for viewing details or editing
@@ -39,8 +40,7 @@ The app currently uses a bottom navigation bar with 5 items representing steps i
 - Step indicator at top (functions exactly like current tab navigation)
 - Same progression logic as current app
 - **Maintains existing in-memory caching between steps within the modal flow**
-- Auto-saves data after each cloud function returns results
-- Option to cancel workflow and return to Receipts screen
+- Option to save and exit workflow and return to Receipts screen. If this happens, save the cache state in the data model below.
 
 ## Data Model
 
@@ -50,7 +50,19 @@ users/{userId}/receipts/{receiptId}
   - thumbnail_uri: String  // Cached thumbnail reference for fast loading
   - parse_receipt: Map  // Direct output from parse_receipt function
   - transcribe_audio: Map  // Output from voice transcription function
-  - assign_people_to_items: Map  // Output from item assignment function
+  - assign_people_to_items: Map {
+      - assignments: Map<String, List<Map>> {  // Person name to items
+          "<person_name>": [
+            {"name": "<item_name>", "quantity": <integer>}
+          ]
+        }
+      - shared_items: List<Map> [
+          {"name": "<item_name>", "quantity": <integer>, "people": ["person1", "person2"]}  // List of people sharing this item
+        ]
+      - unassigned_items: List<Map> [
+          {"name": "<item_name>", "quantity": <integer>}
+        ]
+    }
   - split_manager_state: Map  // Final app state with all calculations
   - metadata: Map {
       - created_at: Timestamp
@@ -62,11 +74,51 @@ users/{userId}/receipts/{receiptId}
 ```
 
 This model:
-- Stores raw cloud function outputs directly without transformation
+- Stores raw cloud function outputs directly without transformation. For `assign_people_to_items`, the structure shown above is the target detailed format. The current `assign_people_to_items` cloud function (which remains unchanged for now) might output a more generic `Map`. The client application may need to transform this raw data, or this detailed structure will be implemented in a future update of the cloud function.
 - Maintains backward compatibility with existing functions
 - Links data to the corresponding image and user
 - Includes minimal metadata for list display and search
 - Stores reference to a pre-generated thumbnail for fast loading in lists
+
+### Guidance for `functions/main.py` (Pydantic Models)
+
+Given the updated data model for `assign_people_to_items` and the requirement to keep existing Firebase Functions unchanged initially, consider the following for your Pydantic models in `functions/main.py`:
+
+1.  **Existing Function Outputs (e.g., `assign_people_to_items` function):
+    *   The current `assign_people_to_items` cloud function will continue to output its existing data structure (likely a generic `Map` or a simpler Pydantic model).
+    *   Pydantic models used for the *response* of this specific function should *not* be changed yet to maintain compatibility with any current consumers.
+
+2.  **Client-Side Handling (Flutter App):
+    *   When the Flutter app saves receipt data to Firestore (either as a draft or a completed receipt), it will save the `assign_people_to_items` field in the *new, detailed structure* outlined in the data model above.
+    *   When the app reads receipt data from Firestore, it should expect `assign_people_to_items` to be in this new, detailed structure.
+
+3.  **New or Updated Functions Reading from Firestore:
+    *   Any *new* Cloud Functions, or existing functions that are *updated* to process receipt documents from Firestore (e.g., a function for final processing, aggregation, or data migration), will need Pydantic models capable of parsing the *new, detailed structure* of the `assign_people_to_items` field as stored in Firestore by the app.
+    *   For example, if a function reads a `/users/{userId}/receipts/{receiptId}` document, its Pydantic model for that document should reflect the new `assign_people_to_items` structure.
+
+4.  **Pydantic Models for the New Structure:**
+    *   When you are ready to update the `assign_people_to_items` function itself, or for new functions that will produce/consume this detailed structure, you can use Pydantic models like the following (conceptual example):
+
+      ```python
+      from typing import List, Dict, Any
+      from pydantic import BaseModel, Field
+
+      class ItemDetail(BaseModel):
+          name: str
+          quantity: int
+
+      class SharedItemDetail(BaseModel):
+          name: str
+          quantity: int
+          people: List[str]
+
+      class AssignPeopleToItemsNewOutput(BaseModel): # New model for the detailed structure
+          assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
+          shared_items: List[SharedItemDetail] = Field(default_factory=list)
+          unassigned_items: List[ItemDetail] = Field(default_factory=list)
+      ```
+
+This approach allows the Flutter app to immediately benefit from the richer data model for `assign_people_to_items` stored in Firestore, while existing Cloud Functions remain operational. Future updates to Cloud Functions can then adopt the new Pydantic models as they are developed or refactored.
 
 ## Implementation Approach
 
@@ -159,6 +211,56 @@ This ensures that all user input and customizations are preserved when resuming 
 1. **Firestore Rules**: Ensure users can only access their own receipts
 2. **Secure Deletion**: Properly handle account and data deletion
 3. **Authentication**: Maintain secure auth flow in Settings section
+
+## Cloud Function Development and Deployment Strategy
+
+To manage changes to Cloud Functions effectively and avoid impacting the production environment, the following strategy is recommended:
+
+1.  **Local Development and Testing (Firebase Emulator Suite):**
+    *   Utilize the Firebase Emulator Suite for local development and testing of Cloud Functions ([Firebase Documentation](https://firebase.google.com/docs/functions/get-started#emulate_execution_of_your_functions)).
+    *   This allows you to run and debug your functions, including those triggered by Firestore, Authentication, and HTTP requests, on your local machine.
+    *   **Testing Prompts and Configuration:** If your functions fetch dynamic configurations (like prompts for AI services that dictate JSON structure, as managed by `config_helper.py`), you will also run the emulators for the services hosting this configuration (e.g., Firestore Emulator, Remote Config Emulator).
+        *   You will need to **seed these emulated services with the development/test versions of your prompts/configurations**. These test configurations should align with any local changes to your Pydantic models or other code that expects specific structures.
+        *   The Firebase SDKs used in your functions (and `config_helper.py`) will automatically connect to these emulated services when the emulators are active, ensuring your local tests use your local configurations.
+    *   Testing locally significantly reduces the risk of errors that could affect live data or incur costs.
+
+2.  **Dedicated Firebase Projects (Dev/Staging and Production):**
+    *   **Production Project:** Your current live Firebase project.
+    *   **Development/Staging Project:** Create a separate, new Firebase project dedicated to development and staging. This project will have its own isolated instances of Firestore, Cloud Functions, Authentication, etc.
+    *   Your Flutter application can be configured with different Firebase project configurations (e.g., using different `google-services.json` or Flutter build flavors) to target the dev/staging project during development and testing, and the production project for release builds.
+
+3.  **Development Workflow:**
+    *   Develop new functions or changes to existing functions in your local environment, testing thoroughly with the Emulator Suite.
+    *   Once locally tested, deploy the functions to your dedicated dev/staging Firebase project.
+    *   Conduct integration testing with your app pointing to this dev/staging environment.
+
+4.  **Promotion to Production:**
+    *   After successful testing in the dev/staging environment, deploy the same function code to your production Firebase project.
+    *   The Firebase CLI facilitates deployment to specific projects. You can use project aliases (`firebase use <project_alias>`) or specify the project ID directly during deployment (`firebase deploy --project <YOUR_PROJECT_ID> --only functions`).
+
+5.  **Version Control (Git):**
+    *   Maintain all your Cloud Function code in a Git repository.
+    *   Use branches for developing new features or fixes (e.g., `feature/new-receipt-processing`, `fix/user-auth-bug`).
+    *   Merge tested changes into a `develop` or `staging` branch for deployment to the dev/staging project.
+    *   Merge thoroughly tested and approved changes into a `main` or `production` branch before deploying to the production project.
+    *   **Consider versioning your prompt seed files or Remote Config templates alongside your function code if they are tightly coupled.**
+
+6.  **Environment Configuration for Functions:**
+    *   For any external API keys, service URLs, or other configuration values that differ between dev/staging and production, use Firebase's environment configuration for Functions (`functions.config()`).
+    *   Set configuration using the Firebase CLI: `firebase functions:config:set someservice.key="API_KEY_FOR_DEV" myparam="dev_value"`.
+    *   Access these in your functions via `functions.config().someservice.key`.
+    *   This avoids hardcoding sensitive or environment-specific values directly in your function code. Remember to set the appropriate config for each Firebase project.
+    *   **Distinction from Dynamic Prompts:** While `functions.config()` is excellent for secrets and stable environment-specific settings, dynamic prompts (especially those dictating evolving JSON structures tied to Pydantic models) are often better managed in Firestore or Remote Config. The key is that your *emulated* Firestore/Remote Config will hold the *development version* of these prompts, while your *deployed* dev/staging and production Firebase projects will hold their respective versions of the prompts.
+
+7.  **Managing Function Changes (Avoiding Impact on Existing Functions):**
+    *   **Non-Breaking Changes:** If a change is backward compatible, you can update the existing function.
+    *   **Breaking Changes:** If you need to introduce a breaking change to a function's trigger, request signature, or response structure:
+        *   Consider deploying the new logic as a *new* function (e.g., `myFunction_v2`) instead of modifying the existing one directly.
+        *   Update your client application to call the new function version.
+        *   The old function version can remain active to support older clients until they are deprecated.
+    *   This is particularly important for the `assign_people_to_items` function, as you wish to keep the current version live while the new data model is adopted by the app.
+
+This approach ensures that your production environment remains stable while allowing for iterative development and testing of Cloud Functions.
 
 ## UI Mockups
 
