@@ -276,6 +276,97 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     'Summary',
   ];
   
+  @override
+  void initState() {
+    super.initState();
+    
+    // Load the receipt data if we have a receipt ID
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final workflowState = Provider.of<WorkflowState>(context, listen: false);
+      if (workflowState.receiptId != null) {
+        _loadReceiptData(workflowState.receiptId!);
+      }
+    });
+  }
+  
+  // Load receipt data from Firestore
+  Future<void> _loadReceiptData(String receiptId) async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
+    try {
+      workflowState.setLoading(true);
+      workflowState.setErrorMessage(null);
+      
+      // Fetch the receipt from Firestore
+      final snapshot = await _firestoreService.getReceipt(receiptId);
+      
+      if (!snapshot.exists) {
+        throw Exception('Receipt not found');
+      }
+      
+      // Convert to Receipt object
+      final receipt = Receipt.fromDocumentSnapshot(snapshot);
+      
+      // Update the workflow state with the loaded data
+      if (receipt.restaurantName != null) {
+        workflowState.setRestaurantName(receipt.restaurantName!);
+      }
+      
+      if (receipt.parseReceipt != null) {
+        workflowState.setParseReceiptResult(receipt.parseReceipt!);
+        
+        // Determine which step to navigate to based on available data
+        int targetStep = 0;
+        
+        // If we have parse receipt data, we can go to review
+        if (receipt.parseReceipt != null && 
+            receipt.parseReceipt!.containsKey('items') && 
+            receipt.parseReceipt!['items'] is List && 
+            (receipt.parseReceipt!['items'] as List).isNotEmpty) {
+          targetStep = 1;
+        }
+        
+        // If we have assignment data, we can go to assign
+        if (receipt.assignPeopleToItems != null && 
+            receipt.assignPeopleToItems!.containsKey('assignments') && 
+            receipt.assignPeopleToItems!['assignments'] is List && 
+            (receipt.assignPeopleToItems!['assignments'] as List).isNotEmpty) {
+          workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems!);
+          targetStep = 3; // Go to split view
+        }
+        
+        // If we have split manager state, we can go to summary
+        if (receipt.splitManagerState != null && 
+            receipt.splitManagerState!.isNotEmpty) {
+          workflowState.setSplitManagerState(receipt.splitManagerState!);
+          targetStep = 4; // Go to summary
+        }
+        
+        // Navigate to the appropriate step
+        workflowState.goToStep(targetStep);
+      }
+      
+      if (receipt.transcribeAudio != null) {
+        workflowState.setTranscribeAudioResult(receipt.transcribeAudio!);
+      }
+      
+      workflowState.setLoading(false);
+      
+    } catch (e) {
+      workflowState.setLoading(false);
+      workflowState.setErrorMessage('Failed to load receipt: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load receipt: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
   // Show dialog when back button is pressed or Save & Exit is tapped
   Future<bool> _onWillPop() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
@@ -500,8 +591,15 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     switch (currentStep) {
       case 0: // Upload
         return ReceiptUploadScreen(
+          imageFile: workflowState.imageFile,
+          isLoading: workflowState.isLoading,
           onImageSelected: (file) async {
             try {
+              // Ensure file is not null
+              if (file == null) {
+                throw Exception('Selected image file is null');
+              }
+              
               // Show loading state
               workflowState.setLoading(true);
               
@@ -548,35 +646,194 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
               }
             }
           },
-          isLoading: workflowState.isLoading,
-          errorMessage: workflowState.errorMessage,
+          onParseReceipt: () {
+            // This would be used if the user wants to manually parse the receipt
+            // Currently not implemented as we auto-advance
+          },
+          onRetry: () {
+            // Reset the image if needed
+            workflowState.resetImageFile();
+          },
         );
         
       case 1: // Review
+        // Convert receipt data to ReceiptItem objects for review
+        final List<ReceiptItem> items = _convertToReceiptItems(workflowState.parseReceiptResult);
+        
         return ReceiptReviewScreen(
-          imageFile: workflowState.imageFile,
-          onReviewComplete: (parseResult) {
+          initialItems: items,
+          onReviewComplete: (updatedItems, deletedItems) {
+            // Update the parse receipt result with the updated items
+            final parseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
+            
+            // Convert updated items back to the expected format
+            final updatedItemsList = updatedItems.map((item) => {
+              'name': item.name,
+              'price': item.price,
+              'quantity': item.quantity,
+            }).toList();
+            
+            parseResult['items'] = updatedItemsList;
+            
+            // Update the state
             workflowState.setParseReceiptResult(parseResult);
+            
+            // Advance to the next step
             workflowState.nextStep();
           },
         );
         
       case 2: // Assign
+        // Convert receipt data to ReceiptItem objects for assignment
+        final List<ReceiptItem> items = _convertToReceiptItems(workflowState.parseReceiptResult);
+        
         return VoiceAssignmentScreen(
-          parseReceiptResult: workflowState.parseReceiptResult,
-          onAssignmentComplete: (assignmentResult) {
-            workflowState.setAssignPeopleToItemsResult(assignmentResult);
+          itemsToAssign: items,
+          onAssignmentProcessed: (assignmentData) {
+            // Save the assignment data
+            workflowState.setAssignPeopleToItemsResult(assignmentData);
+            
+            // Go to next step
             workflowState.nextStep();
+          },
+          initialTranscription: workflowState.transcribeAudioResult.containsKey('text') 
+              ? workflowState.transcribeAudioResult['text'] as String?
+              : null,
+          onTranscriptionChanged: (transcription) {
+            if (transcription != null) {
+              // Save the transcription
+              final transcribeResult = Map<String, dynamic>.from(workflowState.transcribeAudioResult);
+              transcribeResult['text'] = transcription;
+              workflowState.setTranscribeAudioResult(transcribeResult);
+            }
           },
         );
         
       case 3: // Split
-        return SplitView(
-          assignmentData: workflowState.assignPeopleToItemsResult,
-          onSplitComplete: (splitManagerState) {
-            workflowState.setSplitManagerState(splitManagerState);
-            workflowState.nextStep();
+        return ChangeNotifierProvider(
+          create: (context) {
+            // Convert assignPeopleToItems to SplitManager
+            final splitManager = SplitManager();
+            
+            // Extract assignments data
+            final splitData = workflowState.assignPeopleToItemsResult;
+            
+            if (splitData.containsKey('assignments') && splitData['assignments'] is List) {
+              final assignments = splitData['assignments'] as List;
+              
+              // First, create all people
+              for (final personData in assignments) {
+                if (personData is Map && personData.containsKey('person_name')) {
+                  final personName = personData['person_name'] as String;
+                  splitManager.addPerson(personName);
+                }
+              }
+              
+              // Then add all items to the appropriate person
+              for (final personData in assignments) {
+                if (personData is Map && 
+                    personData.containsKey('person_name') && 
+                    personData.containsKey('items')) {
+                  final personName = personData['person_name'] as String;
+                  final items = personData['items'] as List;
+                  
+                  // Find the person object
+                  final person = splitManager.people.firstWhere(
+                    (p) => p.name == personName,
+                    orElse: () => throw Exception('Person not found: $personName'),
+                  );
+                  
+                  // Add each item to this person
+                  for (final itemData in items) {
+                    if (itemData is Map) {
+                      try {
+                        final receiptItem = ReceiptItem(
+                          name: itemData['name'] as String,
+                          price: (itemData['price'] as num).toDouble(),
+                          quantity: itemData['quantity'] as int,
+                        );
+                        splitManager.assignItemToPerson(receiptItem, person);
+                      } catch (e) {
+                        print('Error processing assigned item: $e');
+                      }
+                    }
+                  }
+                  
+                  // Add shared items (will be properly connected later)
+                  if (personData.containsKey('shared_items') && personData['shared_items'] is List) {
+                    final sharedItems = personData['shared_items'] as List;
+                    for (final itemData in sharedItems) {
+                      if (itemData is Map) {
+                        try {
+                          final receiptItem = ReceiptItem(
+                            name: itemData['name'] as String,
+                            price: (itemData['price'] as num).toDouble(),
+                            quantity: itemData['quantity'] as int,
+                          );
+                          
+                          // Check if this item is already in the shared items list
+                          final existingItem = splitManager.sharedItems.firstWhere(
+                            (item) => item.name == receiptItem.name && item.price == receiptItem.price,
+                            orElse: () => receiptItem, // Use the new item if not found
+                          );
+                          
+                          if (!splitManager.sharedItems.contains(existingItem)) {
+                            splitManager.addItemToShared(existingItem, [person]);
+                          } else {
+                            splitManager.addPersonToSharedItem(existingItem, person);
+                          }
+                        } catch (e) {
+                          print('Error processing shared item: $e');
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Add unassigned items if any
+            if (splitData.containsKey('unassigned_items') && splitData['unassigned_items'] is List) {
+              final unassignedItems = splitData['unassigned_items'] as List;
+              for (final itemData in unassignedItems) {
+                if (itemData is Map) {
+                  try {
+                    final receiptItem = ReceiptItem(
+                      name: itemData['name'] as String,
+                      price: (itemData['price'] as num).toDouble(),
+                      quantity: itemData['quantity'] as int,
+                    );
+                    splitManager.addUnassignedItem(receiptItem);
+                  } catch (e) {
+                    print('Error processing unassigned item: $e');
+                  }
+                }
+              }
+            }
+            
+            // Update split manager with any state from previous sessions
+            if (workflowState.splitManagerState.isNotEmpty) {
+              if (workflowState.splitManagerState.containsKey('tipPercentage')) {
+                splitManager.tipPercentage = (workflowState.splitManagerState['tipPercentage'] as num).toDouble();
+              }
+              
+              if (workflowState.splitManagerState.containsKey('taxPercentage')) {
+                splitManager.taxPercentage = (workflowState.splitManagerState['taxPercentage'] as num).toDouble();
+              }
+            }
+            
+            return splitManager;
           },
+          child: NotificationListener<NavigateToPageNotification>(
+            onNotification: (notification) {
+              // If requested, navigate to specified page
+              if (notification.pageIndex < 5) {
+                workflowState.goToStep(notification.pageIndex);
+              }
+              return true;
+            },
+            child: const SplitView(),
+          ),
         );
         
       case 4: // Summary
@@ -681,29 +938,36 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
               }
             }
             
+            // Update split manager with state from previous sessions
+            if (workflowState.splitManagerState.isNotEmpty) {
+              if (workflowState.splitManagerState.containsKey('tipPercentage')) {
+                splitManager.tipPercentage = (workflowState.splitManagerState['tipPercentage'] as num).toDouble();
+              }
+              
+              if (workflowState.splitManagerState.containsKey('taxPercentage')) {
+                splitManager.taxPercentage = (workflowState.splitManagerState['taxPercentage'] as num).toDouble();
+              }
+            }
+            
             return splitManager;
           },
-          child: Builder(
-            builder: (context) {
-              return Column(
-                children: [
-                  Expanded(
-                    child: const FinalSummaryScreen(),
-                  ),
-                  // Listen for navigation requests from Summary screen to go back to Split
-                  NotificationListener<NavigateToPageNotification>(
-                    onNotification: (notification) {
-                      // If requested, navigate to specified page
-                      if (notification.pageIndex < 5) {
-                        workflowState.goToStep(notification.pageIndex);
-                      }
-                      return true;
-                    },
-                    child: const SizedBox.shrink(), // Empty container as we're just listening
-                  ),
-                ],
-              );
-            },
+          child: Column(
+            children: [
+              const Expanded(
+                child: FinalSummaryScreen(),
+              ),
+              // Listen for navigation requests from Summary screen to go back to Split
+              NotificationListener<NavigateToPageNotification>(
+                onNotification: (notification) {
+                  // If requested, navigate to specified page
+                  if (notification.pageIndex < 5) {
+                    workflowState.goToStep(notification.pageIndex);
+                  }
+                  return true;
+                },
+                child: const SizedBox.shrink(), // Empty container as we're just listening
+              ),
+            ],
           ),
         );
         

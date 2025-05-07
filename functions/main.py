@@ -126,6 +126,153 @@ def _parse_json_from_response(text: str, model: BaseModel):
 
 @https_fn.on_request(
     cors=options.CorsOptions(cors_origins="*", cors_methods=["post"]),
+    memory=options.MemoryOption.MB_512,
+    timeout_sec=60
+)
+def generate_thumbnail(req: https_fn.Request) -> https_fn.Response:
+    """Generates a thumbnail from an image stored in Firebase Storage.
+    
+    This function:
+    1. Downloads the original image from Firebase Storage
+    2. Resizes it to create a thumbnail (200x200) while maintaining aspect ratio
+    3. Uploads the thumbnail to the same bucket in a 'thumbnails' directory
+    4. Returns the new thumbnail URI
+    
+    Expected request format:
+    {
+        "data": {
+            "imageUri": "gs://bucket-name/path/to/image.jpg"
+        }
+    }
+    
+    Response format:
+    {
+        "data": {
+            "thumbnailUri": "gs://bucket-name/thumbnails/path/to/image.jpg"
+        }
+    }
+    """
+    print("--- GENERATE THUMBNAIL FUNCTION HANDLER ENTERED ---")
+    
+    try:
+        # Validate the request
+        if req.method != "POST":
+            raise ValueError(f"Method {req.method} not allowed.")
+        
+        print("Attempting to parse request JSON...")
+        request_json = req.get_json(silent=True)
+        if not request_json:
+            raise ValueError("Invalid request: No JSON body found.")
+        
+        data = request_json.get('data', {})
+        image_uri = data.get('imageUri')
+        if not image_uri:
+            raise ValueError("Invalid request: 'data' must contain 'imageUri' field.")
+        
+        print(f"Received image URI: {image_uri}")
+        
+        # Parse the URI to get bucket and blob name
+        match = re.match(r"gs://([^/]+)/(.+)", image_uri)
+        if not match:
+            raise ValueError("Invalid request: 'imageUri' must be a valid gs:// URI.")
+        
+        bucket_name, blob_name = match.groups()
+        print(f"Parsed URI: Bucket='{bucket_name}', Blob='{blob_name}'")
+        
+        # Create the thumbnail path
+        thumbnail_blob_name = f"thumbnails/{blob_name}"
+        print(f"Thumbnail will be stored at: {thumbnail_blob_name}")
+        
+        # Download the image to a temp file
+        temp_image_path = None
+        temp_thumbnail_path = None
+        
+        try:
+            # Download the original image
+            temp_image_path = _download_blob_to_tempfile(bucket_name, blob_name)
+            
+            # Validate it's an image
+            mime_type, _ = mimetypes.guess_type(temp_image_path)
+            if not mime_type or not mime_type.startswith("image/"):
+                raise ValueError(f"Downloaded file is not a recognized image type: {mime_type}")
+            
+            print(f"Image downloaded to {temp_image_path}, MIME type: {mime_type}")
+            
+            # Use PIL to resize the image
+            from PIL import Image
+            import io
+            
+            # Create a thumbnail
+            with Image.open(temp_image_path) as img:
+                # Calculate new dimensions while preserving aspect ratio
+                width, height = img.size
+                max_size = 200
+                
+                if width > height:
+                    new_width = max_size
+                    new_height = int(height * (max_size / width))
+                else:
+                    new_height = max_size
+                    new_width = int(width * (max_size / height))
+                
+                # Create thumbnail
+                img.thumbnail((new_width, new_height))
+                
+                # Save to temp file
+                _, extension = os.path.splitext(blob_name)
+                temp_fd, temp_thumbnail_path = tempfile.mkstemp(suffix=extension)
+                os.close(temp_fd)
+                
+                # Save with the same format as the original
+                img.save(temp_thumbnail_path, quality=85, optimize=True)
+                print(f"Thumbnail created at {temp_thumbnail_path}")
+            
+            # Upload the thumbnail
+            storage_client = gcs.Client()
+            bucket = storage_client.bucket(bucket_name)
+            thumbnail_blob = bucket.blob(thumbnail_blob_name)
+            
+            # Set proper content type
+            thumbnail_blob.content_type = mime_type
+            
+            # Upload the file
+            thumbnail_blob.upload_from_filename(temp_thumbnail_path)
+            print(f"Thumbnail uploaded to gs://{bucket_name}/{thumbnail_blob_name}")
+            
+            # Create the thumbnail URI
+            thumbnail_uri = f"gs://{bucket_name}/{thumbnail_blob_name}"
+            
+            # Return the thumbnail URI
+            return https_fn.Response(
+                json.dumps({"data": {"thumbnailUri": thumbnail_uri}}),
+                status=200,
+                headers={"Content-Type": "application/json"}
+            )
+            
+        finally:
+            # Clean up temp files
+            if temp_image_path and os.path.exists(temp_image_path):
+                os.remove(temp_image_path)
+                print(f"Removed temporary file: {temp_image_path}")
+            
+            if temp_thumbnail_path and os.path.exists(temp_thumbnail_path):
+                os.remove(temp_thumbnail_path)
+                print(f"Removed temporary file: {temp_thumbnail_path}")
+    
+    except Exception as e:
+        error_message = f"Error generating thumbnail: {str(e)}"
+        print(error_message)
+        print(traceback.format_exc()) # Log the full error traceback
+        
+        # Return error response
+        return https_fn.Response(
+            json.dumps({"error": error_message}),
+            status=500,
+            headers={"Content-Type": "application/json"}
+        )
+
+@https_fn.on_request(
+    cors=options.CorsOptions(cors_origins="*", cors_methods=["post"]),
     secrets=["OPENAI_API_KEY", "GOOGLE_API_KEY"], # Added GOOGLE_API_KEY
     memory=options.MemoryOption.GB_1, # Use enum for memory
     timeout_sec=120

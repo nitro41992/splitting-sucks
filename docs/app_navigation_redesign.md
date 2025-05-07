@@ -144,6 +144,11 @@ The updated `assign_people_to_items` function returns this structured format:
 - **Split Manager:** SplitManager class handles tax/tip calculations and item assignments
 - **Drafts and Data Flow:** Workflow state maintained across steps and persisted to Firestore on exit
 - **Screen Integration:** Existing screens reused within the modal context with callbacks to update workflow state
+- **Component Interfaces:** Consistent parameter interfaces between workflow components ensure proper data flow
+  - ReceiptUploadScreen handles null-safety for image files
+  - ReceiptReviewScreen receives and returns properly formatted receipt items
+  - VoiceAssignmentScreen manages transcription state with proper callbacks
+  - SplitView and FinalSummaryScreen use consistent data models for calculations
 
 ## 6. Project Structure
 
@@ -182,8 +187,8 @@ splitting_sucks/
 
 ## 7. Future Enhancements
 
-- **Thumbnail Generation:** Implement proper thumbnail generation via cloud function
-- **Delete Functionality:** Add confirmation dialog for receipt deletion
-- **Receipt Editing:** Enable editing of completed receipts
+- **Receipt Editing:** Enable advanced editing of completed receipts
 - **Comprehensive Testing:** Add unit, widget, and integration tests
 - **Performance Optimization:** Implement image caching and pagination 
+- **UI Improvements:** Add animations and transitions for smoother user experience
+- **Multi-user Collaboration:** Allow multiple users to work on the same receipt 

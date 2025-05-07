@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 /// Service for Firestore CRUD operations related to receipts
 /// 
@@ -222,30 +223,34 @@ class FirestoreService {
   /// This should be called after uploading the original image
   Future<String?> generateThumbnail(String originalImageUri) async {
     try {
-      // Extract the path from the original image URI
-      final uriParts = originalImageUri.replaceFirst('gs://', '').split('/');
-      final bucketName = uriParts.first;
-      final objectPath = uriParts.sublist(1).join('/');
+      // Call the Cloud Function to generate a thumbnail
+      final functions = FirebaseFunctions.instance;
+      final callable = functions.httpsCallable('generate_thumbnail');
       
-      // Generate a thumbnail path based on original path
-      final originalPath = objectPath;
-      final thumbnailPath = originalPath.replaceFirst('receipts/', 'thumbnails/');
+      debugPrint('Calling generate_thumbnail function with URI: $originalImageUri');
+      final result = await callable.call({
+        'data': {'imageUri': originalImageUri}
+      });
       
-      // Create a reference to the thumbnail location
-      final thumbnailRef = _storage.ref(thumbnailPath);
+      // Parse the response
+      final Map<String, dynamic> responseData = Map<String, dynamic>.from(result.data);
       
-      // Generate the thumbnail URL
-      final thumbnailUri = 'gs://${thumbnailRef.bucket}/${thumbnailRef.fullPath}';
-      
-      // Create a Cloud Function call to generate the thumbnail
-      // For now we'll return the original URI as this would need a separate Cloud Function
-      // TODO: Implement proper thumbnail generation via Cloud Function
-      
-      debugPrint('Thumbnail generated at: $thumbnailUri');
-      return originalImageUri; // Temporary until Cloud Function is implemented
+      if (responseData.containsKey('data') && 
+          responseData['data'] is Map<String, dynamic> && 
+          responseData['data'].containsKey('thumbnailUri')) {
+        final thumbnailUri = responseData['data']['thumbnailUri'] as String;
+        debugPrint('Thumbnail generated at: $thumbnailUri');
+        return thumbnailUri;
+      } else {
+        // If the response doesn't have the expected format, fall back to original image
+        debugPrint('Unexpected response format from generate_thumbnail function, using original image');
+        debugPrint('Response: $responseData');
+        return originalImageUri;
+      }
     } catch (e) {
+      // If there's an error, log it and return the original image
       debugPrint('Error generating thumbnail: $e');
-      return null;
+      return originalImageUri;
     }
   }
   
