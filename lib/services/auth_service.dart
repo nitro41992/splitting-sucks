@@ -223,15 +223,15 @@ class AuthService {
   // Auth state changes stream with safety check
   Stream<User?> get authStateChanges {
     // In emulator mode, immediately emit a "signed in" state
-    final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
-    if (useEmulator) {
-      debugPrint('🔧 Emulator mode: bypassing auth state changes');
-      // We can't create a fake User, but we can check if already signed in
-      // If signed in, use that, otherwise just let the app handle null user
-      if (_auth.currentUser != null) {
-        return Stream.value(_auth.currentUser);
-      }
-    }
+    // final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+    // if (useEmulator) {
+    //   debugPrint('🔧 Emulator mode: bypassing auth state changes');
+    //   // We can't create a fake User, but we can check if already signed in
+    //   // If signed in, use that, otherwise just let the app handle null user
+    //   if (_auth.currentUser != null) {
+    //     return Stream.value(_auth.currentUser);
+    //   }
+    // }
     
     return _userStreamController.stream;
   }
