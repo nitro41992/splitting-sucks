@@ -85,14 +85,18 @@
 
 1. **Data Persistence & Performance:**
    - ✅ Draft saving and resuming functionality working
+   - ✅ **Resolved:** Draft now correctly saves image URI even if exiting modal before confirming upload.
    - ✅ **Resolved:** Image preview now shows in Upload step before confirming. Logic moved from `onImageSelected` to `onParseReceipt`.
+   - ✅ **Resolved:** Receipts list now auto-refreshes after saving/completing a receipt from the workflow modal.
+   - ✅ **Resolved:** Drafts list visibility after sign-out/sign-in corrected (required emulator state clear).
    - ✅ Deletion with confirmation dialog implemented
    - ⚠️ Need to handle edge cases when modifying completed receipts
    - ⚠️ Receipts list loading can be slow due to lack of pagination.
 
 2. **Image Processing:**
    - ✅ Image upload to Firebase Storage working
-   - ✅ Proper thumbnail generation via cloud function implemented
+   - ✅ **Resolved:** Resuming draft now correctly displays the saved receipt image in Upload step (using download URL).
+   - ⚠️ Thumbnail generation via `generate_thumbnail` cloud function fails with `INTERNAL` error (Needs investigation in Cloud Function logs).
 
 3. **Data Flow & State Management:**
    - ✅ WorkflowState maintains data between steps
@@ -111,7 +115,7 @@
     - ✅ Anonymous sign-in via `autoSignInForEmulator` now working correctly with the emulator.
     - ✅ **Resolved:** Emulator sign-out persistence after clean rebuild.
         - **Solution:** Modified `AuthService.authStateChanges` getter to consistently use the main user stream (`_userStreamController.stream`) in emulator mode. This ensures the UI correctly reflects the null user state after sign-out, preventing a stale authenticated state (often the previously Google-signed-in user) from persisting due to the emulator's auth state bypass logic.
-    - ⚠️ **Remaining Issue:** Persistent `SecurityException: Unknown calling package name 'com.google.android.gms'` during Google Sign-In, although sign-in flow now completes successfully. Potentially related to Play Services state on the device or SHA-1/API key configuration.
+    - ⚠️ **Remaining Issue:** Persistent `SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs monitoring; could indicate issues with Play Services, SHA-1, or API keys if functional problems arise.
     - ✅ Firebase services correctly connect to emulators using the host PC's LAN IP.
 
 ## Environment Setup Status
@@ -131,6 +135,7 @@
      - The `firestore.emulator.rules` file contains permissive rules for development (`allow read, write: if true;`).
      - The Storage emulator **correctly** loads and uses the permissive `storage.emulator.rules` file as configured in `firebase.json` (via `emulators.storage.rules`).
      - **IMPORTANT FOR DEPLOYMENT:** Before deploying to production, the top-level `"firestore": { "rules": ... }` in `firebase.json` **MUST** be changed back to point to `"firestore.rules"`.
+   - ✅ **Resolved:** Storage Emulator permissions issue fixed by aligning top-level `storage.rules` key in `firebase.json` with emulator rules during development (similar to Firestore setup).
    - ✅ Seeding script creates test data in emulator.
    - ✅ Android debug manifest allows cleartext traffic.
 
@@ -168,17 +173,26 @@
 
 ## Next Steps (Priority Order)
 
-1.  **(Documentation/Process):** Document the `firebase.json` (top-level `firestore.rules`) switch needed between development (using `firestore.emulator.rules`) and production (using `firestore.rules`). Consider a script or build process step to manage this.
-2.  **Performance Optimization (Receipts Loading):**
-    - Implement pagination for the receipts list in `ReceiptsScreen` and `FirestoreService`.
-3. **Create Comprehensive Testing Suite:**
-   - Unit tests for all services and models
-   - Widget tests for all UI components
-   - Integration tests for full workflow
-4. **Performance Optimization (Other):**
-   - Implement image caching for better performance
-   - Optimize state management to reduce rebuilds
-5. **Handle Edge Cases & Further Stability:**
-   - Test and handle completed receipt modifications
-   - Improve error handling and recovery generally
-   - Investigate and resolve any further latent null check issues. 
+1.  **Fix `generate_thumbnail` Cloud Function:** 
+    - Investigate and resolve the `[firebase_functions/internal] INTERNAL` error by checking Cloud Function logs in Firebase Console.
+2.  **Address Security Warnings:**
+    - Implement Firebase App Check (`firebase_app_check` plugin, Play Integrity/Debug providers).
+    - Verify SHA-1/SHA-256 keys in Firebase Console for Android.
+    - Check for API key restrictions in Google Cloud Console.
+    - Ensure Google Play Services are up-to-date on test devices/emulators.
+3.  **Remove Diagnostic Delay:** 
+    - Remove the `Future.delayed` call from `_loadReceipts` in `ReceiptsScreen.dart`.
+4.  **Implement Receipt List Pagination:**
+    - Modify `FirestoreService.getReceipts` to accept limit/startAfter.
+    - Update `ReceiptsScreen` UI (infinite scroll or "Load More") to fetch in batches.
+5.  **Create Comprehensive Testing Suite:**
+    - Unit tests for services (`AuthService`, `FirestoreService`) and models.
+    - Widget tests for UI components (especially `WorkflowModal`).
+    - Integration tests for the full end-to-end workflow.
+6.  **Enhance Error Handling:**
+    - Improve user feedback for errors beyond basic Snackbars (e.g., thumbnail failure, network issues).
+7.  **Handle Edge Cases (Completed Receipts):**
+    - Define and implement behavior for editing/modifying already completed receipts.
+8.  **Code Cleanup/Refactoring:**
+    - Review for potential code duplication (e.g., `SplitManager` instantiation).
+    - Ensure consistent state management. 
