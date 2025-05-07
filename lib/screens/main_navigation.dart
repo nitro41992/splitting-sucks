@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'receipts_screen.dart';
+import '../services/auth_service.dart';
+import '../utils/toast_helper.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({Key? key}) : super(key: key);
@@ -69,16 +71,16 @@ class SettingsScreen extends StatelessWidget {
             onTap: () async {
               final confirm = await showDialog<bool>(
                 context: context,
-                builder: (context) => AlertDialog(
+                builder: (dialogContext) => AlertDialog(
                   title: const Text('Sign Out'),
                   content: const Text('Are you sure you want to sign out?'),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
                       child: const Text('CANCEL'),
                     ),
                     FilledButton(
-                      onPressed: () => Navigator.of(context).pop(true),
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
                       child: const Text('SIGN OUT'),
                     ),
                   ],
@@ -86,7 +88,13 @@ class SettingsScreen extends StatelessWidget {
               );
               
               if (confirm == true) {
-                // TODO: Implement sign out
+                try {
+                  await AuthService().signOut();
+                  // Navigation to LoginScreen should be handled by StreamBuilder in main.dart
+                  ToastHelper.showToast(context, 'Successfully signed out', isSuccess: true);
+                } catch (e) {
+                  ToastHelper.showToast(context, 'Error signing out: $e', isError: true);
+                }
               }
             },
           ),

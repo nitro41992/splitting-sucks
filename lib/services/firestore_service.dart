@@ -27,14 +27,15 @@ class FirestoreService {
   /// Factory constructor that configures Firestore with emulator if needed
   factory FirestoreService() {
     // Get environment variables
-    final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+    // final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true'; // No longer needed here
     
     // Get instances
     final db = FirebaseFirestore.instance;
     final storage = FirebaseStorage.instance;
     final auth = FirebaseAuth.instance;
     
-    // Connect to emulators if enabled
+    // Connect to emulators if enabled - THIS IS NOW HANDLED IN main()
+    /*
     if (useEmulator) {
       debugPrint('🔧 Connecting to Firestore emulator on localhost:8081');
       db.useFirestoreEmulator('localhost', 8081);
@@ -47,6 +48,7 @@ class FirestoreService {
       FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
       debugPrint('🔧 Connected to Functions emulator on localhost:5001');
     }
+    */
     
     return FirestoreService._(
       db: db,

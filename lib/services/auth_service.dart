@@ -7,8 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../utils/toast_helper.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-// Remove conditional GoogleSignIn import
-// import 'package:google_sign_in/google_sign_in.dart' if (dart.library.html) 'dart:core';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService {
   late FirebaseAuth _auth;
@@ -34,6 +33,8 @@ class AuthService {
   static const String _lastLoginAttemptTimeKey = 'last_login_attempt_time';
   static const String _loginLockedUntilKey = 'login_locked_until';
 
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+
   // Constructor
   AuthService() {
     _connectToFirebaseAuth();
@@ -51,44 +52,29 @@ class AuthService {
     }
     
     try {
-      debugPrint('🔧 Auto-signing in test user for emulator mode');
+      debugPrint('🔧 Auto-signing in anonymously for emulator mode');
       
       // Check if already signed in
       if (_auth.currentUser != null) {
-        debugPrint('Already signed in as ${_auth.currentUser!.email}');
+        // If already signed in (perhaps from previous session), return the user
+        // Note: If the previous user was email/password, this might cause issues.
+        // Clearing data between runs or ensuring consistent anonymous sign-in is best.
+        debugPrint('[AuthService] Already signed in as user: ${_auth.currentUser!.uid}');
         return _auth.currentUser;
       }
       
-      // Create test user credentials
-      const testEmail = 'test@example.com';
-      const testPassword = 'password123';
-      
-      // Try to sign in, if fails, create the account
-      try {
-        final userCred = await _auth.signInWithEmailAndPassword(
-          email: testEmail,
-          password: testPassword,
-        );
-        debugPrint('✅ Auto-signed in as test user: ${userCred.user!.email}');
-        return userCred.user;
-      } on FirebaseAuthException catch (e) {
-        if (e.code == 'user-not-found') {
-          // Create the test user
-          final userCred = await _auth.createUserWithEmailAndPassword(
-            email: testEmail,
-            password: testPassword,
-          );
-          // Update profile
-          await userCred.user!.updateDisplayName('Test User');
-          debugPrint('✅ Created and signed in as test user: ${userCred.user!.email}');
-          return userCred.user;
-        } else {
-          debugPrint('❌ Error auto-signing in: ${e.message}');
-          rethrow;
-        }
-      }
+      // Sign in anonymously
+      debugPrint('[AuthService] Attempting _auth.signInAnonymously() with timeout...');
+      final userCred = await _auth.signInAnonymously()
+          .timeout(const Duration(seconds: 10)); // Add a 10-second timeout
+      debugPrint('[AuthService] _auth.signInAnonymously() COMPLETED.');
+      debugPrint('✅ Auto-signed in anonymously. User ID: ${userCred.user?.uid}');
+      return userCred.user;
+
     } catch (e) {
-      debugPrint('❌ Auto sign-in error: $e');
+      // Added specific log prefix
+      debugPrint('❌ [AuthService] Anonymous auto sign-in CATCH block: $e'); 
+      // If anonymous sign-in fails, something is fundamentally wrong with Auth emulator connection
       return null;
     }
   }
@@ -178,10 +164,10 @@ class AuthService {
   Future<void> _handlePotentialStorageIssues() async {
     try {
       // If we're on Android or web, ensure persistence is set to LOCAL
-      if (kIsWeb || Platform.isAndroid) {
+      if (kIsWeb) { 
         // Try to explicitly set the persistence to LOCAL to fix storage issues
         await _auth.setPersistence(Persistence.LOCAL);
-        debugPrint('Auth persistence explicitly set to LOCAL');
+        debugPrint('Auth persistence explicitly set to LOCAL for Web');
       }
       
       // If we're running in Firebase App Distribution test environment
@@ -413,68 +399,54 @@ class AuthService {
     }
   }
 
-  // Google Sign In using Firebase Auth - unified approach
+  // Sign in with Google (Emulator-Aware and Production Ready)
   Future<UserCredential?> signInWithGoogle() async {
     await _ensureInitialized();
-    
+    debugPrint('Attempting Google sign in with google_sign_in plugin...');
+    _lastSignInMethod = 'google'; // For success toast
+
     try {
-      debugPrint('Attempting Google sign in with Firebase Auth...');
-      
-      if (kIsWeb) {
-        // For web platforms
-        GoogleAuthProvider googleProvider = GoogleAuthProvider();
-        final result = await _auth.signInWithPopup(googleProvider);
-        
-        // Track sign-in method
-        _lastSignInMethod = 'google';
-        
-        // Trigger success toast
-        _showSuccessMessage('Welcome! Signed in with Google');
-        
-        return result;
-      } else {
-        // Unified approach for iOS and Android using Firebase Auth directly
-        try {
-          debugPrint('Platform: ${Platform.isAndroid ? "Android" : "iOS"}');
-          debugPrint('Firebase Apps: ${Firebase.apps.length}');
-          debugPrint('Auth initialized: $_isInitialized');
-          
-          // Create a Google provider directly in Firebase Auth
-          final googleProvider = GoogleAuthProvider();
-          
-          // Add scopes as needed
-          googleProvider.addScope('email');
-          googleProvider.addScope('profile');
-          
-          debugPrint('Google provider created with scopes');
-          
-          // Use signInWithProvider for both iOS and Android
-          debugPrint('Calling signInWithProvider...');
-          final userCredential = await _auth.signInWithProvider(googleProvider);
-          debugPrint('Google sign in successful: ${userCredential.user?.displayName}');
-          
-          // Track sign-in method
-          _lastSignInMethod = 'google';
-          
-          // Trigger success toast with a longer delay for Google auth
-          Future.delayed(Duration(seconds: 1), () {
-            _showSuccessMessage('Welcome! Signed in with Google');
-          });
-          
-          return userCredential;
-        } catch (e) {
-          debugPrint('Google sign in failed with detailed error: $e');
-          debugPrint('Stack trace: ${StackTrace.current}');
-          rethrow;
-        }
+      // 1. Trigger the Google Authentication flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        debugPrint('Google sign in cancelled by user.');
+        return null;
       }
-    } on FirebaseAuthException catch (e) {
-      debugPrint('Firebase Auth Exception code: ${e.code}');
-      debugPrint('Firebase Auth Exception message: ${e.message}');
-      throw _handleAuthException(e);
+
+      // 2. Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // 3. Create a new credential for Firebase
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      debugPrint('Received Google credential, now signing into Firebase Auth...');
+      // 4. Sign in to Firebase with the credential
+      // This call WILL be directed to the Auth emulator if configured, or production if not.
+      UserCredential userCredential = await _auth.signInWithCredential(credential);
+      debugPrint('Successfully signed in to Firebase with Google credential. User: ${userCredential.user?.uid}');
+      _showSuccessMessage('Signed in with Google!');
+      return userCredential;
+
     } catch (e) {
-      debugPrint('Error in Google Sign In: $e');
-      throw 'Failed to sign in with Google: $e';
+      debugPrint('Error during Google sign in: $e');
+      // Handle specific errors like PlatformException for network errors, etc.
+      // You might want to show a toast or a dialog to the user here.
+      /* ToastHelper.showToast(
+        // We need a BuildContext to show a toast.
+        // This service layer doesn't have one directly.
+        // Consider returning an error code/message or using a global error handler.
+        // For now, just printing to debug console.
+        // TODO: Implement better error feedback for UI from AuthService
+        null, // Placeholder for context
+        'Google Sign-In failed: ${e.toString()}',
+        isSuccess: false
+      ); */
+      return null;
     }
   }
 

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
@@ -27,22 +30,55 @@ void main() async {
   
   // Initialize Firebase
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform, // Ensure options are passed
+    );
     firebaseInitialized = true;
     
-    // Check if using emulator and auto-sign in if needed
+    // Check if using emulator and CONFIGURE services if so
     final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
     if (useEmulator) {
-      // Auto sign-in for emulator mode
-      final authService = AuthService();
-      await authService.autoSignInForEmulator();
+      try {
+        debugPrint('🔧 Configuring Firebase services for EMULATOR mode...');
+        
+        const localDevIp = '192.168.0.152'; // Your actual Wi-Fi IP
+
+        // Configure Auth Emulator
+        await FirebaseAuth.instance.useAuthEmulator(localDevIp, 9099);
+        debugPrint('  - Auth Emulator configured for $localDevIp:9099');
+        
+        // Configure Firestore Emulator
+        FirebaseFirestore.instance.useFirestoreEmulator(localDevIp, 8081);
+        debugPrint('  - Firestore Emulator configured for $localDevIp:8081');
+
+        // Configure Storage Emulator
+        await FirebaseStorage.instance.useStorageEmulator(localDevIp, 9199);
+        debugPrint('  - Storage Emulator configured for $localDevIp:9199');
+        
+        // Configure Functions Emulator
+        FirebaseFunctions.instance.useFunctionsEmulator(localDevIp, 5001);
+        debugPrint('  - Functions Emulator configured for $localDevIp:5001');
+
+        // Auto sign-in should use the service provided later by AppWithProviders
+        // Do NOT create a separate instance here.
+        // debugPrint('  - Calling autoSignInForEmulator...');
+        // final authService = AuthService(); // REMOVE THIS INSTANCE
+        // await authService.autoSignInForEmulator(); // REMOVE THIS CALL
+        // debugPrint('  - autoSignInForEmulator call finished.');
+        debugPrint('  - Emulator configuration complete. Auto sign-in will be attempted by AuthService provider.');
+
+      } catch (e) {
+        debugPrint("Error configuring Firebase Emulators: $e");
+        // Decide how to handle emulator config failure - maybe prevent app start?
+        firebaseInitialized = false; // Mark as failed if emulator setup fails
+      }
     }
   } catch (e) {
     debugPrint("Error initializing Firebase in main(): $e");
     firebaseInitialized = false;
   }
   
-  runApp(const MyApp());
+  runApp(const AppWithProviders());
 }
 
 class MyApp extends StatelessWidget {
@@ -50,45 +86,56 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // AuthService is now provided by AppWithProviders
+    // final authService = AuthService(); // REMOVE THIS LINE
+
     return MaterialApp(
       title: 'Billfie',
       theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
       home: !firebaseInitialized 
         ? const Scaffold(body: Center(child: Text("Failed to initialize Firebase")))
-        : Builder(
-            builder: (context) {
-              // Check if emulator mode is active to bypass auth
-              final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+        : StreamBuilder<User?>(
+            // Use the stream from the provided AuthService
+            stream: context.read<AuthService>().authStateChanges, // Use context.read
+            builder: (context, snapshot) {
+              debugPrint('[MyApp StreamBuilder] ConnectionState: ${snapshot.connectionState}');
+              debugPrint('[MyApp StreamBuilder] HasData: ${snapshot.hasData}');
+              debugPrint('[MyApp StreamBuilder] Data: ${snapshot.data}');
+              debugPrint('[MyApp StreamBuilder] HasError: ${snapshot.hasError}');
+              debugPrint('[MyApp StreamBuilder] Error: ${snapshot.error}');
+
+              // Show spinner while waiting for the stream's initial value
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
               
-              if (useEmulator) {
-                // Skip auth check completely in emulator mode
-                debugPrint('🔧 Bypassing auth in emulator mode');
+              // If the stream has emitted a user object, show the main app
+              if (snapshot.hasData) {
+                // User is logged in (or emulator auto-sign-in worked)
                 return const MainNavigation();
               }
               
-              // Continue with normal auth flow
-              return StreamBuilder<User?>(
-                stream: FirebaseAuth.instance.authStateChanges(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Scaffold(
-                      body: Center(
-                        child: CircularProgressIndicator(),
-                      ),
-                    );
-                  }
-                  
-                  if (snapshot.hasData) {
-                    // User is logged in
-                    return const MainNavigation();
-                  }
-                  
-                  // User is not logged in
-                  return const LoginScreen();
-                },
-              );
-            }
+              // Otherwise (stream is active but has emitted null, meaning no user), show LoginScreen
+              // Remove the specific emulator check that was causing the indefinite spinner
+              /* 
+              final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+              if (useEmulator && snapshot.data == null && !snapshot.hasError) {
+                  return const Scaffold(
+                    body: Center(
+                      child: CircularProgressIndicator(), 
+                    ),
+                  );
+              }
+              */
+              
+              // If no user data, show the LoginScreen
+              return const LoginScreen();
+            },
           ),
       routes: Routes.getRoutes(),
     );
@@ -97,6 +144,8 @@ class MyApp extends StatelessWidget {
 
 /// Wrapper widget that shows either the login screen or the main app
 /// based on authentication state
+/// This widget might no longer be necessary as StreamBuilder handles it directly
+/*
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -104,16 +153,16 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = context.watch<User?>();
     
-    // If user is not logged in, show login screen
     if (user == null) {
       return const LoginScreen();
     }
     
-    // Otherwise, show the main navigation
     return const MainNavigation();
   }
 }
+*/
 
+/*
 class FirebaseInit extends StatefulWidget {
   const FirebaseInit({super.key});
 
@@ -148,10 +197,12 @@ class _FirebaseInitState extends State<FirebaseInit> {
       
       // Configure Firebase Auth persistence (backup in case it wasn't set in main)
       try {
-        // For Android, set the persistence to LOCAL
+        // For Android, set the persistence to LOCAL - Check if kIsWeb first
         if (!kIsWeb && Platform.isAndroid) {
-          await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
-          debugPrint("Firebase Auth persistence set to LOCAL for Android");
+          // This might still cause issues if setPersistence is not available
+          // Consider removing or conditionalizing further based on actual need
+          // await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+          debugPrint("Skipping Firebase Auth persistence setting on Android in FirebaseInit"); 
         }
         
         // For web, explicitly set persistence
@@ -239,9 +290,19 @@ class _FirebaseInitState extends State<FirebaseInit> {
     }
 
     // Show auth wrapper
-    return const AuthWrapper();
+    // If MyApp's StreamBuilder is now the entry point, FirebaseInit might not be needed
+    // or its purpose changes. For now, keep it returning AuthWrapper.
+    // HOWEVER, AuthWrapper needs a Provider<User?> above it.
+    // Since MyApp provides the StreamBuilder, we might need to restructure
+    // how FirebaseInit and AuthWrapper are used or provide the User stream differently.
+    
+    // To resolve the immediate linter error, keep AuthWrapper uncommented,
+    // but acknowledge that `context.watch<User?>()` within it will fail without a Provider.
+    // A proper fix involves rethinking the FirebaseInit/AuthWrapper structure.
+    return const AuthWrapper(); 
   }
 }
+*/
 
 class AppWithProviders extends StatelessWidget {
   const AppWithProviders({super.key});
@@ -265,13 +326,18 @@ class AppWithProviders extends StatelessWidget {
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().authStateChanges,
           initialData: null,
+          catchError: (_, error) {
+            debugPrint("Error in authStateChanges stream: $error");
+            return null;
+          },
         ),
       ],
       child: MaterialApp(
         title: 'Billfie',
         theme: AppTheme.lightTheme,
         routes: Routes.getRoutes(),
-        home: const ReceiptSplitterUI(),
+        home: const MyApp(), // Set MyApp as the home widget
+        debugShowCheckedModeBanner: false, // Moved here
       ),
     );
   }

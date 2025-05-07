@@ -48,24 +48,33 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
 
   Future<void> _loadReceipts() async {
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+      // Check if mounted before calling setState
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
 
       final QuerySnapshot snapshot = await _firestoreService.getReceipts();
       
-      setState(() {
-        _allReceipts = snapshot.docs
-            .map((doc) => Receipt.fromDocumentSnapshot(doc))
-            .toList();
-        _isLoading = false;
-      });
+      // Check if mounted before calling setState
+      if (mounted) {
+        setState(() {
+          _allReceipts = snapshot.docs
+              .map((doc) => Receipt.fromDocumentSnapshot(doc))
+              .toList();
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Error loading receipts: $e';
-      });
+      // Check if mounted before calling setState
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Error loading receipts: $e';
+        });
+      }
     }
   }
 
@@ -108,10 +117,11 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
   }
 
   void _addNewReceipt() {
-    // Show restaurant name dialog and then the workflow modal
+    // Show restaurant name dialog
     showRestaurantNameDialog(context).then((restaurantName) {
       if (restaurantName != null) {
-        WorkflowModal.show(context);
+        // Pass the obtained restaurantName to WorkflowModal.show
+        WorkflowModal.show(context, initialRestaurantName: restaurantName);
       }
     });
   }

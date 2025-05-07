@@ -234,12 +234,33 @@ class WorkflowModal extends StatelessWidget {
   }
   
   /// Static method to show the workflow modal with restaurant name dialog
-  static Future<void> show(BuildContext context, {String? receiptId}) async {
-    // First, show the restaurant name dialog
-    final restaurantName = await showRestaurantNameDialog(context);
+  static Future<void> show(BuildContext context, {String? receiptId, String? initialRestaurantName}) async {
+    String? finalRestaurantName = initialRestaurantName;
+
+    // If a receiptId is provided, try to load the receipt and get its name
+    if (receiptId != null && finalRestaurantName == null) {
+      // Temporarily show a loading indicator or handle this state appropriately
+      // For simplicity, we'll try to fetch it. In a real app, manage loading state.
+      try {
+        final firestoreService = FirestoreService();
+        final snapshot = await firestoreService.getReceipt(receiptId);
+        if (snapshot.exists) {
+          final receipt = Receipt.fromDocumentSnapshot(snapshot);
+          finalRestaurantName = receipt.restaurantName;
+        }
+      } catch (e) {
+        // Log error or handle, for now, we'll proceed without pre-filled name
+        debugPrint("Error fetching receipt name for modal: $e");
+      }
+    }
+
+    // If restaurantName is still null, show the dialog to get it
+    if (finalRestaurantName == null) {
+      finalRestaurantName = await showRestaurantNameDialog(context);
+    }
     
-    // If the user cancels the dialog, don't show the modal
-    if (restaurantName == null) {
+    // If the user cancels the dialog or name is still null, don't show the modal
+    if (finalRestaurantName == null) {
       return;
     }
     
@@ -247,9 +268,9 @@ class WorkflowModal extends StatelessWidget {
     await Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (context) => Provider(
+        builder: (context) => ChangeNotifierProvider(
           create: (context) => WorkflowState(
-            restaurantName: restaurantName,
+            restaurantName: finalRestaurantName!, // finalRestaurantName is guaranteed non-null here
             receiptId: receiptId,
           ),
           child: const _WorkflowModalBody(),
