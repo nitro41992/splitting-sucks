@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/receipt.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/workflow_modal.dart';
 
 class ReceiptsScreen extends StatefulWidget {
   const ReceiptsScreen({Key? key}) : super(key: key);
@@ -107,46 +108,200 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
   }
 
   void _addNewReceipt() {
-    // TODO: Implement restaurant name dialog and modal workflow
-    showDialog(
+    // Show restaurant name dialog and then the workflow modal
+    showRestaurantNameDialog(context).then((restaurantName) {
+      if (restaurantName != null) {
+        WorkflowModal.show(context);
+      }
+    });
+  }
+
+  void _viewReceiptDetails(Receipt receipt) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Coming Soon'),
-        content: const Text('The receipt workflow modal will be implemented in the next phase.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      receipt.restaurantName ?? 'Receipt',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Divider(),
+              const SizedBox(height: 8),
+              
+              // Receipt details
+              _buildDetailRow('Status', receipt.status),
+              _buildDetailRow('Date', receipt.formattedDate),
+              _buildDetailRow('Total', receipt.formattedAmount),
+              _buildDetailRow('People', receipt.numberOfPeople),
+              
+              const SizedBox(height: 16),
+              
+              // Action buttons
+              if (receipt.isDraft) ...[
+                // Resume draft
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Resume Draft'),
+                    onPressed: () {
+                      Navigator.pop(context); // Close the bottom sheet
+                      WorkflowModal.show(context, receiptId: receipt.id);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              
+              // Edit (for completed receipts)
+              if (receipt.isCompleted) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Edit Receipt'),
+                    onPressed: () {
+                      Navigator.pop(context); // Close the bottom sheet
+                      WorkflowModal.show(context, receiptId: receipt.id);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              
+              // Delete button (for both draft and completed)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.delete_outline),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                  label: const Text('Delete Receipt'),
+                  onPressed: () => _confirmDeleteReceipt(context, receipt),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyLarge,
           ),
         ],
       ),
     );
   }
-
-  void _viewReceiptDetails(Receipt receipt) {
-    // TODO: Implement receipt detail view or resume draft
-    showDialog(
+  
+  Future<void> _confirmDeleteReceipt(BuildContext context, Receipt receipt) async {
+    final confirmation = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(receipt.restaurantName ?? 'Receipt'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Status: ${receipt.status}'),
-            Text('Date: ${receipt.formattedDate}'),
-            Text('Total: ${receipt.formattedAmount}'),
-            Text('People: ${receipt.numberOfPeople}'),
-          ],
+        title: const Text('Delete Receipt?'),
+        content: Text(
+          'Are you sure you want to delete this receipt${receipt.restaurantName != null ? ' from ${receipt.restaurantName}' : ''}? '
+          'This action cannot be undone.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('DELETE'),
           ),
         ],
       ),
     );
+    
+    if (confirmation == true) {
+      // User confirmed, delete the receipt
+      setState(() {
+        _isLoading = true;
+      });
+      
+      try {
+        await _firestoreService.deleteReceipt(receipt.id);
+        
+        // If there was an image, delete that too
+        if (receipt.imageUri != null) {
+          await _firestoreService.deleteReceiptImage(receipt.imageUri!);
+        }
+        
+        setState(() {
+          _isLoading = false;
+        });
+        
+        if (!mounted) return;
+        Navigator.of(context).pop(); // Close the bottom sheet
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Receipt deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Reload receipts
+        _loadReceipts();
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Error deleting receipt: $e';
+        });
+        
+        if (!mounted) return;
+        
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting receipt: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildReceiptCard(Receipt receipt) {

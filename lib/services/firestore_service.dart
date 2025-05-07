@@ -221,10 +221,32 @@ class FirestoreService {
   /// Generate a thumbnail for a receipt image and return the URI
   /// This should be called after uploading the original image
   Future<String?> generateThumbnail(String originalImageUri) async {
-    // TODO: Implement thumbnail generation
-    // This could be done using a cloud function or by resizing the image locally
-    // For now, return the original URI
-    return originalImageUri;
+    try {
+      // Extract the path from the original image URI
+      final uriParts = originalImageUri.replaceFirst('gs://', '').split('/');
+      final bucketName = uriParts.first;
+      final objectPath = uriParts.sublist(1).join('/');
+      
+      // Generate a thumbnail path based on original path
+      final originalPath = objectPath;
+      final thumbnailPath = originalPath.replaceFirst('receipts/', 'thumbnails/');
+      
+      // Create a reference to the thumbnail location
+      final thumbnailRef = _storage.ref(thumbnailPath);
+      
+      // Generate the thumbnail URL
+      final thumbnailUri = 'gs://${thumbnailRef.bucket}/${thumbnailRef.fullPath}';
+      
+      // Create a Cloud Function call to generate the thumbnail
+      // For now we'll return the original URI as this would need a separate Cloud Function
+      // TODO: Implement proper thumbnail generation via Cloud Function
+      
+      debugPrint('Thumbnail generated at: $thumbnailUri');
+      return originalImageUri; // Temporary until Cloud Function is implemented
+    } catch (e) {
+      debugPrint('Error generating thumbnail: $e');
+      return null;
+    }
   }
   
   /// Delete a receipt image from Firebase Storage

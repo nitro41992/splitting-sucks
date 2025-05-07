@@ -1,50 +1,6 @@
-# Project Progress Summary
-
-**Completed:**
-- Firestore emulator successfully seeded with dynamic prompt/model configuration data using a Python script (`init_firestore_config.py`).
-- Fixed port conflicts in Firebase emulator configuration in `firebase.json`.
-- Fixed validation error in `assign_people_to_items` Cloud Function with updated Pydantic models.
-- Created and fully documented data model structure for receipts, drafts, and workflow state.
-- Implemented Firebase Emulator integration with environment variable switching.
-- Created `FirestoreService` class with emulator support and CRUD operations for receipts.
-- Implemented `Receipt` model with Firestore serialization/deserialization.
-- Implemented main navigation with bottom tabs (Receipts and Settings).
-- Created Receipts screen with filters, search, and FAB.
-- Implemented restaurant name input dialog to start the workflow.
-- Created the modal workflow controller with 5-step progress indicator.
-- Implemented automatic draft saving when exiting the workflow.
-- Integrated all workflow screens (upload, review, voice assignment, split, summary).
-- Implemented proper data flow between steps with state management.
-- App navigation and workflow redesign plan fully documented.
-
-**Pending:**
-- Connect final summary screen to the modal workflow.
-- Implement handling of draft receipts (resume, edit, delete).
-- Connect image upload and thumbnail generation to FirestoreService.
-- Implement comprehensive testing (unit, widget, integration).
-
-**Key Notes for Current Session:**
-- Use `FirestoreService` for all Firestore operations; it automatically detects whether to use emulator or production.
-- The `Receipt` model handles all conversion between Firestore documents and Dart objects.
-- Set `USE_FIRESTORE_EMULATOR=true` in `.env` file for local testing with emulator.
-- The workflow modal integrates all 5 screens with seamless data flow between them.
-- Voice transcription enables automated assignment of items to people in the workflow.
-- The split screen allows manual reassignment and sharing of items between people.
-- The summary screen provides tax/tip calculations and generates shareable receipt details.
-- Progress is automatically saved as a draft when exiting the workflow or leaving the app.
-
----
-
-# Key Implementation Decisions (as of May 2024)
-
-- **Modal Workflow:** The 5-step receipt workflow is implemented as a full-page modal with automatic draft saving on exit.
-- **State Management:** Provider (with ChangeNotifier) is used for in-modal state with memory-only caching during workflow.
-- **Drafts and Data Flow:** Workflow state is maintained across steps and automatically persisted to Firestore when exiting the modal or app.
-- **Screen Integration:** Existing screens are reused within the modal context with appropriate callbacks to update the workflow state.
-
----
-
 # App Navigation and Workflow Redesign
+
+> **Note:** For current implementation status, see companion document: `docs/implementation_plan.md`
 
 ## 1. Introduction & Key Goals
 
@@ -87,7 +43,7 @@ users/{userId}/receipts/{receiptId}
 ```
 
 **Key Persistence Notes:**
-- In-workflow data is cached in memory with Provider
+- In-workflow data is cached in memory with Provider (WorkflowState)
 - Data is only persisted on explicit actions (save/complete/exit)
 - Drafts are fully manageable from the Receipts screen
 
@@ -98,7 +54,7 @@ users/{userId}/receipts/{receiptId}
 1. **FirestoreService** (`lib/services/firestore_service.dart`) - Handles all CRUD operations with emulator support
 2. **Receipt Model** (`lib/models/receipt.dart`) - Data structure with Firestore serialization
 3. **Receipts Screen** - Central UI with tabs, filters and FAB
-4. **Modal Workflow** - Full-page with 5-step indicators
+4. **Modal Workflow** - Full-page with 5-step indicator and navigation
 
 ### 3.2 Environment and Emulator Support
 
@@ -106,9 +62,9 @@ users/{userId}/receipts/{receiptId}
 - **Automatic Detection:** FirestoreService checks environment and connects accordingly
 - **Ports:** Firestore on 8081, Storage on 9199
 
-### 3.3 Cloud Function Updates
+### 3.3 Cloud Function Interface
 
-The updated `assign_people_to_items` function now returns a more structured format:
+The updated `assign_people_to_items` function returns this structured format:
 
 ```json
 {
@@ -131,12 +87,12 @@ The updated `assign_people_to_items` function now returns a more structured form
 }
 ```
 
-**Key Updates:**
+**Key Requirements:**
 - Changed from `Dict[str, List[ItemDetail]]` to `List[PersonItemAssignment]` for better validation
 - Added `person_name` field to each assignment for clarity
 - Uses "name" instead of "item" field for items
 
-## 4. UI Mockups
+## 4. UI Mockups and Implementation
 
 ### Main Receipts Screen with FAB
 
@@ -181,88 +137,53 @@ The updated `assign_people_to_items` function now returns a more structured form
 └─────────────────────────────────────────────────┘
 ```
 
-## 5. Implementation Status and Next Steps
+## 5. Key Implementation Decisions
 
-### 5.1 Completed Components
+- **Modal Workflow:** The 5-step receipt workflow as a full-page modal with automatic draft saving on exit
+- **State Management:** Provider (with ChangeNotifier) for in-modal state with WorkflowState class
+- **Split Manager:** SplitManager class handles tax/tip calculations and item assignments
+- **Drafts and Data Flow:** Workflow state maintained across steps and persisted to Firestore on exit
+- **Screen Integration:** Existing screens reused within the modal context with callbacks to update workflow state
 
-1. **FirestoreService & Receipt Model**
-   - Complete CRUD operations with emulator support
-   - Serialization/deserialization with Firestore
-
-2. **Main Navigation & Receipts Screen**
-   - Bottom navigation bar with tabs
-   - Receipts listing with filters and search
-
-3. **Workflow Modal Framework**
-   - Restaurant name dialog prompt
-   - Modal scaffold with step indicator
-   - Navigation between steps
-   - Automatic draft saving on exit
-
-4. **Screen Integration**
-   - Receipt upload screen with camera/gallery picker
-   - Receipt review screen with item editing
-   - Voice assignment screen with transcription and item assignment
-   - Split screen with item sharing and assignment management
-   - Final summary screen with tax/tip calculation and receipt sharing
-   - Real-time state updates between steps
-   - Data conversion between workflow state and screen models
-
-### 5.2 Next Implementation Phases
-
-1. **Draft Management** (Next Phase)
-   - Resume from draft
-   - Edit completed receipts
-   - Delete receipts
-   - End-to-end testing
-
-### 5.3 Expected Review Checkpoints
-
-1. **After Screen Integration:**
-   - Complete workflow from upload to summary
-   - Data passing correctly between steps
-   - Draft saving and completion working
-
-2. **After Draft Management:**
-   - Resume functionality working
-   - Edit and delete options functional
-   - Full testing with emulator
-
-## 6. Emulator Setup Guide
-
-For local development and testing, the Firebase Emulator Suite provides a local environment for Firestore, Functions, and other Firebase services.
-
-### Quick Start
-
-1. Ensure `.env` file has `USE_FIRESTORE_EMULATOR=true`
-2. Start emulators with `firebase emulators:start`
-3. Seed with test data: `cd functions && python init_firestore_config.py --admin-uid=admin --cred-path=your-key.json --seed-data-dir=../emulator_seed_data`
-
-### Troubleshooting
-
-- **Port Conflicts**: Edit `firebase.json` to use different ports
-- **Access Issues**: Make sure environment variables are set correctly
-- **Data Not Appearing**: Check emulator UI at `http://localhost:4000`
-
-## 7. Project Structure
+## 6. Project Structure
 
 ```
 splitting_sucks/
 ├── lib/
 │   ├── models/
-│   │   ├── receipt.dart           # New Receipt model
+│   │   ├── receipt.dart           # Receipt model with Firestore serialization
 │   │   ├── receipt_item.dart      # Receipt item model
 │   │   ├── person.dart            # Person model
 │   │   └── split_manager.dart     # Split operations manager
 │   ├── screens/
-│   │   ├── main_navigation.dart   # New bottom navigation
-│   │   ├── receipts_screen.dart   # New receipts listing
-│   │   └── existing screens...    # To be integrated
+│   │   ├── main_navigation.dart   # Bottom tab navigation
+│   │   ├── receipts_screen.dart   # Receipts listing with filters/search
+│   │   ├── receipt_upload_screen.dart # Image upload
+│   │   ├── receipt_review_screen.dart # Item review and editing
+│   │   ├── voice_assignment_screen.dart # Voice transcription
+│   │   ├── final_summary_screen.dart # Final summary with tip/tax
+│   │   └── workflow_modal.dart    # Modal workflow controller
 │   ├── services/
-│   │   ├── firestore_service.dart # New Firestore service
-│   │   └── existing services...   # Auth, parsing, etc.
+│   │   ├── firestore_service.dart # CRUD operations with emulator support
+│   │   └── receipt_parser_service.dart # Receipt parsing service
+│   ├── widgets/
+│   │   ├── split_view.dart        # Split management interface
+│   │   ├── cards/                 # Reusable card components
+│   │   ├── dialogs/               # Dialog components
+│   │   ├── final_summary/         # Summary-specific widgets
+│   │   ├── receipt_review/        # Review-specific widgets
+│   │   ├── receipt_upload/        # Upload-specific widgets
+│   │   └── shared/                # Shared UI components
 │   └── main.dart                  # Entry point
 ├── functions/                     # Cloud Functions
 ├── emulator_seed_data/            # Emulator configurations
 └── .env                           # Environment variables
-``` 
+```
+
+## 7. Future Enhancements
+
+- **Thumbnail Generation:** Implement proper thumbnail generation via cloud function
+- **Delete Functionality:** Add confirmation dialog for receipt deletion
+- **Receipt Editing:** Enable editing of completed receipts
+- **Comprehensive Testing:** Add unit, widget, and integration tests
+- **Performance Optimization:** Implement image caching and pagination 

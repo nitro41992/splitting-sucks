@@ -17,14 +17,22 @@ class SplitManager extends ChangeNotifier {
   bool _statePreserved = false;
   // --- END EDIT ---
 
+  // Add properties for tip and tax percentages
+  double? _tipPercentage;
+  double? _taxPercentage;
+
   SplitManager({
     List<Person>? people,
     List<ReceiptItem>? sharedItems,
     List<ReceiptItem>? unassignedItems,
+    double? tipPercentage,
+    double? taxPercentage,
   })  : _people = people ?? [],
         _sharedItems = sharedItems ?? [],
         _unassignedItems = unassignedItems ?? [],
-        _originalQuantities = {};
+        _originalQuantities = {},
+        _tipPercentage = tipPercentage,
+        _taxPercentage = taxPercentage;
 
   List<Person> get people => List.unmodifiable(_people);
   List<ReceiptItem> get sharedItems => List.unmodifiable(_sharedItems);
@@ -36,6 +44,19 @@ class SplitManager extends ChangeNotifier {
   double? get originalReviewTotal => _originalReviewTotal; // New clearer name
   // --- END EDIT ---
 
+  // Add getters and setters for tip and tax
+  double? get tipPercentage => _tipPercentage;
+  set tipPercentage(double? value) {
+    _tipPercentage = value;
+    notifyListeners();
+  }
+
+  double? get taxPercentage => _taxPercentage;
+  set taxPercentage(double? value) {
+    _taxPercentage = value;
+    notifyListeners();
+  }
+
   void reset() {
     _people = [];
     _sharedItems = [];
@@ -45,6 +66,9 @@ class SplitManager extends ChangeNotifier {
     _unassignedItemsModified = false;
     _originalReviewTotal = null;
     // --- END EDIT ---
+    // Reset tip and tax to default values
+    _tipPercentage = null;
+    _taxPercentage = null;
     notifyListeners();
   }
 

@@ -9,7 +9,7 @@ import '../screens/receipt_upload_screen.dart';
 import '../screens/receipt_review_screen.dart';
 import '../screens/voice_assignment_screen.dart';
 import '../screens/final_summary_screen.dart';
-import '../widgets/split_view.dart';
+import 'split_view.dart';
 import 'dart:io';
 
 /// Define NavigateToPageNotification class here to match the one in split_view.dart
@@ -450,45 +450,42 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                   );
                 } else {
                   // If index is odd, show a line
-                  final prevStepIndex = index ~/ 2;
-                  final nextStepIndex = prevStepIndex + 1;
-                  final isActive = currentStep > prevStepIndex;
+                  final lineIndex = index ~/ 2;
+                  final isCompleted = lineIndex < currentStep;
                   
                   return Container(
                     width: 24,
                     height: 2,
-                    color: isActive
+                    color: isCompleted
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.surfaceVariant,
+                        : Theme.of(context).colorScheme.outline,
                   );
                 }
               },
             ),
           ),
+          const SizedBox(height: 8),
           
           // Step titles
-          const SizedBox(height: 8),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
               _stepTitles.length,
-              (index) {
-                final isActive = index == currentStep;
-                final isCompleted = index < currentStep;
-                
-                return Text(
+              (index) => Container(
+                width: 72,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(
                   _stepTitles[index],
+                  textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    color: isActive
+                    fontWeight: index == currentStep ? FontWeight.bold : FontWeight.normal,
+                    color: index == currentStep
                         ? Theme.of(context).colorScheme.primary
-                        : isCompleted
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
         ],
@@ -496,321 +493,138 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     );
   }
   
-  // Build the current step content
+  // Build the content for the current step
   Widget _buildStepContent(int currentStep) {
     final workflowState = Provider.of<WorkflowState>(context);
     
     switch (currentStep) {
       case 0: // Upload
         return ReceiptUploadScreen(
-          imageFile: workflowState.imageFile,
-          isLoading: workflowState.isLoading,
-          onImageSelected: (file) {
-            if (file != null) {
+          onImageSelected: (file) async {
+            try {
+              // Show loading state
+              workflowState.setLoading(true);
+              
+              // Upload image to Firebase Storage
+              if (workflowState.receiptId == null) {
+                // Create a temporary ID for the receipt
+                final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+                workflowState.setReceiptId(tempId);
+              }
+              
+              // Upload the image
+              final imageUri = await _firestoreService.uploadReceiptImage(file);
+              
+              // Generate thumbnail (or get placeholder)
+              final thumbnailUri = await _firestoreService.generateThumbnail(imageUri);
+              
+              // Update the parse receipt result with image URIs
+              final parseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
+              parseResult['image_uri'] = imageUri;
+              parseResult['thumbnail_uri'] = thumbnailUri;
+              
+              // Update state and go to next step
               workflowState.setImageFile(file);
+              workflowState.setParseReceiptResult(parseResult);
+              workflowState.setLoading(false);
+              
+              // Save as draft immediately to preserve the image
+              await _saveDraft();
+              
+              // Go to next step
+              workflowState.nextStep();
+            } catch (e) {
+              // Handle error
+              workflowState.setErrorMessage('Failed to upload image: $e');
+              workflowState.setLoading(false);
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to upload image: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             }
           },
-          onParseReceipt: () {
-            // Start loading
-            workflowState.setLoading(true);
-            
-            // TODO: In a real implementation, we would call the parse receipt API here
-            // For now, simulate a delay and then go to the next step
-            Future.delayed(const Duration(seconds: 2), () {
-              // Set some dummy parse result data
-              workflowState.setParseReceiptResult({
-                'image_uri': 'path/to/image',
-                'thumbnail_uri': 'path/to/thumbnail',
-                'items': [
-                  {'name': 'Item 1', 'quantity': 1, 'price': 10.99},
-                  {'name': 'Item 2', 'quantity': 2, 'price': 5.99},
-                  {'name': 'Item 3', 'quantity': 1, 'price': 15.50},
-                ],
-                'subtotal': 38.47,
-                'tax': 3.41,
-                'total': 41.88,
-              });
-              
-              // Stop loading and go to next step
-              workflowState.setLoading(false);
-              workflowState.nextStep();
-            });
-          },
-          onRetry: () {
-            // Reset the state to allow picking a new image
-            workflowState.resetImageFile();
-            workflowState.setLoading(false);
-            workflowState.setErrorMessage(null);
-            workflowState.setParseReceiptResult({});
-          },
+          isLoading: workflowState.isLoading,
+          errorMessage: workflowState.errorMessage,
         );
-      case 1: // Review
-        // Get items from parse receipt result and convert to ReceiptItem objects
-        final items = _convertToReceiptItems(workflowState.parseReceiptResult);
         
+      case 1: // Review
         return ReceiptReviewScreen(
-          initialItems: items,
-          onReviewComplete: (updatedItems, deletedItems) {
-            // Save the reviewed items to the workflow state
-            final updatedResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
-            updatedResult['items'] = updatedItems.map((item) => {
-              'name': item.name,
-              'quantity': item.quantity,
-              'price': item.price,
-            }).toList();
-            
-            // Update the workflow state
-            workflowState.setParseReceiptResult(updatedResult);
-            
-            // Go to the next step
+          imageFile: workflowState.imageFile,
+          onReviewComplete: (parseResult) {
+            workflowState.setParseReceiptResult(parseResult);
             workflowState.nextStep();
-          },
-          // Keep items updated in real-time
-          onItemsUpdated: (currentItems) {
-            // Optionally update the workflow state in real-time for auto-save
-            final updatedResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
-            updatedResult['items'] = currentItems.map((item) => {
-              'name': item.name,
-              'quantity': item.quantity,
-              'price': item.price,
-            }).toList();
-            
-            workflowState.setParseReceiptResult(updatedResult);
           },
         );
         
       case 2: // Assign
-        // Convert receipt items from parse result to ReceiptItem objects for the voice assignment screen
-        final itemsToAssign = _convertToReceiptItems(workflowState.parseReceiptResult);
-        
-        // Get the initial transcription from the state if available
-        final initialTranscription = workflowState.transcribeAudioResult.containsKey('transcription')
-            ? workflowState.transcribeAudioResult['transcription'] as String?
-            : null;
-        
         return VoiceAssignmentScreen(
-          itemsToAssign: itemsToAssign,
-          initialTranscription: initialTranscription,
-          onTranscriptionChanged: (transcription) {
-            // Keep transcription updated in real-time
-            if (transcription != null) {
-              final updatedResult = Map<String, dynamic>.from(workflowState.transcribeAudioResult);
-              updatedResult['transcription'] = transcription;
-              workflowState.setTranscribeAudioResult(updatedResult);
-            }
-          },
-          onAssignmentProcessed: (assignmentsData) {
-            // Save the assignment data to the workflow state
-            workflowState.setAssignPeopleToItemsResult(assignmentsData);
-            
-            // Go to the next step
+          parseReceiptResult: workflowState.parseReceiptResult,
+          onAssignmentComplete: (assignmentResult) {
+            workflowState.setAssignPeopleToItemsResult(assignmentResult);
             workflowState.nextStep();
           },
         );
         
       case 3: // Split
-        // Create a SplitManager instance with assigned items from previous step
-        return ChangeNotifierProvider(
-          create: (context) {
-            // Get the assignment results from the workflow state
-            final assignmentsData = workflowState.assignPeopleToItemsResult;
-            
-            // Create a new SplitManager
-            final splitManager = SplitManager();
-            
-            // If we have assignment data, process it
-            if (assignmentsData.isNotEmpty) {
-              // Extract people and their assigned items
-              if (assignmentsData.containsKey('assignments') && assignmentsData['assignments'] is List) {
-                final assignments = assignmentsData['assignments'] as List;
-                
-                // Add each person and their assigned items
-                for (final assignment in assignments) {
-                  if (assignment is Map) {
-                    final personName = assignment['person_name'] as String;
-                    
-                    // Create and add the person
-                    splitManager.addPerson(personName);
-                    final person = splitManager.people.last;
-                    
-                    // Add their assigned items
-                    if (assignment.containsKey('items') && assignment['items'] is List) {
-                      final items = assignment['items'] as List;
-                      for (final item in items) {
-                        if (item is Map) {
-                          try {
-                            // Create a ReceiptItem and assign it to the person
-                            final receiptItem = ReceiptItem(
-                              name: item['name'] as String,
-                              price: (item['price'] as num).toDouble(),
-                              quantity: item['quantity'] as int,
-                            );
-                            splitManager.assignItemToPerson(receiptItem, person);
-                          } catch (e) {
-                            print('Error processing assigned item: $e');
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-              
-              // Add shared items
-              if (assignmentsData.containsKey('shared_items') && assignmentsData['shared_items'] is List) {
-                final sharedItems = assignmentsData['shared_items'] as List;
-                
-                for (final sharedItem in sharedItems) {
-                  if (sharedItem is Map) {
-                    try {
-                      // Create the shared item
-                      final receiptItem = ReceiptItem(
-                        name: sharedItem['name'] as String,
-                        price: (sharedItem['price'] as num).toDouble(),
-                        quantity: sharedItem['quantity'] as int,
-                      );
-                      
-                      // Get the list of people who share this item
-                      final List<String> peopleNames = (sharedItem['people'] as List).cast<String>();
-                      final List<Person> peopleForItem = splitManager.people
-                          .where((p) => peopleNames.contains(p.name))
-                          .toList();
-                      
-                      // Add the item as shared among these people
-                      if (peopleForItem.isNotEmpty) {
-                        splitManager.addItemToShared(receiptItem, peopleForItem);
-                      }
-                    } catch (e) {
-                      print('Error processing shared item: $e');
-                    }
-                  }
-                }
-              }
-              
-              // Add unassigned items
-              if (assignmentsData.containsKey('unassigned_items') && assignmentsData['unassigned_items'] is List) {
-                final unassignedItems = assignmentsData['unassigned_items'] as List;
-                
-                for (final unassignedItem in unassignedItems) {
-                  if (unassignedItem is Map) {
-                    try {
-                      // Create the unassigned item and add it
-                      final receiptItem = ReceiptItem(
-                        name: unassignedItem['name'] as String,
-                        price: (unassignedItem['price'] as num).toDouble(),
-                        quantity: unassignedItem['quantity'] as int,
-                      );
-                      splitManager.addUnassignedItem(receiptItem);
-                    } catch (e) {
-                      print('Error processing unassigned item: $e');
-                    }
-                  }
-                }
-              }
-            }
-            
-            return splitManager;
+        return SplitView(
+          assignmentData: workflowState.assignPeopleToItemsResult,
+          onSplitComplete: (splitManagerState) {
+            workflowState.setSplitManagerState(splitManagerState);
+            workflowState.nextStep();
           },
-          child: Builder(
-            builder: (context) {
-              return Column(
-                children: [
-                  Expanded(
-                    child: const SplitView(),
-                  ),
-                  // Listen for navigation requests from SplitView
-                  NotificationListener<NavigateToPageNotification>(
-                    onNotification: (notification) {
-                      // Only navigate to the summary page if requested
-                      if (notification.pageIndex == 4) {
-                        // Save the split state to the workflow state
-                        final splitManager = Provider.of<SplitManager>(context, listen: false);
-                        
-                        // Collect the final split data
-                        final Map<String, dynamic> splitData = {
-                          'people': splitManager.people.map((person) => {
-                            'name': person.name,
-                            'assigned_items': person.assignedItems.map((item) => {
-                              'name': item.name,
-                              'quantity': item.quantity,
-                              'price': item.price,
-                            }).toList(),
-                            'shared_items': person.sharedItems.map((item) => {
-                              'name': item.name,
-                              'quantity': item.quantity,
-                              'price': item.price,
-                            }).toList(),
-                            'total': person.totalAmount,
-                          }).toList(),
-                          'unassigned_items': splitManager.unassignedItems.map((item) => {
-                            'name': item.name,
-                            'quantity': item.quantity,
-                            'price': item.price,
-                          }).toList(),
-                        };
-                        
-                        // Update the workflow state
-                        workflowState.setSplitManagerState(splitData);
-                        
-                        // Go to the next step (summary)
-                        workflowState.nextStep();
-                      }
-                      return true;
-                    },
-                    child: const SizedBox.shrink(), // Empty container as we're just listening
-                  ),
-                ],
-              );
-            },
-          ),
         );
-      
+        
       case 4: // Summary
-        // Provide the split manager state to the final summary screen
         return ChangeNotifierProvider(
           create: (context) {
-            // Get the split data from the workflow state
-            final splitData = workflowState.splitManagerState;
-            
-            // Create a new SplitManager with the data
+            // Convert assignPeopleToItems to SplitManager
             final splitManager = SplitManager();
             
-            // Set tip and tax percentages if they exist in the split manager state
-            if (splitData.containsKey('tipPercentage')) {
-              splitManager.tipPercentage = (splitData['tipPercentage'] as num).toDouble();
-            }
+            // Extract assignments data
+            final splitData = workflowState.assignPeopleToItemsResult;
             
-            if (splitData.containsKey('taxPercentage')) {
-              splitManager.taxPercentage = (splitData['taxPercentage'] as num).toDouble();
-            }
-            
-            if (splitData.isNotEmpty && splitData.containsKey('people')) {
-              // Add all people with their items
-              final peopleList = splitData['people'] as List;
+            if (splitData.containsKey('assignments') && splitData['assignments'] is List) {
+              final assignments = splitData['assignments'] as List;
               
-              for (final personData in peopleList) {
-                if (personData is Map) {
-                  final personName = personData['name'] as String;
-                  
-                  // Add person
+              // First, create all people
+              for (final personData in assignments) {
+                if (personData is Map && personData.containsKey('person_name')) {
+                  final personName = personData['person_name'] as String;
                   splitManager.addPerson(personName);
-                  final person = splitManager.people.last;
+                }
+              }
+              
+              // Then add all items to the appropriate person
+              for (final personData in assignments) {
+                if (personData is Map && 
+                    personData.containsKey('person_name') && 
+                    personData.containsKey('items')) {
+                  final personName = personData['person_name'] as String;
+                  final items = personData['items'] as List;
                   
-                  // Add assigned items
-                  if (personData.containsKey('assigned_items') && personData['assigned_items'] is List) {
-                    final assignedItems = personData['assigned_items'] as List;
-                    for (final itemData in assignedItems) {
-                      if (itemData is Map) {
-                        try {
-                          final receiptItem = ReceiptItem(
-                            name: itemData['name'] as String,
-                            price: (itemData['price'] as num).toDouble(),
-                            quantity: itemData['quantity'] as int,
-                          );
-                          splitManager.assignItemToPerson(receiptItem, person);
-                        } catch (e) {
-                          print('Error processing assigned item: $e');
-                        }
+                  // Find the person object
+                  final person = splitManager.people.firstWhere(
+                    (p) => p.name == personName,
+                    orElse: () => throw Exception('Person not found: $personName'),
+                  );
+                  
+                  // Add each item to this person
+                  for (final itemData in items) {
+                    if (itemData is Map) {
+                      try {
+                        final receiptItem = ReceiptItem(
+                          name: itemData['name'] as String,
+                          price: (itemData['price'] as num).toDouble(),
+                          quantity: itemData['quantity'] as int,
+                        );
+                        splitManager.assignItemToPerson(receiptItem, person);
+                      } catch (e) {
+                        print('Error processing assigned item: $e');
                       }
                     }
                   }
@@ -881,21 +695,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                     onNotification: (notification) {
                       // If requested, navigate to specified page
                       if (notification.pageIndex < 5) {
-                        // Save the current tip and tax values to the workflow state
-                        final splitManager = Provider.of<SplitManager>(context, listen: false);
-                        final updatedSplitManagerState = Map<String, dynamic>.from(workflowState.splitManagerState);
-                        
-                        if (splitManager.tipPercentage != null) {
-                          updatedSplitManagerState['tipPercentage'] = splitManager.tipPercentage;
-                        }
-                        
-                        if (splitManager.taxPercentage != null) {
-                          updatedSplitManagerState['taxPercentage'] = splitManager.taxPercentage;
-                        }
-                        
-                        workflowState.setSplitManagerState(updatedSplitManagerState);
-                        
-                        // Then navigate to the requested page
                         workflowState.goToStep(notification.pageIndex);
                       }
                       return true;
@@ -914,23 +713,18 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
   }
   
   // Build the navigation buttons
-  Widget _buildActionButtons(BuildContext context, WorkflowState workflowState) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
-    
-    // Get step names for back button
-    final stepNames = ['Upload', 'Review', 'Assign', 'Split', 'Summary'];
-    final isFirstStep = workflowState.currentStep == 0;
-    final isLastStep = workflowState.currentStep == 4;
+  Widget _buildNavigation(int currentStep) {
+    final workflowState = Provider.of<WorkflowState>(context);
     
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withOpacity(0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 4,
-            offset: const Offset(0, -2),
+            offset: const Offset(0, -1),
           ),
         ],
       ),
@@ -938,48 +732,116 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Back button (hidden on first step)
-          if (!isFirstStep)
-            TextButton.icon(
-              icon: const Icon(Icons.arrow_back),
-              label: Text('Back to ${stepNames[workflowState.currentStep - 1]}'),
-              onPressed: workflowState.isLoading
-                  ? null
-                  : () => workflowState.previousStep(),
-            )
-          else
-            const SizedBox(width: 40), // Empty space for alignment
-            
-          const Spacer(), // Push buttons to edges
-          
-          // Save Draft button (always visible)
-          OutlinedButton(
-            onPressed: workflowState.isLoading ? null : _saveDraft,
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            child: const Text('Save Draft'),
+          TextButton.icon(
+            onPressed: currentStep > 0
+                ? () => workflowState.previousStep()
+                : null,
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Back'),
           ),
           
-          const SizedBox(width: 8), // Space between buttons
+          // Middle button - Exit for steps 0-3, Save Draft for step 4
+          currentStep < 4 
+              ? OutlinedButton(
+                  onPressed: () async {
+                    await _onWillPop(); // This will autosave and exit
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  child: const Text('Exit'),
+                )
+              : OutlinedButton(
+                  onPressed: () async {
+                    await _saveDraft();
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  child: const Text('Save Draft'),
+                ),
           
           // Next/Complete button
-          if (isLastStep)
-            FilledButton.icon(
-              icon: const Icon(Icons.check),
-              label: const Text('Complete Receipt'),
-              onPressed: workflowState.isLoading ? null : _completeReceipt,
-            )
-          else
-            FilledButton.icon(
-              icon: const Icon(Icons.arrow_forward),
-              label: Text('Next to ${stepNames[workflowState.currentStep + 1]}'),
-              onPressed: workflowState.isLoading
-                  ? null
-                  : () => workflowState.nextStep(),
-            ),
+          currentStep < 4
+              ? FilledButton.icon(
+                  onPressed: () => workflowState.nextStep(),
+                  label: const Text('Next'),
+                  icon: const Icon(Icons.arrow_forward),
+                )
+              : FilledButton.icon(
+                  onPressed: () => _completeReceipt(),
+                  label: const Text('Complete'),
+                  icon: const Icon(Icons.check),
+                ),
         ],
       ),
     );
+  }
+
+  // Mark the current receipt as completed
+  Future<void> _completeReceipt() async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
+    try {
+      // Show loading indicator
+      workflowState.setLoading(true);
+      workflowState.setErrorMessage(null);
+      
+      // Get tip and tax values from Split manager
+      final splitManagerState = workflowState.splitManagerState;
+      double? tip;
+      double? tax;
+      
+      if (splitManagerState.containsKey('tipPercentage')) {
+        tip = (splitManagerState['tipPercentage'] as num).toDouble();
+      }
+      
+      if (splitManagerState.containsKey('taxPercentage')) {
+        tax = (splitManagerState['taxPercentage'] as num).toDouble();
+      }
+      
+      // Convert state to Receipt model
+      final receipt = workflowState.toReceipt();
+      
+      // Save to Firestore as completed
+      final receiptId = await _firestoreService.completeReceipt(
+        receiptId: workflowState.receiptId!,
+        data: receipt.toMap(),
+        restaurantName: workflowState.restaurantName,
+        tip: tip,
+        tax: tax,
+      );
+      
+      // Done
+      workflowState.setLoading(false);
+      
+      if (mounted) {
+        // Show success snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Receipt completed successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Return to receipts screen
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      // Show error
+      workflowState.setLoading(false);
+      workflowState.setErrorMessage('Failed to complete receipt: $e');
+      
+      if (mounted) {
+        // Show error snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to complete receipt: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -1015,7 +877,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
             ),
             
             // Navigation
-            _buildActionButtons(context, workflowState),
+            _buildNavigation(workflowState.currentStep),
           ],
         ),
       ),
@@ -1038,101 +900,12 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
             ));
           } catch (e) {
             // Skip items that don't match the expected format
-            print('Error converting item: $e');
+            print('Error parsing item: $e');
           }
         }
       }
     }
     
     return items;
-  }
-
-  // Mark the current receipt as completed
-  Future<void> _completeReceipt() async {
-    final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    
-    try {
-      // Show loading indicator
-      workflowState.setLoading(true);
-      workflowState.setErrorMessage(null);
-      
-      // Get tip and tax values from the final summary via SplitManager
-      double tipPercentage = 20.0; // Default tip percentage
-      double taxPercentage = 8.875; // Default NYC tax rate
-      
-      // Try to get values from the SplitManager if available
-      try {
-        // Get the SplitManager instance from the provider
-        final splitManager = Provider.of<SplitManager>(context, listen: false);
-        
-        // Extract tip and tax percentages if they exist in the SplitManager
-        if (splitManager.tipPercentage != null) {
-          tipPercentage = splitManager.tipPercentage!;
-        }
-        
-        if (splitManager.taxPercentage != null) {
-          taxPercentage = splitManager.taxPercentage!;
-        }
-        
-        // Store the values in the workflow state for persistence
-        final updatedSplitManagerState = Map<String, dynamic>.from(workflowState.splitManagerState);
-        updatedSplitManagerState['tipPercentage'] = tipPercentage;
-        updatedSplitManagerState['taxPercentage'] = taxPercentage;
-        workflowState.setSplitManagerState(updatedSplitManagerState);
-      } catch (e) {
-        // If there's an error accessing the SplitManager, use the defaults
-        debugPrint('Error getting tip/tax from SplitManager: $e. Using defaults.');
-      }
-      
-      // Convert state to Receipt model
-      final receipt = workflowState.toReceipt();
-      
-      // Add tip and tax to receipt metadata before saving
-      final receiptMap = receipt.toMap();
-      if (!receiptMap.containsKey('metadata')) {
-        receiptMap['metadata'] = {};
-      }
-      receiptMap['metadata']['tip'] = tipPercentage;
-      receiptMap['metadata']['tax'] = taxPercentage;
-      
-      // Save to Firestore as completed
-      final receiptId = await _firestoreService.completeReceipt(
-        receiptId: workflowState.receiptId!,
-        data: receiptMap,
-        restaurantName: workflowState.restaurantName,
-        tip: tipPercentage,
-        tax: taxPercentage,
-      );
-      
-      // Done
-      workflowState.setLoading(false);
-      
-      if (mounted) {
-        // Show success snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Receipt completed successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // Return to receipts screen
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      // Show error
-      workflowState.setLoading(false);
-      workflowState.setErrorMessage('Failed to complete receipt: $e');
-      
-      if (mounted) {
-        // Show error snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to complete receipt: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 } 

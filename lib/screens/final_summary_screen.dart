@@ -468,7 +468,11 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                             bool isSelected = (_tipPercentage - percentage).abs() < 0.01;
                             return ElevatedButton(
                               onPressed: () {
-                                setState(() { _tipPercentage = percentage; });
+                                setState(() { 
+                                  _tipPercentage = percentage;
+                                  // Update SplitManager with the new tip percentage
+                                  context.read<SplitManager>().tipPercentage = percentage;
+                                });
                               },
                               style: ElevatedButton.styleFrom(
                                 elevation: isSelected ? 2 : 0,
@@ -492,7 +496,11 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                           label: '${_tipPercentage.toStringAsFixed(1)}%',
                           onChanged: (value) {
                              // Round to one decimal place
-                            setState(() { _tipPercentage = (value * 10).round() / 10.0; });
+                            setState(() { 
+                              _tipPercentage = (value * 10).round() / 10.0;
+                              // Update SplitManager with the new tip percentage
+                              context.read<SplitManager>().tipPercentage = _tipPercentage;
+                            });
                           },
                         ),
                       ],
