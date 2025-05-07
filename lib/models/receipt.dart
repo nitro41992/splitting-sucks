@@ -22,6 +22,9 @@ class Receipt {
   final List<String> people;
   final double tip; // Default: 20%
   final double tax; // Default: 8.875%
+
+  // Transient field for display URL (not saved to Firestore)
+  final String? thumbnailUrlForDisplay;
   
   Receipt({
     required this.id,
@@ -38,6 +41,7 @@ class Receipt {
     this.people = const [],
     this.tip = 20.0,
     this.tax = 8.875,
+    this.thumbnailUrlForDisplay,
   });
   
   /// Create a Receipt from a Firestore DocumentSnapshot
@@ -69,6 +73,8 @@ class Receipt {
       people = (metadata['people'] as List).map((e) => e.toString()).toList();
     }
     
+    // Note: thumbnailUrlForDisplay is deliberately NOT set here. 
+    // It will be fetched and added via copyWith later.
     return Receipt(
       id: doc.id,
       imageUri: data['image_uri'] as String?,
@@ -84,11 +90,13 @@ class Receipt {
       people: people,
       tip: (metadata['tip'] as num?)?.toDouble() ?? 20.0,
       tax: (metadata['tax'] as num?)?.toDouble() ?? 8.875,
+      // thumbnailUrlForDisplay: null, // Explicitly null initially
     );
   }
   
   /// Convert the Receipt to a Map for storing in Firestore
   Map<String, dynamic> toMap() {
+    // thumbnailUrlForDisplay is NOT included here
     return {
       'image_uri': imageUri,
       'thumbnail_uri': thumbnailUri,
@@ -124,6 +132,8 @@ class Receipt {
     List<String>? people,
     double? tip,
     double? tax,
+    // Add parameter for the transient field
+    ValueGetter<String?>? thumbnailUrlForDisplay, 
   }) {
     return Receipt(
       id: id ?? this.id,
@@ -140,6 +150,8 @@ class Receipt {
       people: people ?? this.people,
       tip: tip ?? this.tip,
       tax: tax ?? this.tax,
+      // Use the provided ValueGetter or keep the existing value
+      thumbnailUrlForDisplay: thumbnailUrlForDisplay != null ? thumbnailUrlForDisplay() : this.thumbnailUrlForDisplay,
     );
   }
   

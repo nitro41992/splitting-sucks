@@ -85,6 +85,7 @@
 
 1. **Data Persistence & Performance:**
    - ✅ Draft saving and resuming functionality working
+   - ✅ **Resolved:** Image preview now shows in Upload step before confirming. Logic moved from `onImageSelected` to `onParseReceipt`.
    - ✅ Deletion with confirmation dialog implemented
    - ⚠️ Need to handle edge cases when modifying completed receipts
    - ⚠️ Receipts list loading can be slow due to lack of pagination.

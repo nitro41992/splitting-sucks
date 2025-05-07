@@ -5,9 +5,11 @@ import '../widgets/receipt_upload/full_image_viewer.dart'; // Import the new vie
 import '../services/file_helper.dart'; // Import FileHelper
 import '../theme/app_colors.dart';
 import '../utils/toast_helper.dart'; // Import the toast helper
+import 'package:cached_network_image/cached_network_image.dart'; // Needed for network image
 
 class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
+  final String? imageUrl;
   final bool isLoading;
   final Function(File?) onImageSelected;
   final Function() onParseReceipt;
@@ -16,6 +18,7 @@ class ReceiptUploadScreen extends StatefulWidget {
   const ReceiptUploadScreen({
     super.key,
     required this.imageFile,
+    this.imageUrl,
     required this.isLoading,
     required this.onImageSelected,
     required this.onParseReceipt,
@@ -136,7 +139,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (widget.imageFile != null)
+                    if (widget.imageFile != null) ...[
                       LayoutBuilder(
                         builder: (context, constraints) {
                           return Column(
@@ -270,66 +273,57 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                             ],
                           );
                         },
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 32),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 200,
-                              height: 200,
-                              decoration: BoxDecoration(
-                                color: colorScheme.primaryContainer.withOpacity(0.3),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.camera_alt_outlined,
-                                size: 80,
-                                color: colorScheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 32),
-                            Text(
-                              'Upload Receipt',
-                              style: textTheme.headlineSmall?.copyWith(
-                                color: colorScheme.primary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Take a picture or select one from your gallery',
-                              textAlign: TextAlign.center,
-                              style: textTheme.bodyLarge?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 40),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _buildUploadButton(
-                                  context,
-                                  icon: Icons.camera_alt,
-                                  label: 'Camera',
-                                  onPressed: _takePicture,
-                                  colorScheme: colorScheme,
-                                ),
-                                const SizedBox(width: 16),
-                                _buildUploadButton(
-                                  context,
-                                  icon: Icons.photo_library,
-                                  label: 'Gallery',
-                                  onPressed: _pickImage,
-                                  colorScheme: colorScheme,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
                       ),
+                    ] else if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty) ...[
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AspectRatio(
+                                aspectRatio: 3 / 4,
+                                child: Container(
+                                  margin: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(24),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.1),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      Hero(
+                                        tag: 'receipt_image',
+                                        child: Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            child: CachedNetworkImage(
+                                              imageUrl: widget.imageUrl!,
+                                              fit: BoxFit.cover,
+                                              placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                                              errorWidget: (context, url, error) => _buildImageErrorWidget(context, colorScheme, textTheme, 'Saved image could not be loaded'),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              _buildActionButtons(context, colorScheme, textTheme),
+                            ],
+                          );
+                        },
+                      ),
+                    ] else ...[
+                      _buildUploadPrompt(context, colorScheme, textTheme),
+                    ],
                   ],
                 ),
               ),
@@ -358,6 +352,159 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+      ),
+    );
+  }
+
+  Widget _buildImageErrorWidget(BuildContext context, ColorScheme colorScheme, TextTheme textTheme, String errorMessage) {
+    return Container(
+      color: colorScheme.errorContainer,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.broken_image,
+              color: colorScheme.onErrorContainer,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              errorMessage,
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onErrorContainer,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: widget.onRetry,
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingIndicator(ColorScheme colorScheme, TextTheme textTheme) {
+    return Container(
+      color: Colors.black.withOpacity(0.3),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              color: colorScheme.onPrimary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Processing Receipt...',
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context, ColorScheme colorScheme, TextTheme textTheme) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (!widget.isLoading) ...[
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: widget.onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.errorContainer,
+                  foregroundColor: colorScheme.onErrorContainer,
+                  minimumSize: const Size(0, 48),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: widget.onParseReceipt,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Use This'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  minimumSize: const Size(0, 48),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUploadPrompt(BuildContext context, ColorScheme colorScheme, TextTheme textTheme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withOpacity(0.3),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.camera_alt_outlined,
+              size: 80,
+              color: colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            'Upload Receipt',
+            style: textTheme.headlineSmall?.copyWith(
+              color: colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Take a picture or select one from your gallery',
+            textAlign: TextAlign.center,
+            style: textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 40),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildUploadButton(
+                context,
+                icon: Icons.camera_alt,
+                label: 'Camera',
+                onPressed: _takePicture,
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(width: 16),
+              _buildUploadButton(
+                context,
+                icon: Icons.photo_library,
+                label: 'Gallery',
+                onPressed: _pickImage,
+                colorScheme: colorScheme,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

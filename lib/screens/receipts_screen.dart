@@ -4,6 +4,8 @@ import '../models/receipt.dart';
 import '../services/firestore_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/workflow_modal.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ReceiptsScreen extends StatefulWidget {
   const ReceiptsScreen({Key? key}) : super(key: key);
@@ -47,35 +49,77 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
   }
 
   Future<void> _loadReceipts() async {
+    // Use try-finally to ensure loading indicator is always turned off
     try {
-      // Check if mounted before calling setState
-      if (mounted) {
-        setState(() {
-          _isLoading = true;
-          _errorMessage = null;
-        });
-      }
+      if (!mounted) return; // Check mounted at the beginning
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
 
       final QuerySnapshot snapshot = await _firestoreService.getReceipts();
       
-      // Check if mounted before calling setState
+      // Process receipts and fetch URLs
+      final List<Receipt> processedReceipts = await _processReceiptsWithThumbnails(snapshot.docs);
+      
+      // Update state only if still mounted
       if (mounted) {
         setState(() {
-          _allReceipts = snapshot.docs
-              .map((doc) => Receipt.fromDocumentSnapshot(doc))
-              .toList();
-          _isLoading = false;
+          _allReceipts = processedReceipts;
         });
       }
     } catch (e) {
-      // Check if mounted before calling setState
+      debugPrint('Error loading receipts: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error loading receipts: ${e.toString()}';
+        });
+      }
+    } finally {
+      // Ensure loading is turned off even if errors occur or widget is disposed
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Error loading receipts: $e';
         });
       }
     }
+  }
+
+  // Helper method to process snapshots and fetch thumbnail URLs
+  Future<List<Receipt>> _processReceiptsWithThumbnails(List<QueryDocumentSnapshot> docs) async {
+    // Create initial list from snapshots
+    final List<Receipt> initialReceipts = docs
+        .map((doc) => Receipt.fromDocumentSnapshot(doc))
+        .toList();
+
+    // List to hold futures for fetching URLs
+    final List<Future<Receipt>> fetchUrlFutures = [];
+
+    for (final receipt in initialReceipts) {
+      // Check if a valid gs:// thumbnail URI exists
+      if (receipt.thumbnailUri != null && receipt.thumbnailUri!.startsWith('gs://')) {
+        // Add a future that gets the URL and returns a new Receipt object
+        fetchUrlFutures.add(
+          FirebaseStorage.instance
+              .refFromURL(receipt.thumbnailUri!)
+              .getDownloadURL()
+              .then((downloadUrl) {
+                // Use ValueGetter syntax for copyWith
+                return receipt.copyWith(thumbnailUrlForDisplay: () => downloadUrl);
+              })
+              .catchError((error) {
+                debugPrint('Error getting download URL for thumbnail ${receipt.thumbnailUri}: $error');
+                return receipt; // Return original receipt if URL fetch fails
+              }),
+        );
+      } else {
+        // If no valid thumbnail URI, add the original receipt wrapped in a Future
+        fetchUrlFutures.add(Future.value(receipt));
+      }
+    }
+
+    // Wait for all futures to complete (fetching URLs or returning original)
+    return await Future.wait(fetchUrlFutures);
   }
 
   // Filter receipts based on tab and search query
@@ -116,14 +160,15 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
     });
   }
 
-  void _addNewReceipt() {
+  void _addNewReceipt() async {
     // Show restaurant name dialog
-    showRestaurantNameDialog(context).then((restaurantName) {
-      if (restaurantName != null) {
-        // Pass the obtained restaurantName to WorkflowModal.show
-        WorkflowModal.show(context, initialRestaurantName: restaurantName);
+    String? restaurantName = await showRestaurantNameDialog(context);
+    if (restaurantName != null) {
+      final bool? result = await WorkflowModal.show(context, initialRestaurantName: restaurantName);
+      if (result == true && mounted) {
+        _loadReceipts();
       }
-    });
+    }
   }
 
   void _viewReceiptDetails(Receipt receipt) {
@@ -176,9 +221,12 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                   child: FilledButton.icon(
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Resume Draft'),
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(context); // Close the bottom sheet
-                      WorkflowModal.show(context, receiptId: receipt.id);
+                      final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
+                      if (result == true && mounted) {
+                        _loadReceipts();
+                      }
                     },
                   ),
                 ),
@@ -192,9 +240,12 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.edit),
                     label: const Text('Edit Receipt'),
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(context); // Close the bottom sheet
-                      WorkflowModal.show(context, receiptId: receipt.id);
+                      final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
+                      if (result == true && mounted) {
+                        _loadReceipts();
+                      }
                     },
                   ),
                 ),
@@ -336,22 +387,23 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                   color: Colors.grey[200],
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: receipt.thumbnailUri != null
+                child: receipt.thumbnailUrlForDisplay != null 
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          receipt.thumbnailUri!,
+                        child: CachedNetworkImage(
+                          imageUrl: receipt.thumbnailUrlForDisplay!,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const Icon(
-                            Icons.receipt_long,
-                            size: 32,
+                          placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                          errorWidget: (context, url, error) => const Icon(
+                            Icons.receipt_long, 
+                            size: 32, 
                             color: Colors.grey,
                           ),
                         ),
                       )
                     : const Icon(
-                        Icons.receipt_long,
-                        size: 32,
+                        Icons.receipt_long, 
+                        size: 32, 
                         color: Colors.grey,
                       ),
               ),

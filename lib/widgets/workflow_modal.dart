@@ -11,6 +11,8 @@ import '../screens/voice_assignment_screen.dart';
 import '../screens/final_summary_screen.dart';
 import 'split_view.dart';
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 /// Define NavigateToPageNotification class here to match the one in split_view.dart
 /// This avoids having to expose that class in a separate file while maintaining compatibility
@@ -32,6 +34,7 @@ class WorkflowState extends ChangeNotifier {
   Map<String, dynamic> _splitManagerState = {};
   bool _isLoading = false;
   String? _errorMessage;
+  String? _loadedImageUrl;
   
   WorkflowState({required String restaurantName, String? receiptId})
       : _restaurantName = restaurantName,
@@ -48,6 +51,7 @@ class WorkflowState extends ChangeNotifier {
   Map<String, dynamic> get splitManagerState => _splitManagerState;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String? get loadedImageUrl => _loadedImageUrl;
   
   // Step navigation
   void goToStep(int step) {
@@ -84,12 +88,13 @@ class WorkflowState extends ChangeNotifier {
   
   void setImageFile(File file) {
     _imageFile = file;
+    _loadedImageUrl = null;
     notifyListeners();
   }
   
-  // Reset image file without directly setting to null
   void resetImageFile() {
     _imageFile = null;
+    _loadedImageUrl = null;
     notifyListeners();
   }
   
@@ -123,14 +128,15 @@ class WorkflowState extends ChangeNotifier {
     notifyListeners();
   }
   
+  void setLoadedImageUrl(String? url) {
+    _loadedImageUrl = url;
+    notifyListeners();
+  }
+  
   // Convert to Receipt model for saving
   Receipt toReceipt() {
-    if (_receiptId == null) {
-      throw Exception('Receipt ID is required to create a Receipt object');
-    }
-    
     return Receipt(
-      id: _receiptId!,
+      id: _receiptId ?? FirebaseFirestore.instance.collection('temp').doc().id,
       restaurantName: _restaurantName,
       imageUri: _parseReceiptResult['image_uri'] as String?,
       thumbnailUri: _parseReceiptResult['thumbnail_uri'] as String?,
@@ -234,7 +240,7 @@ class WorkflowModal extends StatelessWidget {
   }
   
   /// Static method to show the workflow modal with restaurant name dialog
-  static Future<void> show(BuildContext context, {String? receiptId, String? initialRestaurantName}) async {
+  static Future<bool?> show(BuildContext context, {String? receiptId, String? initialRestaurantName}) async {
     String? finalRestaurantName = initialRestaurantName;
 
     // If a receiptId is provided, try to load the receipt and get its name
@@ -261,11 +267,11 @@ class WorkflowModal extends StatelessWidget {
     
     // If the user cancels the dialog or name is still null, don't show the modal
     if (finalRestaurantName == null) {
-      return;
+      return null;
     }
     
     // Then show the workflow modal
-    await Navigator.of(context).push(
+    return await Navigator.of(context).push<bool?>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (context) => ChangeNotifierProvider(
@@ -317,59 +323,74 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     try {
       workflowState.setLoading(true);
       workflowState.setErrorMessage(null);
+      workflowState.setLoadedImageUrl(null);
       
-      // Fetch the receipt from Firestore
       final snapshot = await _firestoreService.getReceipt(receiptId);
       
       if (!snapshot.exists) {
         throw Exception('Receipt not found');
       }
       
-      // Convert to Receipt object
       final receipt = Receipt.fromDocumentSnapshot(snapshot);
       
-      // Update the workflow state with the loaded data
+      // --- Populate WorkflowState --- 
       if (receipt.restaurantName != null) {
-        workflowState.setRestaurantName(receipt.restaurantName!);
+        workflowState.setRestaurantName(receipt.restaurantName!); 
       }
-      
       if (receipt.parseReceipt != null) {
-        workflowState.setParseReceiptResult(receipt.parseReceipt!);
-        
-        // Determine which step to navigate to based on available data
-        int targetStep = 0;
-        
-        // If we have parse receipt data, we can go to review
-        if (receipt.parseReceipt != null && 
-            receipt.parseReceipt!.containsKey('items') && 
-            receipt.parseReceipt!['items'] is List && 
-            (receipt.parseReceipt!['items'] as List).isNotEmpty) {
-          targetStep = 1;
+        workflowState.setParseReceiptResult(receipt.parseReceipt!); 
+      }
+      if (receipt.transcribeAudio != null) {
+        workflowState.setTranscribeAudioResult(receipt.transcribeAudio!); 
+      }
+       if (receipt.assignPeopleToItems != null) {
+        workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems!); 
+      }
+      if (receipt.splitManagerState != null) {
+        workflowState.setSplitManagerState(receipt.splitManagerState!); 
+      }
+
+      // --- Get Download URL if imageUri exists --- 
+      if (receipt.imageUri != null && receipt.imageUri!.startsWith('gs://')) {
+        try {
+          debugPrint('Attempting to get download URL for: ${receipt.imageUri}');
+          final ref = FirebaseStorage.instance.refFromURL(receipt.imageUri!);
+          final downloadUrl = await ref.getDownloadURL();
+          debugPrint('Got download URL: $downloadUrl');
+          workflowState.setLoadedImageUrl(downloadUrl);
+        } catch (e) {
+          debugPrint('Error getting download URL for ${receipt.imageUri}: $e');
+          // Proceed without download URL, image won't show
+          workflowState.setErrorMessage('Could not load saved image preview.');
         }
-        
-        // If we have assignment data, we can go to assign
-        if (receipt.assignPeopleToItems != null && 
-            receipt.assignPeopleToItems!.containsKey('assignments') && 
-            receipt.assignPeopleToItems!['assignments'] is List && 
-            (receipt.assignPeopleToItems!['assignments'] as List).isNotEmpty) {
-          workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems!);
-          targetStep = 3; // Go to split view
-        }
-        
-        // If we have split manager state, we can go to summary
-        if (receipt.splitManagerState != null && 
-            receipt.splitManagerState!.isNotEmpty) {
-          workflowState.setSplitManagerState(receipt.splitManagerState!);
-          targetStep = 4; // Go to summary
-        }
-        
-        // Navigate to the appropriate step
-        workflowState.goToStep(targetStep);
+      } else {
+        debugPrint('No valid gs:// imageUri found in loaded receipt.');
+      }
+      // --- End Get Download URL ---
+
+      // Determine target step (existing logic)
+      int targetStep = 0;
+      if (receipt.parseReceipt != null && 
+          receipt.parseReceipt!.containsKey('items') && 
+          receipt.parseReceipt!['items'] is List && 
+          (receipt.parseReceipt!['items'] as List).isNotEmpty) {
+        targetStep = 1;
+      }
+      if (receipt.assignPeopleToItems != null && 
+          receipt.assignPeopleToItems!.containsKey('assignments') && 
+          receipt.assignPeopleToItems!['assignments'] is List && 
+          (receipt.assignPeopleToItems!['assignments'] as List).isNotEmpty) {
+        workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems!);
+        targetStep = 3; // Go to split view
+      }
+      if (receipt.splitManagerState != null && 
+          receipt.splitManagerState!.isNotEmpty) {
+        workflowState.setSplitManagerState(receipt.splitManagerState!);
+        targetStep = 4; // Go to summary
       }
       
-      if (receipt.transcribeAudio != null) {
-        workflowState.setTranscribeAudioResult(receipt.transcribeAudio!);
-      }
+      // Navigate to the appropriate step
+      workflowState.goToStep(targetStep);
       
       workflowState.setLoading(false);
       
@@ -454,34 +475,88 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     }
   }
   
+  // Helper to upload image and generate thumbnail
+  Future<Map<String, String?>> _uploadImageAndProcess(File imageFile) async {
+    String? imageUri;
+    String? thumbnailUri;
+
+    final workflowState = Provider.of<WorkflowState>(context, listen: false); // Need access to state
+
+    try {
+      // Note: FirestoreService.uploadReceiptImage uses _userId internally,
+      // so we don't need to worry about passing a temp receiptId for the path.
+      debugPrint('_uploadImageAndProcess: Uploading image...');
+      imageUri = await _firestoreService.uploadReceiptImage(imageFile);
+      debugPrint('_uploadImageAndProcess: Image uploaded to: $imageUri');
+
+      // Attempt thumbnail generation
+      if (imageUri != null) { // Only try if upload succeeded
+        try {
+          debugPrint('_uploadImageAndProcess: Generating thumbnail...');
+          thumbnailUri = await _firestoreService.generateThumbnail(imageUri);
+          debugPrint('_uploadImageAndProcess: Thumbnail generated: $thumbnailUri');
+        } catch (thumbError) {
+          debugPrint('_uploadImageAndProcess: Error generating thumbnail (proceeding without it): $thumbError');
+          // Proceed without thumbnail URI, imageUri is still useful
+        }
+      } else {
+         debugPrint('_uploadImageAndProcess: Skipping thumbnail generation because imageUri is null.');
+      }
+    } catch (uploadError) {
+       debugPrint('_uploadImageAndProcess: Error during image upload: $uploadError');
+       // Re-throw upload errors so the calling method handles them (shows snackbar etc.)
+       rethrow;
+    }
+
+    return {'imageUri': imageUri, 'thumbnailUri': thumbnailUri};
+  }
+
   // Save the current state as a draft
   Future<void> _saveDraft() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    
+
     try {
-      // Show loading indicator
       workflowState.setLoading(true);
       workflowState.setErrorMessage(null);
-      
-      // Convert state to Receipt model
+
+      // --- Conditional Upload ---
+      // Check if local file exists AND remote URI is missing in state
+      if (workflowState.imageFile != null &&
+          (workflowState.parseReceiptResult == null || 
+           workflowState.parseReceiptResult['image_uri'] == null)) 
+      {
+        debugPrint('_saveDraft: Detected local image without URI. Uploading...');
+        try {
+          // Call the helper
+          final uris = await _uploadImageAndProcess(workflowState.imageFile!);
+
+          // Update parseResult state immediately
+          final parseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {}); // Ensure map exists
+          parseResult['image_uri'] = uris['imageUri'];
+          parseResult['thumbnail_uri'] = uris['thumbnailUri'];
+          workflowState.setParseReceiptResult(parseResult); // Update state BEFORE calling toReceipt
+          debugPrint('_saveDraft: Image processed. URIs added to parseReceiptResult.');
+
+        } catch (e) {
+           debugPrint('_saveDraft: Error uploading image during save: $e');
+           workflowState.setLoading(false); 
+           workflowState.setErrorMessage('Failed to upload image while saving draft: ${e.toString()}');
+           rethrow; 
+        }
+      }
+      // --- End Conditional Upload ---
+
       final receipt = workflowState.toReceipt();
-      
-      // Save to Firestore
-      final receiptId = await _firestoreService.saveDraft(
-        receiptId: workflowState.receiptId,
+
+      final String definitiveReceiptId = await _firestoreService.saveDraft(
+        receiptId: receipt.id, // Pass ID from receipt (could be temp or existing)
         data: receipt.toMap(),
       );
-      
-      // Update receipt ID if it was a new receipt
-      if (workflowState.receiptId == null) {
-        workflowState.setReceiptId(receiptId);
-      }
-      
-      // Done
+
+      workflowState.setReceiptId(definitiveReceiptId);
       workflowState.setLoading(false);
-      
+
       if (mounted) {
-        // Show success snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Draft saved successfully'),
@@ -489,20 +564,20 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           ),
         );
       }
-    } catch (e) {
-      // Show error
+    } catch (e) { 
       workflowState.setLoading(false);
-      workflowState.setErrorMessage('Failed to save draft: $e');
-      
+      if (workflowState.errorMessage == null) {
+         workflowState.setErrorMessage('Failed to save draft: $e');
+      }
       if (mounted) {
-        // Show error snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save draft: $e'),
+            content: Text(workflowState.errorMessage ?? 'Failed to save draft: $e'), // Show specific error if available
             backgroundColor: Colors.red,
           ),
         );
       }
+      rethrow;
     }
   }
   
@@ -611,69 +686,71 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     
     switch (currentStep) {
       case 0: // Upload
+        // Extract potential imageUrl from the state
+        final String? imageUrl = workflowState.parseReceiptResult != null && workflowState.parseReceiptResult.containsKey('image_uri')
+            ? workflowState.parseReceiptResult['image_uri'] as String?
+            : null;
+            
         return ReceiptUploadScreen(
-          imageFile: workflowState.imageFile,
+          imageFile: workflowState.imageFile, // Local file if selected
+          imageUrl: workflowState.loadedImageUrl, // Pass the fetched download URL
           isLoading: workflowState.isLoading,
           onImageSelected: (file) async {
-            try {
-              // Ensure file is not null
-              if (file == null) {
-                throw Exception('Selected image file is null');
-              }
-              
-              // Show loading state
-              workflowState.setLoading(true);
-              
-              // Upload image to Firebase Storage
-              if (workflowState.receiptId == null) {
-                // Create a temporary ID for the receipt
-                final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
-                workflowState.setReceiptId(tempId);
-              }
-              
-              // Upload the image
-              final imageUri = await _firestoreService.uploadReceiptImage(file);
-              
-              // Generate thumbnail (or get placeholder)
-              final thumbnailUri = await _firestoreService.generateThumbnail(imageUri);
-              
-              // Update the parse receipt result with image URIs
-              final parseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
-              parseResult['image_uri'] = imageUri;
-              parseResult['thumbnail_uri'] = thumbnailUri;
-              
-              // Update state and go to next step
+            // SIMPLIFIED: Only update the local file state for preview
+            if (file != null) {
               workflowState.setImageFile(file);
-              workflowState.setParseReceiptResult(parseResult);
-              workflowState.setLoading(false);
-              
-              // Save as draft immediately to preserve the image
-              await _saveDraft();
-              
-              // Go to next step
-              workflowState.nextStep();
-            } catch (e) {
-              // Handle error
-              workflowState.setErrorMessage('Failed to upload image: $e');
-              workflowState.setLoading(false);
-              
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to upload image: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
+              // Also clear any potential stale URI info if a NEW file is selected
+              final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
+              currentParseResult.remove('image_uri');
+              currentParseResult.remove('thumbnail_uri');
+              workflowState.setParseReceiptResult(currentParseResult);
+              workflowState.setErrorMessage(null); // Clear previous errors
+            } else {
+              workflowState.resetImageFile();
             }
           },
-          onParseReceipt: () {
-            // This would be used if the user wants to manually parse the receipt
-            // Currently not implemented as we auto-advance
+          onParseReceipt: () async { // This is the "Use This" button's action
+            if (workflowState.imageFile == null) {
+              workflowState.setErrorMessage('Please select an image first.');
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
+              );
+              return;
+            }
+
+            workflowState.setLoading(true);
+            workflowState.setErrorMessage(null);
+
+            try {
+              // Call the helper
+              final uris = await _uploadImageAndProcess(workflowState.imageFile!);
+
+              // Update parseResult state immediately
+              final parseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {}); // Ensure map exists
+              parseResult['image_uri'] = uris['imageUri'];
+              parseResult['thumbnail_uri'] = uris['thumbnailUri'];
+              workflowState.setParseReceiptResult(parseResult); 
+
+              workflowState.setLoading(false);
+              workflowState.nextStep();
+
+            } catch (e) { // Catches errors from the helper (upload failed)
+              debugPrint('Error during onParseReceipt (from helper): $e');
+              workflowState.setLoading(false);
+              workflowState.setErrorMessage('Failed to process image: ${e.toString()}');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to process image: ${e.toString()}'), backgroundColor: Colors.red),
+              );
+            }
           },
-          onRetry: () {
-            // Reset the image if needed
+          onRetry: () { 
             workflowState.resetImageFile();
+            // Clear URI info when retrying
+            final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
+            currentParseResult.remove('image_uri');
+            currentParseResult.remove('thumbnail_uri');
+            workflowState.setParseReceiptResult(currentParseResult);
+            workflowState.setErrorMessage(null); 
           },
         );
         
@@ -1029,18 +1106,19 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           currentStep < 4 
               ? OutlinedButton(
                   onPressed: () async {
-                    await _onWillPop(); // This will autosave and exit
-                    if (mounted) {
-                      Navigator.of(context).pop();
+                    // _onWillPop handles saving. If it allows pop (returns true), pop with true.
+                    final bool canPop = await _onWillPop(); 
+                    if (canPop && mounted) {
+                      Navigator.of(context).pop(true);
                     }
                   },
                   child: const Text('Exit'),
                 )
               : OutlinedButton(
                   onPressed: () async {
-                    await _saveDraft();
+                    await _saveDraft(); // Assumes _saveDraft shows its own errors/success
                     if (mounted) {
-                      Navigator.of(context).pop();
+                      Navigator.of(context).pop(true); // Pop true after saving draft
                     }
                   },
                   child: const Text('Save Draft'),
@@ -1110,7 +1188,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         );
         
         // Return to receipts screen
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true); // Pop true after completing receipt
       }
     } catch (e) {
       // Show error
@@ -1144,9 +1222,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () async {
-              final canPop = await _onWillPop();
+              final bool canPop = await _onWillPop(); // _onWillPop handles saving
               if (canPop && mounted) {
-                Navigator.of(context).pop();
+                Navigator.of(context).pop(true); // Pop with true indicating a potential change
               }
             },
           ),
