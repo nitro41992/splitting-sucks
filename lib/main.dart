@@ -5,8 +5,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'models/split_manager.dart';
 import 'receipt_splitter_ui.dart';
+import 'screens/main_navigation.dart';
 import 'services/mock_data_service.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
@@ -20,6 +22,9 @@ bool firebaseInitialized = false;
 void main() async {
   // Wait for Flutter to be fully initialized
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Load .env file for environment variables
+  await dotenv.load();
   
   // Initialize Firebase at the entry point
   try {
@@ -85,7 +90,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Billfie',
         theme: AppTheme.lightTheme,
-        home: firebaseInitialized ? const ReceiptSplitterUI() : const FirebaseInit(),
+        home: firebaseInitialized ? const AuthWrapper() : const FirebaseInit(),
         routes: Routes.getRoutes(),
         onGenerateRoute: (settings) {
           if (settings.name == '/signup') {
@@ -101,6 +106,25 @@ class MyApp extends StatelessWidget {
         },
       ),
     );
+  }
+}
+
+/// Wrapper widget that shows either the login screen or the main app
+/// based on authentication state
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch<User?>();
+    
+    // If user is not logged in, show login screen
+    if (user == null) {
+      return const LoginScreen();
+    }
+    
+    // Otherwise, show the main navigation
+    return const MainNavigation();
   }
 }
 
@@ -228,8 +252,8 @@ class _FirebaseInitState extends State<FirebaseInit> {
       );
     }
 
-    // Show app
-    return const ReceiptSplitterUI();
+    // Show auth wrapper
+    return const AuthWrapper();
   }
 }
 

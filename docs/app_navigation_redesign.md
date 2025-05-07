@@ -2,51 +2,45 @@
 
 **Completed:**
 - Firestore emulator successfully seeded with dynamic prompt/model configuration data using a Python script (`init_firestore_config.py`).
-- Modified `init_firestore_config.py` to load configurations from emulator_seed_data files instead of using hardcoded values.
-- Fixed port conflicts in Firebase emulator configuration by updating `firebase.json` to use alternative ports.
-- Successfully tested emulator functions with correct configurations.
-- Fixed validation error in `assign_people_to_items` Cloud Function by updating Pydantic models:
-  - Created `PersonItemAssignment` class to replace Dict structure
-  - Modified `AssignPeopleToItems` model to use List of assignments instead of Dict
-  - Updated output format to align with receipt data model
-- Successfully tested all Cloud Functions in emulator environment
-- App navigation and workflow redesign plan documented, including:
-  - Bottom navigation bar structure (Receipts, Settings)
-  - Centralized Receipts screen with FAB for adding receipts
-  - Workflow modal design for the 5-step receipt process
-  - Detailed data model and persistence strategy for receipts, drafts, and workflow state
-  - Cloud Function and backend integration strategy
-  - Security and best practices outlined
+- Fixed port conflicts in Firebase emulator configuration in `firebase.json`.
+- Fixed validation error in `assign_people_to_items` Cloud Function with updated Pydantic models.
+- Created and fully documented data model structure for receipts, drafts, and workflow state.
+- Implemented Firebase Emulator integration with environment variable switching.
+- Created `FirestoreService` class with emulator support and CRUD operations for receipts.
+- Implemented `Receipt` model with Firestore serialization/deserialization.
+- Implemented main navigation with bottom tabs (Receipts and Settings).
+- Created Receipts screen with filters, search, and FAB.
+- Implemented restaurant name input dialog to start the workflow.
+- Created the modal workflow controller with 5-step progress indicator.
+- Implemented automatic draft saving when exiting the workflow.
+- Integrated all workflow screens (upload, review, voice assignment, split, summary).
+- Implemented proper data flow between steps with state management.
+- App navigation and workflow redesign plan fully documented.
 
 **Pending:**
-- Implementation of redesigned UI components in Flutter (navigation bar, Receipts screen, workflow modal, etc.)
-- Firestore service methods for CRUD operations and auto-save logic
-- Draft management (save, resume, edit, delete) in the app
-- Integration of image upload, thumbnail generation, and caching
-- Connecting UI to backend (Cloud Functions, Firestore persistence)
-- Widget and logic reusability refactor as per new design
-- Comprehensive testing (unit, widget, integration)
+- Connect final summary screen to the modal workflow.
+- Implement handling of draft receipts (resume, edit, delete).
+- Connect image upload and thumbnail generation to FirestoreService.
+- Implement comprehensive testing (unit, widget, integration).
 
-**Key Notes for Next Session:**
-- Cloud Function data models have been updated for better validation and type safety
-- The `assign_people_to_items` function now returns assignments as a List of PersonItemAssignment objects rather than a Dictionary
-- Item fields use "name" rather than "item" in the assignment data structure
-- The updated data model aligns with the storage schema described in section 2.2
-- No changes to the frontend code have been made yet - implementing the new UI is the next priority
-- Test functions and emulator setup are working correctly for local development
+**Key Notes for Current Session:**
+- Use `FirestoreService` for all Firestore operations; it automatically detects whether to use emulator or production.
+- The `Receipt` model handles all conversion between Firestore documents and Dart objects.
+- Set `USE_FIRESTORE_EMULATOR=true` in `.env` file for local testing with emulator.
+- The workflow modal integrates all 5 screens with seamless data flow between them.
+- Voice transcription enables automated assignment of items to people in the workflow.
+- The split screen allows manual reassignment and sharing of items between people.
+- The summary screen provides tax/tip calculations and generates shareable receipt details.
+- Progress is automatically saved as a draft when exiting the workflow or leaving the app.
 
 ---
 
 # Key Implementation Decisions (as of May 2024)
 
-- **Modal Workflow:** The 5-step receipt workflow is a full-page modal (not a popup), accessible only from the Receipts screen via the Floating Action Button (FAB). Modal cannot be dismissed by tapping outside; navigation is via explicit actions and back gesture.
-- **State Management:** Provider (with ChangeNotifier) is used for in-modal state. State is memory-only during the modal session; no periodic auto-save. On exit (via Save & Exit or app close), user is prompted to save as draft or discard.
-- **Drafts:** Drafts are visible and editable from the Receipts screen. Editing a completed receipt reverts it to draft, with a user prompt if data may be overwritten.
-- **Image Handling:** Receipt image is uploaded in the first step and cannot be changed after upload. Thumbnails are generated and cached for fast loading in the Receipts list.
-- **Restaurant Name:** A blocking dialog prompts for the restaurant name before entering the modal workflow. This name is required and can be edited later from the receipt view.
-- **Firestore Integration:** All CRUD operations for receipts/drafts are handled by a dedicated Firestore service class. No offline support for now; app relies on cloud functions for parsing and assignment.
-- **UI/UX:** All new UI follows the existing theme and Material You guidelines. User-friendliness and cohesion are prioritized. Further UX improvements will be iterative.
-- **Testing:** Widget and unit tests will be scaffolded for modal navigation, Firestore service, and workflow logic.
+- **Modal Workflow:** The 5-step receipt workflow is implemented as a full-page modal with automatic draft saving on exit.
+- **State Management:** Provider (with ChangeNotifier) is used for in-modal state with memory-only caching during workflow.
+- **Drafts and Data Flow:** Workflow state is maintained across steps and automatically persisted to Firestore when exiting the modal or app.
+- **Screen Integration:** Existing screens are reused within the modal context with appropriate callbacks to update the workflow state.
 
 ---
 
@@ -54,143 +48,95 @@
 
 ## 1. Introduction & Key Goals
 
-This document outlines a significant redesign of the app's navigation and receipt processing workflow. The primary objectives are to:
+This document outlines a significant redesign of the app's navigation and receipt processing workflow, with the following primary objectives:
 
-1.  **Enhance User Experience:** Streamline navigation by making "Receipts" the central view and introducing a more intuitive "Add Receipt" flow.
-2.  **Improve Workflow Efficiency:** Convert the existing multi-tab workflow into a transient, full-page modal, maintaining current in-memory caching within the flow for responsiveness.
-3.  **Enable Persistent Drafts:** Implement robust data persistence, allowing users to save incomplete receipts as drafts and resume them later. This involves storing the workflow's cached state to Firestore upon exiting the modal or the app, with a user prompt to save/discard.
-4.  **Maintain Backend Stability:** Leverage existing backend Cloud Functions without immediate modification, ensuring a phased rollout.
-5.  **Uphold Code Quality:** Implement all changes following best coding practices, focusing on reusability, clarity, and maintainability.
+1. **Enhanced User Experience:** Streamlined navigation with "Receipts" as the central view
+2. **Improved Workflow Efficiency:** Converted multi-tab workflow into a transient, full-page modal
+3. **Persistent Drafts:** Robust data persistence for saving and resuming workflows
+4. **Backend Stability:** Leveraged existing Cloud Functions without immediate modification
+5. **Code Quality:** Implemented following best practices for reusability and maintainability
 
-## 2. Core Redesign Pillars
+## 2. Core Components
 
 ### 2.1. Navigation and UI Transformation
 
-- The app's navigation is simplified for a focused user experience:
-  - **Bottom Navigation Bar:** Two primary items: "Receipts" and "Settings".
-  - **Receipts Screen:** Central view displaying all receipts (completed and drafts), with search/filter and a prominent FAB for adding new receipts.
-  - **Workflow Modal:** The 5-step workflow (Upload, Review, Assign, Split, Summary) is encapsulated in a full-page modal, accessible only from the Receipts screen FAB. The modal includes a step indicator, explicit navigation, and a Save & Exit button in the app bar. Back gesture navigates steps; exiting prompts to save/discard.
+The app's navigation has been simplified to focus on user experience:
+- **Bottom Navigation Bar:** Two primary tabs: "Receipts" and "Settings"
+- **Receipts Screen:** Central view displaying all receipts with search/filter and FAB
+- **Workflow Modal:** 5-step workflow in a full-page modal with step indicator and explicit navigation
 
 ### 2.2. Data Model and Persistence Strategy
 
-**Data Model Definition:**
+The core data model follows this structure:
 
 ```
 users/{userId}/receipts/{receiptId}
-  - image_uri: String  // Image reference for the receipt
-  - thumbnail_uri: String  // Cached thumbnail reference for fast loading
-  - parse_receipt: Map  // Direct output from parse_receipt function (each item includes name, quantity, price)
-  - transcribe_audio: Map  // Output from voice transcription function
-  - assign_people_to_items: Map {
-      - assignments: Map<String, List<Map>> {  // Person name to items
-          "<person_name>": [
-            {"name": "<item_name>", "quantity": <integer>, "price": <float>}
-          ]
-        }
-      - shared_items: List<Map> [
-          {"name": "<item_name>", "quantity": <integer>, "price": <float>, "people": ["person1", "person2"]}
-        ]
-      - unassigned_items: List<Map> [
-          {"name": "<item_name>", "quantity": <integer>, "price": <float>}
-        ]
-    }
-  - split_manager_state: Map  // Final app state with all calculations
+  - image_uri: String  // Image reference
+  - thumbnail_uri: String  // Thumbnail reference
+  - parse_receipt: Map  // Receipt parsing data
+  - transcribe_audio: Map  // Voice transcription data
+  - assign_people_to_items: Map  // Person-to-item assignments
+  - split_manager_state: Map  // Final split calculations
   - metadata: Map {
-      - created_at: Timestamp
-      - updated_at: Timestamp
+      - created_at, updated_at: Timestamp
       - status: String  // "draft" or "completed"
-      - restaurant_name: String  // Required when completed
-      - people: Array<String>  // List of people involved (for search)
-      - tip: Float  // Tip amount or percentage (default: 20%)
-      - tax: Float  // Tax amount or percentage (default: 8.875%)
+      - restaurant_name: String
+      - people: Array<String>
+      - tip, tax: Float
     }
 ```
 
-**Key Aspects of the Data Model:**
+**Key Persistence Notes:**
+- In-workflow data is cached in memory with Provider
+- Data is only persisted on explicit actions (save/complete/exit)
+- Drafts are fully manageable from the Receipts screen
 
-*   **Raw Function Outputs:** Initially stores direct outputs from existing Cloud Functions to ensure backward compatibility and minimize immediate backend changes. For `assign_people_to_items`, the structure shown is the target detailed format. The current cloud function might output a more generic `Map`; the client application may need to adapt this, or the function will be updated later.
-*   **User-Centric:** All receipt data is linked to a specific user.
-*   **Metadata for Efficiency:** Includes essential metadata (`status`, `restaurant_name`, `people`, `tip`, `tax`) for list display, filtering, and search functionalities on the "Receipts" screen. **Tip and tax are required for completed receipts and default to 20% and 8.875% respectively if not set.**
+## 3. Implementation Overview
 
-**Caching, Persistence, and Scalability:**
+### 3.1 Core Components
 
-1.  **In-Modal Caching (Performance):** While a user is actively in the workflow modal, data (e.g., OCR results, user edits to items, assignments) is cached in memory using Provider. This allows for instant screen transitions and interactions within the modal without constant database reads/writes. No periodic auto-save is performed for performance.
-2.  **Prompted Save on Exit (Draft Creation):** If the user explicitly saves and exits the modal, or exits the app mid-workflow, the current in-memory cached state of the entire workflow is persisted to Firestore. The user is prompted to save as draft or discard. The `metadata.status` is set to "draft". This ensures no data loss and allows the user to resume seamlessly.
-3.  **Draft Visibility and Editing:** Drafts are visible and editable from the Receipts screen. Editing a completed receipt reverts it to draft, with a user prompt if data may be overwritten. Only steps after upload are editable after completion; image cannot be changed.
-4.  **`receiptId` Consistency:** A consistent `receiptId` is used throughout the workflow (from initiation in the modal to all Firestore operations) to ensure updates are applied to the correct document.
-5.  **Scalability Benefits:**
-    *   Reduces redundant AI function calls by saving intermediate results.
-    *   Allows users to resume complex splits without starting over, improving user satisfaction.
-    *   Firestore's scalability handles the storage of individual receipt documents efficiently.
+1. **FirestoreService** (`lib/services/firestore_service.dart`) - Handles all CRUD operations with emulator support
+2. **Receipt Model** (`lib/models/receipt.dart`) - Data structure with Firestore serialization
+3. **Receipts Screen** - Central UI with tabs, filters and FAB
+4. **Modal Workflow** - Full-page with 5-step indicators
 
-**Preserving User Edits:**
+### 3.2 Environment and Emulator Support
 
-- Receipt item edits, transcription corrections, assignment modifications, and final calculation adjustments are all saved to Firestore on Save & Exit or when marking as completed.
-- **Summary view:** When the user reaches the summary view, the receipt is automatically marked as completed. Default tax is 8.875% and default tip is 20% if not set.
+- **Environment Variables:** `.env` file with `USE_FIRESTORE_EMULATOR=true` for local testing
+- **Automatic Detection:** FirestoreService checks environment and connects accordingly
+- **Ports:** Firestore on 8081, Storage on 9199
 
-### 2.3. Efficient Image Handling
+### 3.3 Cloud Function Updates
 
-- **Upload:** Image is uploaded in the first step and cannot be changed after upload. If the user wants to modify the upload, they must create a new receipt.
-- **Thumbnails:** Thumbnails are generated and cached for fast loading in the Receipts list.
-- **No Edit After Upload:** Only steps after upload are editable after completion. Editing a completed receipt reverts it to draft, with a user prompt if data may be overwritten.
+The updated `assign_people_to_items` function now returns a more structured format:
 
-## 3. Implementation Roadmap & Best Practices
+```json
+{
+  "data": {
+    "assignments": [
+      {
+        "person_name": "Person1",
+        "items": [
+          {
+            "name": "Item Name",
+            "price": 10.0,
+            "quantity": 1
+          }
+        ]
+      }
+    ],
+    "shared_items": [...],
+    "unassigned_items": [...]
+  }
+}
+```
 
-- **Provider** is used for state management throughout the modal workflow.
-- **Firestore service class** handles all CRUD operations for receipts and drafts.
-- **No offline support** for now; the app relies on cloud functions for parsing and assignment.
-- **UI/UX** follows the existing theme and Material You guidelines. Modal workflow is full-page, not a popup, and is accessible only from the Receipts screen FAB.
-- **Testing:** Widget and unit tests will be scaffolded for modal navigation, Firestore service, and workflow logic.
-- **Code Cleanup:** As the refactor proceeds, opportunities for modularization and reduction of redundancy will be documented and implemented where safe.
+**Key Updates:**
+- Changed from `Dict[str, List[ItemDetail]]` to `List[PersonItemAssignment]` for better validation
+- Added `person_name` field to each assignment for clarity
+- Uses "name" instead of "item" field for items
 
-## 4. Cloud Function Development and Deployment Strategy
-
-(This section remains largely the same as your previous version, detailing local testing with Emulator Suite, dedicated Firebase projects, dev workflow, promotion to production, version control with Git, environment configuration, and managing function changes, including the handling of dynamic prompts.)
-
-To manage changes to Cloud Functions effectively and avoid impacting the production environment, the following strategy is recommended:
-
-1.  **Local Development and Testing (Firebase Emulator Suite):**
-    *   Utilize the Firebase Emulator Suite for local development and testing of Cloud Functions ([Firebase Documentation](https://firebase.google.com/docs/functions/get-started#emulate_execution_of_your_functions)).
-    *   This allows you to run and debug your functions, including those triggered by Firestore, Authentication, and HTTP requests, on your local machine. The **Emulator UI (usually at `http://localhost:4000`)** provides a way to inspect and manage emulated services like Firestore.
-    *   **Testing Prompts and Configuration:** If your functions fetch dynamic configurations (like prompts for AI services that dictate JSON structure, as managed by `config_helper.py`), you will also run the emulators for the services hosting this configuration (e.g., Firestore Emulator, Remote Config Emulator).
-        *   You will need to **seed these emulated services with the development/test versions of your prompts/configurations**. These test configurations should align with any local changes to your Pydantic models or other code that expects specific structures.
-        *   The Firebase SDKs used in your functions (and `config_helper.py`) will automatically connect to these emulated services when the emulators are active, ensuring your local tests use your local configurations.
-    *   Testing locally significantly reduces the risk of errors that could affect live data or incur costs.
-
-2.  **Dedicated Firebase Projects (Dev/Staging and Production):**
-    *   **Production Project:** Your current live Firebase project.
-    *   **Development/Staging Project:** Create a separate, new Firebase project for development and staging.
-    *   Configure your Flutter app to target the appropriate Firebase project based on the build environment.
-
-3.  **Development Workflow:**
-    *   Develop and test functions locally with the Emulator Suite.
-    *   Deploy to the dev/staging Firebase project for integration testing.
-
-4.  **Promotion to Production:**
-    *   After successful staging, deploy to the production Firebase project using Firebase CLI project aliases or direct project ID specification.
-
-5.  **Version Control (Git):**
-    *   Maintain Cloud Function code in Git, using branches for features/fixes.
-    *   Merge to `develop`/`staging` branches for dev/staging deployment, and to `main`/`production` for production deployment.
-    *   **Consider versioning your prompt seed files or Remote Config templates alongside your function code if they are tightly coupled.**
-
-6.  **Environment Configuration for Functions:**
-    *   Use Firebase's environment configuration (`functions.config()`) for API keys, service URLs, etc., that differ between environments.
-    *   Set via Firebase CLI: `firebase functions:config:set someservice.key="API_KEY_FOR_DEV"`.
-    *   **Distinction from Dynamic Prompts:** While `functions.config()` is for secrets/stable settings, dynamic prompts (tied to Pydantic models) are better managed in Firestore/Remote Config. Emulated services hold dev prompt versions; deployed projects hold their respective versions.
-
-7.  **Managing Function Changes:**
-    *   For non-breaking changes, update existing functions.
-    *   For breaking changes, consider deploying as new functions (e.g., `myFunction_v2`) and update clients gradually. This is relevant for `assign_people_to_items` if its core output structure changes in the future beyond the client-side adoption of the new detailed model for storage.
-
-## 5. Security Considerations
-
-1.  **Firestore Rules:** Implement robust Firestore security rules to ensure users can only access and modify their own receipt data.
-2.  **Secure Deletion:** Properly handle user account deletion, ensuring associated data is also securely removed or anonymized according to policy.
-3.  **Authentication:** Maintain a secure authentication flow, especially within any settings or account management sections.
-4.  **Input Validation:** Continue to validate all inputs on the client-side and, critically, within Cloud Functions before processing or storing data.
-
-## 6. UI Mockups
+## 4. UI Mockups
 
 ### Main Receipts Screen with FAB
 
@@ -235,219 +181,88 @@ To manage changes to Cloud Functions effectively and avoid impacting the product
 └─────────────────────────────────────────────────┘
 ```
 
-## 7. Firestore Emulator Seeding: Configuration and SOP
+## 5. Implementation Status and Next Steps
 
-### What Was Done
+### 5.1 Completed Components
 
-To enable local development and testing with dynamic prompts and model configurations, the Firestore emulator was seeded with initial configuration data using a Python script. This ensures that the emulator environment closely mirrors production/staging for workflows that depend on Firestore-stored prompts and model settings. The process leverages the `init_firestore_config.py` script in the `functions/` directory, which now reads configuration data from JSON files in the `emulator_seed_data` directory.
+1. **FirestoreService & Receipt Model**
+   - Complete CRUD operations with emulator support
+   - Serialization/deserialization with Firestore
 
-**Key Points:**
-- The Firestore emulator is started using the Firebase CLI with a custom port (8081 instead of the default 8080) to avoid port conflicts.
-- The Python Admin SDK requires a service account key, even for the emulator. This key is used only locally and should be kept out of version control.
-- The script seeds the emulator with all necessary configuration documents for prompts and models from JSON files, supporting multiple AI providers.
-- The script now has improved error handling and provides detailed diagnostic messages.
+2. **Main Navigation & Receipts Screen**
+   - Bottom navigation bar with tabs
+   - Receipts listing with filters and search
 
-### Standard Operating Procedure (SOP): Reseeding the Firestore Emulator
+3. **Workflow Modal Framework**
+   - Restaurant name dialog prompt
+   - Modal scaffold with step indicator
+   - Navigation between steps
+   - Automatic draft saving on exit
 
-**Prerequisites:**
-- You have the Firebase CLI installed and configured.
-- You have a service account key JSON file (e.g., `billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json` or similar) available locally (never commit this to git).
-- The `init_firestore_config.py` script exists in the `functions/` directory.
-- The `emulator_seed_data` directory contains your configuration files in the appropriate structure.
+4. **Screen Integration**
+   - Receipt upload screen with camera/gallery picker
+   - Receipt review screen with item editing
+   - Voice assignment screen with transcription and item assignment
+   - Split screen with item sharing and assignment management
+   - Final summary screen with tax/tip calculation and receipt sharing
+   - Real-time state updates between steps
+   - Data conversion between workflow state and screen models
 
-**Step-by-Step:**
+### 5.2 Next Implementation Phases
 
-1. **Check Port Availability**
-   - Ensure no other services are using the ports required by Firebase emulators.
-   - You can check running processes on ports with commands like:
-     ```sh
-     # On Windows
-     netstat -ano | findstr :8081
-     # On Mac/Linux
-     lsof -i :8081
-     ```
-   - If necessary, kill processes using required ports or update `firebase.json` to use alternative ports.
+1. **Draft Management** (Next Phase)
+   - Resume from draft
+   - Edit completed receipts
+   - Delete receipts
+   - End-to-end testing
 
-2. **Start the Firebase Emulator Suite**
-   - From the project root, run:
-     ```sh
-     firebase emulators:start
-     ```
-   - This will start the Firestore emulator (and any other configured emulators) using ports defined in `firebase.json`.
-   - Confirm the emulators are running by accessing the UI at http://localhost:4000
+### 5.3 Expected Review Checkpoints
 
-3. **Open a New Terminal for Seeding**
-   - Keep the emulator running in its own terminal window/tab.
-   - Open a new terminal for the seeding process.
-   - Navigate to the `functions/` directory:
-     ```sh
-     cd functions
-     ```
+1. **After Screen Integration:**
+   - Complete workflow from upload to summary
+   - Data passing correctly between steps
+   - Draft saving and completion working
 
-4. **Set the Firestore Emulator Environment Variable**
-   - **IMPORTANT**: This tells the Python script to write to the emulator instead of production.
-   - On Windows (Command Prompt):
-     ```sh
-     set FIRESTORE_EMULATOR_HOST=localhost:8081
-     ```
-   - On Windows (PowerShell):
-     ```sh
-     $env:FIRESTORE_EMULATOR_HOST="localhost:8081"
-     ```
-   - On Mac/Linux or Git Bash:
-     ```sh
-     export FIRESTORE_EMULATOR_HOST=localhost:8081
-     ```
+2. **After Draft Management:**
+   - Resume functionality working
+   - Edit and delete options functional
+   - Full testing with emulator
 
-5. **Run the Seeding Script**
-   - Use the appropriate path to your emulator seed data (relative to the functions directory):
-     ```sh
-     python init_firestore_config.py --admin-uid=admin --cred-path=billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json --seed-data-dir=../emulator_seed_data
-     ```
-   - You should see output confirming that prompt and model configurations have been loaded from files and set for each workflow.
+## 6. Emulator Setup Guide
 
-6. **Verify**
-   - Visit [http://localhost:4000/firestore](http://localhost:4000/firestore) in your browser to confirm the seeded data is present in the emulator.
-   - Check the `configs` collection to see if prompts and models for each workflow were successfully added.
+For local development and testing, the Firebase Emulator Suite provides a local environment for Firestore, Functions, and other Firebase services.
 
-**Troubleshooting Emulator Configuration:**
+### Quick Start
 
-1. **Port Conflicts**
-   - If you encounter port conflicts, edit your `firebase.json` file to specify different ports:
-     ```json
-     "emulators": {
-       "firestore": {
-         "host": "localhost",
-         "port": 8081
-       },
-       // Other emulator configurations...
-     }
-     ```
+1. Ensure `.env` file has `USE_FIRESTORE_EMULATOR=true`
+2. Start emulators with `firebase emulators:start`
+3. Seed with test data: `cd functions && python init_firestore_config.py --admin-uid=admin --cred-path=your-key.json --seed-data-dir=../emulator_seed_data`
 
-2. **Path Issues**
-   - If the script can't find your seed data, ensure your paths are correct.
-   - When running from the `functions/` directory, use `../emulator_seed_data` to reference the seed data in the project root.
+### Troubleshooting
 
-3. **Missing Configurations**
-   - The script now provides detailed messages about which configuration files it finds or can't find.
-   - Ensure your `emulator_seed_data` directory structure follows this pattern:
-     ```
-     emulator_seed_data/
-     ├── firestore_export/
-     │   └── configs/
-     │       ├── models/
-     │       │   ├── assign_people_to_items/
-     │       │   │   └── current.json
-     │       │   ├── parse_receipt/
-     │       │   │   └── current.json
-     │       │   └── transcribe_audio/
-     │       │       └── current.json
-     │       └── prompts/
-     │           ├── assign_people_to_items/
-     │           │   └── current.json
-     │           ├── parse_receipt/
-     │           │   └── current.json
-     │           └── transcribe_audio/
-     │               └── current.json
-     ```
+- **Port Conflicts**: Edit `firebase.json` to use different ports
+- **Access Issues**: Make sure environment variables are set correctly
+- **Data Not Appearing**: Check emulator UI at `http://localhost:4000`
 
-**Testing Cloud Functions with the Emulator:**
+## 7. Project Structure
 
-After seeding the emulator with configurations, you can test your Cloud Functions using the emulator:
-
-1. Make sure the emulator is running and seeded with configurations.
-2. Set the `FIRESTORE_EMULATOR_HOST` environment variable in the terminal where you'll run your tests.
-3. Run your test script that calls the Cloud Functions, e.g.:
-   ```sh
-   python test_emulator_functions.py
-   ```
-
-**Note:** If you're getting validation errors for specific functions (like the observed error with `assign_people_to_items`), check the function's expected input format and ensure your test is providing the correct parameters.
-
-**Security Note:**
-- Always add your service account key file to `.gitignore` to prevent accidental commits.
-- The key is only used locally for emulator access and is not sent to Google when the emulator is running.
-
-## 8. Cloud Function Model Update: Fixed Assign People to Items Function
-
-### Issue Addressed
-We resolved a validation error in the `assign_people_to_items` Cloud Function by updating the Pydantic model structure. The error occurred because the function was using a `Dict[str, List[ItemDetail]]` structure for the assignments, which wasn't properly validated by Pydantic when receiving responses from the AI model.
-
-### Model Changes Made
-1. Created a new Pydantic class `PersonItemAssignment` with `person_name` and `items` fields to replace dictionary keys.
-2. Updated the `AssignPeopleToItems` model to use a `List[PersonItemAssignment]` instead of a `Dict[str, List[ItemDetail]]`.
-3. Updated the test script to format receipt items correctly with "name" instead of "item" field.
-
-The key change in `main.py`:
-```python
-# Old structure
-class AssignPeopleToItems(BaseModel):
-    assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
-    shared_items: List[SharedItemDetail] = Field(default_factory=list)
-    unassigned_items: List[ItemDetail] = Field(default_factory=list)
-
-# New structure
-class PersonItemAssignment(BaseModel):
-    person_name: str
-    items: List[ItemDetail] = Field(default_factory=list)
-
-class AssignPeopleToItems(BaseModel):
-    assignments: List[PersonItemAssignment] = Field(default_factory=list)
-    shared_items: List[SharedItemDetail] = Field(default_factory=list)
-    unassigned_items: List[ItemDetail] = Field(default_factory=list)
 ```
-
-### Output Schema
-The `assign_people_to_items` function now returns the following structure:
-
-```json
-{
-  "data": {
-    "assignments": [
-      {
-        "person_name": "Person1",
-        "items": [
-          {
-            "name": "Item Name",
-            "price": 10.0,
-            "quantity": 1
-          }
-        ]
-      },
-      {
-        "person_name": "Person2",
-        "items": [
-          {
-            "name": "Another Item",
-            "price": 15.0,
-            "quantity": 2
-          }
-        ]
-      }
-    ],
-    "shared_items": [
-      {
-        "name": "Shared Item",
-        "people": ["Person1", "Person2"],
-        "price": 20.0,
-        "quantity": 1
-      }
-    ],
-    "unassigned_items": [
-      {
-        "name": "Unassigned Item",
-        "price": 5.0,
-        "quantity": 1
-      }
-    ]
-  }
-}
-```
-
-This updated structure ensures consistent validation between the AI model output and our application's data model. It also provides a more type-safe and consistent format for storing and manipulating assignment data in the application.
-
-### Performance Note
-The existing emulator setup automatically picks up these model changes after modifying the `main.py` file - no separate deployment step is needed for local testing. This allows for rapid iteration when making schema changes to cloud functions.
-
-### Integration with Receipt Data Model
-This output structure aligns with our redesigned receipt data model (see section 2.2) by providing the assignment data in a format that can be directly stored in the `assign_people_to_items` field of the receipt document. 
+splitting_sucks/
+├── lib/
+│   ├── models/
+│   │   ├── receipt.dart           # New Receipt model
+│   │   ├── receipt_item.dart      # Receipt item model
+│   │   ├── person.dart            # Person model
+│   │   └── split_manager.dart     # Split operations manager
+│   ├── screens/
+│   │   ├── main_navigation.dart   # New bottom navigation
+│   │   ├── receipts_screen.dart   # New receipts listing
+│   │   └── existing screens...    # To be integrated
+│   ├── services/
+│   │   ├── firestore_service.dart # New Firestore service
+│   │   └── existing services...   # Auth, parsing, etc.
+│   └── main.dart                  # Entry point
+├── functions/                     # Cloud Functions
+├── emulator_seed_data/            # Emulator configurations
+└── .env                           # Environment variables
+``` 
