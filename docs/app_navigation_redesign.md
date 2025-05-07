@@ -2,6 +2,9 @@
 
 **Completed:**
 - Firestore emulator successfully seeded with dynamic prompt/model configuration data using a Python script (`init_firestore_config.py`).
+- Modified `init_firestore_config.py` to load configurations from emulator_seed_data files instead of using hardcoded values.
+- Fixed port conflicts in Firebase emulator configuration by updating `firebase.json` to use alternative ports.
+- Successfully tested emulator functions with correct configurations.
 - App navigation and workflow redesign plan documented, including:
   - Bottom navigation bar structure (Receipts, Settings)
   - Centralized Receipts screen with FAB for adding receipts
@@ -11,6 +14,7 @@
   - Security and best practices outlined
 
 **Pending:**
+- Integration of Cloud Functions testing with emulator (currently getting a validation error for `assign_people_to_items`)
 - Implementation of redesigned UI components in Flutter (navigation bar, Receipts screen, workflow modal, etc.)
 - Firestore service methods for CRUD operations and auto-save logic
 - Draft management (save, resume, edit, delete) in the app
@@ -223,34 +227,53 @@ To manage changes to Cloud Functions effectively and avoid impacting the product
 
 ### What Was Done
 
-To enable local development and testing with dynamic prompts and model configurations, the Firestore emulator was seeded with initial configuration data using a Python script. This ensures that the emulator environment closely mirrors production/staging for workflows that depend on Firestore-stored prompts and model settings. The process leverages the `init_firestore_config.py` script in the `functions/` directory, which writes default prompt and model provider configurations for all relevant AI-powered workflows (e.g., `parse_receipt`, `assign_people_to_items`, `transcribe_audio`).
+To enable local development and testing with dynamic prompts and model configurations, the Firestore emulator was seeded with initial configuration data using a Python script. This ensures that the emulator environment closely mirrors production/staging for workflows that depend on Firestore-stored prompts and model settings. The process leverages the `init_firestore_config.py` script in the `functions/` directory, which now reads configuration data from JSON files in the `emulator_seed_data` directory.
 
 **Key Points:**
-- The Firestore emulator is started using the Firebase CLI.
+- The Firestore emulator is started using the Firebase CLI with a custom port (8081 instead of the default 8080) to avoid port conflicts.
 - The Python Admin SDK requires a service account key, even for the emulator. This key is used only locally and should be kept out of version control.
-- The script seeds the emulator with all necessary configuration documents for prompts and models, supporting multiple AI providers.
+- The script seeds the emulator with all necessary configuration documents for prompts and models from JSON files, supporting multiple AI providers.
+- The script now has improved error handling and provides detailed diagnostic messages.
 
 ### Standard Operating Procedure (SOP): Reseeding the Firestore Emulator
 
 **Prerequisites:**
 - You have the Firebase CLI installed and configured.
-- You have a service account key JSON file (e.g., `functions/emulator-service-account.json` or similar) available locally (never commit this to git).
+- You have a service account key JSON file (e.g., `billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json` or similar) available locally (never commit this to git).
 - The `init_firestore_config.py` script exists in the `functions/` directory.
+- The `emulator_seed_data` directory contains your configuration files in the appropriate structure.
 
 **Step-by-Step:**
 
-1. **Start the Firebase Emulator Suite**
+1. **Check Port Availability**
+   - Ensure no other services are using the ports required by Firebase emulators.
+   - You can check running processes on ports with commands like:
+     ```sh
+     # On Windows
+     netstat -ano | findstr :8081
+     # On Mac/Linux
+     lsof -i :8081
+     ```
+   - If necessary, kill processes using required ports or update `firebase.json` to use alternative ports.
+
+2. **Start the Firebase Emulator Suite**
    - From the project root, run:
      ```sh
      firebase emulators:start
      ```
-   - This will start the Firestore emulator (and any other configured emulators).
+   - This will start the Firestore emulator (and any other configured emulators) using ports defined in `firebase.json`.
+   - Confirm the emulators are running by accessing the UI at http://localhost:4000
 
-2. **Open a New Terminal for Seeding**
+3. **Open a New Terminal for Seeding**
    - Keep the emulator running in its own terminal window/tab.
    - Open a new terminal for the seeding process.
+   - Navigate to the `functions/` directory:
+     ```sh
+     cd functions
+     ```
 
-3. **Set the Firestore Emulator Environment Variable**
+4. **Set the Firestore Emulator Environment Variable**
+   - **IMPORTANT**: This tells the Python script to write to the emulator instead of production.
    - On Windows (Command Prompt):
      ```sh
      set FIRESTORE_EMULATOR_HOST=localhost:8081
@@ -259,26 +282,76 @@ To enable local development and testing with dynamic prompts and model configura
      ```sh
      $env:FIRESTORE_EMULATOR_HOST="localhost:8081"
      ```
-   - On Mac/Linux:
+   - On Mac/Linux or Git Bash:
      ```sh
      export FIRESTORE_EMULATOR_HOST=localhost:8081
      ```
 
-4. **Run the Seeding Script**
-   - Provide the path to your service account key (replace with your actual filename):
+5. **Run the Seeding Script**
+   - Use the appropriate path to your emulator seed data (relative to the functions directory):
      ```sh
-     export FIRESTORE_EMULATOR_HOST=localhost:8081 
-     python init_firestore_config.py --admin-uid=admin --cred-path=billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json --seed-data-dir=../emulator_seed_data # Use venv in functions
+     python init_firestore_config.py --admin-uid=admin --cred-path=billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json --seed-data-dir=../emulator_seed_data
      ```
-   - You should see output confirming that prompt and model configurations have been set for each workflow.
+   - You should see output confirming that prompt and model configurations have been loaded from files and set for each workflow.
 
-5. **Verify**
+6. **Verify**
    - Visit [http://localhost:4000/firestore](http://localhost:4000/firestore) in your browser to confirm the seeded data is present in the emulator.
+   - Check the `configs` collection to see if prompts and models for each workflow were successfully added.
+
+**Troubleshooting Emulator Configuration:**
+
+1. **Port Conflicts**
+   - If you encounter port conflicts, edit your `firebase.json` file to specify different ports:
+     ```json
+     "emulators": {
+       "firestore": {
+         "host": "localhost",
+         "port": 8081
+       },
+       // Other emulator configurations...
+     }
+     ```
+
+2. **Path Issues**
+   - If the script can't find your seed data, ensure your paths are correct.
+   - When running from the `functions/` directory, use `../emulator_seed_data` to reference the seed data in the project root.
+
+3. **Missing Configurations**
+   - The script now provides detailed messages about which configuration files it finds or can't find.
+   - Ensure your `emulator_seed_data` directory structure follows this pattern:
+     ```
+     emulator_seed_data/
+     ├── firestore_export/
+     │   └── configs/
+     │       ├── models/
+     │       │   ├── assign_people_to_items/
+     │       │   │   └── current.json
+     │       │   ├── parse_receipt/
+     │       │   │   └── current.json
+     │       │   └── transcribe_audio/
+     │       │       └── current.json
+     │       └── prompts/
+     │           ├── assign_people_to_items/
+     │           │   └── current.json
+     │           ├── parse_receipt/
+     │           │   └── current.json
+     │           └── transcribe_audio/
+     │               └── current.json
+     ```
+
+**Testing Cloud Functions with the Emulator:**
+
+After seeding the emulator with configurations, you can test your Cloud Functions using the emulator:
+
+1. Make sure the emulator is running and seeded with configurations.
+2. Set the `FIRESTORE_EMULATOR_HOST` environment variable in the terminal where you'll run your tests.
+3. Run your test script that calls the Cloud Functions, e.g.:
+   ```sh
+   python test_emulator_functions.py
+   ```
+
+**Note:** If you're getting validation errors for specific functions (like the observed error with `assign_people_to_items`), check the function's expected input format and ensure your test is providing the correct parameters.
 
 **Security Note:**
 - Always add your service account key file to `.gitignore` to prevent accidental commits.
-- The key is only used locally for emulator access and is not sent to Google when the emulator is running.
-
-**Troubleshooting:**
-- If you see credential errors, double-check the path to your service account key and ensure the environment variable is set in the same terminal session as your Python command.
-- If the emulator is not running, the script will attempt to connect to production—always confirm the emulator is active before running the script. 
+- The key is only used locally for emulator access and is not sent to Google when the emulator is running. 
