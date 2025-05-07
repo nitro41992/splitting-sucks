@@ -16,56 +16,32 @@ import 'theme/app_theme.dart';
 import 'routes.dart';
 import 'firebase_options.dart';
 
-// Global variable to track initialization
+// Flag to track if Firebase initialized successfully
 bool firebaseInitialized = false;
 
 void main() async {
-  // Wait for Flutter to be fully initialized
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load .env file for environment variables
-  await dotenv.load();
+  // Load environment variables
+  await dotenv.load(fileName: '.env');
   
-  // Initialize Firebase at the entry point
+  // Initialize Firebase
   try {
-    // Only initialize if it hasn't been initialized yet
-    if (Firebase.apps.isEmpty) {
-      debugPrint("Initializing Firebase in main() function...");
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      
-      // Configure Firebase Auth persistence to fix the "missing initial state" issue
-      // This addresses problems with browser sessionStorage in web/PWA contexts and
-      // similar state persistence issues in the Android app
-      try {
-        // For Android, set the persistence to LOCAL (default is already LOCAL on native platforms)
-        if (!kIsWeb && Platform.isAndroid) {
-          await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
-          debugPrint("Firebase Auth persistence set to LOCAL for Android");
-        }
-        
-        // For web, explicitly set persistence to prevent issues with sessionStorage
-        if (kIsWeb) {
-          await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
-          debugPrint("Firebase Auth persistence set to LOCAL for Web");
-        }
-      } catch (e) {
-        debugPrint("Error setting persistence: $e - continuing anyway");
-      }
-      
-      debugPrint("Firebase successfully initialized in main()");
-      firebaseInitialized = true;
-    } else {
-      debugPrint("Firebase already initialized, using existing instance");
-      firebaseInitialized = true;
+    await Firebase.initializeApp();
+    firebaseInitialized = true;
+    
+    // Check if using emulator and auto-sign in if needed
+    final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+    if (useEmulator) {
+      // Auto sign-in for emulator mode
+      final authService = AuthService();
+      await authService.autoSignInForEmulator();
     }
   } catch (e) {
     debugPrint("Error initializing Firebase in main(): $e");
-    // Continue with the app, the FirebaseInit widget will handle retries
+    firebaseInitialized = false;
   }
   
-  // Entry point
   runApp(const MyApp());
 }
 
@@ -74,37 +50,47 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        // Provide AuthService globally
-        Provider<AuthService>(
-          create: (_) => AuthService(),
-          dispose: (_, service) => service.dispose(),
-        ),
-        // Stream of auth state changes
-        StreamProvider<User?>(
-          create: (context) => context.read<AuthService>().authStateChanges,
-          initialData: null,
-        ),
-      ],
-      child: MaterialApp(
-        title: 'Billfie',
-        theme: AppTheme.lightTheme,
-        home: firebaseInitialized ? const AuthWrapper() : const FirebaseInit(),
-        routes: Routes.getRoutes(),
-        onGenerateRoute: (settings) {
-          if (settings.name == '/signup') {
-            return MaterialPageRoute(
-              builder: (_) => Routes.getRoutes()['/signup']!(_),
-            );
-          } else if (settings.name == '/forgot-password') {
-            return MaterialPageRoute(
-              builder: (_) => Routes.getRoutes()['/forgot-password']!(_),
-            );
-          }
-          return null;
-        },
-      ),
+    return MaterialApp(
+      title: 'Billfie',
+      theme: AppTheme.lightTheme,
+      debugShowCheckedModeBanner: false,
+      home: !firebaseInitialized 
+        ? const Scaffold(body: Center(child: Text("Failed to initialize Firebase")))
+        : Builder(
+            builder: (context) {
+              // Check if emulator mode is active to bypass auth
+              final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+              
+              if (useEmulator) {
+                // Skip auth check completely in emulator mode
+                debugPrint('🔧 Bypassing auth in emulator mode');
+                return const MainNavigation();
+              }
+              
+              // Continue with normal auth flow
+              return StreamBuilder<User?>(
+                stream: FirebaseAuth.instance.authStateChanges(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
+                  
+                  if (snapshot.hasData) {
+                    // User is logged in
+                    return const MainNavigation();
+                  }
+                  
+                  // User is not logged in
+                  return const LoginScreen();
+                },
+              );
+            }
+          ),
+      routes: Routes.getRoutes(),
     );
   }
 }

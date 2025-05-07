@@ -39,8 +39,13 @@ class FirestoreService {
       debugPrint('🔧 Connecting to Firestore emulator on localhost:8081');
       db.useFirestoreEmulator('localhost', 8081);
       storage.useStorageEmulator('localhost', 9199);
-      // Note: If you also need Auth emulator, uncomment:
-      // auth.useAuthEmulator('localhost', 9099);
+      // Connect to Auth emulator
+      auth.useAuthEmulator('localhost', 9099);
+      debugPrint('🔧 Connected to Auth emulator on localhost:9099');
+      
+      // Also connect Functions to emulator
+      FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
+      debugPrint('🔧 Connected to Functions emulator on localhost:5001');
     }
     
     return FirestoreService._(
@@ -50,13 +55,27 @@ class FirestoreService {
     );
   }
   
-  /// Gets the current user ID, or throws an error if not logged in
+  /// Gets the current user ID, or provides a test user ID if in emulator mode
   String get _userId {
+    // Check if using emulator
+    final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+    
+    // In emulator mode, always use test user ID regardless of auth state
+    if (useEmulator) {
+      // In emulator mode, use a hardcoded test user ID
+      debugPrint('⚠️ Using test user ID in emulator mode');
+      return 'test-user-id';
+    }
+    
+    // Get current user
     final user = _auth.currentUser;
-    if (user == null) {
+    
+    if (user != null) {
+      return user.uid;
+    } else {
+      // In production, require authentication
       throw Exception('User not logged in');
     }
-    return user.uid;
   }
   
   /// Reference to the user's receipts collection

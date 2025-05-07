@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../utils/toast_helper.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 // Remove conditional GoogleSignIn import
 // import 'package:google_sign_in/google_sign_in.dart' if (dart.library.html) 'dart:core';
 
@@ -36,6 +37,60 @@ class AuthService {
   // Constructor
   AuthService() {
     _connectToFirebaseAuth();
+  }
+  
+  // Auto sign-in for emulator mode
+  Future<User?> autoSignInForEmulator() async {
+    await _ensureInitialized();
+    
+    // Check if we're using emulator
+    final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+    if (!useEmulator) {
+      debugPrint('Not using emulator, skipping auto sign-in');
+      return null;
+    }
+    
+    try {
+      debugPrint('🔧 Auto-signing in test user for emulator mode');
+      
+      // Check if already signed in
+      if (_auth.currentUser != null) {
+        debugPrint('Already signed in as ${_auth.currentUser!.email}');
+        return _auth.currentUser;
+      }
+      
+      // Create test user credentials
+      const testEmail = 'test@example.com';
+      const testPassword = 'password123';
+      
+      // Try to sign in, if fails, create the account
+      try {
+        final userCred = await _auth.signInWithEmailAndPassword(
+          email: testEmail,
+          password: testPassword,
+        );
+        debugPrint('✅ Auto-signed in as test user: ${userCred.user!.email}');
+        return userCred.user;
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'user-not-found') {
+          // Create the test user
+          final userCred = await _auth.createUserWithEmailAndPassword(
+            email: testEmail,
+            password: testPassword,
+          );
+          // Update profile
+          await userCred.user!.updateDisplayName('Test User');
+          debugPrint('✅ Created and signed in as test user: ${userCred.user!.email}');
+          return userCred.user;
+        } else {
+          debugPrint('❌ Error auto-signing in: ${e.message}');
+          rethrow;
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Auto sign-in error: $e');
+      return null;
+    }
   }
   
   // Show success message helper
@@ -154,12 +209,44 @@ class AuthService {
 
   // Get current user with safety check
   User? get currentUser {
+    // Check if using emulator - in emulator mode we can return a fake user
+    final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+    if (useEmulator && _auth.currentUser == null) {
+      debugPrint('Using emulator mode - returning fake user');
+      // Return a fake user for emulator mode
+      return _createFakeUser();
+    }
+    
     if (!_isInitialized) return null;
     return _auth.currentUser;
   }
 
+  // Create a fake user for emulator mode
+  User? _createFakeUser() {
+    try {
+      // Unfortunately we can't easily create a fake User object 
+      // since it's an internal Firebase class without public constructors
+      debugPrint('Cannot create fake user directly, returning null');
+      return null;
+    } catch (e) {
+      debugPrint('Error creating fake user: $e');
+      return null;
+    }
+  }
+
   // Auth state changes stream with safety check
   Stream<User?> get authStateChanges {
+    // In emulator mode, immediately emit a "signed in" state
+    final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+    if (useEmulator) {
+      debugPrint('🔧 Emulator mode: bypassing auth state changes');
+      // We can't create a fake User, but we can check if already signed in
+      // If signed in, use that, otherwise just let the app handle null user
+      if (_auth.currentUser != null) {
+        return Stream.value(_auth.currentUser);
+      }
+    }
+    
     return _userStreamController.stream;
   }
 
