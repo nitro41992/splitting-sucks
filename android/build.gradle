@@ -23,6 +23,13 @@ allprojects {
     }
 }
 
+// Add this block to enforce Java 17 for all Java compilation tasks
+// allprojects {
+//     tasks.withType(JavaCompile).configureEach {
+//         options.release = 17
+//     }
+// }
+
 rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
