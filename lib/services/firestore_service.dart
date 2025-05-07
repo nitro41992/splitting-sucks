@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import '../models/receipt.dart';
 
 /// Service for Firestore CRUD operations related to receipts
 /// 
@@ -26,29 +27,12 @@ class FirestoreService {
   
   /// Factory constructor that configures Firestore with emulator if needed
   factory FirestoreService() {
-    // Get environment variables
-    // final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true'; // No longer needed here
-    
     // Get instances
     final db = FirebaseFirestore.instance;
     final storage = FirebaseStorage.instance;
     final auth = FirebaseAuth.instance;
     
-    // Connect to emulators if enabled - THIS IS NOW HANDLED IN main()
-    /*
-    if (useEmulator) {
-      debugPrint('🔧 Connecting to Firestore emulator on localhost:8081');
-      db.useFirestoreEmulator('localhost', 8081);
-      storage.useStorageEmulator('localhost', 9199);
-      // Connect to Auth emulator
-      auth.useAuthEmulator('localhost', 9099);
-      debugPrint('🔧 Connected to Auth emulator on localhost:9099');
-      
-      // Also connect Functions to emulator
-      FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
-      debugPrint('🔧 Connected to Functions emulator on localhost:5001');
-    }
-    */
+    // Emulator connections are now handled in main()
     
     return FirestoreService._(
       db: db,
@@ -57,26 +41,30 @@ class FirestoreService {
     );
   }
   
-  /// Gets the current user ID, or provides a test user ID if in emulator mode
+  /// Gets the current user ID.
   String get _userId {
-    // Check if using emulator
-    final useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
-    
-    // In emulator mode, always use test user ID regardless of auth state
-    if (useEmulator) {
-      // In emulator mode, use a hardcoded test user ID
-      debugPrint('⚠️ Using test user ID in emulator mode');
-      return 'test-user-id';
-    }
-    
-    // Get current user
     final user = _auth.currentUser;
-    
+    final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
+
     if (user != null) {
+      // If a user is logged in, always use their UID
+      debugPrint('FirestoreService: Using actual user ID: ${user.uid}');
       return user.uid;
     } else {
-      // In production, require authentication
-      throw Exception('User not logged in');
+      // No user is logged in
+      if (useEmulator) {
+        // In emulator mode, and no user is logged in.
+        // Decide how to handle this. For now, throw to avoid accidental data access
+        // to a hardcoded ID when no one is actually authenticated.
+        // You could return a specific 'anonymous-emulator-user-id' if you have
+        // data seeded for such a case and intend anonymous access.
+        debugPrint('FirestoreService: No authenticated user in emulator mode. Throwing error.');
+        throw Exception('User not logged in (emulator mode - no anonymous fallback configured)');
+      } else {
+        // In production, require authentication
+        debugPrint('FirestoreService: User not logged in (production). Throwing error.');
+        throw Exception('User not logged in');
+      }
     }
   }
   

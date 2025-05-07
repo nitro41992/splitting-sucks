@@ -6,7 +6,8 @@
     },
     "dataconnect": {
       "host": "0.0.0.0",
-      "dataDir": "dataconnect/.dataconnect/pgliteData"
+      "dataDir": "dataconnect/.dataconnect/pgliteData",
+      "port": 9399
     },
     "firestore": {
       "host": "0.0.0.0",
@@ -15,9 +16,9 @@
       "indexes": "firestore.indexes.json"
     },
     "storage": {
-      "rules": "storage.rules",
+      "host": "0.0.0.0",
       "port": 9199,
-      "host": "0.0.0.0"
+      "rules": "storage.emulator.rules"
     },
     "functions": {
       "port": 5001,
@@ -27,7 +28,8 @@
       "enabled": true,
       "port": 4000,
       "host": "0.0.0.0"
-    }
+    },
+    "singleProjectMode": true
   },
   "dataconnect": {
     "source": "dataconnect"

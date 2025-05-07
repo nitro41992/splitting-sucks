@@ -120,7 +120,12 @@
    - ✅ `main.dart` configures emulators using the host PC's LAN IP (`192.168.0.152`) for physical device testing.
    - ✅ Host machine firewall configured to allow inbound connections on emulator ports.
    - ✅ `firebase.json` configures emulators to listen on `host: "0.0.0.0"`.
-   - ✅ **Separated Rules:** Using `firestore.emulator.rules` (permissive) for emulator and `firestore.rules` (strict) for production, configured via `firebase.json`.
+   - ⚠️ **Rules Workaround:**
+       - Due to suspected issue in `firebase-tools` v14.2.1, the Firestore emulator currently ignores the `emulators.firestore.rules` setting in `firebase.json`.
+       - **WORKAROUND:** The **`firestore.rules`** file (used for production) is temporarily configured with permissive rules (`allow read, write: if true;`) during development to allow the Firestore emulator to function correctly.
+       - The `firestore.emulator.rules` file exists with permissive rules but is **not** being loaded by the Firestore emulator.
+       - The Storage emulator **correctly** loads and uses the permissive `storage.emulator.rules` file as configured in `firebase.json`.
+       - **CRITICAL:** The secure production rules **MUST** be restored to `firestore.rules` before committing code or deploying.
    - ✅ Seeding script creates test data in emulator.
    - ✅ Android debug manifest allows cleartext traffic.
 
@@ -151,13 +156,15 @@
 ## Known Issues (Beyond specific component challenges)
 
 - **Firestore Permission Denied:**
-    - The app still encounters `PERMISSION_DENIED` when trying to list receipts from `users/test-user-id/receipts`, even when signed in and using emulator rules that should permit access (`allow read, write: if true;`). This suggests the Firestore emulator might not be loading/applying `firestore.emulator.rules` correctly, or there's another evaluation issue.
+    - ✅ **Resolved (via Workaround):** The Firestore emulator was incorrectly loading the production `firestore.rules` file instead of `firestore.emulator.rules` as specified in `firebase.json` (suspected `firebase-tools` v14.2.1 issue). 
+    - **Workaround Applied:** The `firestore.rules` file now temporarily contains permissive rules (`allow read, write: if true;`) for local development using the emulator.
+    - **CRITICAL CAVEAT:** Secure production rules MUST be restored to `firestore.rules` before committing or deploying.
 - **Google Sign-In Play Services Error:**
     - Although Google Sign-In now works, logs show repeated `SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs monitoring; could indicate issues with Play Services, SHA-1, or API keys if functional problems arise.
 
 ## Next Steps (Priority Order)
 
-1.  **Resolve Firestore Permission Denied in Emulator.**
+1.  **(Low Priority / Background):** Investigate/Report Firestore Emulator Rules Bug in `firebase-tools`.
 2.  **Performance Optimization (Receipts Loading):**
     - Implement pagination for the receipts list in `ReceiptsScreen` and `FirestoreService`.
 3. **Create Comprehensive Testing Suite:**

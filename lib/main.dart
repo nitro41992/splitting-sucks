@@ -108,33 +108,23 @@ class MyApp extends StatelessWidget {
               // Show spinner while waiting for the stream's initial value
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Scaffold(
+                  backgroundColor: Colors.blue, // Distinct color
                   body: Center(
-                    child: CircularProgressIndicator(),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), Text('Waiting for Auth...')]),
                   ),
                 );
               }
               
               // If the stream has emitted a user object, show the main app
               if (snapshot.hasData) {
+                debugPrint('[MyApp StreamBuilder] User detected, returning MainNavigation');
                 // User is logged in (or emulator auto-sign-in worked)
-                return const MainNavigation();
+                return const MainNavigation(); // Restore original
               }
-              
-              // Otherwise (stream is active but has emitted null, meaning no user), show LoginScreen
-              // Remove the specific emulator check that was causing the indefinite spinner
-              /* 
-              final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
-              if (useEmulator && snapshot.data == null && !snapshot.hasError) {
-                  return const Scaffold(
-                    body: Center(
-                      child: CircularProgressIndicator(), 
-                    ),
-                  );
-              }
-              */
               
               // If no user data, show the LoginScreen
-              return const LoginScreen();
+              debugPrint('[MyApp StreamBuilder] No user detected, returning LoginScreen');
+              return const LoginScreen(); // Restore original
             },
           ),
       routes: Routes.getRoutes(),
