@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../widgets/workflow_modal.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ReceiptsScreen extends StatefulWidget {
   const ReceiptsScreen({Key? key}) : super(key: key);
@@ -56,6 +57,20 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
         _isLoading = true;
         _errorMessage = null;
       });
+
+      // Log the user ID being used for the fetch
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
+      debugPrint('[_loadReceipts] Attempting to load receipts for UID: $currentUid');
+
+      if (currentUid == null) {
+        debugPrint('[_loadReceipts] User ID is null, cannot load receipts.');
+        return; // Don't proceed if no user
+      }
+
+      // --- DIAGNOSTIC DELAY --- 
+      await Future.delayed(const Duration(milliseconds: 500));
+      debugPrint('[_loadReceipts] Proceeding after delay...');
+      // --- END DIAGNOSTIC DELAY ---
 
       final QuerySnapshot snapshot = await _firestoreService.getReceipts();
       

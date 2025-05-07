@@ -71,3 +71,10 @@
        // Other emulator configurations...
      }
      ```
+
+
+**Other Notes**
+  - If you want to save data locally from the emulator and reload when you start, try this (untested):
+  ```
+  firebase emulators:start --only auth,firestore,storage,functions --import=./emulator_seed_data --export-on-exit=./emulator_seed_data
+  ```
