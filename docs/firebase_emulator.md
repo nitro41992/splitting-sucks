@@ -11,6 +11,11 @@
      ```
    - If necessary, kill processes using required ports or update `firebase.json` to use alternative ports.
 
+   - Kill a process with this commend
+     ```sh
+     taskkill /PID <process_id> /F
+     ```
+
 2. **Start the Firebase Emulator Suite**
    - From the project root, run:
      ```sh
