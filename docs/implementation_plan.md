@@ -117,15 +117,17 @@
 
 1. **Setup Working (for Physical Device & Emulators):**
    - ✅ `.env` file with `USE_FIRESTORE_EMULATOR=true` toggles emulator use.
-   - ✅ `main.dart` configures emulators using the host PC's LAN IP (`192.168.0.152`) for physical device testing.
+   - ✅ `main.dart` configures emulators using the host PC's LAN IP (e.g., `192.168.0.152`) for physical device testing.
    - ✅ Host machine firewall configured to allow inbound connections on emulator ports.
    - ✅ `firebase.json` configures emulators to listen on `host: "0.0.0.0"`.
-   - ⚠️ **Rules Workaround:**
-       - Due to suspected issue in `firebase-tools` v14.2.1, the Firestore emulator currently ignores the `emulators.firestore.rules` setting in `firebase.json`.
-       - **WORKAROUND:** The **`firestore.rules`** file (used for production) is temporarily configured with permissive rules (`allow read, write: if true;`) during development to allow the Firestore emulator to function correctly.
-       - The `firestore.emulator.rules` file exists with permissive rules but is **not** being loaded by the Firestore emulator.
-       - The Storage emulator **correctly** loads and uses the permissive `storage.emulator.rules` file as configured in `firebase.json`.
-       - **CRITICAL:** The secure production rules **MUST** be restored to `firestore.rules` before committing code or deploying.
+   - ✅ **Firestore Emulator Rules Fix:**
+     - The Firestore emulator now correctly loads `firestore.emulator.rules`.
+     - **Solution:** The **top-level** `"firestore": { "rules": ... }` entry in `firebase.json` has been changed to point to `"firestore.emulator.rules"`.
+     - The `emulators.firestore.rules` key in `firebase.json` was found to be unreliable for specifying the rules file for the Firestore emulator and has been removed for clarity.
+     - The `firestore.rules` file now contains the secure **production** rules.
+     - The `firestore.emulator.rules` file contains permissive rules for development (`allow read, write: if true;`).
+     - The Storage emulator **correctly** loads and uses the permissive `storage.emulator.rules` file as configured in `firebase.json` (via `emulators.storage.rules`).
+     - **IMPORTANT FOR DEPLOYMENT:** Before deploying to production, the top-level `"firestore": { "rules": ... }` in `firebase.json` **MUST** be changed back to point to `"firestore.rules"`.
    - ✅ Seeding script creates test data in emulator.
    - ✅ Android debug manifest allows cleartext traffic.
 
@@ -155,16 +157,15 @@
 
 ## Known Issues (Beyond specific component challenges)
 
-- **Firestore Permission Denied:**
-    - ✅ **Resolved (via Workaround):** The Firestore emulator was incorrectly loading the production `firestore.rules` file instead of `firestore.emulator.rules` as specified in `firebase.json` (suspected `firebase-tools` v14.2.1 issue). 
-    - **Workaround Applied:** The `firestore.rules` file now temporarily contains permissive rules (`allow read, write: if true;`) for local development using the emulator.
-    - **CRITICAL CAVEAT:** Secure production rules MUST be restored to `firestore.rules` before committing or deploying.
+- **Firestore Permission Denied (during development with emulator):**
+    - ✅ **Resolved:** The Firestore emulator was incorrectly loading the production `firestore.rules` file instead of `firestore.emulator.rules`.
+    - **Solution:** The top-level `"firestore": { "rules": ... }` entry in `firebase.json` was updated to point to `"firestore.emulator.rules"` for local development. The secure production rules are maintained in `firestore.rules`, and permissive rules for the emulator are in `firestore.emulator.rules`. This configuration needs to be managed for production deployment (top-level `rules` key in `firebase.json` should point to `firestore.rules` for production builds/deployments).
 - **Google Sign-In Play Services Error:**
     - Although Google Sign-In now works, logs show repeated `SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs monitoring; could indicate issues with Play Services, SHA-1, or API keys if functional problems arise.
 
 ## Next Steps (Priority Order)
 
-1.  **(Low Priority / Background):** Investigate/Report Firestore Emulator Rules Bug in `firebase-tools`.
+1.  **(Documentation/Process):** Document the `firebase.json` (top-level `firestore.rules`) switch needed between development (using `firestore.emulator.rules`) and production (using `firestore.rules`). Consider a script or build process step to manage this.
 2.  **Performance Optimization (Receipts Loading):**
     - Implement pagination for the receipts list in `ReceiptsScreen` and `FirestoreService`.
 3. **Create Comprehensive Testing Suite:**

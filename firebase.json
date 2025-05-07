@@ -12,13 +12,12 @@
     "firestore": {
       "host": "0.0.0.0",
       "port": 8081,
-      "rules": "firestore.emulator.rules",
       "indexes": "firestore.indexes.json"
     },
     "storage": {
       "host": "0.0.0.0",
       "port": 9199,
-      "rules": "storage.emulator.rules"
+      "rules": "storage.emulator.rules" 
     },
     "functions": {
       "port": 5001,
@@ -35,11 +34,11 @@
     "source": "dataconnect"
   },
   "firestore": {
-    "rules": "firestore.rules",
+    "rules": "firestore.emulator.rules", 
     "indexes": "firestore.indexes.json"
   },
   "storage": {
-    "rules": "storage.rules"
+    "rules": "storage.rules" 
   },
   "extensions": {},
   "app_distribution": {

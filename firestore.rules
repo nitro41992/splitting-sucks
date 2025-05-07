@@ -10,7 +10,6 @@ service cloud.firestore {
       match /receipts/{receiptId} {
         // Owner can do anything
         allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
-        // NOTE: The permissive rule for "test-user-id" has been removed for production.
       }
     }
     
@@ -21,10 +20,12 @@ service cloud.firestore {
       allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid; 
     }
     
-    // Optional: A general deny-all rule if not all paths are covered above,
+    // A general deny-all rule if not all paths are covered above,
     // ensuring no unintended access.
+    // CAUTION: This was `allow read, write: if true;` in the retrieved version, which is too permissive for production.
+    // Changing to `allow read, write: if false;` for a secure default.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
