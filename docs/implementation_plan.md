@@ -108,6 +108,8 @@
     - ✅ **Resolved:** Sign-out navigation fixed.
         - **Solution:** Removed temporary `AuthService` instantiation from `main()`; ensured `AuthService` provided by `AppWithProviders` is used consistently. Added debug logging to `MyApp`'s `StreamBuilder` to verify state changes.
     - ✅ Anonymous sign-in via `autoSignInForEmulator` now working correctly with the emulator.
+    - ✅ **Resolved:** Emulator sign-out persistence after clean rebuild.
+        - **Solution:** Modified `AuthService.authStateChanges` getter to consistently use the main user stream (`_userStreamController.stream`) in emulator mode. This ensures the UI correctly reflects the null user state after sign-out, preventing a stale authenticated state (often the previously Google-signed-in user) from persisting due to the emulator's auth state bypass logic.
     - ⚠️ **Remaining Issue:** Persistent `SecurityException: Unknown calling package name 'com.google.android.gms'` during Google Sign-In, although sign-in flow now completes successfully. Potentially related to Play Services state on the device or SHA-1/API key configuration.
     - ✅ Firebase services correctly connect to emulators using the host PC's LAN IP.
 
