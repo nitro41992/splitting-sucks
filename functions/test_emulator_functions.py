@@ -54,21 +54,27 @@ def test_transcribe_audio():
 
 
 def test_assign_people_to_items(receipt_items, transcription):
-    # Use the first two items for a simple assignment example
-    items = []
+    # Format receipt items to match the expected structure
+    formatted_items = []
     for idx, item in enumerate(receipt_items):
-        items.append({
+        formatted_items.append({
             "id": idx + 1,
-            "item": item.get("item", item.get("name", "Item")),
+            "name": item.get("item", item.get("name", "Item")),
             "quantity": item.get("quantity", 1),
             "price": item.get("price", 0.0)
         })
+    
+    # Simple payload with receipt items and transcription
     payload = {
         "data": {
-            "items": items,
+            "receipt_items": formatted_items,
             "transcription": transcription
         }
     }
+    
+    print("Sending payload to assign_people_to_items:")
+    pretty_print("Request payload", payload)
+    
     resp = requests.post(ASSIGN_PEOPLE_URL, json=payload)
     try:
         resp_json = resp.json()
@@ -81,19 +87,30 @@ def test_assign_people_to_items(receipt_items, transcription):
 def main():
     print("Testing parse_receipt...")
     parse_result = test_parse_receipt()
-    # Try to extract items for assignment
+    
+    # Extract items from parse_receipt result
     items = []
     if isinstance(parse_result, dict):
-        items = parse_result.get("items") or parse_result.get("data", {}).get("items", [])
+        if "data" in parse_result and "items" in parse_result["data"]:
+            items = parse_result["data"]["items"]
+        elif "items" in parse_result:
+            items = parse_result["items"]
+    
     if not items:
         print("No items found in parse_receipt output. Skipping assign_people_to_items test.")
         return
 
     print("Testing transcribe_audio...")
     transcribe_result = test_transcribe_audio()
+    
+    # Extract transcription text
     transcription = ""
     if isinstance(transcribe_result, dict):
-        transcription = transcribe_result.get("text") or transcribe_result.get("data", {}).get("text", "")
+        if "data" in transcribe_result and "text" in transcribe_result["data"]:
+            transcription = transcribe_result["data"]["text"]
+        elif "text" in transcribe_result:
+            transcription = transcribe_result["text"]
+    
     if not transcription:
         print("No transcription found in transcribe_audio output. Using a placeholder.")
         transcription = "John gets 1 burger, Jane gets fries"

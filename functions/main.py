@@ -67,8 +67,12 @@ class SharedItemDetail(BaseModel):
     price: float
     people: List[str]
 
+class PersonItemAssignment(BaseModel):
+    person_name: str
+    items: List[ItemDetail] = Field(default_factory=list)
+
 class AssignPeopleToItems(BaseModel):
-    assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
+    assignments: List[PersonItemAssignment] = Field(default_factory=list)
     shared_items: List[SharedItemDetail] = Field(default_factory=list)
     unassigned_items: List[ItemDetail] = Field(default_factory=list)
 

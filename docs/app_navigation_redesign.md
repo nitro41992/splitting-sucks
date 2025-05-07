@@ -5,6 +5,11 @@
 - Modified `init_firestore_config.py` to load configurations from emulator_seed_data files instead of using hardcoded values.
 - Fixed port conflicts in Firebase emulator configuration by updating `firebase.json` to use alternative ports.
 - Successfully tested emulator functions with correct configurations.
+- Fixed validation error in `assign_people_to_items` Cloud Function by updating Pydantic models:
+  - Created `PersonItemAssignment` class to replace Dict structure
+  - Modified `AssignPeopleToItems` model to use List of assignments instead of Dict
+  - Updated output format to align with receipt data model
+- Successfully tested all Cloud Functions in emulator environment
 - App navigation and workflow redesign plan documented, including:
   - Bottom navigation bar structure (Receipts, Settings)
   - Centralized Receipts screen with FAB for adding receipts
@@ -14,7 +19,6 @@
   - Security and best practices outlined
 
 **Pending:**
-- Integration of Cloud Functions testing with emulator (currently getting a validation error for `assign_people_to_items`)
 - Implementation of redesigned UI components in Flutter (navigation bar, Receipts screen, workflow modal, etc.)
 - Firestore service methods for CRUD operations and auto-save logic
 - Draft management (save, resume, edit, delete) in the app
@@ -22,6 +26,14 @@
 - Connecting UI to backend (Cloud Functions, Firestore persistence)
 - Widget and logic reusability refactor as per new design
 - Comprehensive testing (unit, widget, integration)
+
+**Key Notes for Next Session:**
+- Cloud Function data models have been updated for better validation and type safety
+- The `assign_people_to_items` function now returns assignments as a List of PersonItemAssignment objects rather than a Dictionary
+- Item fields use "name" rather than "item" in the assignment data structure
+- The updated data model aligns with the storage schema described in section 2.2
+- No changes to the frontend code have been made yet - implementing the new UI is the next priority
+- Test functions and emulator setup are working correctly for local development
 
 ---
 
@@ -354,4 +366,88 @@ After seeding the emulator with configurations, you can test your Cloud Function
 
 **Security Note:**
 - Always add your service account key file to `.gitignore` to prevent accidental commits.
-- The key is only used locally for emulator access and is not sent to Google when the emulator is running. 
+- The key is only used locally for emulator access and is not sent to Google when the emulator is running.
+
+## 8. Cloud Function Model Update: Fixed Assign People to Items Function
+
+### Issue Addressed
+We resolved a validation error in the `assign_people_to_items` Cloud Function by updating the Pydantic model structure. The error occurred because the function was using a `Dict[str, List[ItemDetail]]` structure for the assignments, which wasn't properly validated by Pydantic when receiving responses from the AI model.
+
+### Model Changes Made
+1. Created a new Pydantic class `PersonItemAssignment` with `person_name` and `items` fields to replace dictionary keys.
+2. Updated the `AssignPeopleToItems` model to use a `List[PersonItemAssignment]` instead of a `Dict[str, List[ItemDetail]]`.
+3. Updated the test script to format receipt items correctly with "name" instead of "item" field.
+
+The key change in `main.py`:
+```python
+# Old structure
+class AssignPeopleToItems(BaseModel):
+    assignments: Dict[str, List[ItemDetail]] = Field(default_factory=dict)
+    shared_items: List[SharedItemDetail] = Field(default_factory=list)
+    unassigned_items: List[ItemDetail] = Field(default_factory=list)
+
+# New structure
+class PersonItemAssignment(BaseModel):
+    person_name: str
+    items: List[ItemDetail] = Field(default_factory=list)
+
+class AssignPeopleToItems(BaseModel):
+    assignments: List[PersonItemAssignment] = Field(default_factory=list)
+    shared_items: List[SharedItemDetail] = Field(default_factory=list)
+    unassigned_items: List[ItemDetail] = Field(default_factory=list)
+```
+
+### Output Schema
+The `assign_people_to_items` function now returns the following structure:
+
+```json
+{
+  "data": {
+    "assignments": [
+      {
+        "person_name": "Person1",
+        "items": [
+          {
+            "name": "Item Name",
+            "price": 10.0,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "person_name": "Person2",
+        "items": [
+          {
+            "name": "Another Item",
+            "price": 15.0,
+            "quantity": 2
+          }
+        ]
+      }
+    ],
+    "shared_items": [
+      {
+        "name": "Shared Item",
+        "people": ["Person1", "Person2"],
+        "price": 20.0,
+        "quantity": 1
+      }
+    ],
+    "unassigned_items": [
+      {
+        "name": "Unassigned Item",
+        "price": 5.0,
+        "quantity": 1
+      }
+    ]
+  }
+}
+```
+
+This updated structure ensures consistent validation between the AI model output and our application's data model. It also provides a more type-safe and consistent format for storing and manipulating assignment data in the application.
+
+### Performance Note
+The existing emulator setup automatically picks up these model changes after modifying the `main.py` file - no separate deployment step is needed for local testing. This allows for rapid iteration when making schema changes to cloud functions.
+
+### Integration with Receipt Data Model
+This output structure aligns with our redesigned receipt data model (see section 2.2) by providing the assignment data in a format that can be directly stored in the `assign_people_to_items` field of the receipt document. 
