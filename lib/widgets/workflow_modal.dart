@@ -50,6 +50,7 @@ class WorkflowState extends ChangeNotifier {
   Map<String, dynamic> _assignPeopleToItemsResult = {};
   double? _tip;
   double? _tax;
+  List<String> _people = [];
   bool _isLoading = false;
   String? _errorMessage;
   
@@ -84,6 +85,20 @@ class WorkflowState extends ChangeNotifier {
   
   // Getter for the pending deletion list (read-only view)
   List<String> get pendingDeletionGsUris => List.unmodifiable(_pendingDeletionGsUris);
+  
+  // Getter for people
+  List<String> get people => _people;
+  
+  // --- EDIT: Add getters to check for existing data in subsequent steps ---
+  bool get hasParseData => _parseReceiptResult.isNotEmpty && 
+                          (_parseReceiptResult['items'] as List?)?.isNotEmpty == true;
+  
+  bool get hasTranscriptionData => _transcribeAudioResult.isNotEmpty && 
+                                  (_transcribeAudioResult['text'] as String?)?.isNotEmpty == true;
+  
+  bool get hasAssignmentData => _assignPeopleToItemsResult.isNotEmpty && 
+                               (_assignPeopleToItemsResult['assignments'] as List?)?.isNotEmpty == true;
+  // --- END EDIT ---
   
   // Step navigation
   void goToStep(int step) {
@@ -138,6 +153,7 @@ class WorkflowState extends ChangeNotifier {
     _assignPeopleToItemsResult = {};
     _tip = null;
     _tax = null;
+    _people = [];
     notifyListeners();
   }
   
@@ -161,6 +177,7 @@ class WorkflowState extends ChangeNotifier {
     _assignPeopleToItemsResult = {};
     _tip = null;
     _tax = null;
+    _people = [];
     notifyListeners();
   }
   
@@ -188,9 +205,10 @@ class WorkflowState extends ChangeNotifier {
   void setAssignPeopleToItemsResult(Map<String, dynamic>? result) {
     _assignPeopleToItemsResult = result ?? {};
     debugPrint('[WorkflowState] setAssignPeopleToItemsResult set to: ${_assignPeopleToItemsResult}');
-    // When assignments change, clear subsequent dependent state (tip/tax)
+    // When assignments change, clear subsequent dependent state
     _tip = null;
     _tax = null;
+    _people = _extractPeopleFromAssignments();
     notifyListeners();
   }
   
@@ -279,7 +297,7 @@ class WorkflowState extends ChangeNotifier {
       transcribeAudio: _transcribeAudioResult,
       assignPeopleToItems: _assignPeopleToItemsResult,
       status: 'draft',
-      people: _extractPeopleFromAssignments(),
+      people: _people,
       tip: _tip,
       tax: _tax,
       // TODO: Add tip/tax from splitManagerState if available for drafts too? Or only on complete?
@@ -297,13 +315,77 @@ class WorkflowState extends ChangeNotifier {
       final assignments = _assignPeopleToItemsResult['assignments'] as List;
       for (final assignment in assignments) {
         if (assignment is Map && assignment.containsKey('person_name')) {
-          people.add(assignment['person_name'] as String);
+          final personName = assignment['person_name'] as String?;
+          if (personName != null && personName.isNotEmpty && !people.contains(personName)) {
+             people.add(personName); // Ensure non-null, non-empty, unique
+          }
+        }
+      }
+    }
+    // Also include people mentioned in shared items
+    if (_assignPeopleToItemsResult.containsKey('shared_items') &&
+        _assignPeopleToItemsResult['shared_items'] is List) {
+      final sharedItems = _assignPeopleToItemsResult['shared_items'] as List;
+      for (final sharedItem in sharedItems) {
+        if (sharedItem is Map && sharedItem.containsKey('people') && sharedItem['people'] is List) {
+          final sharedPeople = sharedItem['people'] as List;
+          for (final personNameDynamic in sharedPeople) {
+            if (personNameDynamic is String) {
+              final personName = personNameDynamic;
+               if (personName.isNotEmpty && !people.contains(personName)) {
+                 people.add(personName);
+               }
+            }
+          }
         }
       }
     }
     
+    // Sort for consistency? Optional.
+    // people.sort(); 
     return people;
   }
+
+  // Added setter for people list
+  void setPeople(List<String> newPeople) {
+    // Use ListEquality to check if lists are deeply equal to avoid unnecessary notifications
+    if (!const DeepCollectionEquality().equals(_people, newPeople)) {
+       _people = newPeople;
+       notifyListeners();
+    }
+  }
+
+  // --- EDIT: Add specific data clearing methods ---
+  void clearParseAndSubsequentData() {
+    _parseReceiptResult = {};
+    _transcribeAudioResult = {};
+    _assignPeopleToItemsResult = {};
+    // _tip = null; // Keep Tip
+    // _tax = null; // Keep Tax
+    _people = [];
+    debugPrint('[WorkflowState] Cleared Parse, Transcription, Assignment, People. Tip/Tax remain.');
+    notifyListeners();
+  }
+
+  void clearTranscriptionAndSubsequentData() {
+    _transcribeAudioResult = {};
+    // _assignPeopleToItemsResult = {}; // Keep Assignments
+    // _tip = null; // Keep Tip
+    // _tax = null; // Keep Tax
+    // _people = []; // Keep People (derived from assignments)
+    debugPrint('[WorkflowState] Cleared ONLY Transcription. Assignments, People, Tip/Tax remain.');
+    notifyListeners();
+  }
+
+  void clearAssignmentAndSubsequentData() {
+    _assignPeopleToItemsResult = {};
+    // _tip = null; // Keep Tip
+    // _tax = null; // Keep Tax
+    _people = []; // People list depends on assignments, so clear it.
+    debugPrint('[WorkflowState] Cleared Assignments and People. Tip/Tax remain.');
+    notifyListeners();
+  }
+  // --- END EDIT ---
 }
 
 /// Dialog to prompt for restaurant name
@@ -470,6 +552,30 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     });
   }
   
+  // --- EDIT: Add helper for confirmation dialog ---
+  Future<bool> _showConfirmationDialog(String title, String content) async {
+    if (!mounted) return false;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false), // Cancel
+            child: const Text('CANCEL'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true), // Confirm
+            child: const Text('CONFIRM'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+  // --- END EDIT ---
+  
   // Load receipt data from Firestore
   Future<void> _loadReceiptData(String receiptId) async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
@@ -511,6 +617,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems); 
       workflowState.setTip(receipt.tip);
       workflowState.setTax(receipt.tax);
+      workflowState.setPeople(receipt.people ?? []);
       
       // --- Concurrently get Download URLs for Main Image and Thumbnail ---
       String? loadedImageUrl;
@@ -648,28 +755,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       // If saving fails, show an error and ask what to do
       if (!mounted) return false;
       
-      final result = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Error Saving Draft'),
-          content: Text(
-            'There was an error saving your draft: $e\n\n'
-            'Do you want to try again or discard changes?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false), // Don't save, just exit
-              child: const Text('DISCARD'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true), // Try again
-              child: const Text('TRY AGAIN'),
-            ),
-          ],
-        ),
-      );
+      final result = await _showConfirmationDialog('Error Saving Draft', 'There was an error saving your draft: $e\n\n'
+            'Do you want to try again or discard changes?');
       
-      if (result == true) {
+      if (result) {
         // Try again
         return _onWillPop();
       }
@@ -990,8 +1079,19 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
               
               // Callbacks still use the workflowState obtained via Provider.of outside the Consumer
               onImageSelected: (file) async {
+                // --- EDIT: Add confirmation if parse data exists ---
+                if (workflowState.hasParseData) {
+                  final confirmed = await _showConfirmationDialog(
+                    'Confirm Action',
+                    'Selecting a new image will clear all currently reviewed items, assigned people, and split details. Do you want to continue?'
+                  );
+                  if (!confirmed) return; // User cancelled
+                  workflowState.clearParseAndSubsequentData();
+                }
+                // --- END EDIT ---
+
                 if (file != null) {
-                  workflowState.setImageFile(file); // Use original workflowState ref
+                  workflowState.setImageFile(file); // This already clears subsequent data internally
                   workflowState.setErrorMessage(null);
                   _uploadImageAndProcess(file).then((uris) {
                     if (mounted && workflowState.imageFile == file) { // Use original ref
@@ -1016,7 +1116,18 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                 }
               },
               onParseReceipt: () async {
-                workflowState.setLoading(true); // Use original ref
+                // --- EDIT: Add confirmation dialog ---
+                if (workflowState.hasParseData) {
+                  final confirmed = await _showConfirmationDialog(
+                    'Confirm Re-Parse',
+                    'Parsing again will clear all currently reviewed items, voice assignments, and split details. Tip and Tax will be preserved. Do you want to continue?'
+                  );
+                  if (!confirmed) return;
+                  workflowState.clearParseAndSubsequentData(); // Clears relevant data, preserves tip/tax
+                }
+                // --- END EDIT ---
+
+                workflowState.setLoading(true); 
                 workflowState.setErrorMessage(null);
                 String? gsUriForParsing;
                 try {
@@ -1090,6 +1201,11 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         
       case 1: // Review
         // Convert receipt data to ReceiptItem objects for review
+        // --- EDIT: Check for parse data before building ---
+        if (!workflowState.hasParseData) {
+          return _buildPlaceholder('Please upload and parse a receipt first.');
+        }
+        // --- END EDIT ---
         final List<ReceiptItem> items = _convertToReceiptItems(workflowState.parseReceiptResult);
         
         debugPrint('[_buildStepContent Consumer for Review] Building ReceiptReviewScreen with ${items.length} items.');
@@ -1117,6 +1233,11 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       case 2: // Assign
         return Consumer<WorkflowState>(
           builder: (context, consumedState, child) {
+            // --- EDIT: Check for parse data before building ---
+            if (!consumedState.hasParseData) {
+              return _buildPlaceholder('Please complete the Review step first.');
+            }
+            // --- END EDIT ---
             final List<ReceiptItem> items = _convertToReceiptItems(consumedState.parseReceiptResult);
             
             debugPrint('[_buildStepContent Assign] consumedState._transcribeAudioResult: ${consumedState._transcribeAudioResult}');
@@ -1126,8 +1247,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
             return VoiceAssignmentScreen(
               itemsToAssign: items, 
               initialTranscription: initialTranscriptionFromState ?? '',
-              onAssignmentProcessed: (assignmentResult) {
-                workflowState.setAssignPeopleToItemsResult(assignmentResult);
+              onAssignmentProcessed: (assignmentResultData) {
+                debugPrint('[WorkflowModal Assign CB] onAssignmentProcessed received data type: ${assignmentResultData.runtimeType}');
+                debugPrint('[WorkflowModal Assign CB] onAssignmentProcessed data content: $assignmentResultData');
+                workflowState.setAssignPeopleToItemsResult(assignmentResultData);
                 workflowState.nextStep();
               },
               onTranscriptionChanged: (newTranscription) {
@@ -1136,6 +1259,32 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                 workflowState.setTranscribeAudioResult(currentTranscribeResult);
                 debugPrint('[WorkflowModal] Transcription updated in WorkflowState using key \'text\': $newTranscription');
               },
+              onReTranscribeRequested: () async {
+                if (workflowState.hasTranscriptionData) {
+                  final confirmed = await _showConfirmationDialog(
+                    'Confirm Re-transcribe',
+                    'Starting a new recording will clear the current transcription text. Assignments and split details will be preserved unless you re-process assignments later. Continue?'
+                  );
+                  if (!confirmed) return false;
+                  workflowState.clearTranscriptionAndSubsequentData();
+                  debugPrint('[WorkflowModal] Re-transcribe confirmed. Transcription cleared.');
+                  return true;
+                }
+                return true;
+              },
+              onConfirmProcessAssignments: () async {
+                if (workflowState.hasAssignmentData) {
+                  final confirmed = await _showConfirmationDialog(
+                    'Confirm Process Assignments',
+                    'This will re-process assignments based on the current transcription and overwrite any existing assignment data. Tip and tax will be preserved. Continue?'
+                  );
+                  if (!confirmed) return false;
+                  workflowState.clearAssignmentAndSubsequentData();
+                  debugPrint('[WorkflowModal] Process assignments confirmed. Previous assignments cleared.');
+                  return true;
+                }
+                return true;
+              },
             );
           }
         );
@@ -1143,118 +1292,156 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       case 3: // Split
         return Consumer<WorkflowState>(
           builder: (context, workflowState, child) {
+            // --- EDIT: Check for assignment data before building ---
+            // Use hasAssignmentData which checks if the assignments list is not empty
+            if (!workflowState.hasAssignmentData) {
+              return _buildPlaceholder('Please complete the voice assignment first, or ensure people/items were assigned.');
+            }
+            // --- END EDIT ---
             final parseResult = workflowState.parseReceiptResult;
             final assignResultMap = workflowState.assignPeopleToItemsResult;
+            debugPrint('[_buildStepContent SplitProvider] assignResultMap runtimeType: ${assignResultMap.runtimeType}');
+            debugPrint('[_buildStepContent SplitProvider] assignResultMap content: $assignResultMap');
 
-            SplitManager manager;
+            // Always initialize SplitManager from the current workflowState's
+            // parseReceiptResult and assignPeopleToItemsResult.
+            debugPrint('[_buildStepContent SplitProvider] Creating/Recreating SplitManager for Split view.');
 
-            debugPrint('[_buildStepContent SplitProvider] Initializing SplitManager from assignResult.');
-            final List<ReceiptItem> initialItems =
-                (parseResult['items'] as List<dynamic>?)
-                        ?.map((itemMap) => ReceiptItem.fromJson(itemMap as Map<String, dynamic>))
-                        .toList() ??
-                    [];
-
-            final AssignmentResult assignResult = AssignmentResult.fromJson(assignResultMap);
-
-            final List<Person> people = [];
-            final List<ReceiptItem> sharedItems = [];
-            final List<ReceiptItem> unassignedItemsFromAssignResult = [];
-
-            for (var assignment in assignResult.assignments) {
-              final List<ReceiptItem> itemsForThisPerson = [];
-              for (var itemDetail in assignment.items) {
-                final originalItem = initialItems.firstWhereOrNull(
-                  (ri) => ri.name == itemDetail.name && ri.price == itemDetail.price
-                );
-                if (originalItem != null) {
-                  itemsForThisPerson.add(ReceiptItem(
-                    itemId: originalItem.itemId,
-                    name: itemDetail.name,
-                    quantity: itemDetail.quantity,
-                    price: itemDetail.price,
-                  ));
-                } else {
-                  itemsForThisPerson.add(ReceiptItem(
-                    name: itemDetail.name,
-                    quantity: itemDetail.quantity,
-                    price: itemDetail.price,
-                  ));
-                }
-              }
-              people.add(Person(name: assignment.personName, assignedItems: itemsForThisPerson));
-            }
-            for (var sharedItemDetail in assignResult.sharedItems) {
-              final originalItem = initialItems.firstWhereOrNull(
-                (ri) => ri.name == sharedItemDetail.name && ri.price == sharedItemDetail.price
-              );
-              ReceiptItem sharedReceiptItem;
-              if (originalItem != null) {
-                  sharedReceiptItem = ReceiptItem(
-                  itemId: originalItem.itemId,
-                  name: sharedItemDetail.name,
-                  quantity: sharedItemDetail.quantity,
-                  price: sharedItemDetail.price,
-                );
-              } else {
-                 sharedReceiptItem = ReceiptItem(
-                  name: sharedItemDetail.name,
-                  quantity: sharedItemDetail.quantity,
-                  price: sharedItemDetail.price,
-                );
-              }
-              sharedItems.add(sharedReceiptItem);
-              for (var personName in sharedItemDetail.people) {
-                final person = people.firstWhereOrNull((p) => p.name == personName);
-                if (person != null && !person.sharedItems.any((item) => item.isSameItem(sharedReceiptItem))) {
-                  person.addSharedItem(sharedReceiptItem);
-                }
-              }
-            }
-            for (var itemDetail in assignResult.unassignedItems) {
-               final originalItem = initialItems.firstWhereOrNull(
-                  (ri) => ri.name == itemDetail.name && ri.price == itemDetail.price
-                );
-                if (originalItem != null) {
-                   unassignedItemsFromAssignResult.add(ReceiptItem(
-                    itemId: originalItem.itemId,
-                    name: itemDetail.name,
-                    quantity: itemDetail.quantity,
-                    price: itemDetail.price,
-                  ));
-                } else {
-                   unassignedItemsFromAssignResult.add(ReceiptItem(
-                    name: itemDetail.name,
-                    quantity: itemDetail.quantity,
-                    price: itemDetail.price,
-                  ));
-                }
-            }
+            final List<Map<String, dynamic>> assignments = 
+                (assignResultMap['assignments'] as List<dynamic>?)
+                    ?.map((e) => e as Map<String, dynamic>)
+                    .toList() ?? [];
             
-            manager = SplitManager(
+            final List<Map<String, dynamic>> sharedItemsFromAssign = 
+                (assignResultMap['shared_items'] as List<dynamic>?)
+                    ?.map((e) => e as Map<String, dynamic>)
+                    .toList() ?? [];
+
+            final List<Map<String, dynamic>> unassignedItemsFromAssign = 
+                (assignResultMap['unassigned_items'] as List<dynamic>?)
+                    ?.map((e) => e as Map<String, dynamic>)
+                    .toList() ?? [];
+
+            final List<Person> people = assignments.map((assignment) {
+              final personName = assignment['person_name'] as String;
+              final itemsForPerson = (assignment['items'] as List<dynamic>).map((itemMap) {
+                final itemDetail = itemMap as Map<String, dynamic>;
+                // Here, we need to create ReceiptItem instances.
+                // We need a source for itemId if it exists, otherwise it's a new item.
+                // For now, let's assume items parsed here might not have a persistent itemId yet,
+                // or we can generate one if needed. This part might need refinement based on how
+                // items are initially created and identified before explicit splitting.
+                return ReceiptItem(
+                  name: itemDetail['name'] as String,
+                  quantity: (itemDetail['quantity'] as num).toInt(),
+                  price: (itemDetail['price'] as num).toDouble(),
+                  // itemId: if it comes from a parsed source, use it, else it's new.
+                );
+              }).toList();
+              return Person(name: personName, assignedItems: itemsForPerson);
+            }).toList();
+
+            final List<ReceiptItem> sharedItems = sharedItemsFromAssign.map((itemMap) {
+              // Similar to above, how do we get itemId if these are pre-existing items?
+              return ReceiptItem(
+                name: itemMap['name'] as String,
+                quantity: (itemMap['quantity'] as num).toInt(),
+                price: (itemMap['price'] as num).toDouble(),
+                // people: (itemMap['people'] as List<dynamic>).cast<String>(), // This was for AssignmentResult.SharedItemDetail
+              );
+            }).toList();
+            
+            // Populate shared items for each person based on the 'people' field in sharedItemsFromAssign
+            for (final sharedItemMap in sharedItemsFromAssign) {
+                final itemName = sharedItemMap['name'] as String;
+                final itemPrice = (sharedItemMap['price'] as num).toDouble();
+                final sharedItemInstance = sharedItems.firstWhereOrNull(
+                    (ri) => ri.name == itemName && ri.price == itemPrice
+                );
+                if (sharedItemInstance != null) {
+                    final List<String> personNamesSharingThisItem = (sharedItemMap['people'] as List<dynamic>).cast<String>();
+                    for (final personName in personNamesSharingThisItem) {
+                        final person = people.firstWhereOrNull((p) => p.name == personName);
+                        if (person != null && !person.sharedItems.any((si) => si.itemId == sharedItemInstance.itemId)) { // Ensure itemId is unique if used
+                            person.addSharedItem(sharedItemInstance);
+                        }
+                    }
+                }
+            }
+
+
+            final List<ReceiptItem> unassignedItemsFromAssignResult = unassignedItemsFromAssign.map((itemMap) {
+              return ReceiptItem(
+                name: itemMap['name'] as String,
+                quantity: (itemMap['quantity'] as num).toInt(),
+                price: (itemMap['price'] as num).toDouble(),
+              );
+            }).toList();
+            
+            // Extract initial items list from parseResult to get original quantities
+            final initialItemsFromParse = (parseResult['items'] as List<dynamic>?)
+              ?.map((itemMap) => ReceiptItem.fromJson(itemMap as Map<String, dynamic>))
+              .toList() ?? [];
+
+            final manager = SplitManager(
               people: people,
-              sharedItems: sharedItems,
+              sharedItems: sharedItems, // These are template shared items, not assigned yet. SplitManager handles distribution.
               unassignedItems: unassignedItemsFromAssignResult, 
-              tipPercentage: workflowState.tip,
-              taxPercentage: workflowState.tax,
+              tipPercentage: workflowState.tip ?? (parseResult['tip'] as num?)?.toDouble(), // Prioritize workflowState tip
+              taxPercentage: workflowState.tax ?? (parseResult['tax'] as num?)?.toDouble(), // Prioritize workflowState tax
               originalReviewTotal: (parseResult['subtotal'] as num?)?.toDouble(),
             );
             
-            for (var item in initialItems) {
+            // Set original quantities in the manager
+            for (var item in initialItemsFromParse) {
               manager.setOriginalQuantity(item, item.quantity);
             }
+            // Also for items that might have come from assign_people_to_items but were not in original parse
+            // (e.g. manually added items in a previous session that were saved in assign_people_to_items)
+            final allKnownItemsForQuantities = [
+              ...people.expand((p) => p.assignedItems),
+              ...sharedItems, // these are distinct instances
+              ...unassignedItemsFromAssignResult,
+            ];
+            for (var item in allKnownItemsForQuantities) {
+                if (manager.getOriginalQuantity(item) == 0 && item.quantity > 0) { // only if not already set by parseResult
+                    manager.setOriginalQuantity(item, item.quantity);
+                }
+            }
+            
+            manager.initialSplitViewTabIndex = _initialSplitViewTabIndex;
 
-            return ChangeNotifierProvider(
-              create: (context) {
-                manager.initialSplitViewTabIndex = _initialSplitViewTabIndex;
-                return manager;
-              },
-              child: SplitView()
+            // The SplitManager instance (manager) is created fresh.
+            // Attach the listener directly here for this new instance.
+            manager.addListener(() {
+              if (mounted && Provider.of<WorkflowState>(context, listen: false) == workflowState) {
+                if (workflowState.tip != manager.tipPercentage) {
+                  workflowState.setTip(manager.tipPercentage);
+                }
+                if (workflowState.tax != manager.taxPercentage) {
+                  workflowState.setTax(manager.taxPercentage);
+                }
+                final newAssignmentMap = manager.generateAssignmentMap();
+                workflowState.setAssignPeopleToItemsResult(newAssignmentMap);
+                final newPeopleList = manager.currentPeopleNames;
+                workflowState.setPeople(newPeopleList);
+              }
+            });
+
+            return ChangeNotifierProvider.value(
+              value: manager,
+              child: SplitView(),
             );
           }
         );
         
       case 4: // Summary
+        // --- EDIT: Check for assignment data before building ---
+        // Summary depends on having assignment data to show totals per person etc.
+        if (!workflowState.hasAssignmentData) {
+           return _buildPlaceholder('Please complete the Split step first, ensuring items are assigned.');
+        }
+        // --- END EDIT ---
         return ChangeNotifierProvider(
           create: (context) {
             final assignResultMap = workflowState.assignPeopleToItemsResult;
@@ -1401,7 +1588,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           // Next/Complete button
           currentStep < 4
               ? FilledButton.icon(
-                  onPressed: () => workflowState.nextStep(),
+                  onPressed: () async {
+                    workflowState.nextStep();
+                  },
                   label: const Text('Next'),
                   icon: const Icon(Icons.arrow_forward),
                 )
@@ -1485,7 +1674,23 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         ),
         body: Column(
           children: [
-            _buildStepIndicator(workflowState.currentStep),
+            // _buildStepIndicator(workflowState.currentStep), // REMOVED direct call
+            
+            // Allow tapping on step indicators with confirmation
+            GestureDetector(
+              onTapUp: (details) {
+                final RenderBox box = context.findRenderObject() as RenderBox;
+                final localOffset = box.globalToLocal(details.globalPosition);
+                final screenWidth = MediaQuery.of(context).size.width;
+                final stepWidth = screenWidth / _stepTitles.length;
+                final tappedStep = (localOffset.dx / stepWidth).floor();
+
+                if (tappedStep >= 0 && tappedStep < _stepTitles.length && tappedStep != workflowState.currentStep) {
+                  workflowState.goToStep(tappedStep);
+                }
+              },
+              child: _buildStepIndicator(workflowState.currentStep),
+            ),
             
             Expanded(
               child: _buildStepContent(workflowState.currentStep),
@@ -1531,4 +1736,32 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     
     return items;
   }
+
+  // --- EDIT: Add standard placeholder widget ---
+  Widget _buildPlaceholder(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.info_outline,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  // --- END EDIT ---
 } 

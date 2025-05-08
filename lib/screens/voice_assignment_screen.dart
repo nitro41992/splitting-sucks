@@ -19,6 +19,8 @@ class VoiceAssignmentScreen extends StatefulWidget {
   final String? initialTranscription;
   // Callback to update parent when transcription changes
   final Function(String? transcription)? onTranscriptionChanged;
+  final Future<bool> Function()? onReTranscribeRequested; // MODIFIED to return Future<bool>
+  final Future<bool> Function()? onConfirmProcessAssignments; // ADDED new callback
 
   const VoiceAssignmentScreen({
     super.key,
@@ -26,6 +28,8 @@ class VoiceAssignmentScreen extends StatefulWidget {
     required this.onAssignmentProcessed,
     this.initialTranscription,
     this.onTranscriptionChanged,
+    this.onReTranscribeRequested,
+    this.onConfirmProcessAssignments, // ADDED to constructor
   });
 
   @override
@@ -70,8 +74,17 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   }
 
   Future<void> _toggleRecording() async {
-    // Real recording logic
     if (!_isRecording) {
+      // --- EDIT: Call onReTranscribeRequested and check confirmation ---
+      if (widget.onReTranscribeRequested != null) {
+        final bool confirmed = await widget.onReTranscribeRequested!();
+        if (!confirmed) {
+          setState(() => _isLoading = false); // Ensure loading state is reset if aborted
+          return; // User cancelled re-transcription
+        }
+      }
+      // --- END EDIT ---
+
       final hasPermission = await _recorder.hasPermission();
       print('DEBUG: Microphone permission status: $hasPermission');
       
@@ -176,7 +189,20 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   }
 
   Future<void> _processTranscription() async {
-    if (_transcription == null) return;
+    if (_transcriptionController.text.isEmpty) { // Check against controller text
+      ToastHelper.showToast(context, 'Please record or type your assignments first.');
+      return;
+    }
+
+    // --- EDIT: Call onConfirmProcessAssignments and check confirmation ---
+    if (widget.onConfirmProcessAssignments != null) {
+      final bool confirmed = await widget.onConfirmProcessAssignments!();
+      if (!confirmed) {
+        setState(() => _isLoading = false); // Ensure loading state is reset if aborted
+        return; // User cancelled processing assignments
+      }
+    }
+    // --- END EDIT ---
 
     setState(() => _isLoading = true);
     final editedTranscription = _transcriptionController.text;

@@ -81,18 +81,46 @@
     - Modified Summary Step (`case 4`): Initializes `SplitManager` fresh from `assign_people_to_items` and sets tip/tax from `WorkflowState`.
     - Modified `_completeReceipt`: Removed direct reading of tip/tax and arguments to `firestoreService.completeReceipt` (now relies on `receipt.toMap()`).
     - Modified `FirestoreService.completeReceipt`: Removed `tip`, `tax`, `restaurantName` parameters; now relies on the `data` map containing these within `metadata`.
-    - **Note:** This removes persistence for detailed `SplitManager` edits (like adding people *only* in the Split step) across sessions, strictly following the specified data model. Tip/Tax changes persist.
+- ✅ **Refined Split Step Data Handling & Persistence (Modal Client-Side):**
+    - `SplitManager` (`lib/models/split_manager.dart`):
+        - Added `generateAssignmentMap()` to convert its internal state (people, items, etc.) to the `assign_people_to_items` map format.
+        - Added `currentPeopleNames` getter.
+        - Removed `toJson()` and `fromJson()` as the entire manager state is no longer directly serialized.
+    - `WorkflowState` (`lib/widgets/workflow_modal.dart`):
+        - Added `_people` (List<String>) field, getter, and `setPeople()` method.
+        - `_loadReceiptData` loads `receipt.people`.
+        - Resets and `setAssignPeopleToItemsResult()` correctly update/extract `_people`.
+        - `toReceipt()` uses `_people` for `Receipt.people`.
+    - `_WorkflowModalBodyState._buildStepContent` (case 3 - Split):
+        - `SplitManager` is now always initialized fresh using data from `workflowState.assignPeopleToItemsResult`, `workflowState.parseReceiptResult`, `workflowState.tip`, and `workflowState.tax`.
+        - A listener attached to `SplitManager` updates:
+            - `workflowState.assignPeopleToItemsResult` (by calling `manager.generateAssignmentMap()`).
+            - `workflowState.people` (by calling `manager.currentPeopleNames`).
+            - `workflowState.tip` and `workflowState.tax`.
+    - This ensures modifications in `SplitView` (via `SplitManager`) are reflected in `WorkflowState` and persisted correctly to `assign_people_to_items` and `metadata` in Firestore.
 
-**In Progress / Pending Testing:**
-- **Split Step State Persistence (Modal Client-Side):**
-    - **Status:** Partially resolved by removing `split_manager_state` and using `WorkflowState.tip`/`tax`. Requires testing.
+**In Progress / Pending Implementation & Testing:**
+
+- **Workflow Interruption Confirmations (Modal Client-Side):**
+    - **Goal:** Prevent accidental data loss by showing confirmation dialogs if a user action would discard data from subsequent workflow steps.
+    - **Locations for Confirmation:**
+        1.  **Upload Step:** When selecting a new image/re-parsing if `parseReceiptResult` already has data.
+        2.  **Assign Step (Voice Assignment):** When attempting to re-run voice transcription if `transcribeAudioResult` already has data.
+        3.  **Split Step Navigation:** When attempting to navigate back to "Assign" if `assignPeopleToItemsResult` already has data.
+    - **Action on Confirmation:** If user confirms, clear the relevant subsequent data in `WorkflowState` before proceeding with the action.
+    - **Implementation Plan:**
+        - Add boolean getters to `WorkflowState` (e.g., `hasParseData`, `hasTranscriptionData`, `hasAssignmentData`).
+        - Add specific data clearing methods to `WorkflowState` (e.g., `clearParseAndSubsequentData()`).
+        - Modify navigation logic in `_WorkflowModalBodyState` and step-specific callbacks to show `AlertDialog` and call clearing methods.
+- **Split Step State Persistence (Modal Client-Side) - Testing:**
+    - **Status:** Logic implemented as per above ✅. Requires testing.
     - **Test Case:** Verify that changes to **tip** and **tax** in the Split step persist when navigating between steps (Split -> Summary -> Split) and when saving/resuming drafts.
-    - **Test Case:** Confirm that adding/renaming people *only* within the Split step UI (if possible) does *not* persist across sessions, as per the strict data model adherence.
+    - **Test Case:** Verify that adding/removing/renaming people, adding/removing items, and reassigning items within the Split step correctly updates `WorkflowState.assignPeopleToItemsResult` and `WorkflowState.people` via the `SplitManager` listener, and that these changes persist on draft save/resume.
 - **Assignment Data Propagation (Modal Client-Side) - Testing:**
   - **Status:** Partially tested. User confirms assign view updates correctly. Further testing needed to ensure end-to-end persistence of assignments from `assign_people_to_items` through to Split/Summary views after recent changes.
 - **Split View Data Display (Modal Client-Side) - Unassigned Items:**
   - **Issue:** The "Unassigned" tab in the Split screen sometimes appears to show all receipt items, even when `assign_people_to_items` result indicates no unassigned items (`unassigned_items: []`).
-  - **Status:** Needs testing now that `SplitManager` is always initialized fresh from `assign_people_to_items`. If issue persists, investigate `SplitView` rendering.
+  - **Status:** Needs testing now that `SplitManager` is always initialized fresh from `assign_people_to_items`. If issue persists, investigate `SplitView` rendering and `SplitManager` initialization logic for unassigned items.
 
 **Pending (Longer Term / Other Areas):**
 - **Data Model Refinement - Consolidate URIs to `metadata` map (Remaining Steps):**
@@ -100,7 +128,6 @@
   - Non-Modal Workflow (`lib/receipt_splitter_ui.dart`)
   - Data Migration Script
   - Testing (URI Refactor)
-- **Workflow Stability - Upload Screen (Old Issue - Resolved, Notes Kept for History)**
 - **Code Cleanup & Refactoring - Parsing Logic Duplication**
 - **General Modal Workflow State Consistency Plan**
 - **Performance Optimization (Pagination, Caching, Rebuilds)**
@@ -204,26 +231,29 @@
 
 ## Next Steps (Priority Order)
 
-1.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - High Priority):**
-    - Test persistence of **Tip/Tax** changes across navigation and draft save/resume.
-    - Confirm that changes *only* made within SplitManager (like adding people) are *not* persisted (as `split_manager_state` is removed).
-    - Verify correct initial population of `SplitManager` from `assign_people_to_items`.
+1.  **Implement Workflow Interruption Confirmations (Modal Client-Side - High Priority):**
+    - Add getters and clear methods to `WorkflowState`.
+    - Implement dialogs and logic in `_WorkflowModalBodyState` and relevant screens/callbacks.
+2.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - High Priority):**
+    - Test persistence of **Tip/Tax** changes.
+    - Test persistence of **people and item assignments** made in Split step.
+    - Verify correct initial population of `SplitManager`.
     - Test display of unassigned items in `SplitView`.
-2.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (High Priority):**
+3.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (High Priority):**
     - Review Cloud Function logs, verify error handling and URI usage (`metadata`).
-3.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
-4. **Data Migration Script:** Develop and test script for URI metadata migration.
-5. **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
-6. **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
-7. **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
-8. **Implement Receipt List Pagination:** Address performance.
-9. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
-10. **Address Security Warnings (General Consolidation).**
-11. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
-12. **Create Comprehensive Testing Suite (General).**
-13. **Enhance Error Handling.**
-14. **Handle Edge Cases (Completed Receipts).**
-15. **Code Cleanup/Refactoring (Parsing Logic).**
+4.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
+5. **Data Migration Script:** Develop and test script for URI metadata migration.
+6. **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
+7. **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
+8. **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
+9. **Implement Receipt List Pagination:** Address performance.
+10. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
+11. **Address Security Warnings (General Consolidation).**
+12. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
+13. **Create Comprehensive Testing Suite (General).**
+14. **Enhance Error Handling.**
+15. **Handle Edge Cases (Completed Receipts).**
+16. **Code Cleanup/Refactoring (Parsing Logic).**
 
 ## Developer Notes / Knowledge Transfer (Updated)
 
@@ -235,11 +265,16 @@ Key learnings from recent debugging sessions regarding the modal workflow:
 - **Firestore `update` vs. `set(merge:true)`:** While `set(..., merge: true)` works for adding new documents or completely replacing existing ones, using `update(...)` is generally the more idiomatic and often more reliable method for applying partial updates to specific fields within an *existing* Firestore document. It explicitly signals the intent to modify, not replace.
 - **Debugging State Flow:** Using targeted `debugPrint` statements at key points (state mutation in Provider, parent build function before child instantiation, child build function accessing properties) is invaluable for tracing data flow and pinpointing timing issues or stale state problems.
 - **Data Model Alignment (Client-Backend):** When working with data from external sources (e.g., Cloud Functions returning JSON), it's crucial that client-side Dart models (`fromJson`/`toJson` methods) perfectly match the structure and field names of the incoming data. Mismatches, especially in nested lists, maps, or subtle naming differences (e.g., `person_name` vs `personName`), can lead to silent data loss during parsing or incorrect serialization. Always log the raw data received and the data after parsing into Dart models to quickly identify such discrepancies.
-- **Scoped Notifier State Propagation:** When a nested `ChangeNotifier` (like `SplitManager`) is modified by its UI (`SplitView`), its state needs to be propagated to the parent `WorkflowState` to ensure it's included in draft saving.
-    - **Solution (Tip/Tax only with `split_manager_state` removed):** Add specific fields (e.g., `tip`, `tax`) to the parent state (`WorkflowState`). Add listeners to the nested notifier (`SplitManager`) that call specific setters on the parent state (e.g., `workflowState.setTip(manager.tipPercentage)`). This keeps the relevant parts of the parent state synchronized.
-- **State Hydration for Nested Notifiers (Initialization Pattern):** When a step uses a nested `ChangeNotifier` (like `SplitManager` in Split/Summary steps):
-    - **Initialization:** Always create a *new* instance of the nested notifier.
-    - **Data Source:** Populate it using data from *earlier* steps stored in the parent state (`WorkflowState`), such as `assign_people_to_items`, `parse_receipt`, and the persisted `tip`/`tax`.
-    - **No `fromJson` for Full State:** Do not attempt to restore the entire nested notifier state using `fromJson` if its dedicated persistence field (like `split_manager_state`) has been removed. Only initialize with necessary base data and persisted fields like tip/tax.
+- **Scoped Notifier State Propagation & Initialization (SplitManager Example):**
+    - **Persistence Model:** When a nested `ChangeNotifier` (like `SplitManager`) has its direct persistence field (e.g., `split_manager_state`) removed from the main data model (`Receipt`), its full state is no longer saved/loaded directly.
+    - **Initialization:** The nested notifier (`SplitManager`) should always be initialized *fresh* when its step is built. It should be populated using data from *earlier* steps stored in the parent state (`WorkflowState`) – e.g., `assign_people_to_items` result, `parse_receipt` result (for original items/quantities), and specific persisted fields like `tip`/`tax` from `WorkflowState`.
+    - **State Update (Listener Pattern):** To persist modifications made *within* the nested notifier's UI, a listener is added to it. This listener is responsible for:
+        - Calling methods on the nested notifier to extract its current state in the desired format (e.g., `SplitManager.generateAssignmentMap()`, `SplitManager.currentPeopleNames`).
+        - Updating the corresponding fields in the parent `WorkflowState` (e.g., `workflowState.setAssignPeopleToItemsResult(...)`, `workflowState.setPeople(...)`, `workflowState.setTip(...)`).
+    - This ensures that while `SplitManager` itself isn't directly saved, the effects of its operations (assignments, people list, tip/tax changes) are captured in `WorkflowState` and subsequently persisted to Firestore.
+- **Confirmation for Data Overwrite:** When user actions might lead to overwriting data from subsequent workflow steps (e.g., re-uploading an image after parsing, re-transcribing after transcription, going back to assignment after splitting), it's crucial to:
+    - Implement checks in `WorkflowState` to determine if subsequent data exists.
+    - Display an `AlertDialog` to ask for user confirmation.
+    - If confirmed, call specific methods in `WorkflowState` to clear out the subsequent data before proceeding with the action. This prevents accidental data loss and makes the workflow more robust.
 
 </rewritten_file> 

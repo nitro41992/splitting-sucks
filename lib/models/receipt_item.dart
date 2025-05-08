@@ -138,12 +138,18 @@ class ReceiptItem extends ChangeNotifier {
 
   // Create from JSON for state persistence
   static ReceiptItem fromJson(Map<String, dynamic> json) {
+    final itemName = json['name'] as String? ?? 'Unknown Item';
+    final itemPrice = (json['price'] as num?)?.toDouble() ?? 0.0;
+    final itemQuantity = json['quantity'] as int? ?? 1;
+    final itemOriginalQuantity = json['originalQuantity'] as int? ?? itemQuantity; // Default to current quantity if original is missing
+    final itemIdValue = json['itemId'] as String? ?? 'item_${_nextId++}_$itemName';
+
     return ReceiptItem._internal(
-      name: json['name'] as String,
-      price: (json['price'] as num).toDouble(),
-      quantity: json['quantity'] as int,
-      originalQuantity: json['originalQuantity'] as int? ?? json['quantity'] as int,
-      itemId: json['itemId'] as String? ?? 'item_${_nextId++}_${json['name']}',
+      name: itemName,
+      price: itemPrice,
+      quantity: itemQuantity,
+      originalQuantity: itemOriginalQuantity,
+      itemId: itemIdValue,
     );
   }
 } 

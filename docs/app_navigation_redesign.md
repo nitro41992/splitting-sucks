@@ -46,6 +46,7 @@ users/{userId}/receipts/{receiptId}
 - In-workflow data is cached in memory with Provider (WorkflowState)
 - Data is only persisted on explicit actions (save/complete/exit)
 - Drafts are fully manageable from the Receipts screen
+- **Workflow Interruption Confirmations:** To prevent accidental data loss, confirmation dialogs will prompt the user if an action (e.g., re-uploading an image after parsing, re-transcribing, navigating backward to a data-entry step after subsequent data exists) would discard data from later steps. If confirmed, relevant subsequent data is cleared.
 
 ## 3. Implementation Overview
 
@@ -136,6 +137,11 @@ The updated `assign_people_to_items` function returns this structured format:
 │    ← Back         [Save & Exit to Draft]         Next →         │
 └─────────────────────────────────────────────────┘
 ```
+**Modal Behavior Notes:**
+- Automatic draft saving on exit.
+- Step indicator shows current progress.
+- Navigation is primarily linear (Next/Back), but users can tap step indicators (logic TBD, may also need confirmations).
+- Confirmation dialogs appear if navigating backward or re-initiating a prior step (e.g., re-uploading image, re-transcribing) would cause loss of data from subsequent steps. If the user confirms, subsequent data is cleared before proceeding.
 
 ## 5. Key Implementation Decisions
 

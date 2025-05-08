@@ -453,39 +453,53 @@ class SplitManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  Map<String, dynamic> toJson() {
+  // --- EDIT: Add getter for current people names ---
+  List<String> get currentPeopleNames => _people.map((p) => p.name).toList();
+  // --- END EDIT ---
+
+  // --- EDIT: Add method to generate assign_people_to_items map ---
+  Map<String, dynamic> generateAssignmentMap() {
+    // Convert current state back to the format expected by assign_people_to_items
+    final List<Map<String, dynamic>> assignments = _people.map((person) {
+      return {
+        'person_name': person.name,
+        'items': person.assignedItems.map((item) {
+          return {
+            'name': item.name,
+            'quantity': item.quantity,
+            'price': item.price,
+          };
+        }).toList(),
+      };
+    }).toList();
+
+    final List<Map<String, dynamic>> sharedItemsMap = _sharedItems.map((item) {
+       // Find people sharing this specific item instance
+      final List<String> peopleNames = _people
+          .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
+          .map((p) => p.name)
+          .toList();
+      return {
+        'name': item.name,
+        'quantity': item.quantity,
+        'price': item.price,
+        'people': peopleNames, // List of names sharing this item
+      };
+    }).toList();
+
+    final List<Map<String, dynamic>> unassignedItemsMap = _unassignedItems.map((item) {
+      return {
+        'name': item.name,
+        'quantity': item.quantity,
+        'price': item.price,
+      };
+    }).toList();
+
     return {
-      'people': _people.map((p) => p.toJson()).toList(),
-      'sharedItems': _sharedItems.map((item) => item.toJson()).toList(),
-      'unassignedItems': _unassignedItems.map((item) => item.toJson()).toList(),
-      'originalQuantities': _originalQuantities,
-      'tipPercentage': _tipPercentage,
-      'taxPercentage': _taxPercentage,
-      'originalReviewTotal': _originalReviewTotal,
-      'unassignedItemsModified': _unassignedItemsModified,
-      'statePreserved': _statePreserved,
-      // initialSplitViewTabIndex is probably not needed for persistence
+      'assignments': assignments,
+      'shared_items': sharedItemsMap,
+      'unassigned_items': unassignedItemsMap,
     };
   }
-
-  factory SplitManager.fromJson(Map<String, dynamic> json) {
-    final manager = SplitManager(
-      people: (json['people'] as List<dynamic>?)
-          ?.map((pJson) => Person.fromJson(pJson as Map<String, dynamic>))
-          .toList(),
-      sharedItems: (json['sharedItems'] as List<dynamic>?)
-          ?.map((itemJson) => ReceiptItem.fromJson(itemJson as Map<String, dynamic>))
-          .toList(),
-      unassignedItems: (json['unassignedItems'] as List<dynamic>?)
-          ?.map((itemJson) => ReceiptItem.fromJson(itemJson as Map<String, dynamic>))
-          .toList(),
-      tipPercentage: (json['tipPercentage'] as num?)?.toDouble(),
-      taxPercentage: (json['taxPercentage'] as num?)?.toDouble(),
-      originalReviewTotal: (json['originalReviewTotal'] as num?)?.toDouble(),
-    );
-    manager._originalQuantities = Map<String, int>.from(json['originalQuantities'] ?? {});
-    manager._unassignedItemsModified = json['unassignedItemsModified'] as bool? ?? false;
-    manager._statePreserved = json['statePreserved'] as bool? ?? false;
-    return manager;
-  }
+  // --- END EDIT ---
 } 
