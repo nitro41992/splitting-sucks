@@ -6,14 +6,24 @@ service firebase.storage {
       allow read, write: if false;
     }
     
-    // User can access their own files
+    // User can access their own files under the /users path
     match /users/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Shared receipt images
+    // Rule for user-specific receipt images under /receipts/{userId}/
+    match /receipts/{userId}/{filename} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId &&
+                          request.resource.size < 5 * 1024 * 1024 &&
+                          request.resource.contentType.matches('image/.*');
+    }
+    
+    // Shared receipt images (if used for a different purpose, e.g. public access after processing)
+    // This rule might need review based on its intended use case now that the above rule is added.
+    // If all receipt images are user-specific and follow /receipts/{userId}/{filename},
+    // this rule might become redundant or need adjustment.
     match /receipts/{receiptId} {
-      // Get receipt document to check permissions
       allow read: if request.auth != null;
       allow write: if request.auth != null && 
                     request.resource.size < 5 * 1024 * 1024 && 

@@ -95,7 +95,7 @@
 
 2. **Image Processing:**
    - ✅ Image upload to Firebase Storage working
-   - ✅ **Resolved:** Resuming draft now correctly displays the saved receipt image in Upload step (using download URL).
+   - ✅ **Resolved:** Resuming draft now correctly displays the saved receipt image in Upload step (using download URL, storage read rules fixed).
    - ⚠️ Thumbnail generation via `generate_thumbnail` cloud function fails with `INTERNAL` error (Needs investigation in Cloud Function logs).
 
 3. **Data Flow & State Management:**
@@ -199,6 +199,8 @@
 - **Firestore Permission Denied (during development with emulator):**
     - ✅ **Resolved:** The Firestore emulator was incorrectly loading the production `firestore.rules` file instead of `firestore.emulator.rules`.
     - **Solution:** The top-level `"firestore": { "rules": ... }` entry in `firebase.json` was updated to point to `"firestore.emulator.rules"` for local development. The secure production rules are maintained in `firestore.rules`, and permissive rules for the emulator are in `firestore.emulator.rules`. This configuration needs to be managed for production deployment (top-level `rules` key in `firebase.json` should point to `firestore.rules` for production builds/deployments).
+- **Firebase Storage Permission Denied (for reading images for display):**
+    - ✅ **Resolved:** The `storage.rules` for `receipts/{userId}/{filename}` were updated to allow reads if `request.auth != null && request.auth.uid == userId`, separating it from more restrictive write conditions. This fixed 403 errors when generating download URLs for display.
 - **Google Sign-In Play Services Error:**
     - ✅ **Resolved:** The primary Google Sign-In functionality is now working (though sometimes intermittently fails on first try) after extensive troubleshooting of SHA-1/SHA-256 fingerprints, `google-services.json` configurations, Google Cloud Project OAuth 2.0 Client ID setups, and API Key restrictions for the `billfie-dev` environment.
     - ⚠️ **Remaining Issue (Highest Priority):** Logs persistently show `E/GoogleApiManager: Failed to get service from broker. java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'`. This occurs on multiple environments and needs urgent investigation as it likely causes downstream network failures.
@@ -210,16 +212,16 @@
 
 ## Next Steps (Priority Order)
 
-1.  **Investigate and Resolve `GoogleApiManager SecurityException` (Highest Priority):**
+1.  **Fix `generate_thumbnail` Cloud Function Deployment to `billfie-dev` (High Priority):**
+    - Investigate and resolve the deployment failure or `NOT_FOUND` error for `generate_thumbnail` on `billfie-dev` by checking its specific Cloud Function and Cloud Build logs in the Google Cloud Console for that project. Ensure the function is deployed under the correct name and region.
+2.  **Investigate and Resolve `GoogleApiManager SecurityException` (Highest Priority):**
     - Re-test on a clean, known-good Play Store emulator AVD (cold boot, signed in) to definitively rule out environment issues.
     - Review `android/build.gradle` and `android/app/build.gradle` for any non-standard configurations (signing, dependencies, plugins).
     - Consider creating a minimal reproducible example project with just Firebase Core, Auth, and App Check to see if the error occurs there.
     - Explore potential tooling issues (Flutter SDK, Android SDK/NDK versions, Gradle version).
-2.  **Investigate and Resolve `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors (High Priority):**
+3.  **Investigate and Resolve `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors (High Priority, likely related to #2):**
     - Primarily focus on resolving the `GoogleApiManager` issue, as it's the most likely cause.
     - If the `GoogleApiManager` issue is fixed but network errors persist, investigate device/emulator DNS and network settings more deeply.
-3.  **Fix `generate_thumbnail` Cloud Function Deployment to `billfie-dev`:**
-    - Investigate and resolve the deployment failure for `generate_thumbnail` on `billfie-dev` by checking its specific Cloud Function and Cloud Build logs in the Google Cloud Console for that project.
 4.  **Address App Check Placeholder Token Reappearance (Lower Priority):**
     - Monitor after fixing `GoogleApiManager` issue.
 5.  **Address Security Warnings:**
