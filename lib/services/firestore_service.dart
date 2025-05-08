@@ -237,23 +237,20 @@ class FirestoreService {
       final callable = functions.httpsCallable('generate_thumbnail');
       
       debugPrint('Calling generate_thumbnail function with URI: $originalImageUri');
+      // Add debug print for current user
+      debugPrint('Current Firebase user before calling generate_thumbnail: ${FirebaseAuth.instance.currentUser}');
       final result = await callable.call({
-        'data': {'imageUri': originalImageUri}
+        'imageUri': originalImageUri
       });
       
-      // Parse the response
-      final Map<String, dynamic> responseData = Map<String, dynamic>.from(result.data);
-      
-      if (responseData.containsKey('data') && 
-          responseData['data'] is Map<String, dynamic> && 
-          responseData['data'].containsKey('thumbnailUri')) {
-        final thumbnailUri = responseData['data']['thumbnailUri'] as String;
+      if (result.data != null && result.data['thumbnailUri'] != null) {
+        final thumbnailUri = result.data['thumbnailUri'] as String;
         debugPrint('Thumbnail generated at: $thumbnailUri');
         return thumbnailUri;
       } else {
         // If the response doesn't have the expected format, fall back to original image
         debugPrint('Unexpected response format from generate_thumbnail function, using original image');
-        debugPrint('Response: $responseData');
+        debugPrint('Response: $result.data');
         return originalImageUri;
       }
     } catch (e) {

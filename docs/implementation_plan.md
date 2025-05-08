@@ -96,7 +96,12 @@
 2. **Image Processing:**
    - ✅ Image upload to Firebase Storage working
    - ✅ **Resolved:** Resuming draft now correctly displays the saved receipt image in Upload step (using download URL, storage read rules fixed).
-   - ⚠️ Thumbnail generation via `generate_thumbnail` cloud function fails with `INTERNAL` error (Needs investigation in Cloud Function logs).
+   - ✅ **Resolved:** `generate_thumbnail` function deployment to `billfie-dev` (Artifact Registry permission for service agent fixed).
+   - ✅ **Resolved:** Calling `generate_thumbnail` Cloud Function from app no longer results in `UNAUTHENTICATED` error (Cloud Run service set to "Allow unauthenticated invocations").
+   - ✅ **Resolved:** `generate_thumbnail` function `INTERNAL` error (due to incorrect client payload) fixed by sending `{'imageUri': ...}` directly.
+   - ✅ **Functionality Confirmed:** `generate_thumbnail` now successfully creates and stores thumbnail, returning its `gs://` URI to the client.
+   - ✅ **Resolved:** Client app `[firebase_storage/unauthorized]` (403 error) when getting thumbnail download URL fixed by correcting storage rule path to `match /thumbnails/receipts/{userId}/{filename}`.
+   - ✅ **Thumbnail Generation & Display Fully Working.**
 
 3. **Data Flow & State Management:**
    - ✅ WorkflowState maintains data between steps
@@ -122,7 +127,8 @@
     - ✅ **Firebase App Check Setup (Debug):**
         - Added `firebase_app_check` dependency and initialization code to `main.dart`.
         - Registered Play Integrity provider (with SHA-256) and Debug provider in Firebase Console.
-        - Correctly added the generated debug token from app logs to the Firebase Console, resolving initial 403 errors.
+        - ✅ Debug token from app logs is now being generated on emulator runs.
+        - ✅ `generate_thumbnail` callable function is now being invoked (no longer `UNAUTHENTICATED`).
     - ⚠️ **Dependency Updates Attempted:** Relaxed constraints in `pubspec.yaml`, ran `flutter pub get` (updated several Firebase packages), explicitly added `play-services-auth` to `android/app/build.gradle`. These steps did not resolve the core remaining issues.
     - ⚠️ **Remaining Issue (Highest Priority):** Persistent `SecurityException: Unknown calling package name 'com.google.android.gms'` (seen in `GoogleApiManager` errors). Occurs on both physical device and emulator, even after configuration fixes and dependency updates. Needs urgent investigation.
     - ⚠️ **Remaining Issue (High Priority):** Persistent `W/ManagedChannelImpl: Failed to resolve name. status={1}` errors and Firestore `UNAVAILABLE` errors (e.g., `UnknownHostException: Unable to resolve host "firestore.googleapis.com"`). Likely a symptom of the `GoogleApiManager` issue, preventing reliable network connections. Needs urgent investigation.
@@ -146,8 +152,8 @@
     - Firestore rules (`firestore.rules`) and indexes (`firestore.indexes.json`) successfully deployed.
     - Storage rules (`storage.rules`) successfully deployed.
     - Cloud Functions (`assign_people_to_items`, `parse_receipt`, `transcribe_audio`) deployed to `billfie-dev` after resolving Secret Manager setup.
-    - ⚠️ **`generate_thumbnail` function deployment to `billfie-dev` is currently failing.** (Needs investigation via Cloud Function logs).
-    - ⚠️ Noted an Artifact Registry permission warning during deployment; may need to grant `roles/artifactregistry.reader` to the Cloud Functions service agent.
+    - ✅ **`generate_thumbnail` function deployment to `billfie-dev` resolved.** Root cause was missing `Artifact Registry Reader` permissions for the Cloud Functions service agent (`service-<PROJECT_NUMBER>@gcf-admin-robot.iam.gserviceaccount.com`). Granting this role fixed the deployment failure.
+    - ⚠️ Noted an Artifact Registry permission warning during deployment; may need to grant `roles/artifactregistry.reader` to the Cloud Functions service agent. (This note can be considered resolved by the above point if no other warnings appear).
 - ✅ **Secret Manager for `billfie-dev`:**
     - `OPENAI_API_KEY` and `GOOGLE_API_KEY` secrets have been created and configured in the Secret Manager for the `billfie-dev` project, resolving initial deployment failures for most functions.
 
@@ -212,9 +218,16 @@
 
 ## Next Steps (Priority Order)
 
-1.  **Fix `generate_thumbnail` Cloud Function Deployment to `billfie-dev` (High Priority):**
-    - Investigate and resolve the deployment failure or `NOT_FOUND` error for `generate_thumbnail` on `billfie-dev` by checking its specific Cloud Function and Cloud Build logs in the Google Cloud Console for that project. Ensure the function is deployed under the correct name and region.
-2.  **Investigate and Resolve `GoogleApiManager SecurityException` (Highest Priority):**
+1.  **~~Deploy Corrected Storage Rules and Test Thumbnail Display (High Priority):~~ (RESOLVED)**
+    - ✅ Cloud Function invoker permissions for `generate_thumbnail` correctly set.
+    - ✅ Firebase Auth user present on client-side.
+    - ✅ App Check debug token logged.
+    - ✅ Client-side payload for `generate_thumbnail` corrected.
+    - ✅ `generate_thumbnail` function successfully creates and returns thumbnail URI.
+    - ✅ Storage rule in `storage.rules` corrected to `allow read: if request.auth.uid == userId;` for the path `thumbnails/receipts/{userId}/{filename}` and deployed.
+    - ✅ Thumbnail generation and display in app now working.
+
+2.  **Investigate and Resolve `GoogleApiManager SecurityException` (High Priority):**
     - Re-test on a clean, known-good Play Store emulator AVD (cold boot, signed in) to definitively rule out environment issues.
     - Review `android/build.gradle` and `android/app/build.gradle` for any non-standard configurations (signing, dependencies, plugins).
     - Consider creating a minimal reproducible example project with just Firebase Core, Auth, and App Check to see if the error occurs there.
