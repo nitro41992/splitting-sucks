@@ -16,6 +16,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../services/receipt_parser_service.dart';
 import 'dart:async';
 
+// --- Moved Typedef to top level --- 
+// Callback type for ReceiptReviewScreen to provide its current items
+typedef GetCurrentItemsCallback = List<ReceiptItem> Function();
+
 /// Define NavigateToPageNotification class here to match the one in split_view.dart
 /// This avoids having to expose that class in a separate file while maintaining compatibility
 class NavigateToPageNotification extends Notification {
@@ -411,6 +415,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     'Summary',
   ];
   
+  // Variable to hold the function provided by ReceiptReviewScreen
+  GetCurrentItemsCallback? _getCurrentReviewItemsCallback;
+  
   @override
   void initState() {
     super.initState();
@@ -740,6 +747,32 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       workflowState.setLoading(true);
       workflowState.setErrorMessage(null);
 
+      // --- Get latest items from ReviewScreen if currently on that step --- 
+      if (workflowState.currentStep == 1 && _getCurrentReviewItemsCallback != null) {
+        try {
+          final currentReviewItems = _getCurrentReviewItemsCallback!(); 
+          final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
+          final currentItemsList = currentReviewItems.map((item) => {
+              'name': item.name, 'price': item.price, 'quantity': item.quantity,
+          }).toList();
+          currentParseResult['items'] = currentItemsList;
+          
+          // --- Update the state just before creating the Receipt object for saving --- 
+          // Directly modify the _parseReceiptResult in the state object. 
+          // Avoid calling setParseReceiptResult if it unnecessarily notifies listeners.
+          // We need to access the internal state or add a silent update method.
+          // FOR NOW: Let's assume setParseReceiptResult is okay, but this might need refinement
+          // if it causes unwanted rebuilds during the save process.
+          workflowState.setParseReceiptResult(currentParseResult); 
+          debugPrint('[_saveDraft] Updated parseReceiptResult via callback from ReviewScreen state just before saving. Item count: ${currentItemsList.length}');
+        } catch (e) {
+            debugPrint('[_saveDraft] Error getting current items from ReviewScreen via callback: $e');
+            // Decide if we should proceed with potentially stale data or throw?
+            // For now, we proceed, but log the error.
+        }
+      }
+      // ---------------------------------------------------------------------
+
       // --- Conditional Upload --- 
       // Upload only if a local file exists AND the GS URI hasn't been set yet 
       // (e.g., background upload didn't finish or wasn't triggered).
@@ -761,6 +794,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       // If imageFile is null but loadedImageUrl/actualImageGsUri is present, we don't need to upload again.
 
       final receipt = workflowState.toReceipt(); // Gets URIs from actualImageGsUri/ThumbnailGsUri
+      
+      // **** ADD DEBUG PRINT HERE ****
+      debugPrint('[_saveDraft] Saving draft. workflowState.parseReceiptResult: ${workflowState.parseReceiptResult}');
+      // ***************************
 
       final String definitiveReceiptId = await _firestoreService.saveDraft(
         receiptId: receipt.id, 
@@ -1052,6 +1089,14 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
             
             // Advance to the next step
             workflowState.nextStep();
+          },
+          // Add the callback registration parameter
+          registerCurrentItemsGetter: (getter) {
+            // Use addPostFrameCallback to avoid calling setState during build
+            WidgetsBinding.instance.addPostFrameCallback((_) { 
+              _getCurrentReviewItemsCallback = getter;
+              debugPrint('[_buildStepContent] Registered getCurrentItems callback from ReceiptReviewScreen.');
+            });
           },
         );
         
@@ -1540,8 +1585,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       for (final rawItem in rawItems) {
         if (rawItem is Map) {
           try {
-            // Defensive parsing for each field
-            final String itemName = rawItem['item'] as String? ?? 'Unknown Item'; // Default if name is null
+            // --- CHANGE HERE: Use 'name' key, fall back gracefully --- 
+            final String itemName = rawItem.containsKey('name') 
+                                    ? (rawItem['name'] as String? ?? 'Unknown Item') 
+                                    : (rawItem['item'] as String? ?? 'Unknown Item'); // Fallback to 'item' key if 'name' not found
             
             final num? itemPriceNum = rawItem['price'] as num?;
             final double itemPrice = itemPriceNum?.toDouble() ?? 0.0; // Default if price is null or not a number

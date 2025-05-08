@@ -6,18 +6,21 @@ import '../widgets/dialogs/add_item_dialog.dart'; // Import Add dialog
 import '../widgets/dialogs/edit_item_dialog.dart'; // Import Edit dialog
 import '../utils/platform_config.dart'; // Import platform config
 import '../utils/toast_helper.dart'; // Import toast helper
+import '../widgets/workflow_modal.dart' show GetCurrentItemsCallback; 
 
 class ReceiptReviewScreen extends StatefulWidget {
   final List<ReceiptItem> initialItems;
   final Function(List<ReceiptItem> updatedItems, List<ReceiptItem> deletedItems) onReviewComplete;
   // Callback for immediate updates when items change
   final Function(List<ReceiptItem> currentItems)? onItemsUpdated;
+  final Function(GetCurrentItemsCallback)? registerCurrentItemsGetter;
 
   const ReceiptReviewScreen({
     super.key,
     required this.initialItems,
     required this.onReviewComplete,
     this.onItemsUpdated,
+    this.registerCurrentItemsGetter,
   });
 
   @override
@@ -43,6 +46,13 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
     _deletedItems = [];
     _itemsScrollController = ScrollController();
     _itemsScrollController.addListener(_onScroll);
+
+    // --- Register the getter function with the parent --- 
+    if (widget.registerCurrentItemsGetter != null) {
+      widget.registerCurrentItemsGetter!(() => _editableItems); 
+      debugPrint('[ReceiptReviewScreen] Registered getCurrentItems callback.');
+    }
+    // -----------------------------------------------------
   }
 
   @override

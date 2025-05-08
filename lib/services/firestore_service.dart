@@ -118,7 +118,7 @@ class FirestoreService {
       
       // If updating existing, update the document
       if (receiptId != null) {
-        await docRef.set(data, SetOptions(merge: true));
+        await docRef.update(data);
       }
       
       // Return the document ID

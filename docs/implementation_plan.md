@@ -48,6 +48,10 @@
 - ✅ **Faster Draft Image Loading (Modal Client-Side):** 
   - Implemented logic (`_loadReceiptData`, `ReceiptUploadScreen`) to fetch and display thumbnail download URLs as placeholders while the main image loads.
   - **Resolved loading delay:** Fixed issue where `ReceiptUploadScreen` didn't receive the updated `loadedThumbnailUrl` promptly after `_loadReceiptData` completed by wrapping `ReceiptUploadScreen` instantiation within a `Consumer<WorkflowState>` in `_WorkflowModalBodyState._buildStepContent`.
+- ✅ **Review Screen Data Persistence on Exit (Modal Client-Side):**
+  - **Resolved:** Edits/additions made in `ReceiptReviewScreen` were not saved if the user exited the modal directly from the Review step.
+  - **Fix:** Implemented a callback mechanism (`registerCurrentItemsGetter`) allowing `_WorkflowModalBodyState._saveDraft` to actively fetch the latest item list from `ReceiptReviewScreen`'s state immediately before saving, ensuring edits are persisted correctly.
+  - **Fix:** Changed Firestore update logic in `FirestoreService.saveReceipt` for existing documents from `set(data, SetOptions(merge: true))` to `update(data)` for more reliable field updates.
 
 **In Progress:**
 - None
@@ -215,4 +219,14 @@
 11. **Create Comprehensive Testing Suite (General):** Expand unit, widget, and integration tests covering all features.
 12. **Enhance Error Handling:** Improve user feedback for various error conditions.
 13. **Handle Edge Cases (Completed Receipts):** Define and implement behavior for modifying completed receipts.
-14. **Code Cleanup/Refactoring:** Address potential duplication (parsing, `SplitManager` init) and review state management consistency. 
+14. **Code Cleanup/Refactoring:** Address potential duplication (parsing, `SplitManager` init) and review state management consistency.
+
+## Developer Notes / Knowledge Transfer
+
+Key learnings from recent debugging sessions regarding the modal workflow:
+
+- **Modal State (`WorkflowState` & Provider):** Using a central `ChangeNotifier` (`WorkflowState`) provided via `Provider` is effective for managing state across the modal steps. However, careful attention must be paid to *when* state is updated and *when* listeners are notified.
+- **Widget Rebuild Timing & `Consumer`:** When complex state updates happen asynchronously (like fetching URLs in `_loadReceiptData`), passing updated state values down as simple constructor parameters to child widgets can sometimes lead to the child building with stale data if the parent rebuilds too quickly. Using a `Consumer<StateType>` widget directly within the child's parent builder function (as done for `ReceiptUploadScreen` in `_buildStepContent`) ensures the child is built using the absolute latest state from the provider at the time of the build.
+- **Saving State from Children on Parent Action:** When a parent action (like `_saveDraft` triggered by `_onWillPop`) needs the *most current* data from a child widget's internal state (like `_editableItems` in `ReceiptReviewScreen`), simply relying on the last known state in the central provider (`WorkflowState`) might not be sufficient if the child's state changed *after* the last update to the provider but *before* the parent action. Implementing a callback registration pattern (e.g., `registerCurrentItemsGetter`) allows the parent to actively *pull* the latest state from the child at the exact moment it's needed (e.g., just before saving).
+- **Firestore `update` vs. `set(merge:true)`:** While `set(..., merge: true)` works for adding new documents or completely replacing existing ones, using `update(...)` is generally the more idiomatic and often more reliable method for applying partial updates to specific fields within an *existing* Firestore document. It explicitly signals the intent to modify, not replace.
+- **Debugging State Flow:** Using targeted `debugPrint` statements at key points (state mutation in Provider, parent build function before child instantiation, child build function accessing properties) is invaluable for tracing data flow and pinpointing timing issues or stale state problems. 
