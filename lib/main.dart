@@ -18,6 +18,7 @@ import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 import 'routes.dart';
 import 'firebase_options.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 
 // Flag to track if Firebase initialized successfully
 bool firebaseInitialized = false;
@@ -35,15 +36,24 @@ void main() async {
       await Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform, // Ensure options are passed
       );
-      firebaseInitialized = true;
       debugPrint("Firebase.initializeApp completed successfully.");
     } else {
       debugPrint("Firebase.apps was not empty. Using existing [DEFAULT] app.");
       // Get the existing app instance
       Firebase.app();
-      firebaseInitialized = true; 
     }
-    
+
+    // ACTIVATE APP CHECK *AFTER* Firebase.initializeApp
+    // Use Play Integrity for release, Debug for debug
+    // Note: For web, you'd use webProvider: ReCaptchaV3Provider('YOUR_RECAPTCHA_SITE_KEY')
+    // Note: For Apple, you'd use appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+    );
+    debugPrint("Firebase App Check activated.");
+
+    firebaseInitialized = true; // Set success flag after both init and app check succeed
+
     // Check if using emulator and CONFIGURE services if so
     final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
     if (useEmulator) {

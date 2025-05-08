@@ -110,15 +110,24 @@
         - **Solution:** Configured emulators to listen on `0.0.0.0` via `firebase.json`. Configured Flutter app (`main.dart`) to use the host PC's local Wi-Fi IP (e.g., `192.168.0.152`) for `emulatorHost` when `USE_FIRESTORE_EMULATOR=true`. Ensured Windows Firewall allows incoming TCP connections on emulator ports for the private network.
     - ✅ **Resolved:** Google Sign-In flow fixed.
         - **Solution:** Refactored `AuthService.signInWithGoogle` to use the `google_sign_in` plugin first to get credentials directly from Google, then pass the resulting credential to `FirebaseAuth.instance.signInWithCredential()`. This decouples the Google OAuth web flow from the emulator connection.
-        - **Further Solution:** Ensured correct SHA-1 fingerprint for the debug build (`B8:FB:62:9B:57:EA:A6:FF:1B:EE:1E:E3:C6:C7:74:58:2F:06:42:AD`) was registered in the correct Google Cloud Project ("billfie-dev") for an Android-type OAuth 2.0 Client ID.
-        - **Further Solution:** Corrected `google-services.json` to be generated from the "billfie-dev" Firebase project, ensuring it contains the appropriate `project_id` and the Android client `certificate_hash` matching the debug SHA-1. Resolved issues with conflicting client configurations in `google-services.json` and incorrect OAuth Client ID setups in Google Cloud Console (ensuring Android Client ID with debug SHA-1 was in the `billfie-dev` GCP and not conflicting with the production "billfie" GCP).
+        - **Further Solution:** Ensured correct SHA-1 fingerprint (`B8:FB:...:AD`) was registered in the correct Google Cloud Project ("billfie-dev") for an Android-type OAuth 2.0 Client ID. Addressed "already in use" error by deleting conflicting ID from production GCP.
+        - **Further Solution:** Added SHA-256 fingerprint (`EE:92:...:98`) to Firebase Project settings for the Android app.
+        - **Further Solution:** Corrected `google-services.json` to be generated from the "billfie-dev" Firebase project, ensuring it contains the appropriate `project_id` and the Android client `certificate_hash` matching the debug SHA-1. Resolved issues with conflicting client configurations in `google-services.json`.
+        - **Further Solution:** Corrected API Key Application Restrictions in Google Cloud Console to include the Android package name and debug SHA-1 fingerprint.
     - ✅ **Resolved:** Sign-out navigation fixed.
         - **Solution:** Removed temporary `AuthService` instantiation from `main()`; ensured `AuthService` provided by `AppWithProviders` is used consistently. Added debug logging to `MyApp`'s `StreamBuilder` to verify state changes.
     - ✅ Anonymous sign-in via `autoSignInForEmulator` now working correctly with the emulator.
     - ✅ **Resolved:** Emulator sign-out persistence after clean rebuild.
         - **Solution:** Modified `AuthService.authStateChanges` getter to consistently use the main user stream (`_userStreamController.stream`) in emulator mode. This ensures the UI correctly reflects the null user state after sign-out, preventing a stale authenticated state (often the previously Google-signed-in user) from persisting due to the emulator's auth state bypass logic.
-    - ⚠️ **Remaining Issue (High Priority):** Persistent `SecurityException: Unknown calling package name 'com.google.android.gms'` (seen in `GoogleApiManager` errors). Needs investigation and resolution; could indicate issues with Play Services integrity, device state, or deeper permission issues.
-    - ⚠️ **New Issue (High Priority):** Logs now show `W/ManagedChannelImpl: Failed to resolve name. status={1}` errors. This indicates potential network/DNS resolution issues when connecting to Firebase backend services (e.g., Firestore, Functions) and needs immediate investigation.
+    - ✅ **Firebase App Check Setup (Debug):**
+        - Added `firebase_app_check` dependency and initialization code to `main.dart`.
+        - Registered Play Integrity provider (with SHA-256) and Debug provider in Firebase Console.
+        - Correctly added the generated debug token from app logs to the Firebase Console, resolving initial 403 errors.
+    - ⚠️ **Dependency Updates Attempted:** Relaxed constraints in `pubspec.yaml`, ran `flutter pub get` (updated several Firebase packages), explicitly added `play-services-auth` to `android/app/build.gradle`. These steps did not resolve the core remaining issues.
+    - ⚠️ **Remaining Issue (Highest Priority):** Persistent `SecurityException: Unknown calling package name 'com.google.android.gms'` (seen in `GoogleApiManager` errors). Occurs on both physical device and emulator, even after configuration fixes and dependency updates. Needs urgent investigation.
+    - ⚠️ **Remaining Issue (High Priority):** Persistent `W/ManagedChannelImpl: Failed to resolve name. status={1}` errors and Firestore `UNAVAILABLE` errors (e.g., `UnknownHostException: Unable to resolve host "firestore.googleapis.com"`). Likely a symptom of the `GoogleApiManager` issue, preventing reliable network connections. Needs urgent investigation.
+    - ⚠️ **Remaining Issue (Lower Priority):** App Check placeholder token warning (`No AppCheckProvider installed`) reappears later in the app lifecycle, potentially due to the `GoogleApiManager` issue disrupting App Check communication.
+    - ⚠️ **Remaining Issue (Lower Priority):** Google Sign-In sometimes fails initially with `ApiException: 10` before succeeding on a subsequent attempt. Likely related to the `GoogleApiManager` issue or propagation delays.
     - ✅ Firebase services correctly connect to emulators using the host PC's LAN IP.
 
 ## Environment Setup Status
@@ -191,43 +200,46 @@
     - ✅ **Resolved:** The Firestore emulator was incorrectly loading the production `firestore.rules` file instead of `firestore.emulator.rules`.
     - **Solution:** The top-level `"firestore": { "rules": ... }` entry in `firebase.json` was updated to point to `"firestore.emulator.rules"` for local development. The secure production rules are maintained in `firestore.rules`, and permissive rules for the emulator are in `firestore.emulator.rules`. This configuration needs to be managed for production deployment (top-level `rules` key in `firebase.json` should point to `firestore.rules` for production builds/deployments).
 - **Google Sign-In Play Services Error:**
-    - ✅ **Resolved:** The primary Google Sign-In functionality is now working after extensive troubleshooting of SHA-1 fingerprints, `google-services.json` configurations, and Google Cloud Project OAuth 2.0 Client ID setups for the `billfie-dev` environment.
-    - ⚠️ **Remaining Issue (High Priority):** Logs show repeated `E/GoogleApiManager: Failed to get service from broker. java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs monitoring and investigation; could indicate issues with Play Services integrity, device state, or deeper permission issues if functional problems arise.
+    - ✅ **Resolved:** The primary Google Sign-In functionality is now working (though sometimes intermittently fails on first try) after extensive troubleshooting of SHA-1/SHA-256 fingerprints, `google-services.json` configurations, Google Cloud Project OAuth 2.0 Client ID setups, and API Key restrictions for the `billfie-dev` environment.
+    - ⚠️ **Remaining Issue (Highest Priority):** Logs persistently show `E/GoogleApiManager: Failed to get service from broker. java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'`. This occurs on multiple environments and needs urgent investigation as it likely causes downstream network failures.
 - **Network Connectivity to Firebase Backend:**
-    - ⚠️ **New Issue (High Priority):** Logs show repeated `W/ManagedChannelImpl: Failed to resolve name. status={1}`. This suggests problems connecting to Firebase backend services and needs to be addressed urgently.
+    - ⚠️ **Remaining Issue (High Priority):** Logs persistently show repeated `W/ManagedChannelImpl: Failed to resolve name. status={1}` and Firestore `UNAVAILABLE` / `UnknownHostException` errors. This suggests problems connecting reliably to Firebase backend services, likely stemming from the `GoogleApiManager` issue.
+- **Firebase App Check:**
+    - ✅ Debug provider setup completed correctly.
+    - ⚠️ App Check placeholder token warning reappears later in the session, needs monitoring after core issues are fixed.
 
 ## Next Steps (Priority Order)
 
-1.  **Investigate and Resolve `ManagedChannelImpl: Failed to resolve name` errors (High Priority):**
-    - Check network connectivity on the test device.
-    - Verify DNS settings.
-    - Ensure Firebase backend services (Firestore, Functions) are correctly provisioned and accessible for the `billfie-dev` project.
-    - Review any recent changes to network configuration or Firebase project settings.
-2.  **Investigate and Resolve `GoogleApiManager SecurityException` (High Priority):**
-    - Thoroughly clear Google Play Services cache/data and app cache/data on the test device.
-    - Restart the test device.
-    - Ensure Google Play Services and Android System are fully updated.
-    - If persisting, explore if specific Google APIs need to be enabled in Google Cloud Console for the `billfie-dev` project.
-3.  **Fix `generate_thumbnail` Cloud Function Deployment to `billfie-dev`:** 
-    - Investigate and resolve the deployment failure for `generate_thumbnail` on `billfie-dev` by checking its specific Cloud Function and Cloud Build logs in the Google Cloud Console for that project. This is the immediate blocker for full backend functionality on `billfie-dev`.
-4.  **Address Security Warnings:**
+1.  **Investigate and Resolve `GoogleApiManager SecurityException` (Highest Priority):**
+    - Re-test on a clean, known-good Play Store emulator AVD (cold boot, signed in) to definitively rule out environment issues.
+    - Review `android/build.gradle` and `android/app/build.gradle` for any non-standard configurations (signing, dependencies, plugins).
+    - Consider creating a minimal reproducible example project with just Firebase Core, Auth, and App Check to see if the error occurs there.
+    - Explore potential tooling issues (Flutter SDK, Android SDK/NDK versions, Gradle version).
+2.  **Investigate and Resolve `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors (High Priority):**
+    - Primarily focus on resolving the `GoogleApiManager` issue, as it's the most likely cause.
+    - If the `GoogleApiManager` issue is fixed but network errors persist, investigate device/emulator DNS and network settings more deeply.
+3.  **Fix `generate_thumbnail` Cloud Function Deployment to `billfie-dev`:**
+    - Investigate and resolve the deployment failure for `generate_thumbnail` on `billfie-dev` by checking its specific Cloud Function and Cloud Build logs in the Google Cloud Console for that project.
+4.  **Address App Check Placeholder Token Reappearance (Lower Priority):**
+    - Monitor after fixing `GoogleApiManager` issue.
+5.  **Address Security Warnings:**
     - Implement Firebase App Check (`firebase_app_check` plugin, Play Integrity/Debug providers).
     - Verify SHA-1/SHA-256 keys in Firebase Console for Android.
     - Check for API key restrictions in Google Cloud Console.
     - Ensure Google Play Services are up-to-date on test devices/emulators.
-5.  **Remove Diagnostic Delay:** 
+6.  **Remove Diagnostic Delay:** 
     - Remove the `Future.delayed` call from `_loadReceipts` in `ReceiptsScreen.dart`.
-6.  **Implement Receipt List Pagination:**
+7.  **Implement Receipt List Pagination:**
     - Modify `FirestoreService.getReceipts` to accept limit/startAfter.
     - Update `ReceiptsScreen` UI (infinite scroll or "Load More") to fetch in batches.
-7.  **Create Comprehensive Testing Suite:**
+8.  **Create Comprehensive Testing Suite:**
     - Unit tests for services (`AuthService`, `FirestoreService`) and models.
     - Widget tests for UI components (especially `WorkflowModal`).
     - Integration tests for the full end-to-end workflow.
-8.  **Enhance Error Handling:**
+9.  **Enhance Error Handling:**
     - Improve user feedback for errors beyond basic Snackbars (e.g., thumbnail failure, network issues).
-9.  **Handle Edge Cases (Completed Receipts):**
+10. **Handle Edge Cases (Completed Receipts):**
     - Define and implement behavior for editing/modifying already completed receipts.
-10. **Code Cleanup/Refactoring:**
+11. **Code Cleanup/Refactoring:**
     - Review for potential code duplication (e.g., `SplitManager` instantiation).
     - Ensure consistent state management. 

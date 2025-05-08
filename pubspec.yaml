@@ -34,7 +34,7 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.0
   image_picker: ^1.0.4
-  http: ^1.2.0
+  http: ^1.4.0
   flutter_dotenv: ^5.1.0
   dart_openai: ^5.0.0
   record: ^5.0.1
@@ -44,13 +44,13 @@ dependencies:
   shared_preferences: ^2.5.3
   uuid: ^4.3.3
   
-  # Firebase - use compatible versions
-  firebase_core: ^2.27.2
-  firebase_auth: ^4.18.0
-  cloud_firestore: ^4.15.10
-  firebase_storage: ^11.6.11
-  cloud_functions: ^4.6.10
-  firebase_app_check: ^0.2.1+18
+  # Firebase - Allow newer compatible versions
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+  firebase_storage: ^12.0.0
+  cloud_functions: ^5.0.0
+  firebase_app_check: ^0.3.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
