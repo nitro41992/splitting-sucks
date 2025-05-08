@@ -27,13 +27,13 @@ The core data model follows this structure:
 
 ```
 users/{userId}/receipts/{receiptId}
-  - image_uri: String  // Image reference
-  - thumbnail_uri: String  // Thumbnail reference
   - parse_receipt: Map  // Receipt parsing data
   - transcribe_audio: Map  // Voice transcription data
   - assign_people_to_items: Map  // Person-to-item assignments
   - split_manager_state: Map  // Final split calculations
   - metadata: Map {
+      - image_uri: String  // Image reference
+      - thumbnail_uri: String  // Thumbnail reference
       - created_at, updated_at: Timestamp
       - status: String  // "draft" or "completed"
       - restaurant_name: String

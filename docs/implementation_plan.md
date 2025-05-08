@@ -30,11 +30,102 @@
 - ✅ Addressed `setState() called after dispose()` in `ReceiptsScreen` by adding `mounted` checks
 - ✅ Removed duplicate `WorkflowModal` file from `lib/screens`
 - ✅ Added debug AndroidManifest to allow cleartext traffic for emulator communication.
+- ✅ **Resolved:** Critical "Please select an image first" error when resuming drafts with images in the modal workflow by correcting logic in `lib/widgets/workflow_modal.dart`.
+- ✅ **Resolved:** Integrated `ReceiptParserService.parseReceipt` call directly into the modal workflow's upload step in `lib/widgets/workflow_modal.dart` for both new and resumed draft images.
+- ✅ **Resolved:** Item names are now correctly displayed on the Review screen after parsing in the modal workflow (fixed field name from `name` to `item` and added null safety in `_convertToReceiptItems` within `lib/widgets/workflow_modal.dart`).
+- ✅ **Resolved:** Robust handling of `null` or unexpected data types for item fields (name, price, quantity) during conversion from raw parser output to `ReceiptItem` objects in `_convertToReceiptItems`.
 
 **In Progress:**
 - None
 
 **Pending:**
+- **Workflow Stability - Upload Screen (Revised Investigation & Fix Plan):**
+  - **Resolution Note (Important for Future Development):**
+    The primary cause of the "Please select an image first" error and subsequent parsing issues when resuming drafts within the **modal workflow** was identified and resolved by focusing on `lib/widgets/workflow_modal.dart`. Initial troubleshooting efforts were misdirected towards `lib/receipt_splitter_ui.dart` (`MainPageController` and `ReceiptScreenWrapper`), which, while relevant for other potential app flows, does not handle the "Use This" button's action in the primary modal receipt processing.
+
+    The key fixes involved:
+    1.  Correcting the `onParseReceipt` callback in `_WorkflowModalBodyState` (within `lib/widgets/workflow_modal.dart`) to properly check for both local image files (`workflowState.imageFile`) and existing remote image URLs (`workflowState.loadedImageUrl`).
+    2.  Integrating the call to `ReceiptParserService.parseReceipt(gsUri)` directly within this `onParseReceipt` callback, ensuring the correct `gs://` URI is used.
+    3.  Making `_WorkflowModalBodyState._convertToReceiptItems` robust by correctly handling the data structure returned by the parser (e.g., using `rawItem['item']` for names and providing defaults for null/missing fields).
+
+    **Future developers working on the modal receipt upload, parsing, and item review steps should primarily look at `lib/widgets/workflow_modal.dart` (specifically `_WorkflowModalBodyState`) and its `WorkflowState` for the relevant logic.** The parsing logic in `MainPageController` (`lib/receipt_splitter_ui.dart`) might be for a different context or could be a candidate for refactoring if the modal is the sole entry point for this detailed workflow.
+
+  - **Issue (Resolved):** "Please select an image first" error *was occurring* on the Upload screen in the modal workflow when "Use This" is pressed, even if an image (especially from a resumed draft) was visible.
+  - **Core Problem (Identified & Resolved):** The `onParseReceipt` callback in `_WorkflowModalBodyState` was not correctly handling resumed drafts with remote images (it primarily checked for a local `imageFile`) and was not robustly calling the parser or handling its results for item display.
+  - **Investigation & Solution Strategy (Superseded for Modal Context):** Original investigation focused on `receipt_splitter_ui.dart`. The successful solution was applied directly in `lib/widgets/workflow_modal.dart`.
+  - **Verification (Modal Workflow Scenarios - Confirmed Working):**
+    - ✅ New Upload: Pick image -> "Use This" -> Parse & Navigate to Review with correct items.
+    - ✅ Draft Resume (with unparsed image): Open draft with image -> "Use This" -> Parse & Navigate to Review with correct items.
+    - ✅ Retry logic within modal upload screen appears functional for clearing local selections.
+
+- **Code Cleanup & Refactoring - Parsing Logic Duplication:**
+  - **Context:** The primary parsing initiation and item data handling for the **modal workflow** is now correctly implemented in `lib/widgets/workflow_modal.dart` (within `_WorkflowModalBodyState`).
+  - **Observation:** Parsing-related logic also exists in `lib/receipt_splitter_ui.dart` within `_MainPageControllerState` (e.g., `_directParseReceipt`) and `_ReceiptScreenWrapperState` (`_parseReceipt`).
+  - **Action:** Review this potentially duplicated/unused code.
+    - If the modal workflow is the *sole* pathway for detailed receipt processing, refactor to remove the redundant parsing logic from `receipt_splitter_ui.dart` to simplify the codebase.
+    - If the logic in `receipt_splitter_ui.dart` serves a different, non-modal purpose, clearly document its specific use case to avoid confusion.
+    - **Key files for current modal parsing:** `lib/widgets/workflow_modal.dart`, `lib/services/receipt_parser_service.dart`.
+
+- **Data Model Refinement - Receipt URIs:**
+  - **Objective:** Consolidate `image_uri` and `thumbnail_uri` into the `metadata` map for each receipt document to improve data structure clarity and reduce redundancy, aligning with the updated `app_navigation_redesign.md`.
+  - **Current State (as per Firestore screenshot & potential legacy):** URIs might be at the root or redundantly nested within process-specific maps (`parse_receipt`, `assign_people_to_items`, `split_manager_state`).
+  - **Target State:** Single `metadata.image_uri` and `metadata.thumbnail_uri` per receipt.
+  - **Impact & Implementation Steps:**
+    1.  **Flutter App (`Receipt` Model):**
+        *   Modify `lib/models/receipt.dart` (`Receipt.fromJson`, `toJson/toMap`).
+        *   Update all parts of the app that read/write these URIs to use the new path (e.g., `metadata['image_uri']`). This includes: `ReceiptsScreen` (for thumbnails), `WorkflowModal` and its constituent screens when handling draft images or displaying parsed/thumbnail data.
+    2.  **Cloud Functions:**
+        *   **`parse_receipt`:** If it currently writes `image_uri` or `thumbnail_uri` to its own map, it should now write them to `metadata.image_uri` and `metadata.thumbnail_uri` (or just `image_uri` if `generate_thumbnail` is separate).
+        *   **`generate_thumbnail`:** Should read the main image URI from `metadata.image_uri` and write the generated thumbnail URI to `metadata.thumbnail_uri`.
+        *   **Other Functions (`assign_people_to_items`, etc.):** If they previously referenced nested URIs, they must now reference `metadata.image_uri` or `metadata.thumbnail_uri`.
+        *   Remove redundant URI fields from the data structures these functions expect or produce.
+    3.  **Data Migration (One-time script or manual for few documents):**
+        *   For each existing receipt document in Firestore:
+            *   Identify the canonical `image_uri` (likely from the most recent or primary source like `parse_receipt.image_uri` or a root field if it exists).
+            *   Identify the canonical `thumbnail_uri` (similarly).
+            *   Write these values to `doc.metadata.image_uri` and `doc.metadata.thumbnail_uri`.
+            *   Delete the old root-level `image_uri`/`thumbnail_uri` fields (if they exist).
+            *   Delete the redundant nested `image_uri` and `thumbnail_uri` fields from within `parse_receipt`, `assign_people_to_items`, `split_manager_state`, etc.
+    4.  **Testing:**
+        *   Verify new receipts correctly store URIs in `metadata`.
+        *   Verify drafts with images (old and new structure post-migration) load correctly.
+        *   Verify thumbnail generation and display works with the new structure.
+        *   Verify all functions relying on these URIs operate correctly.
+
+- **General Modal Workflow State Consistency Plan:**
+  - **Objective:** Ensure reliable data flow, state management, and UI consistency across all steps of the modal workflow (Upload, Review, Assign, Split, Summary), whether it's a new receipt or a resumed draft.
+  - **Principles:**
+    - **Single Source of Truth:** For any piece of data relevant to a step (e.g., image URI, parsed items, transcription, assignments), identify a single, authoritative source (`MainPageController` for cross-step persistent/draft state, or the current step's controller/wrapper for transient state).
+    - **Clear Data Propagation:** Use widget constructors (props) for passing initial/static data down and callbacks (`onComplete`, `onUpdate`) for sending data/events up.
+    - **Scoped State Management:** Leverage `Provider` or `ChangeNotifier` (like `WorkflowState` or `SplitManager`) appropriately for state that needs to be shared or mutated across a limited scope of the workflow, but ensure clear interaction with `MainPageController` for overall persistence.
+    - **Immutability where Possible:** When passing data objects (like lists of items), consider using immutable patterns or creating copies to prevent unintended side-effects if child widgets modify them.
+  - **Action Plan:**
+    1.  **Data Flow Mapping (for each step - Review, Assign, Split, Summary):**
+        *   **Inputs:** What data does this screen (`ReceiptReviewScreen`, `VoiceAssignmentScreen`, etc.) require to initialize (e.g., `_receiptItems` for Review, `_savedTranscription` for Assign)?
+        *   **Source:** How does it receive these inputs from `MainPageController` (or the preceding step's completion callback)?
+        *   **Internal State:** Does the screen manage its own temporary state related to these inputs? How is it synchronized if the inputs change?
+        *   **Actions & Outputs:** What actions can the user perform (e.g., edit item, confirm transcription, adjust split)? How are the results of these actions (e.g., updated items, `_assignments`) communicated back to `MainPageController` (e.g., via `onReviewComplete`, `onAssignmentProcessed`) to update the central state and mark step completion (`_isReviewComplete`, `_isAssignmentComplete`)?
+    2.  **State Restoration Review (for each step):**
+        *   Verify `_MainPageControllerState._loadSavedState()` correctly loads all relevant data for each step (e.g., `_receiptItems`, `_savedTranscription`, `_assignments`).
+        *   Ensure this loaded data is correctly passed as initial props to the respective screen widgets when resuming a draft.
+        *   Confirm the screen widgets initialize their UI and internal state correctly based on these restored props.
+    3.  **Callback Integrity:**
+        *   Ensure all `onSomethingComplete` or `onDataUpdated` callbacks from screen widgets correctly update the state in `_MainPageControllerState` (e.g., `_receiptItems`, `_isUploadComplete`, `_savedTranscription`, `_assignments`, `_isReviewComplete`, `_isAssignmentComplete`).
+        *   Verify that `_navigateToPage()` is called with the correct next page index *after* the relevant state updates have been committed.
+    4.  **`SplitManager` Initialization:**
+        *   Re-confirm that `SplitManager` is correctly reset and initialized in `_navigateToPage()` specifically when navigating from Assign (page 2) to Split (page 3) using the `_assignments` data.
+        *   Verify its behavior when restoring a draft directly onto the Split or Summary page (post-build state restoration logic in `MainPageController`).
+        *   **Defensive UI:** Ensure buttons that trigger actions (e.g., "Next," "Confirm," "Process") are appropriately enabled/disabled based on the current valid state of required data for that step.
+  - **Testing Strategy (General Workflow):**
+    - **End-to-End Fresh:** Complete workflow from new upload to summary.
+    - **Draft Resume at Each Step:**
+        - Upload -> Save/Exit -> Resume -> Continue.
+        - Upload -> Review -> Save/Exit -> Resume -> Continue.
+        - Upload -> Review -> Assign -> Save/Exit -> Resume -> Continue.
+        - (And so on for Split and Summary).
+    - **"Back" Navigation:** Navigate forward, then back, then forward again, ensuring state is preserved or correctly reloaded/recalculated.
+    - **"Retry" (where applicable):** Test retry/reset mechanisms within steps.
+
 - **Performance Optimization:**
   - Optimize receipts list loading (currently fetches all receipts; needs pagination)
   - Implement image caching for better performance

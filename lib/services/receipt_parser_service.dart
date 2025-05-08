@@ -79,111 +79,107 @@ class ReceiptParserService {
   
   /// Parses a receipt image using the Firebase Cloud Function
   /// 
-  /// Uploads the image to Firebase Storage and then calls the parse_receipt
-  /// Cloud Function to process it with OpenAI's API.
-  static Future<ReceiptData> parseReceipt(File imageFile) async {
+  /// Either:
+  /// 1. Uploads the image file to Firebase Storage if a File is provided, or
+  /// 2. Uses the provided Storage URL (gs:// or https://) directly if a String is provided.
+  /// 
+  /// Then calls the parse_receipt Cloud Function to process it.
+  static Future<ReceiptData> parseReceipt(dynamic imageSource) async {
     // Get instance of Cloud Functions & Storage
     FirebaseFunctions functions = FirebaseFunctions.instance;
     FirebaseStorage storage = FirebaseStorage.instance;
-    // You can specify a region if your function is not in us-central1
-    // functions = FirebaseFunctions.instanceFor(region: 'your-region');
-
-    // --- Upload to Firebase Storage ---
-    String? imageUri; // Use gs:// URI
-    try {
-      // Create a unique filename using timestamp
-      String fileName = 'receipts/${DateTime.now().millisecondsSinceEpoch}_${imageFile.path.split('/').last}';
-      Reference storageRef = storage.ref().child(fileName);
-
-      debugPrint('Uploading receipt to Storage: $fileName');
-      UploadTask uploadTask = storageRef.putFile(
-        imageFile,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-
-      // Await the upload completion
-      TaskSnapshot snapshot = await uploadTask;
-
-      // Get the gs:// URI
-      // IMPORTANT: Ensure your Cloud Function's service account has permission
-      // to read from this bucket (e.g., Storage Object Viewer role).
-      imageUri = 'gs://${snapshot.ref.bucket}/${snapshot.ref.fullPath}';
-      debugPrint('Receipt upload complete. URI: $imageUri');
-
-    } on FirebaseException catch (e) {
-      debugPrint('Storage upload error: ${e.code} - ${e.message}');
-      throw Exception('Failed to upload receipt image: ${e.message}');
-    } catch (e) {
-      debugPrint('Unexpected storage upload error: $e');
-      throw Exception('Failed to upload receipt image: $e');
-    }
-    // --- End Upload ---
-
-
-    // Ensure we got a URI before proceeding
-    if (imageUri == null) {
-       throw Exception('Failed to get image URI from Firebase Storage.');
+    
+    String? imageGsUri; // Will hold the gs:// URI to process 
+    
+    // --- Handle Image Source --- 
+    if (imageSource == null) {
+      throw Exception('Image source cannot be null.');
     }
 
+    if (imageSource is File) {
+      // CASE 1: We received a File object - upload it to Firebase Storage
+      try {
+        String fileName = 'receipts/${DateTime.now().millisecondsSinceEpoch}_${imageSource.path.split('/').last}';
+        Reference storageRef = storage.ref().child(fileName);
+
+        debugPrint('[ReceiptParserService] Uploading receipt File to Storage: $fileName');
+        UploadTask uploadTask = storageRef.putFile(
+          imageSource,
+          SettableMetadata(contentType: 'image/jpeg'), // Assuming JPEG, adjust if needed
+        );
+        TaskSnapshot snapshot = await uploadTask;
+        imageGsUri = 'gs://${snapshot.ref.bucket}/${snapshot.ref.fullPath}';
+        debugPrint('[ReceiptParserService] Receipt File upload complete. GS URI: $imageGsUri');
+      } on FirebaseException catch (e) {
+        debugPrint('[ReceiptParserService] Storage upload error for File: ${e.code} - ${e.message}');
+        throw Exception('Failed to upload receipt image file: ${e.message}');
+      } catch (e) {
+        debugPrint('[ReceiptParserService] Unexpected storage upload error for File: $e');
+        throw Exception('Failed to upload receipt image file: $e');
+      }
+    } else if (imageSource is String) {
+      // CASE 2: We received a URL string
+      debugPrint('[ReceiptParserService] Processing String imageSource: $imageSource');
+      if (imageSource.startsWith('gs://')) {
+        // It's already a gs:// URI, use as is
+        imageGsUri = imageSource;
+        debugPrint('[ReceiptParserService] Using provided GS URI directly: $imageGsUri');
+      } else if (imageSource.startsWith('https://') || imageSource.startsWith('http://')) {
+        // It's an HTTP/S URL, attempt to convert to gs:// URI
+        try {
+          debugPrint('[ReceiptParserService] Converting HTTP/S URL to GS URI: $imageSource');
+          // FirebaseStorage.refFromURL can take an HTTP/S URL for a Firebase Storage object
+          Reference storageRef = storage.refFromURL(imageSource);
+          imageGsUri = 'gs://${storageRef.bucket}/${storageRef.fullPath}';
+          debugPrint('[ReceiptParserService] Converted to GS URI: $imageGsUri');
+        } catch (e) {
+          debugPrint('[ReceiptParserService] Error converting HTTP/S URL to GS URI: $e. Image source: $imageSource');
+          throw Exception('Invalid Firebase Storage HTTP/S URL or failed to convert: $e');
+        }
+      } else {
+        debugPrint('[ReceiptParserService] Unrecognized String imageSource format: $imageSource');
+        throw Exception('Invalid string image source. Must be a gs:// URI or a Firebase Storage HTTP/S URL.');
+      }
+    } else {
+      // CASE 3: Unsupported image source type
+      debugPrint('[ReceiptParserService] Invalid image source type: ${imageSource.runtimeType}');
+      throw Exception('Invalid image source type. Must be a File or a String (gs:// or https:// URL).');
+    }
+    // --- End Handle Image Source ---
+
+    // Ensure we got a GS URI before proceeding
+    if (imageGsUri == null || imageGsUri.isEmpty) {
+       throw Exception('Failed to determine image GS URI from the provided source.');
+    }
+
     try {
-      // Prepare the callable function reference
       HttpsCallable callable = functions.httpsCallable('parse_receipt');
-
-      // Call the function with the image URI
-      debugPrint('Calling parse_receipt function with URI');
+      debugPrint('[ReceiptParserService] Calling parse_receipt Cloud Function with GS URI: $imageGsUri');
       final HttpsCallableResult result = await callable.call<Map<String, dynamic>>(
         {
-          'imageUri': imageUri,
+          'imageUri': imageGsUri, // Ensure the Cloud Function expects 'imageUri'
         },
       );
 
-      try {
-        // Access the response data
-        final Map<String, dynamic>? receiptMap = result.data is Map<String, dynamic> ? result.data as Map<String, dynamic> : null;
-
-        if (receiptMap == null) {
-          debugPrint("Error: Invalid response structure from Cloud Function");
-          throw Exception('Invalid response from receipt parser');
-        }
-
-        // Check if the response has a nested 'data' field
-        final Map<String, dynamic> finalReceiptMap = receiptMap.containsKey('data') 
-            ? receiptMap['data'] as Map<String, dynamic>
-            : receiptMap; // Use the map directly if no 'data' wrapper
-
-        // Parse the map
-        return ReceiptData.fromJson(finalReceiptMap);
-      } catch (e) {
-        debugPrint("Error parsing receipt data: $e");
-        throw Exception('Failed to parse receipt data: $e');
+      final Map<String, dynamic>? receiptMap = result.data is Map<String, dynamic> ? result.data as Map<String, dynamic> : null;
+      if (receiptMap == null) {
+        debugPrint("[ReceiptParserService] Error: Invalid response structure from Cloud Function. Data is null or not a map.");
+        throw Exception('Invalid response from receipt parser Cloud Function.');
       }
 
+      final Map<String, dynamic> finalReceiptMap = receiptMap.containsKey('data') && receiptMap['data'] is Map<String, dynamic>
+          ? receiptMap['data'] as Map<String, dynamic>
+          : receiptMap;
+
+      return ReceiptData.fromJson(finalReceiptMap);
     } on FirebaseFunctionsException catch (e) {
-      // Handle Firebase Cloud Functions specific exceptions
-      debugPrint('Cloud Function error: ${e.code} - ${e.message}');
-      throw Exception('Receipt parsing failed: ${e.message}');
+      debugPrint('[ReceiptParserService] Cloud Function error: ${e.code} - ${e.message} - ${e.details}');
+      throw Exception('Receipt parsing Cloud Function failed: Code: ${e.code}, Message: ${e.message}');
     } catch (e) {
-      // Catch any other exceptions
-      debugPrint('Receipt processing error: $e');
+      debugPrint('[ReceiptParserService] General error during Cloud Function call or data parsing: $e');
       throw Exception('Receipt processing failed: $e');
-    } finally {
-       // Optional: Delete the image from Storage after processing?
-       // Decide if you want to keep the images in Storage or clean them up.
-       // If cleaning up:
-       // if (imageUri != null) {
-       //   try {
-       //     debugPrint('Deleting image from storage: $imageUri');
-       //     // Extract bucket and path from gs:// URI
-       //     final uriParts = imageUri.replaceFirst('gs://', '').split('/');
-       //     final bucketName = uriParts.first; // Note: Default bucket often doesn't need explicit naming here
-       //     final objectPath = uriParts.sublist(1).join('/');
-       //     await storage.ref().child(objectPath).delete();
-       //     debugPrint('Successfully deleted image from storage.');
-       //   } catch (e) {
-       //     debugPrint('Failed to delete image from storage: $e');
-       //     // Log error but don't fail the whole operation just for cleanup failure
-       //   }
-       // }
     }
+    // No finally block for deleting image, as this service might be called with pre-existing URIs.
+    // Deletion logic should be handled by the caller if needed (e.g., after a File upload and successful parse).
   }
 } 

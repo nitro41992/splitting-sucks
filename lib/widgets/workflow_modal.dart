@@ -13,6 +13,7 @@ import 'split_view.dart';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../services/receipt_parser_service.dart';
 
 /// Define NavigateToPageNotification class here to match the one in split_view.dart
 /// This avoids having to expose that class in a separate file while maintaining compatibility
@@ -710,37 +711,91 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
             }
           },
           onParseReceipt: () async { // This is the "Use This" button's action
-            if (workflowState.imageFile == null) {
-              workflowState.setErrorMessage('Please select an image first.');
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
-              );
-              return;
-            }
-
             workflowState.setLoading(true);
             workflowState.setErrorMessage(null);
+            String? finalGsUri;
+            Map<String, dynamic> currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
 
             try {
-              // Call the helper
-              final uris = await _uploadImageAndProcess(workflowState.imageFile!);
+              // Scenario 1: Local image file exists (new upload or re-upload)
+              if (workflowState.imageFile != null) {
+                debugPrint('[WorkflowModal onParseReceipt] Local file detected. Uploading and processing...');
+                final uris = await _uploadImageAndProcess(workflowState.imageFile!);
+                
+                currentParseResult['image_uri'] = uris['imageUri']; // This should be the gs:// URI
+                currentParseResult['thumbnail_uri'] = uris['thumbnailUri'];
+                // Do not set parseReceiptResult yet, wait for actual parsing
+                finalGsUri = uris['imageUri'];
+                debugPrint('[WorkflowModal onParseReceipt] Local file processed. gsURI: $finalGsUri');
 
-              // Update parseResult state immediately
-              final parseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {}); // Ensure map exists
-              parseResult['image_uri'] = uris['imageUri'];
-              parseResult['thumbnail_uri'] = uris['thumbnailUri'];
-              workflowState.setParseReceiptResult(parseResult); 
+              // Scenario 2: No local file, but a loadedImageUrl (from a draft) exists
+              } else if (workflowState.loadedImageUrl != null && workflowState.loadedImageUrl!.isNotEmpty) {
+                debugPrint('[WorkflowModal onParseReceipt] Remote image URL detected: ${workflowState.loadedImageUrl}');
+                finalGsUri = currentParseResult['image_uri'] as String?;
+                if (finalGsUri == null || finalGsUri.isEmpty) {
+                  debugPrint('[WorkflowModal onParseReceipt] CRITICAL: loadedImageUrl is present, but gs:// image_uri is missing or empty in parseReceiptResult.');
+                  throw Exception('Cannot parse, GS URI for remote image is missing.');
+                }
+                debugPrint('[WorkflowModal onParseReceipt] Proceeding with existing remote image. GS URI: $finalGsUri');
+
+              // Scenario 3: No local file and no remote URL
+              } else {
+                debugPrint('[WorkflowModal onParseReceipt] No image selected (neither local nor remote).');
+                workflowState.setLoading(false);
+                workflowState.setErrorMessage('Please select an image first.');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
+                  );
+                }
+                return; // Exit early
+              }
+
+              // If we don't have a GsUri at this point, something went wrong
+              if (finalGsUri == null || finalGsUri.isEmpty) {
+                debugPrint('[WorkflowModal onParseReceipt] CRITICAL: finalGsUri is null or empty before parsing attempt.');
+                throw Exception('Image URI could not be determined for parsing.');
+              }
+
+              // Now, call the actual parsing service if items are not already present or if it's a new image upload.
+              // For a new upload (imageFile was not null), we always re-parse.
+              // For a resumed draft, we only parse if items are missing.
+              bool shouldParse = (workflowState.imageFile != null) || 
+                                 (!currentParseResult.containsKey('items')) || 
+                                 ((currentParseResult['items'] as List?)?.isEmpty ?? true);
+
+              if (shouldParse) {
+                debugPrint('[WorkflowModal onParseReceipt] Parsing needed. Calling ReceiptParserService.parseReceipt with GsUri: $finalGsUri');
+                final ReceiptData parsedData = await ReceiptParserService.parseReceipt(finalGsUri);
+                
+                // Update currentParseResult with the new items and subtotal from the parser
+                currentParseResult['items'] = parsedData.items; // Store the raw list of item maps as returned by the parser
+                currentParseResult['subtotal'] = parsedData.subtotal;
+                // Preserve existing image_uri and thumbnail_uri
+                currentParseResult['image_uri'] = finalGsUri; // Ensure it's the one we used
+                // Note: thumbnail_uri from a new upload is already in currentParseResult by this point.
+                // If loading from a draft, thumbnail_uri would have been in the initial currentParseResult.
+
+                workflowState.setParseReceiptResult(currentParseResult); // Update the state with all data
+                debugPrint('[WorkflowModal onParseReceipt] Receipt parsed successfully. Items count from parsedData.items: ${parsedData.items.length}, Subtotal: ${parsedData.subtotal}');
+              } else {
+                debugPrint('[WorkflowModal onParseReceipt] Parsing not needed. Items already present or it is a draft without new image.');
+                // Ensure the existing parseResult (which should include items) is set
+                workflowState.setParseReceiptResult(currentParseResult);
+              }
 
               workflowState.setLoading(false);
               workflowState.nextStep();
 
-            } catch (e) { // Catches errors from the helper (upload failed)
-              debugPrint('Error during onParseReceipt (from helper): $e');
+            } catch (e) { 
+              debugPrint('[WorkflowModal onParseReceipt] Error: $e');
               workflowState.setLoading(false);
-              workflowState.setErrorMessage('Failed to process image: ${e.toString()}');
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to process image: ${e.toString()}'), backgroundColor: Colors.red),
-              );
+              workflowState.setErrorMessage('Failed to process/parse receipt: ${e.toString()}');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to process/parse receipt: ${e.toString()}'), backgroundColor: Colors.red),
+                );
+              }
             }
           },
           onRetry: () { 
@@ -1256,14 +1311,23 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       for (final rawItem in rawItems) {
         if (rawItem is Map) {
           try {
+            // Defensive parsing for each field
+            final String itemName = rawItem['item'] as String? ?? 'Unknown Item'; // Default if name is null
+            
+            final num? itemPriceNum = rawItem['price'] as num?;
+            final double itemPrice = itemPriceNum?.toDouble() ?? 0.0; // Default if price is null or not a number
+            
+            final num? itemQuantityNum = rawItem['quantity'] as num?;
+            final int itemQuantity = itemQuantityNum?.toInt() ?? 1; // Default if quantity is null or not a number
+
             items.add(ReceiptItem(
-              name: rawItem['name'] as String,
-              price: (rawItem['price'] as num).toDouble(),
-              quantity: rawItem['quantity'] as int,
+              name: itemName,
+              price: itemPrice,
+              quantity: itemQuantity,
             ));
           } catch (e) {
-            // Skip items that don't match the expected format
-            print('Error parsing item: $e');
+            // Log more specific details about the problematic item if possible
+            print('Error parsing item: $e. Raw item data: $rawItem');
           }
         }
       }
