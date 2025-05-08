@@ -390,6 +390,11 @@ class WorkflowState extends ChangeNotifier {
 
 /// Dialog to prompt for restaurant name
 Future<String?> showRestaurantNameDialog(BuildContext context, {String? initialName}) async {
+  // Add mounted check before attempting to show a dialog
+  if (!context.mounted) {
+    debugPrint("[showRestaurantNameDialog] Error: Context is not mounted before showing dialog.");
+    return null;
+  }
   final TextEditingController controller = TextEditingController(text: initialName);
   
   return showDialog<String>(
