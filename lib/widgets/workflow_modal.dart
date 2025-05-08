@@ -280,6 +280,7 @@ class WorkflowState extends ChangeNotifier {
   void addUriToPendingDeletions(String? uri) {
     if (uri != null && uri.isNotEmpty && !_pendingDeletionGsUris.contains(uri)) {
         _pendingDeletionGsUris.add(uri);
+        debugPrint('[WorkflowState] Added to pending deletions: $uri. Current list: $_pendingDeletionGsUris');
     }
      // No need to notify listeners
   }
@@ -630,6 +631,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       if (receipt.thumbnailUri != null) {
         workflowState.setActualThumbnailGsUri(receipt.thumbnailUri);
       }
+      debugPrint('[_loadReceiptData] Loaded from Firestore. WorkflowState updated - ActualImageGsUri: ${workflowState.actualImageGsUri}, ActualThumbnailGsUri: ${workflowState.actualThumbnailGsUri}');
 
       // Load sub-document data, defaulting to empty maps if null from Firestore
       // This ensures WorkflowState always has valid, non-null maps for these.
@@ -872,6 +874,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
        debugPrint('_uploadImageAndProcess: Error during image upload: $uploadError');
        rethrow;
     }
+    debugPrint('[_uploadImageAndProcess] Returning URIs - Image: $imageGsUri, Thumbnail: $thumbnailGsUri');
     return {'imageUri': imageGsUri, 'thumbnailUri': thumbnailGsUri};
   }
 
@@ -930,6 +933,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       // If imageFile is null but loadedImageUrl/actualImageGsUri is present, we don't need to upload again.
 
       final receipt = workflowState.toReceipt(); // Gets URIs from actualImageGsUri/ThumbnailGsUri
+      debugPrint('[_saveDraft] Preparing to save. Receipt object created with ImageURI: ${receipt.imageUri}, ThumbnailURI: ${receipt.thumbnailUri}');
       
       // **** ADD DEBUG PRINT HERE ****
       debugPrint('[_saveDraft] Saving draft. workflowState.parseReceiptResult: ${workflowState.parseReceiptResult}');
@@ -1117,25 +1121,38 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                 if (file != null) {
                   workflowState.setImageFile(file); // This already clears subsequent data internally
                   workflowState.setErrorMessage(null);
-                  _uploadImageAndProcess(file).then((uris) {
-                    if (mounted && workflowState.imageFile == file) { // Use original ref
-                      // Use the single update method
+                  // Store the file reference used for this specific upload attempt
+                  final File imageFileForThisUpload = file; 
+
+                  _uploadImageAndProcess(imageFileForThisUpload).then((uris) {
+                    // Check if the widget is still mounted AND if the current imageFile in state is still the one we started this upload for.
+                    if (mounted && workflowState.imageFile == imageFileForThisUpload) { 
                       workflowState.setActualImageGsUri(uris['imageUri']); 
                       workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
-                      debugPrint('[WorkflowModal onImageSelected] Background upload complete. Actual GS URIs set for ${uris['imageUri']}.');
+                      debugPrint('[WorkflowModal onImageSelected] Background upload complete. WorkflowState updated - ActualImageGsUri: ${workflowState.actualImageGsUri}, ActualThumbnailGsUri: ${workflowState.actualThumbnailGsUri}');
                     } else {
-                      debugPrint('[WorkflowModal onImageSelected] Background upload complete, but context changed or image no longer matches. URIs not set or will be overwritten.');
+                      debugPrint('[WorkflowModal onImageSelected] Background upload complete, but context changed or image no longer matches. URIs not set or will be overwritten. Orphaned URIs might be ${uris['imageUri']}, ${uris['thumbnailUri']}');
+                      // If URIs were generated but not set, they are now orphans. Add them to pending deletion.
+                      if (uris['imageUri'] != null) workflowState.addUriToPendingDeletions(uris['imageUri']);
+                      if (uris['thumbnailUri'] != null) workflowState.addUriToPendingDeletions(uris['thumbnailUri']);
                     }
                   }).catchError((error) {
-                     if (mounted && workflowState.imageFile == file) { // Use original ref
-                        debugPrint('[WorkflowModal onImageSelected] Background upload failed: $error');
+                     // Check if the widget is still mounted AND if the current imageFile in state is still the one we started this upload for.
+                     if (mounted && workflowState.imageFile == imageFileForThisUpload) { 
+                        debugPrint('[WorkflowModal onImageSelected] Background upload failed for current image: $error');
                         workflowState.setErrorMessage('Background image upload failed. Please try parsing again or reselect.');
+                        // Explicitly clear URIs in state as the upload for the current imageFile failed
+                        workflowState.setActualImageGsUri(null);
+                        workflowState.setActualThumbnailGsUri(null);
                       } else {
                         debugPrint('[WorkflowModal onImageSelected] Background upload failed for an outdated image selection: $error');
+                        // The URIs that might have been generated for this outdated attempt are unknown here,
+                        // but _uploadImageAndProcess should not return URIs if it hard-fails.
+                        // If it somehow did, they'd be handled by the 'else' in the 'then' block if a new image was selected quickly.
                       }
                   });
                 } else {
-                  workflowState.resetImageFile(); // Use original ref
+                  workflowState.resetImageFile(); 
                   workflowState.setErrorMessage(null);
                 }
               },
@@ -1164,7 +1181,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                       workflowState.setActualImageGsUri(uris['imageUri']); // Use original ref
                       workflowState.setActualThumbnailGsUri(uris['thumbnailUri']); // Use original ref
                       gsUriForParsing = uris['imageUri'];
-                      debugPrint('[WorkflowModal onParseReceipt] Synchronous upload complete. Actual GS URIs set. Using: $gsUriForParsing');
+                      debugPrint('[WorkflowModal onParseReceipt] Synchronous upload complete. WorkflowState updated - ActualImageGsUri: ${workflowState.actualImageGsUri}, ActualThumbnailGsUri: ${workflowState.actualThumbnailGsUri}. Using: $gsUriForParsing for parsing.');
                   } else if (workflowState.loadedImageUrl != null) { // Use original ref
                     debugPrint('[WorkflowModal onParseReceipt] CRITICAL: loadedImageUrl is present, but actualImageGsUri is missing...');
                     throw Exception('Image loaded from draft, but its GS URI is missing in state.');

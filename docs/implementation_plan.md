@@ -115,7 +115,7 @@
     - Placeholders remain in steps as a fallback.
 - ✅ **UI Placeholders for Missing Data (Modal Client-Side):** Added placeholder widgets for Review, Assign, Split, and Summary steps shown if prerequisite data is missing. Button disabling provides primary UX feedback.
 - ✅ **Step Indicator Navigation Alignment (Modal Client-Side):** Ensured that tapping on a step in the workflow modal's step indicator respects the same data readiness checks as the "Next" button. Users can only navigate forward via the indicator if the prerequisite data for intermediate steps is available (e.g., cannot tap "Split" if "Upload" step is not yet parsed, or if "Assign" step has no assignment data). Backward navigation is always allowed.
-- ✅ **Resolved Modal Launch Context Error (Modal Client-Side):** Added `if (!mounted) return;` checks in `ReceiptsScreen` before calling `WorkflowModal.show()` to prevent passing an unmounted context, addressing potential `Context is not mounted before navigation` errors originating from `WorkflowModal.show()`.
+- ✅ **Resolved Modal Launch Context Error (Modal Client-Side):** Added `if (!mounted) return;` checks in `ReceiptsScreen` and `WorkflowModal.show` (and `showRestaurantNameDialog`) to prevent passing an unmounted context, addressing potential `Context is not mounted before navigation` errors.
 - ✅ **Refined Modal 'X' Button Save Behavior (Modal Client-Side):** Ensured the modal's 'X' (close) button correctly and reliably triggers the `_onWillPop` save/cleanup logic by simplifying its `onPressed` handler to primarily delegate to `_onWillPop`.
 - ✅ **Resolved Summary View Subtotal Calculation (Modal Client-Side):** Fixed the subtotal discrepancy between Split and Summary steps by ensuring the Summary step's `SplitManager` is populated *solely* from the `assignPeopleToItemsResult` generated in the Split step, preventing stale data from `parseReceiptResult` from being used.
 - ✅ **Removed Modal 'X' Button:** Removed the 'X' button from the `AppBar` in the workflow modal as requested.
@@ -123,21 +123,22 @@
 - ✅ **Fixed Split View "Go To Summary" Button Navigation:** Wrapped `SplitView` instantiation in `_WorkflowModalBodyState` (case 3) with a `NotificationListener<NavigateToPageNotification>`. This listener now correctly catches the notification dispatched by the button in `SplitView`, checks data prerequisites, and navigates to the Summary step using `workflowState.goToStep(4)`.
 - ✅ **Resolved Async State Error on Complete:** Refactored `_completeReceipt` method in `_WorkflowModalBodyState` to correctly handle asynchronous operations, state updates (`setLoading`), and navigation (`Navigator.pop`). Added `mounted` checks after `await` calls and ensured navigation happens last to prevent errors from using disposed `WorkflowState` or `BuildContext`.
 - ✅ **Fixed Assign Step 'Next' Button Confirmation:** Removed incorrect confirmation dialog logic from the main "Next" button when navigating from the Assign step (step 2) to the Split step (step 3). Navigation now proceeds directly if assignment data exists, consistent with other step transitions.
+- ✅ **Addressed Image Not Displayed in Upload Screen (Resume/Edit):** Modified `ReceiptUploadScreen` to correctly use `imageUrl` and `loadedThumbnailUrl` from `WorkflowState` to display images from resumed drafts using `CachedNetworkImage`. Resolved related linter errors.
+- ✅ **Addressed Upload Screen Flashes & Incorrect Resume Step (Resume/Edit):** Implemented a loading indicator in `_WorkflowModalBodyState` for draft resumption. Corrected and refined target step logic in `_loadReceiptData` to navigate to Summary (4) if assignment data exists, Assign (2) if transcription data exists, Review (1) if parse data exists, or Upload (0) otherwise.
 
 **In Progress / Pending Issues:**
 
 - **UI/Functionality Bugs:**
-    - ⚠️ **App Crash/Performance Issues:** User has reported general app crashes, skipped frames, EGL errors, and potential ANR (Application Not Responding) errors. (Update: `WorkflowState` disposal error addressed, but other potential issues remain).
-    - ⚠️ **Image Not Displayed in Upload Screen (Resume/Edit):** When resuming or editing a draft, the previously uploaded image (or its thumbnail) is not being displayed in the `ReceiptUploadScreen`.
-    - ⚠️ **Upload Screen Flashes & Incorrect Resume Step (Resume/Edit):** On resuming/editing, the Upload screen (step 0) briefly flashes before navigating. Additionally, ensure navigation correctly proceeds to the Summary step (4) if assignment data exists, otherwise to Review (1) if parse data exists, or Upload (0) otherwise. Currently, this initial navigation target needs verification.
+    - ⚠️ **CRITICAL: Main Image Missing (404 Error) in Storage (Resume/Edit):** User reports that for some resumed drafts, the main image (e.g., `gs://.../receipts/.../image.jpg`) is missing from Firebase Storage (leading to a 404 when fetching its download URL), even though its corresponding thumbnail *does* exist. This is a high-priority data integrity issue. Investigation points towards client-side upload/save logic or potentially the `generate_thumbnail` Cloud Function (though initial review shows it doesn't delete the original). **Added detailed logging to trace URI handling on the client.**
+    - ⚠️ **App Crash/Performance Issues:** User has reported general app crashes, skipped frames, EGL errors, and potential ANR (Application NotResponding) errors. (Update: `WorkflowState` disposal and `Context mounted` errors addressed, but EGL errors persist, likely emulator-related).
     - ⚠️ **"Completed" Indicator:** No visual indicator on completed receipts (e.g., in Receipts list or within the summary). Needs implementation.
     - ⚠️ **Split View "Unassigned" Tab:** Potential issue where the "Unassigned" tab might display incorrectly. Needs testing.
 - **Testing & Verification:**
     - ⚠️ **Split Step State Persistence:** Needs testing (Tip/Tax changes, Person/Item modifications persistence via listener).
     - ⚠️ **Assignment Data Propagation:** Needs end-to-end testing after recent confirmation/clearing changes.
 - **Authentication & Emulator Connectivity:**
-    - ⚠️ **Remaining Issue (Highest Priority):** Persistent `GoogleApiManager SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs urgent investigation (likely separate effort).
-    - ⚠️ **Remaining Issue (High Priority):** Persistent `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors. Likely related to `GoogleApiManager` issue.
+    - ⚠️ **Remaining Issue (Highest Priority - Separate Effort?):** Persistent `GoogleApiManager SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs urgent investigation.
+    - ⚠️ **Remaining Issue (High Priority - Separate Effort?):** Persistent `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors. Likely related to `GoogleApiManager` issue.
 
 **Pending (Longer Term / Other Areas):**
 - **Data Model Refinement - Consolidate URIs to `metadata` map (Remaining Steps):**
@@ -145,7 +146,7 @@
   - Non-Modal Workflow (`lib/receipt_splitter_ui.dart`)
   - Data Migration Script
   - Testing (URI Refactor)
-- **Cloud Function `generate_thumbnail` Behavior:** Investigate potential internal errors.
+- **Cloud Function `generate_thumbnail` Behavior:** Further investigation based on main image missing issue. (Initial code review seems okay, but interaction with client needs confirmation).
 - **Firebase App Check/Google Sign-In:** Monitor intermittent warnings/errors (Lower Priority).
 - **Code Cleanup & Refactoring - Parsing Logic Duplication**
 - **General Modal Workflow State Consistency Plan**
@@ -157,13 +158,13 @@
 (Consolidated Status)
 - **Main Navigation:** ✅
 - **Receipts Screen:** ✅ (except pagination ⚠️)
-- **Workflow Modal Core:** ✅ (Navigation, State, Saving, Placeholders, Confirmations, Button Disabling)
+- **Workflow Modal Core:** ✅ (Navigation, State, Saving, Placeholders, Confirmations, Button Disabling, Initial Draft Loading/Step Logic)
 - **Workflow Steps:**
-    - Upload: ✅
+    - Upload: ✅ (Image display on resume fixed, but see missing main image 404 issue ⚠️)
     - Review: ✅
     - Assign: ✅
     - Split: ✅ (except Go To Summary button ⚠️, Unassigned tab display ⚠️)
-    - Summary: ✅ (except Subtotal calculation ⚠️)
+    - Summary: ✅
 
 ### Current Challenges (Focus on remaining issues)
 (Moved details to Pending Issues above)
@@ -179,30 +180,29 @@
 
 ## Next Steps (Priority Order)
 
-1.  **Fix Summary View Subtotal Calculation (Modal Client-Side - High Priority):** Investigate `FinalSummaryScreen` and its data source (`SplitManager` via Provider).
-2.  **Fix Modal Launch Context Error (Modal Client-Side - High Priority):** Investigate `WorkflowModal.show` call sites for potential `mounted` issues before navigation.
-3.  **Fix/Remove Modal 'X' Button Save Behavior (Modal Client-Side - High Priority):** Either make 'X' trigger `_onWillPop` or remove it.
-4.  **Fix Split View "Go To Summary" Button (Modal Client-Side - High Priority):** Investigate `SplitView` and connect button to navigate.
-5.  **Implement "Completed" Indicator (UI - Medium Priority):** Add visual cues for completed receipts.
-6.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - Medium Priority):**
+1.  **Investigate & Fix Main Image Missing (404 Error) from Storage (Modal Client-Side / Cloud Function - CRITICAL):**
+    - Analyze logs from newly added client-side URI tracing.
+    - **Thoroughly review `generate_thumbnail` Cloud Function again, looking for any possibility of it affecting the original image or its storage state.**
+    - Review client-side image upload logic (`_uploadImageAndProcess`, `onImageSelected`, `onParseReceipt`, `_saveDraft`) for race conditions or error paths that could lead to saving a URI for a non-existent or prematurely deleted main image.
+    - Check Firebase Storage rules and lifecycle policies.
+2.  **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
+3.  **Implement "Completed" Indicator (UI - Medium Priority):** Add visual cues for completed receipts.
+4.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - Medium Priority):**
     - Test persistence of Tip/Tax, people, and item assignments made in Split step.
     - Verify correct initial population of `SplitManager`.
     - Test display of unassigned items in `SplitView`.
-7.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (Medium Priority):**
-    - Review Cloud Function logs, verify error handling and URI usage (`metadata`).
-8.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
-9.  **Data Migration Script:** Develop and test script for URI metadata migration.
-10. **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
-11. **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
-12. **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
-13. **Implement Receipt List Pagination:** Address performance.
-14. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
-15. **Address Security Warnings (General Consolidation).**
-16. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
-17. **Create Comprehensive Testing Suite (General).**
-18. **Enhance Error Handling.**
-19. **Handle Edge Cases (Completed Receipts).**
-20. **Code Cleanup/Refactoring (Parsing Logic).**
+5.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
+6.  **Data Migration Script:** Develop and test script for URI metadata migration.
+7.  **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
+8.  **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
+9.  **Implement Receipt List Pagination:** Address performance.
+10. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
+11. **Address Security Warnings (General Consolidation).**
+12. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
+13. **Create Comprehensive Testing Suite (General).**
+14. **Enhance Error Handling.**
+15. **Handle Edge Cases (Completed Receipts).**
+16. **Code Cleanup/Refactoring (Parsing Logic).**
 
 ## Developer Notes / Knowledge Transfer (Updated)
 
@@ -212,7 +212,7 @@ Key learnings from recent debugging sessions regarding the modal workflow:
 - **Widget Rebuild Timing & `Consumer`:** When complex state updates happen asynchronously (like fetching URLs in `_loadReceiptData`), passing updated state values down as simple constructor parameters to child widgets can sometimes lead to the child building with stale data if the parent rebuilds too quickly. Using a `Consumer<StateType>` widget directly within the child's parent builder function (as done for `ReceiptUploadScreen` in `_buildStepContent`) ensures the child is built using the absolute latest state from the provider at the time of the build.
 - **Saving State from Children on Parent Action:** When a parent action (like `_saveDraft` triggered by `_onWillPop`) needs the *most current* data from a child widget's internal state (like `_editableItems` in `ReceiptReviewScreen`), simply relying on the last known state in the central provider (`WorkflowState`) might not be sufficient if the child's state changed *after* the last update to the provider but *before* the parent action. Implementing a callback registration pattern (e.g., `registerCurrentItemsGetter`) allows the parent to actively *pull* the latest state from the child at the exact moment it's needed (e.g., just before saving).
 - **Firestore `update` vs. `set(merge:true)`:** While `set(..., merge: true)` works for adding new documents or completely replacing existing ones, using `update(...)` is generally the more idiomatic and often more reliable method for applying partial updates to specific fields within an *existing* Firestore document. It explicitly signals the intent to modify, not replace.
-- **Debugging State Flow:** Using targeted `debugPrint` statements at key points (state mutation in Provider, parent build function before child instantiation, child build function accessing properties) is invaluable for tracing data flow and pinpointing timing issues or stale state problems.
+- **Debugging State Flow:** Using targeted `debugPrint` statements at key points (state mutation in Provider, parent build function before child instantiation, child build function accessing properties) is invaluable for tracing data flow and pinpointing timing issues or stale state problems. Detailed URI tracing has been added to debug image persistence.
 - **Data Model Alignment (Client-Backend):** When working with data from external sources (e.g., Cloud Functions returning JSON), it's crucial that client-side Dart models (`fromJson`/`toJson` methods) perfectly match the structure and field names of the incoming data. Mismatches, especially in nested lists, maps, or subtle naming differences (e.g., `person_name` vs `personName`), can lead to silent data loss during parsing or incorrect serialization. Always log the raw data received and the data after parsing into Dart models to quickly identify such discrepancies.
 - **Scoped Notifier State Propagation & Initialization (SplitManager Example):**
     - **Persistence Model:** When a nested `ChangeNotifier` (like `SplitManager`) has its direct persistence field (e.g., `split_manager_state`) removed from the main data model (`Receipt`), its full state is no longer saved/loaded directly.
@@ -223,16 +223,24 @@ Key learnings from recent debugging sessions regarding the modal workflow:
     - This ensures that while `SplitManager` itself isn't directly saved, the effects of its operations (assignments, people list, tip/tax changes) are captured in `WorkflowState` and subsequently persisted to Firestore.
 - **Confirmation for Data Overwrite / Action Trigger:** Confirmation dialogs should be tied to specific user actions that *initiate* data processing or overwriting (e.g., clicking "Parse", "Start Recording", "Start Splitting"), rather than simple navigation (Back button, step taps, basic Next button). If confirmed, the relevant downstream data slice should be cleared in `WorkflowState` *before* the action proceeds. Tip/Tax should generally be preserved during these clears.
 - **Button Disabling:** Disabling navigation buttons (like "Next") when prerequisite data for the target step is missing provides clearer UX than allowing navigation and then showing a placeholder. State checks (e.g., `hasParseData`, `hasAssignmentData`) should determine button enablement.
-- **Mounted Checks:** Errors like `Context is not mounted before navigation` often occur when an `async` operation completes after a widget has been removed from the tree (e.g., user navigates away quickly). Check `if (mounted)` before accessing `context` or calling `setState` in `async` callbacks or `initState`/`addPostFrameCallback`.
-- **Consistent Navigation Logic (Next Button vs. Step Indicator):** When implementing multiple ways to navigate (e.g., a "Next" button and a tappable step indicator), ensure both methods adhere to the same state-based enabling/disabling logic. If a "Next" button is disabled because prerequisite data is missing for the subsequent step, the step indicator should also prevent direct navigation that would bypass this check. This involves checking all intermediate step requirements if the indicator allows non-linear jumps.
-- **Mounted Checks for Async Navigation:** Before calling methods that perform navigation (like `Navigator.push` or `showDialog/showModalBottomSheet`) *after* an `await`, always check `if (!mounted) return;` on the calling widget. This prevents attempts to use a `BuildContext` that no longer exists if the original widget was disposed of during the `await`.
+- **Mounted Checks & Async Navigation:**
+    - Errors like `Context is not mounted before navigation` often occur when an `async` operation completes after a widget has been removed from the tree. Always check `if (!mounted) return;` before accessing `context` or calling `setState` in `async` callbacks or `initState`/`addPostFrameCallback`. This applies to both the calling widget and any static helper methods (like `WorkflowModal.show` or `showRestaurantNameDialog`) that receive and use a `BuildContext` across `await` boundaries.
+    - The debug message `[WorkflowModal.show] Error: Context is not mounted...` is an indication that these safety checks are *working* during aggressive lifecycle events (like hot restart) by preventing crashes.
 - **Centralized Exit/Save Logic:** For modal dialogs or complex workflows with multiple exit points (e.g., system back button, custom close button, 'Save & Exit' button), consolidate the save, cleanup, and confirmation logic into a single shared method (like `_onWillPop`). Each exit trigger should then primarily call this method to ensure consistent behavior.
 - **State Propagation Between Steps:** When navigating between steps in a workflow, ensure the data required by the destination step is correctly sourced. If a later step depends on the precise output of a previous step (e.g., Summary depending on the exact item assignments and quantities from Split), ensure the data is passed directly (e.g., via a shared state object like `WorkflowState`) without re-interpreting or reconciling it with even older states (like the initial parsed data from the Review step), as this can reintroduce inconsistencies.
 - **Updating Central State from Step UI:** When a specific step's UI allows modification of data that is managed by a central state object (like `WorkflowState`), ensure that UI changes trigger updates back to the central state object (e.g., using `context.read<WorkflowState>().setSomeValue(...)` in `onChanged` handlers). This prevents the UI showing changes that aren't reflected in the underlying state used for saving or by other steps.
 - **Notification Listeners for Cross-Widget Communication:** When a child widget needs to trigger an action in an ancestor (like navigation managed by a parent workflow controller), `Notification.dispatch(context)` and `NotificationListener` provide a decoupled way to communicate up the tree without passing direct callbacks down through multiple layers, especially useful when using `Provider` for state.
 - **Handling Async Operations Before Navigation/Dispose:** When performing async operations (like API calls) before navigating away or disposing a widget/state object, ensure `mounted` checks are performed *after* each `await`. Capture `Navigator` or `ScaffoldMessenger` context *before* awaits if needed. Perform state updates and UI feedback (like `SnackBar`s) *after* awaits (and subsequent `mounted` checks) but *before* the final navigation call (`Navigator.pop`) to prevent using disposed objects.
 - **Distinguish Navigation from Processing Actions:** Buttons that trigger data processing (like parsing, transcription, assignment generation) should be clearly distinct from buttons that purely handle navigation between steps. Confirmation dialogs for potential data overwrites should typically be tied to the processing actions, not simple navigation buttons like "Next".
-- **Image Display on Draft Resume:** When resuming a draft, ensure that `WorkflowState` correctly loads and provides `loadedImageUrl` and `loadedThumbnailUrl` to `ReceiptUploadScreen`. Verify that `ReceiptUploadScreen` correctly uses these URLs with `CachedNetworkImage` (or equivalent) to display the image. Debug by logging URL values in both `_loadReceiptData` (in `_WorkflowModalBodyState`) after they are set, and in the `build` method of `ReceiptUploadScreen`.
-- **Workflow Resumption Logic & UI Flashing:** To prevent the Upload screen from flashing on resume, `_loadReceiptData` in `_WorkflowModalBodyState` must efficiently determine the correct `targetStep` based on available data (`hasParseData`, `hasAssignmentData`) and call `workflowState.goToStep()` promptly. The initial state of `currentStep` in `WorkflowState` might contribute to the flash if `_loadReceiptData` is slow. Ensure data availability checks are accurate at the moment `targetStep` is calculated.
+- **Image Display on Draft Resume (`ReceiptUploadScreen`):** The screen now correctly uses `imageUrl` (for full image) and `loadedThumbnailUrl` (as fallback/placeholder) from `WorkflowState`, passed via `Consumer`, to display images using `CachedNetworkImage`.
+- **Workflow Resumption Logic (`_loadReceiptData`):**
+    - The method now correctly determines the `targetStep` based on `hasAssignmentData`, `hasTranscriptionData`, and `hasParseData` to navigate to the furthest completed logical step.
+    - An `_isDraftLoading` flag in `_WorkflowModalBodyState` controls a loading indicator to prevent UI flashing during draft load.
+- **Firebase Storage Object Not Found (404 for Main Image):** A new critical issue where the main image GS URI is present in Firestore, and its thumbnail exists in Storage, but the main image itself is missing from Storage. This points to potential issues in:
+    - Client-side upload logic (durability, error handling that might still save a "bad" URI).
+    - `generate_thumbnail` Cloud Function (though initial review shows no obvious deletion of source).
+    - Other race conditions or data integrity issues in the save/upload/delete lifecycle.
+    - Detailed URI logging has been added to the client to help trace this.
+- **Error Handling for Background Uploads (`onImageSelected`):** Improved by explicitly clearing `actualImageGsUri` and `actualThumbnailGsUri` in `WorkflowState` if the upload for the *currently selected* image file fails, to prevent saving invalid URIs. Also attempts to queue URIs for deletion if an upload completes for an image that is no longer the active selection.
 
 </rewritten_file> 
