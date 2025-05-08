@@ -15,11 +15,12 @@ requirements
 dataconnect-generated
 dataconnect
 .cursor
-billfie-firebase-adminsdk-fbsvc-3478b1c3d9.json
+billfie_service_account.*
+billfie-dev_service_account.*
 test.py
 PXL_20250420_022344815.jpg
 flutter_*.png
-google-services.json.prod
+google-services.*
 
 # Environment variables
 .env
