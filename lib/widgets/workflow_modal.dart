@@ -1293,7 +1293,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         return Consumer<WorkflowState>(
           builder: (context, workflowState, child) {
             // --- EDIT: Check for assignment data before building ---
-            // Use hasAssignmentData which checks if the assignments list is not empty
             if (!workflowState.hasAssignmentData) {
               return _buildPlaceholder('Please complete the voice assignment first, or ensure people/items were assigned.');
             }
@@ -1428,16 +1427,36 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
               }
             });
 
-            return ChangeNotifierProvider.value(
-              value: manager,
-              child: SplitView(),
+            // Wrap SplitView with NotificationListener
+            return NotificationListener<NavigateToPageNotification>(
+              onNotification: (notification) {
+                if (notification.pageIndex >= 0 && notification.pageIndex < _stepTitles.length) {
+                  if (notification.pageIndex == 4) { // Tapped "Go to Summary" (index 4) from Split (index 3)
+                    if (!workflowState.hasAssignmentData) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Cannot proceed to Summary: Assignment data is missing.'),
+                          duration: const Duration(seconds: 3),
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                        ),
+                      );
+                      return true; // Notification handled, block navigation
+                    }
+                  }
+                  workflowState.goToStep(notification.pageIndex);
+                }
+                return true; // Notification handled
+              },
+              child: ChangeNotifierProvider.value(
+                value: manager,
+                child: const SplitView(), 
+              ),
             );
           }
         );
         
       case 4: // Summary
         // --- EDIT: Check for assignment data before building ---
-        // Summary depends on having assignment data to show totals per person etc.
         if (!workflowState.hasAssignmentData) {
            return _buildPlaceholder('Please complete the Split step first, ensuring items are assigned.');
         }
@@ -1537,22 +1556,25 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
             
             return summaryManager;
           },
-          child: Column(
-            children: [
-              const Expanded(
-                child: FinalSummaryScreen(),
-              ),
-              NotificationListener<NavigateToPageNotification>(
-                onNotification: (notification) {
-                  if (notification.pageIndex < 5) {
-                    workflowState.goToStep(notification.pageIndex);
-                  }
-                  return true;
-                },
-                child: const SizedBox.shrink(),
-              ),
-            ],
-          ),
+          // REMOVE the listener from here if SplitView is the only source
+          // child: Column(
+          //   children: [
+          //     const Expanded(
+          //       child: FinalSummaryScreen(),
+          //     ),
+          //     NotificationListener<NavigateToPageNotification>(
+          //       onNotification: (notification) {
+          //         if (notification.pageIndex < 5) { 
+          //           workflowState.goToStep(notification.pageIndex);
+          //         }
+          //         return true; 
+          //       },
+          //       child: const SizedBox.shrink(), 
+          //     ),
+          //   ],
+          // ),
+          // Replace with direct child if listener is removed
+          child: const FinalSummaryScreen(),
         );
         
       default:
@@ -1628,18 +1650,21 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                 return FilledButton.icon(
                   onPressed: isNextEnabled 
                     ? () async { // Enabled logic
-                        bool proceedAfterConfirm = true;
-                        // Confirmation logic for Assign -> Split
-                        if (currentStep == 2 /* && localWorkflowState.hasAssignmentData - implied by isNextEnabled */) { 
-                          proceedAfterConfirm = await _showConfirmationDialog(
-                            'Start Splitting',
-                            'This will use the current assignments to start the split. Any existing split details (people modifications, item assignments in split, tip/tax) will be based on this. If you re-assign later, you may need to re-split. Continue?'
-                          );
-                        }
+                        // REMOVE the confirmation logic from here
+                        // bool proceedAfterConfirm = true;
+                        // if (currentStep == 2 /* && localWorkflowState.hasAssignmentData - implied by isNextEnabled */) { 
+                        //   proceedAfterConfirm = await _showConfirmationDialog(
+                        //     'Start Splitting',
+                        //     'This will use the current assignments to start the split. Any existing split details (people modifications, item assignments in split, tip/tax) will be based on this. If you re-assign later, you may need to re-split. Continue?'
+                        //   );
+                        // }
+                        // 
+                        // if (proceedAfterConfirm) {
+                        //     localWorkflowState.nextStep();
+                        // }
                         
-                        if (proceedAfterConfirm) {
-                            localWorkflowState.nextStep();
-                        }
+                        // Simply navigate if enabled
+                        localWorkflowState.nextStep();
                       }
                     : null, // Disabled
                   label: const Text('Next'),
@@ -1661,48 +1686,70 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
 
   // Mark the current receipt as completed
   Future<void> _completeReceipt() async {
+    // Get workflow state ONCE at the beginning.
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    
+    // Capture the navigator and scaffold messenger state BEFORE any awaits
+    // Check mounted before accessing context for these.
+    if (!mounted) return;
+    final navigator = Navigator.of(context); 
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     try {
-      workflowState.setLoading(true);
+      // --- Start Operation ---
+      // Update state ONLY IF mounted
+      if (!mounted) return; 
+      workflowState.setLoading(true); 
       workflowState.setErrorMessage(null);
       
       final receipt = workflowState.toReceipt();
       
-      final receiptId = await _firestoreService.completeReceipt(
+      // --- First Await --- 
+      final receiptId = await _firestoreService.completeReceipt( 
         receiptId: workflowState.receiptId!, 
         data: receipt.toMap(),
       );
       
-      workflowState.setLoading(false);
+      // --- Check Mounted After First Await --- 
+      if (!mounted) return; 
       
+      // --- State Updates (No Context Use) --- 
       workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
       workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
 
-      await _processPendingDeletions(isSaving: true);
+      // --- Second Await --- 
+      await _processPendingDeletions(isSaving: true); 
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Receipt completed successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        Navigator.of(context).pop(true);
-      }
+      // --- Check Mounted After Second Await --- 
+      if (!mounted) return; 
+      
+      // --- Final State Updates & UI Feedback (using captured references) --- 
+      workflowState.setLoading(false); 
+      
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Receipt completed successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // --- Navigate LAST --- 
+      navigator.pop(true); 
+      
     } catch (e) {
-      workflowState.setLoading(false);
+      // --- Check Mounted in Catch Block --- 
+      if (!mounted) return; 
+      
+      // --- State Updates & UI Feedback (using captured references) --- 
+      workflowState.setLoading(false); 
       workflowState.setErrorMessage('Failed to complete receipt: $e');
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to complete receipt: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Failed to complete receipt: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      // Do NOT pop here on error, let the user decide or stay in modal
     }
   }
 
@@ -1716,16 +1763,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         appBar: AppBar(
           title: Text(workflowState.restaurantName),
           automaticallyImplyLeading: false,
-          leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () async {
-              final bool canPop = await _onWillPop();
-              if (canPop && mounted) {
-                await _processPendingDeletions(isSaving: false);
-                Navigator.of(context).pop(true);
-              }
-            },
-          ),
         ),
         body: Column(
           children: [
@@ -1737,11 +1774,54 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                 final RenderBox box = context.findRenderObject() as RenderBox;
                 final localOffset = box.globalToLocal(details.globalPosition);
                 final screenWidth = MediaQuery.of(context).size.width;
-                final stepWidth = screenWidth / _stepTitles.length;
-                final tappedStep = (localOffset.dx / stepWidth).floor();
+                // Ensure _stepTitles is not empty to prevent division by zero if titles are somehow not ready
+                final stepWidth = _stepTitles.isNotEmpty ? screenWidth / _stepTitles.length : screenWidth;
+                final tappedStep = stepWidth > 0 ? (localOffset.dx / stepWidth).floor() : 0;
+                final currentStep = workflowState.currentStep;
 
-                if (tappedStep >= 0 && tappedStep < _stepTitles.length && tappedStep != workflowState.currentStep) {
-                  workflowState.goToStep(tappedStep);
+                if (tappedStep >= 0 && tappedStep < _stepTitles.length && tappedStep != currentStep) {
+                  bool canNavigate = true;
+                  String blockingReason = 'Please complete previous steps first.';
+
+                  if (tappedStep > currentStep) {
+                    // Check data prerequisites for all steps from currentStep up to tappedStep - 1
+                    for (int stepToValidate = currentStep; stepToValidate < tappedStep; stepToValidate++) {
+                      if (stepToValidate == 0 && !workflowState.hasParseData) {
+                        canNavigate = false;
+                        blockingReason = 'Receipt must be parsed before proceeding from Upload step.';
+                        debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: missing parse data for step 1.');
+                        break;
+                      }
+                      // No specific data check for leaving Review (step 1) to Assign (step 2)
+                      if (stepToValidate == 2 && !workflowState.hasAssignmentData) {
+                        canNavigate = false;
+                        blockingReason = 'Items must be assigned before proceeding from Assign step.';
+                        debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: missing assignment data for step 3.');
+                        break;
+                      }
+                      if (stepToValidate == 3 && !workflowState.hasAssignmentData) {
+                        // This covers navigating from Split to Summary. The prerequisite is having assignment data.
+                        canNavigate = false;
+                        blockingReason = 'Splitting process must be based on assigned items before proceeding to Summary.';
+                        debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: missing assignment data for step 4.');
+                        break;
+                      }
+                    }
+                  }
+
+                  if (canNavigate) {
+                    workflowState.goToStep(tappedStep);
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(blockingReason),
+                          duration: const Duration(seconds: 3),
+                          backgroundColor: Theme.of(context).colorScheme.error,
+                        ),
+                      );
+                    }
+                  }
                 }
               },
               child: _buildStepIndicator(workflowState.currentStep),

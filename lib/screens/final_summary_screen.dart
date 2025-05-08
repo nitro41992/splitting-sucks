@@ -6,10 +6,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/split_manager.dart';
 import '../models/receipt_item.dart'; // Ensure ReceiptItem is available if needed for calculations/display
 import '../theme/app_colors.dart'; // Ensure AppColors is correctly defined or replace with Theme colors
-import '../widgets/split_view.dart'; // Import to get NavigateToPageNotification
+import '../widgets/split_view.dart' hide NavigateToPageNotification;
 import '../widgets/final_summary/person_summary_card.dart'; // Import the new card
 import '../utils/platform_config.dart'; // Import platform config
 import '../utils/toast_helper.dart'; // Import toast helper
+import '../widgets/workflow_modal.dart'; // Import WorkflowState
 
 class FinalSummaryScreen extends StatefulWidget {
   const FinalSummaryScreen({
@@ -30,9 +31,13 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize tax percentage potentially from SplitManager if needed, otherwise use default
-    // Example: _taxPercentage = context.read<SplitManager>().initialTaxRate ?? DEFAULT_TAX_RATE;
-    // For now, just use the default or last known value.
+    
+    // --- Initialize local state from WorkflowState if available --- 
+    final workflowState = context.read<WorkflowState>();
+    _tipPercentage = workflowState.tip ?? 20.0;
+    _taxPercentage = workflowState.tax ?? DEFAULT_TAX_RATE;
+    // --- End Initialization ---
+    
     _taxController = TextEditingController(text: _taxPercentage.toStringAsFixed(3));
 
     _taxController.addListener(() {
@@ -41,15 +46,18 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
         if (_taxPercentage != newTax) {
            setState(() {
              _taxPercentage = newTax;
-             // Optionally update SplitManager if tax is global
-             // context.read<SplitManager>().updateTaxRate(newTax);
+             // --- ADDED: Update WorkflowState --- 
+             context.read<WorkflowState>().setTax(_taxPercentage);
+             // --- END ADDED ---
            });
         }
       } else if (_taxController.text.isEmpty) {
         if (_taxPercentage != 0.0) { // Avoid rebuild if already 0
           setState(() {
             _taxPercentage = 0.0; // Set tax to 0 if input is cleared
-            // context.read<SplitManager>().updateTaxRate(0.0);
+            // --- ADDED: Update WorkflowState --- 
+            context.read<WorkflowState>().setTax(_taxPercentage);
+            // --- END ADDED ---
           });
         }
       }
@@ -470,8 +478,9 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                               onPressed: () {
                                 setState(() { 
                                   _tipPercentage = percentage;
-                                  // Update SplitManager with the new tip percentage
-                                  context.read<SplitManager>().tipPercentage = percentage;
+                                  // --- ADDED: Update WorkflowState --- 
+                                  context.read<WorkflowState>().setTip(percentage);
+                                  // --- END ADDED ---
                                 });
                               },
                               style: ElevatedButton.styleFrom(
@@ -491,15 +500,16 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                         Slider(
                           value: _tipPercentage,
                           min: 0,
-                          max: 30, // Max tip percentage
-                          divisions: 60, // Allows 0.5% increments
+                          max: 100,
+                          divisions: 200, // Allows steps of 0.5%
                           label: '${_tipPercentage.toStringAsFixed(1)}%',
+                          activeColor: colorScheme.primary,
                           onChanged: (value) {
-                             // Round to one decimal place
-                            setState(() { 
-                              _tipPercentage = (value * 10).round() / 10.0;
-                              // Update SplitManager with the new tip percentage
-                              context.read<SplitManager>().tipPercentage = _tipPercentage;
+                            setState(() {
+                              _tipPercentage = value;
+                              // --- ADDED: Update WorkflowState --- 
+                              context.read<WorkflowState>().setTip(_tipPercentage);
+                              // --- END ADDED ---
                             });
                           },
                         ),

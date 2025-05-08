@@ -178,6 +178,9 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
   void _addNewReceipt() async {
     // Show restaurant name dialog
     String? restaurantName = await showRestaurantNameDialog(context);
+
+    if (!mounted) return;
+
     if (restaurantName != null) {
       final bool? result = await WorkflowModal.show(context, initialRestaurantName: restaurantName);
       if (result == true && mounted) {
@@ -238,6 +241,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                     label: const Text('Resume Draft'),
                     onPressed: () async {
                       Navigator.pop(context); // Close the bottom sheet
+                      if (!mounted) return;
                       final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
                       if (result == true && mounted) {
                         _loadReceipts();
@@ -257,6 +261,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                     label: const Text('Edit Receipt'),
                     onPressed: () async {
                       Navigator.pop(context); // Close the bottom sheet
+                      if (!mounted) return;
                       final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
                       if (result == true && mounted) {
                         _loadReceipts();
