@@ -128,6 +128,63 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
     // Add debug print to see when build method runs with URLs
     debugPrint('[ReceiptUploadScreen Build] Building - isLoading: ${widget.isLoading}, isParsed: ${widget.isSuccessfullyParsed}, hasImageFile: ${widget.imageFile != null}, hasImageUrl: ${widget.imageUrl != null}, hasThumbUrl: ${widget.loadedThumbnailUrl != null}, thumbUrlValue: ${widget.loadedThumbnailUrl}');
 
+    // Determine if we have any image to display (local file, network URL, or thumbnail URL)
+    final bool hasLocalImage = widget.imageFile != null;
+    final bool hasNetworkImage = widget.imageUrl != null && widget.imageUrl!.isNotEmpty;
+    final bool hasNetworkThumbnail = widget.loadedThumbnailUrl != null && widget.loadedThumbnailUrl!.isNotEmpty;
+    final bool shouldShowImagePreview = hasLocalImage || hasNetworkImage || hasNetworkThumbnail;
+
+    // Select the image provider based on availability
+    Widget imagePreviewWidget;
+    String heroTag = 'receipt_image_placeholder'; // Default tag, non-nullable String
+
+    if (hasLocalImage) {
+      heroTag = 'receipt_image_${widget.imageFile!.path}';
+      imagePreviewWidget = Image.file(
+        widget.imageFile!,
+        fit: BoxFit.cover,
+      );
+    } else if (hasNetworkImage) {
+      heroTag = 'receipt_image_${widget.imageUrl}';
+      imagePreviewWidget = CachedNetworkImage(
+        imageUrl: widget.imageUrl!,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 8),
+              if (hasNetworkThumbnail) // Show thumbnail while full image loads if available
+                Expanded(
+                  child: CachedNetworkImage(
+                    imageUrl: widget.loadedThumbnailUrl!,
+                    fit: BoxFit.contain, // Or BoxFit.cover
+                    errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48),
+                    placeholder: (context, url) => const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.0))),
+                  ),
+                )
+              else 
+                const Text('Loading full image...'),
+            ],
+          ),
+        ),
+        errorWidget: (context, url, error) => _buildImageErrorPlaceholder(context, 'Saved image could not be loaded'),
+      );
+    } else if (hasNetworkThumbnail) {
+      heroTag = 'receipt_image_${widget.loadedThumbnailUrl}';
+      imagePreviewWidget = CachedNetworkImage(
+        imageUrl: widget.loadedThumbnailUrl!,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+        errorWidget: (context, url, error) => _buildImageErrorPlaceholder(context, 'Thumbnail could not be loaded'),
+      );
+    } else {
+      // This case should ideally not be reached if shouldShowImagePreview is false,
+      // but as a fallback for the Stack if needed.
+      imagePreviewWidget = Container(color: colorScheme.surfaceVariant); 
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -146,7 +203,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (widget.imageFile != null) ...[
+                    if (shouldShowImagePreview) ...[ // Show image preview section
                       LayoutBuilder(
                         builder: (context, constraints) {
                           return Column(
@@ -170,52 +227,26 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
-                                      // Image Preview with Hero tag for smooth transition
                                       Hero(
-                                        tag: 'receipt_image',
+                                        tag: heroTag, // Use dynamic heroTag
                                         child: Material(
                                           color: Colors.transparent,
                                           child: InkWell(
-                                            onTap: _showFullImage, // Use the method here
-                                            child: Image.file(
-                                              widget.imageFile!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                // Handle image loading errors
-                                                return Container(
-                                                  color: colorScheme.errorContainer,
-                                                  child: Center(
-                                                    child: Column(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Icon(
-                                                          Icons.broken_image,
-                                                          color: colorScheme.onErrorContainer,
-                                                          size: 48,
-                                                        ),
-                                                        const SizedBox(height: 16),
-                                                        Text(
-                                                          'Image could not be loaded',
-                                                          style: textTheme.bodyLarge?.copyWith(
-                                                            color: colorScheme.onErrorContainer,
-                                                          ),
-                                                          textAlign: TextAlign.center,
-                                                        ),
-                                                        const SizedBox(height: 8),
-                                                        ElevatedButton(
-                                                          onPressed: widget.onRetry,
-                                                          child: const Text('Try Again'),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                            ),
+                                            onTap: () {
+                                              if (hasLocalImage) {
+                                                _showFullImage(); // For local file
+                                              } else if (hasNetworkImage) {
+                                                // For network image, pass URL
+                                                showFullImageDialog(context, null, networkImageUrl: widget.imageUrl);
+                                              } else if (hasNetworkThumbnail) {
+                                                 // For thumbnail, pass URL
+                                                showFullImageDialog(context, null, networkImageUrl: widget.loadedThumbnailUrl);
+                                              }
+                                            },
+                                            child: imagePreviewWidget, // Use the selected widget
                                           ),
                                         ),
                                       ),
-                                      // Loading indicator overlay
                                       if (widget.isLoading)
                                         Container(
                                           color: Colors.black.withOpacity(0.3),
@@ -283,75 +314,87 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                           );
                         },
                       ),
-                    ] else if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty) ...[
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AspectRatio(
-                                aspectRatio: 3 / 4,
-                                child: Container(
-                                  margin: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(24),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      // Display CachedNetworkImage for loaded drafts
-                                      Hero(
-                                        tag: 'receipt_image',
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: InkWell( // Can still allow tap to view full if needed
-                                            // onTap: _showFullNetworkImage, // Need a similar function for network images
-                                            child: CachedNetworkImage(
-                                              imageUrl: widget.imageUrl!, // Use the main image URL
-                                              fit: BoxFit.cover,
-                                              placeholder: (context, url) {
-                                                // Show thumbnail as placeholder if available
-                                                if (widget.loadedThumbnailUrl != null && widget.loadedThumbnailUrl!.isNotEmpty) {
-                                                  return CachedNetworkImage(
-                                                    imageUrl: widget.loadedThumbnailUrl!,
-                                                    fit: BoxFit.cover, // Or BoxFit.contain for placeholder?
-                                                    // Optional: add a smaller placeholder for the thumbnail itself
-                                                    placeholder: (context, url) => const Center(child: SizedBox(width: 30, height: 30, child: CircularProgressIndicator(strokeWidth: 2.0))),
-                                                    errorWidget: (context, url, error) => const Center(child: Icon(Icons.broken_image, size: 40, color: Colors.grey)),
-                                                  );
-                                                } else {
-                                                  // Default placeholder if no thumbnail URL
-                                                  return const Center(child: CircularProgressIndicator());
-                                                }
-                                              },
-                                              errorWidget: (context, url, error) => _buildImageErrorWidget(context, colorScheme, textTheme, 'Saved image could not be loaded'),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                       // Loading indicator overlay (for parsing, not initial load)
-                                      if (widget.isLoading) 
-                                        _buildLoadingIndicator(colorScheme, textTheme),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              _buildActionButtons(context, colorScheme, textTheme),
-                            ],
-                          );
-                        },
+                    ] else ...[ // Show "No image selected" UI and upload buttons
+                      Icon(
+                        Icons.receipt_long_outlined,
+                        size: 80,
+                        color: colorScheme.primary.withOpacity(0.7),
                       ),
-                    ] else ...[
-                      _buildUploadPrompt(context, colorScheme, textTheme),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Upload Your Receipt',
+                        style: textTheme.headlineSmall?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                        child: Text(
+                          'Capture a photo or select an image from your gallery to get started.',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('Gallery'),
+                            onPressed: widget.isLoading ? null : _pickImage,
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(140, 50),
+                              textStyle: textTheme.labelLarge,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          FilledButton.icon(
+                            icon: const Icon(Icons.camera_alt_outlined),
+                            label: const Text('Camera'),
+                            onPressed: widget.isLoading ? null : _takePicture,
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(140, 50),
+                              textStyle: textTheme.labelLarge,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
                     ],
+                    // "Parse Receipt" and "Retry" buttons (conditionally shown)
+                    if (shouldShowImagePreview && !widget.isSuccessfullyParsed) ...[
+                      FilledButton.icon(
+                        icon: const Icon(Icons.document_scanner_outlined),
+                        label: const Text('Parse Receipt'),
+                        onPressed: widget.isLoading ? null : widget.onParseReceipt,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(200, 50),
+                          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+                          backgroundColor: AppColors.accent, // Corrected to AppColors.accent
+                          foregroundColor: colorScheme.onSecondary,   // Changed to colorScheme.onSecondary as a fallback
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (shouldShowImagePreview && !widget.isLoading) ...[ // Show retry only if an image is shown & not loading
+                       TextButton.icon(
+                         icon: const Icon(Icons.refresh),
+                         label: const Text('Clear Image'),
+                         onPressed: (widget.isLoading || widget.isSuccessfullyParsed) ? null : widget.onRetry,
+                         style: TextButton.styleFrom(
+                           foregroundColor: colorScheme.error,
+                         ),
+                       ),
+                    ],
+                    if (widget.isLoading) ... [
+                        const SizedBox(height: 20), // Add some space if loading indicator is shown for processing
+                    ],
+                    const SizedBox(height: 20), // Bottom padding
                   ],
                 ),
               ),
@@ -362,180 +405,46 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
     );
   }
 
-  Widget _buildUploadButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    required ColorScheme colorScheme,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: colorScheme.primaryContainer,
-        foregroundColor: colorScheme.onPrimaryContainer,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildImageErrorWidget(BuildContext context, ColorScheme colorScheme, TextTheme textTheme, String errorMessage) {
+  // Helper widget to build a consistent error placeholder for images
+  Widget _buildImageErrorPlaceholder(BuildContext context, String message) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
+    final TextTheme textTheme = Theme.of(context).textTheme;
     return Container(
-      color: colorScheme.errorContainer,
+      color: colorScheme.surfaceVariant, // Use a less jarring background
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.broken_image,
-              color: colorScheme.onErrorContainer,
+              Icons.broken_image_outlined,
+              color: colorScheme.onSurfaceVariant,
               size: 48,
             ),
             const SizedBox(height: 16),
-            Text(
-              errorMessage,
-              style: textTheme.bodyLarge?.copyWith(
-                color: colorScheme.onErrorContainer,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(
+                message,
+                style: textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: widget.onRetry,
-              child: const Text('Try Again'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingIndicator(ColorScheme colorScheme, TextTheme textTheme) {
-    return Container(
-      color: Colors.black.withOpacity(0.3),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(
-              color: colorScheme.onPrimary,
             ),
             const SizedBox(height: 16),
-            Text(
-              'Processing Receipt...',
-              style: textTheme.bodyLarge?.copyWith(
-                color: colorScheme.onPrimary,
+            if (widget.imageFile == null) // Only show retry if it's for a network image error
+              ElevatedButton(
+                onPressed: widget.onRetry, // This should re-trigger load or allow re-selection
+                child: const Text('Try Again / Change'),
               ),
-            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildActionButtons(BuildContext context, ColorScheme colorScheme, TextTheme textTheme) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (!widget.isLoading) ...[
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: (widget.isLoading || widget.isSuccessfullyParsed || (widget.imageFile == null && widget.imageUrl == null))
-                    ? null // Disabled if loading, successfully parsed, or no image to clear
-                    : widget.onRetry, // Call the retry callback
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: colorScheme.errorContainer,
-                  foregroundColor: colorScheme.onErrorContainer,
-                  minimumSize: const Size(0, 48),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: widget.onParseReceipt,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Use This'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                  minimumSize: const Size(0, 48),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUploadPrompt(BuildContext context, ColorScheme colorScheme, TextTheme textTheme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer.withOpacity(0.3),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.camera_alt_outlined,
-              size: 80,
-              color: colorScheme.primary,
-            ),
-          ),
-          const SizedBox(height: 32),
-          Text(
-            'Upload Receipt',
-            style: textTheme.headlineSmall?.copyWith(
-              color: colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Take a picture or select one from your gallery',
-            textAlign: TextAlign.center,
-            style: textTheme.bodyLarge?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 40),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildUploadButton(
-                context,
-                icon: Icons.camera_alt,
-                label: 'Camera',
-                onPressed: _takePicture,
-                colorScheme: colorScheme,
-              ),
-              const SizedBox(width: 16),
-              _buildUploadButton(
-                context,
-                icon: Icons.photo_library,
-                label: 'Gallery',
-                onPressed: _pickImage,
-                colorScheme: colorScheme,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+// Ensure showFullImageDialog can handle network URLs (add nullable networkImageUrl)
+void showFullImageDialog(BuildContext context, File? imageFile, {String? networkImageUrl}) {
+  // ... existing code ...
 } 

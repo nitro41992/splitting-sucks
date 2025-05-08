@@ -535,6 +535,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     'Summary',
   ];
   int _initialSplitViewTabIndex = 0;
+  bool _isDraftLoading = false; // Added for initial draft load
   
   // Variable to hold the function provided by ReceiptReviewScreen
   GetCurrentItemsCallback? _getCurrentReviewItemsCallback;
@@ -547,7 +548,27 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final workflowState = Provider.of<WorkflowState>(context, listen: false);
       if (workflowState.receiptId != null) {
-        _loadReceiptData(workflowState.receiptId!);
+        if (mounted) { // Check mounted before initial setState
+          setState(() { 
+            _isDraftLoading = true; 
+          });
+        }
+        _loadReceiptData(workflowState.receiptId!).then((_) {
+          if (mounted) { 
+             setState(() { 
+               _isDraftLoading = false;
+             });
+          }
+        }).catchError((error) {
+             if (mounted) {
+                setState(() {
+                    _isDraftLoading = false; 
+                });
+             }
+             debugPrint("Error in _loadReceiptData during initState: $error");
+             // Optionally, show a persistent error message if draft loading fails critically
+             // workflowState.setErrorMessage("Failed to load draft. Please try again.");
+        });
       }
     });
   }
@@ -688,18 +709,16 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
            workflowState.setErrorMessage('Could not load saved image preview.');
       }
 
-      // Determine target step (existing logic)
-      int targetStep = 0;
-      if (workflowState.parseReceiptResult.containsKey('items') && 
-          workflowState.parseReceiptResult['items'] is List && 
-          (workflowState.parseReceiptResult['items'] as List).isNotEmpty) {
-        targetStep = 1;
+      // Determine target step
+      int targetStep = 0; // Default to Upload (Step 0)
+      if (workflowState.hasAssignmentData) {
+        targetStep = 4; // Go to Summary (Step 4) if assignment data exists
+      } else if (workflowState.hasTranscriptionData) {
+        targetStep = 2; // Go to Assign (Step 2) if transcription data exists (and no assignment)
+      } else if (workflowState.hasParseData) {
+        targetStep = 1; // Go to Review (Step 1) if only parse data exists
       }
-      if (workflowState.assignPeopleToItemsResult.containsKey('assignments') && 
-          workflowState.assignPeopleToItemsResult['assignments'] is List && 
-          (workflowState.assignPeopleToItemsResult['assignments'] as List).isNotEmpty) {
-        targetStep = 3; 
-      }
+      // Else, targetStep remains 0 (Upload) if no other data exists.
       
       workflowState.goToStep(targetStep);
       
@@ -1756,7 +1775,23 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
   @override
   Widget build(BuildContext context) {
     final workflowState = Provider.of<WorkflowState>(context);
-    
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // Show loading indicator if draft is being loaded initially, 
+    // or if workflowState itself indicates loading for a receiptId (e.g. during _loadReceiptData).
+    if (_isDraftLoading || (workflowState.receiptId != null && workflowState.isLoading && workflowState.currentStep == 0)) {
+        // The condition `workflowState.currentStep == 0` helps ensure this full-screen loader 
+        // only shows during the very initial load before any step navigation has occurred via _loadReceiptData.
+        // Once _loadReceiptData completes, `isLoading` will be false, or `currentStep` will be non-zero.
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(workflowState.receiptId != null ? 'Loading Draft...' : 'New Receipt'),
+          automaticallyImplyLeading: false, // No back button during this loading phase
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
