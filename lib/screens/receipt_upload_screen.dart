@@ -11,6 +11,7 @@ class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
   final String? imageUrl;
   final bool isLoading;
+  final bool isSuccessfullyParsed;
   final Function(File?) onImageSelected;
   final Function() onParseReceipt;
   final Function() onRetry; // Callback to clear the image
@@ -20,6 +21,7 @@ class ReceiptUploadScreen extends StatefulWidget {
     required this.imageFile,
     this.imageUrl,
     required this.isLoading,
+    required this.isSuccessfullyParsed,
     required this.onImageSelected,
     required this.onParseReceipt,
     required this.onRetry,
@@ -243,7 +245,9 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                     if (!widget.isLoading) ...[
                                       Expanded(
                                         child: FilledButton.icon(
-                                          onPressed: widget.onRetry, // Call the retry callback
+                                          onPressed: (widget.isLoading || widget.isSuccessfullyParsed || (widget.imageFile == null && widget.imageUrl == null))
+                                              ? null // Disabled if loading, successfully parsed, or no image to clear
+                                              : widget.onRetry, // Call the retry callback
                                           icon: const Icon(Icons.refresh),
                                           label: const Text('Retry'),
                                           style: FilledButton.styleFrom(
@@ -419,7 +423,9 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
           if (!widget.isLoading) ...[
             Expanded(
               child: FilledButton.icon(
-                onPressed: widget.onRetry,
+                onPressed: (widget.isLoading || widget.isSuccessfullyParsed || (widget.imageFile == null && widget.imageUrl == null))
+                    ? null // Disabled if loading, successfully parsed, or no image to clear
+                    : widget.onRetry, // Call the retry callback
                 icon: const Icon(Icons.refresh),
                 label: const Text('Retry'),
                 style: FilledButton.styleFrom(

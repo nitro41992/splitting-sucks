@@ -347,6 +347,21 @@ class _MainPageControllerState extends State<MainPageController> with WidgetsBin
     }
   }
 
+  // Method to reset the upload step status
+  void resetUploadStepStatus() {
+    setState(() {
+      _isUploadComplete = false;
+      _receiptItems = []; // Clear items as they are from the previous parse
+      // Optionally, also reset subsequent steps if this flow is linear
+      _isReviewComplete = false;
+      _isAssignmentComplete = false;
+      _savedTranscription = null; // Clear transcription related to old items
+      _assignments = null; // Clear assignments related to old items
+    });
+    _saveCurrentState(); // Persist the reset state
+    debugPrint('Upload step status reset.');
+  }
+
   // Save the current state to persistent storage
   Future<void> _saveCurrentState() async {
     try {
@@ -1081,6 +1096,10 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
       final mainPage = context.findAncestorStateOfType<_MainPageControllerState>();
       if (mainPage != null) {
         mainPage.updateImageFile(file);
+        // If a new image is selected, the previous upload/parse is no longer valid for completion status
+        if (mainPage._isUploadComplete) {
+          mainPage.resetUploadStepStatus(); 
+        }
       }
     }
   }
@@ -1133,6 +1152,11 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
     setState(() {
       _imageFile = null;
     });
+    // Notify parent to reset upload step status if it was considered complete
+    final mainPage = context.findAncestorStateOfType<_MainPageControllerState>();
+    if (mainPage != null && mainPage._isUploadComplete) {
+       mainPage.resetUploadStepStatus();
+    }
   }
 
   @override
@@ -1143,9 +1167,18 @@ class _ReceiptScreenWrapperState extends State<ReceiptScreenWrapper> {
     return ReceiptUploadScreen(
       imageFile: _imageFile,
       isLoading: _isLoading,
+      isSuccessfullyParsed: widget.uploadComplete, // Pass widget.uploadComplete here
       onImageSelected: _handleImageSelected,
       onParseReceipt: _handleParseReceipt,
       onRetry: _handleRetry,
     );
   }
-} 
+}
+
+// Helper method in _MainPageControllerState to reset upload status
+// void resetUploadStepStatus() {
+//   setState(() {
+//     _isUploadComplete = false;
+//     _receiptItems = []; // Clear items as well, as they are from the previous parse
+//   });
+// } 

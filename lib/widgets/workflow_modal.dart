@@ -688,26 +688,36 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     switch (currentStep) {
       case 0: // Upload
         // Extract potential imageUrl from the state
-        final String? imageUrl = workflowState.parseReceiptResult != null && workflowState.parseReceiptResult.containsKey('image_uri')
-            ? workflowState.parseReceiptResult['image_uri'] as String?
-            : null;
+        final bool isSuccessfullyParsed = workflowState.parseReceiptResult.containsKey('items') &&
+                                          (workflowState.parseReceiptResult['items'] as List?)?.isNotEmpty == true;
             
         return ReceiptUploadScreen(
           imageFile: workflowState.imageFile, // Local file if selected
           imageUrl: workflowState.loadedImageUrl, // Pass the fetched download URL
           isLoading: workflowState.isLoading,
+          isSuccessfullyParsed: isSuccessfullyParsed, // Pass the new flag
           onImageSelected: (file) async {
-            // SIMPLIFIED: Only update the local file state for preview
             if (file != null) {
               workflowState.setImageFile(file);
-              // Also clear any potential stale URI info if a NEW file is selected
+              // Also clear any potential stale URI info and PARSE RESULTS if a NEW file is selected
               final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
               currentParseResult.remove('image_uri');
               currentParseResult.remove('thumbnail_uri');
-              workflowState.setParseReceiptResult(currentParseResult);
+              currentParseResult.remove('items'); // Clear items
+              currentParseResult.remove('subtotal'); // Clear subtotal
+              workflowState.setParseReceiptResult(currentParseResult); // Update with cleared items
               workflowState.setErrorMessage(null); // Clear previous errors
             } else {
-              workflowState.resetImageFile();
+              // This case (file is null) implies clearing the selection (e.g., user tapped already selected image source to deselect)
+              // Should behave like onRetry by clearing image and associated parse results.
+              workflowState.resetImageFile(); // Clears imageFile and loadedImageUrl
+              final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
+              currentParseResult.remove('image_uri');
+              currentParseResult.remove('thumbnail_uri');
+              currentParseResult.remove('items');
+              currentParseResult.remove('subtotal');
+              workflowState.setParseReceiptResult(currentParseResult);
+              workflowState.setErrorMessage(null);
             }
           },
           onParseReceipt: () async { // This is the "Use This" button's action
@@ -800,11 +810,13 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           },
           onRetry: () { 
             workflowState.resetImageFile();
-            // Clear URI info when retrying
+            // Clear URI info AND PARSE RESULTS when retrying
             final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
             currentParseResult.remove('image_uri');
             currentParseResult.remove('thumbnail_uri');
-            workflowState.setParseReceiptResult(currentParseResult);
+            currentParseResult.remove('items'); // Clear items
+            currentParseResult.remove('subtotal'); // Clear subtotal
+            workflowState.setParseReceiptResult(currentParseResult); // Update with cleared items
             workflowState.setErrorMessage(null); 
           },
         );

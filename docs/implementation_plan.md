@@ -34,6 +34,15 @@
 - ✅ **Resolved:** Integrated `ReceiptParserService.parseReceipt` call directly into the modal workflow's upload step in `lib/widgets/workflow_modal.dart` for both new and resumed draft images.
 - ✅ **Resolved:** Item names are now correctly displayed on the Review screen after parsing in the modal workflow (fixed field name from `name` to `item` and added null safety in `_convertToReceiptItems` within `lib/widgets/workflow_modal.dart`).
 - ✅ **Resolved:** Robust handling of `null` or unexpected data types for item fields (name, price, quantity) during conversion from raw parser output to `ReceiptItem` objects in `_convertToReceiptItems`.
+- ✅ **Retry Button Disabled Post-Parse (Modal Workflow):**
+  - Implemented logic in `lib/widgets/workflow_modal.dart` to pass an `isSuccessfullyParsed` flag to `ReceiptUploadScreen`.
+  - Modified `lib/screens/receipt_upload_screen.dart` to accept `isSuccessfullyParsed` and disable its "Retry" (clear image) button if loading, if parsing is complete for the current image, or if no image is selected.
+  - Ensured that selecting a new image or clearing the current image (via "Retry") in `lib/widgets/workflow_modal.dart` correctly resets the parsed items state, allowing the "Retry" button to become active again appropriately.
+- ✅ **State Management (Non-Modal Workflow):**
+  - Addressed linter errors in `lib/receipt_splitter_ui.dart` related to the new `isSuccessfullyParsed` parameter in `ReceiptUploadScreen`.
+  - Passed `widget.uploadComplete` from `_ReceiptScreenWrapperState` as `isSuccessfullyParsed` to the `ReceiptUploadScreen` instance used in the non-modal flow.
+  - Added `resetUploadStepStatus()` method to `_MainPageControllerState` to correctly reset `_isUploadComplete`, `_receiptItems`, and other dependent states.
+  - Updated `_handleImageSelected` and `_handleRetry` in `_ReceiptScreenWrapperState` to call `resetUploadStepStatus()` on the parent `_MainPageControllerState`, ensuring better state consistency when the image is changed or cleared in the non-modal workflow.
 
 **In Progress:**
 - None
@@ -59,12 +68,13 @@
     - ✅ Retry logic within modal upload screen appears functional for clearing local selections.
 
 - **Code Cleanup & Refactoring - Parsing Logic Duplication:**
-  - **Context:** The primary parsing initiation and item data handling for the **modal workflow** is now correctly implemented in `lib/widgets/workflow_modal.dart` (within `_WorkflowModalBodyState`).
-  - **Observation:** Parsing-related logic also exists in `lib/receipt_splitter_ui.dart` within `_MainPageControllerState` (e.g., `_directParseReceipt`) and `_ReceiptScreenWrapperState` (`_parseReceipt`).
-  - **Action:** Review this potentially duplicated/unused code.
-    - If the modal workflow is the *sole* pathway for detailed receipt processing, refactor to remove the redundant parsing logic from `receipt_splitter_ui.dart` to simplify the codebase.
-    - If the logic in `receipt_splitter_ui.dart` serves a different, non-modal purpose, clearly document its specific use case to avoid confusion.
-    - **Key files for current modal parsing:** `lib/widgets/workflow_modal.dart`, `lib/services/receipt_parser_service.dart`.
+  - **Context:** The primary parsing initiation and item data handling for the **modal workflow** is now correctly implemented in `lib/widgets/workflow_modal.dart` (within `_WorkflowModalBodyState`). The non-modal workflow's parsing is handled in `lib/receipt_splitter_ui.dart` (within `_ReceiptScreenWrapperState` and `_MainPageControllerState`).
+  - **Observation:** Parsing-related logic also exists in `lib/receipt_splitter_ui.dart` within `_MainPageControllerState` (e.g., `_directParseReceipt`) and `_ReceiptScreenWrapperState` (`_handleParseReceipt`).
+  - **Action:** Review this potentially duplicated/unused code in `_MainPageControllerState._directParseReceipt`.
+    - If the modal workflow is the *sole* pathway for detailed receipt processing that involves cloud parsing services, and the non-modal flow in `receipt_splitter_ui.dart` is perhaps a legacy or simpler local parsing attempt, this needs clarification.
+    - For now, the `_handleParseReceipt` in `_ReceiptScreenWrapperState` seems to be the active parsing logic for the non-modal flow.
+    - **Key files for modal parsing:** `lib/widgets/workflow_modal.dart`, `lib/services/receipt_parser_service.dart`.
+    - **Key files for non-modal parsing:** `lib/receipt_splitter_ui.dart` (specifically `_ReceiptScreenWrapperState`), `lib/services/receipt_parser_service.dart`.
 
 - **Data Model Refinement - Receipt URIs:**
   - **Objective:** Consolidate `image_uri` and `thumbnail_uri` into the `metadata` map for each receipt document to improve data structure clarity and reduce redundancy, aligning with the updated `app_navigation_redesign.md`.
@@ -95,12 +105,12 @@
 - **General Modal Workflow State Consistency Plan:**
   - **Objective:** Ensure reliable data flow, state management, and UI consistency across all steps of the modal workflow (Upload, Review, Assign, Split, Summary), whether it's a new receipt or a resumed draft.
   - **Principles:**
-    - **Single Source of Truth:** For any piece of data relevant to a step (e.g., image URI, parsed items, transcription, assignments), identify a single, authoritative source (`MainPageController` for cross-step persistent/draft state, or the current step's controller/wrapper for transient state).
+    - **Single Source of Truth:** For any piece of data relevant to a step (e.g., image URI, parsed items, transcription, assignments), identify a single, authoritative source (`WorkflowState` for the modal workflow, or `_MainPageControllerState` for the non-modal workflow).
     - **Clear Data Propagation:** Use widget constructors (props) for passing initial/static data down and callbacks (`onComplete`, `onUpdate`) for sending data/events up.
-    - **Scoped State Management:** Leverage `Provider` or `ChangeNotifier` (like `WorkflowState` or `SplitManager`) appropriately for state that needs to be shared or mutated across a limited scope of the workflow, but ensure clear interaction with `MainPageController` for overall persistence.
+    - **Scoped State Management:** Leverage `Provider` or `ChangeNotifier` (like `WorkflowState` or `SplitManager`) appropriately for state that needs to be shared or mutated across a limited scope of the workflow.
     - **Immutability where Possible:** When passing data objects (like lists of items), consider using immutable patterns or creating copies to prevent unintended side-effects if child widgets modify them.
   - **Action Plan:**
-    1.  **Data Flow Mapping (for each step - Review, Assign, Split, Summary):**
+    1.  **Data Flow Mapping (for each step - Review, Assign, Split, Summary - primarily for Modal):**
         *   **Inputs:** What data does this screen (`ReceiptReviewScreen`, `VoiceAssignmentScreen`, etc.) require to initialize (e.g., `_receiptItems` for Review, `_savedTranscription` for Assign)?
         *   **Source:** How does it receive these inputs from `MainPageController` (or the preceding step's completion callback)?
         *   **Internal State:** Does the screen manage its own temporary state related to these inputs? How is it synchronized if the inputs change?
@@ -109,7 +119,7 @@
         *   Verify `_MainPageControllerState._loadSavedState()` correctly loads all relevant data for each step (e.g., `_receiptItems`, `_savedTranscription`, `_assignments`).
         *   Ensure this loaded data is correctly passed as initial props to the respective screen widgets when resuming a draft.
         *   Confirm the screen widgets initialize their UI and internal state correctly based on these restored props.
-    3.  **Callback Integrity:**
+    3. **Callback Integrity:**
         *   Ensure all `onSomethingComplete` or `onDataUpdated` callbacks from screen widgets correctly update the state in `_MainPageControllerState` (e.g., `_receiptItems`, `_isUploadComplete`, `_savedTranscription`, `_assignments`, `_isReviewComplete`, `_isAssignmentComplete`).
         *   Verify that `_navigateToPage()` is called with the correct next page index *after* the relevant state updates have been committed.
     4.  **`SplitManager` Initialization:**
@@ -164,9 +174,10 @@
    - ✅ Parameter types between steps fixed
    - ✅ Component interface consistency ensured
    - ✅ Correctly uses `ChangeNotifierProvider` for `WorkflowState`
+   - ✅ Retry button on Upload step disabled appropriately post-parse.
 
 4. **Individual Steps:**
-   - ✅ Upload: Camera/gallery picker implemented
+   - ✅ Upload: Camera/gallery picker implemented. Retry/clear logic enhanced.
    - ✅ Review: Item editing functionality working
    - ✅ Assign: Voice transcription and assignment working
    - ✅ Split: Item sharing and reassignment implemented
@@ -177,7 +188,7 @@
 1. **Data Persistence & Performance:**
    - ✅ Draft saving and resuming functionality working
    - ✅ **Resolved:** Draft now correctly saves image URI even if exiting modal before confirming upload.
-   - ✅ **Resolved:** Image preview now shows in Upload step before confirming. Logic moved from `onImageSelected` to `onParseReceipt`.
+   - ✅ **Resolved:** Image preview now shows in Upload step before confirming.
    - ✅ **Resolved:** Receipts list now auto-refreshes after saving/completing a receipt from the workflow modal.
    - ✅ **Resolved:** Drafts list visibility after sign-out/sign-in corrected (required emulator state clear).
    - ✅ Deletion with confirmation dialog implemented
@@ -195,11 +206,12 @@
    - ✅ **Thumbnail Generation & Display Fully Working.**
 
 3. **Data Flow & State Management:**
-   - ✅ WorkflowState maintains data between steps
+   - ✅ WorkflowState maintains data between steps (Modal Workflow)
+   - ✅ `_MainPageControllerState` manages state for non-modal PageView workflow, with improvements to reset logic for Upload step.
    - ✅ SplitManager properly handles tax/tip values
    - ✅ Tax and tip values properly propagate between split view and summary
    - ✅ Component interfaces aligned for consistent data passing
-   - ✅ Addressed Provider/ChangeNotifierProvider issue in workflow.
+   - ✅ Addressed Provider/ChangeNotifierProvider issue in modal workflow.
 
 4. **Authentication & Emulator Connectivity:**
     - ✅ **Resolved:** Physical Device Emulator Connectivity issues resolved.
@@ -323,16 +335,19 @@
     - Review `android/build.gradle` and `android/app/build.gradle` for any non-standard configurations (signing, dependencies, plugins).
     - Consider creating a minimal reproducible example project with just Firebase Core, Auth, and App Check to see if the error occurs there.
     - Explore potential tooling issues (Flutter SDK, Android SDK/NDK versions, Gradle version).
+    - **Note:** While this is high priority, it seems unrelated to the current navigation/workflow tasks. May need to be addressed as a separate effort.
 3.  **Investigate and Resolve `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors (High Priority, likely related to #2):**
     - Primarily focus on resolving the `GoogleApiManager` issue, as it's the most likely cause.
     - If the `GoogleApiManager` issue is fixed but network errors persist, investigate device/emulator DNS and network settings more deeply.
+    - **Note:** Similar to the above, this is likely a separate issue from core workflow logic.
 4.  **Address App Check Placeholder Token Reappearance (Lower Priority):**
     - Monitor after fixing `GoogleApiManager` issue.
-5.  **Address Security Warnings:**
+5.  **Address Security Warnings (General):**
     - Implement Firebase App Check (`firebase_app_check` plugin, Play Integrity/Debug providers).
     - Verify SHA-1/SHA-256 keys in Firebase Console for Android.
     - Check for API key restrictions in Google Cloud Console.
     - Ensure Google Play Services are up-to-date on test devices/emulators.
+    - **Note:** Some of these (App Check, SHA keys) have been partially addressed. Consolidate and verify all aspects.
 6.  **Remove Diagnostic Delay:** 
     - Remove the `Future.delayed` call from `_loadReceipts` in `ReceiptsScreen.dart`.
 7.  **Implement Receipt List Pagination:**
@@ -340,12 +355,13 @@
     - Update `ReceiptsScreen` UI (infinite scroll or "Load More") to fetch in batches.
 8.  **Create Comprehensive Testing Suite:**
     - Unit tests for services (`AuthService`, `FirestoreService`) and models.
-    - Widget tests for UI components (especially `WorkflowModal`).
-    - Integration tests for the full end-to-end workflow.
+    - Widget tests for UI components (especially `WorkflowModal` and non-modal `PageView` flow).
+    - Integration tests for the full end-to-end workflow (both modal and non-modal if applicable).
 9.  **Enhance Error Handling:**
     - Improve user feedback for errors beyond basic Snackbars (e.g., thumbnail failure, network issues).
 10. **Handle Edge Cases (Completed Receipts):**
     - Define and implement behavior for editing/modifying already completed receipts.
 11. **Code Cleanup/Refactoring:**
-    - Review for potential code duplication (e.g., `SplitManager` instantiation).
-    - Ensure consistent state management. 
+    - Review for potential code duplication (e.g., `SplitManager` instantiation, parsing logic as noted above).
+    - Ensure consistent state management across modal and non-modal flows. 
+    - Review `_MainPageControllerState` for opportunities to simplify state, especially around step completion flags and data passing if the non-modal flow is to be maintained or refactored. 
