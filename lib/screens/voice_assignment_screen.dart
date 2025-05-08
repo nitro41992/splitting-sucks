@@ -216,15 +216,15 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
         request,
       );
       
-      // Convert the structured result to the Map format expected by the parent widget
+      print('DEBUG: Raw result object from _audioService.assignPeopleToItems: ${result?.toString()}');
+
       final assignmentsData = result.toJson();
+      print('DEBUG: assignmentsData map AFTER result.toJson(): ${assignmentsData.toString()}');
+
       print('DEBUG: Received assignment data: ${assignmentsData.toString()}');
 
       // Pass the raw assignment data back to the parent widget
       widget.onAssignmentProcessed(assignmentsData);
-
-      // Loading state will be handled by the parent switching pages
-      // setState(() => _isLoading = false); // No need to set loading false here
 
     } catch (e) {
       print('Error processing assignment in screen: $e');

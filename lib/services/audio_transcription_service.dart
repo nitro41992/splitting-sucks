@@ -85,39 +85,138 @@ class Person {
   Map<String, dynamic> toJson() => {'name': name};
 }
 
-class AssignmentResult {
-  final Map<String, dynamic> assignments;
-  final List<dynamic> shared_items;
-  final List<dynamic>? unassigned_items;
+// --- Model Classes for Assignment Result (Matching Pydantic) ---
 
-  AssignmentResult({
-    required this.assignments,
-    required this.shared_items,
-    this.unassigned_items,
-  });
+class ItemDetail {
+  final String name;
+  final int quantity;
+  final double price;
 
-  factory AssignmentResult.fromJson(Map<String, dynamic> json) {
-    final assignmentsMap = json['assignments'];
-    final sharedItemsList = json['shared_items'];
-    final unassignedItemsList = json['unassigned_items'];
+  ItemDetail({required this.name, required this.quantity, required this.price});
 
-    return AssignmentResult(
-      assignments: assignmentsMap is Map ? Map<String, dynamic>.from(assignmentsMap) : {},
-      shared_items: sharedItemsList is List ? List<dynamic>.from(sharedItemsList) : [],
-      unassigned_items: unassignedItemsList is List ? List<dynamic>.from(unassignedItemsList) : null,
+  factory ItemDetail.fromJson(Map<String, dynamic> json) {
+    return ItemDetail(
+      name: json['name'] as String? ?? 'Unknown Item', // Handle potential null
+      quantity: json['quantity'] as int? ?? 1,      // Handle potential null
+      price: (json['price'] as num?)?.toDouble() ?? 0.0, // Handle potential null
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'assignments': assignments,
-        'shared_items': shared_items,
-        if (unassigned_items != null) 'unassigned_items': unassigned_items,
+        'name': name,
+        'quantity': quantity,
+        'price': price,
+      };
+}
+
+class PersonItemAssignment {
+  final String personName;
+  final List<ItemDetail> items;
+
+  PersonItemAssignment({required this.personName, required this.items});
+
+  factory PersonItemAssignment.fromJson(Map<String, dynamic> json) {
+    var itemsList = <ItemDetail>[];
+    if (json['items'] is List) {
+      itemsList = (json['items'] as List)
+          .map((itemJson) => ItemDetail.fromJson(itemJson as Map<String, dynamic>))
+          .toList();
+    }
+    return PersonItemAssignment(
+      personName: json['person_name'] as String? ?? 'Unknown Person', // Handle potential null
+      items: itemsList,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'person_name': personName,
+        'items': items.map((item) => item.toJson()).toList(),
+      };
+}
+
+class SharedItemDetail { // Keeping this definition for completeness
+  final String name;
+  final int quantity;
+  final double price;
+  final List<String> people;
+
+  SharedItemDetail({
+    required this.name,
+    required this.quantity,
+    required this.price,
+    required this.people,
+  });
+
+  factory SharedItemDetail.fromJson(Map<String, dynamic> json) {
+    return SharedItemDetail(
+      name: json['name'] as String? ?? 'Unknown Item',
+      quantity: json['quantity'] as int? ?? 1,
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      people: (json['people'] as List?)?.whereType<String>().toList() ?? [],
+    );
+  }
+
+   Map<String, dynamic> toJson() => {
+        'name': name,
+        'quantity': quantity,
+        'price': price,
+        'people': people,
+      };
+}
+
+// --- Updated AssignmentResult Class --- 
+class AssignmentResult {
+  // Correctly typed field matching Pydantic
+  final List<PersonItemAssignment> assignments; 
+  // Use specific types for better safety
+  final List<SharedItemDetail> sharedItems; 
+  final List<ItemDetail> unassignedItems;
+
+  AssignmentResult({
+    required this.assignments,
+    required this.sharedItems, // Renamed param
+    required this.unassignedItems, // Renamed param
+  });
+
+  factory AssignmentResult.fromJson(Map<String, dynamic> json) {
+    var assignmentsList = <PersonItemAssignment>[];
+    if (json['assignments'] is List) {
+      assignmentsList = (json['assignments'] as List)
+          .map((assignJson) => PersonItemAssignment.fromJson(assignJson as Map<String, dynamic>))
+          .toList();
+    }
+
+    var sharedItemsList = <SharedItemDetail>[];
+    if (json['shared_items'] is List) {
+        sharedItemsList = (json['shared_items'] as List)
+            .map((itemJson) => SharedItemDetail.fromJson(itemJson as Map<String, dynamic>))
+            .toList();
+    }
+    
+    var unassignedItemsList = <ItemDetail>[];
+     if (json['unassigned_items'] is List) {
+        unassignedItemsList = (json['unassigned_items'] as List)
+            .map((itemJson) => ItemDetail.fromJson(itemJson as Map<String, dynamic>))
+            .toList();
+    }
+
+    return AssignmentResult(
+      assignments: assignmentsList, // Assign the parsed list
+      sharedItems: sharedItemsList,
+      unassignedItems: unassignedItemsList,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        // Correctly serialize the list
+        'assignments': assignments.map((a) => a.toJson()).toList(), 
+        'shared_items': sharedItems.map((s) => s.toJson()).toList(),
+        'unassigned_items': unassignedItems.map((u) => u.toJson()).toList(),
       };
 
-  List<SharedItem> getSharedItems() {
-    return shared_items
-        .map((item) => SharedItem.fromJson(item as Map<String, dynamic>))
-        .toList();
+  // Optional: Keep getSharedItems if needed elsewhere, but ensure it returns List<SharedItemDetail>
+  List<SharedItemDetail> getSharedItems() {
+    return sharedItems; // Already the correct type
   }
 }
 
@@ -220,15 +319,13 @@ class AudioTranscriptionService {
       
       debugPrint('Raw result: ${result.data.toString()}');
       
-      // Parse the response - convert to proper Map<String, dynamic> first
       final responseData = _convertToStringKeyedMap(result.data);
-      
       if (responseData == null) {
         throw Exception('Invalid response format from Cloud Function');
       }
-      
       debugPrint('Parsed response: ${responseData.toString()}');
       
+      // This now uses the corrected AssignmentResult.fromJson
       return AssignmentResult.fromJson(responseData);
     } catch (e) {
       // Log the error and rethrow

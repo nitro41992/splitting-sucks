@@ -52,11 +52,19 @@
   - **Resolved:** Edits/additions made in `ReceiptReviewScreen` were not saved if the user exited the modal directly from the Review step.
   - **Fix:** Implemented a callback mechanism (`registerCurrentItemsGetter`) allowing `_WorkflowModalBodyState._saveDraft` to actively fetch the latest item list from `ReceiptReviewScreen`'s state immediately before saving, ensuring edits are persisted correctly.
   - **Fix:** Changed Firestore update logic in `FirestoreService.saveReceipt` for existing documents from `set(data, SetOptions(merge: true))` to `update(data)` for more reliable field updates.
+- ✅ **Transcription Persistence & Loading (Modal Client-Side):**
+  - **Resolved:** Transcription text was not consistently loaded or displayed when resuming a draft.
+  - **Fix (`WorkflowState`):** Modified `WorkflowState.setParseReceiptResult` to no longer clear `_transcribeAudioResult`. Ensured `setImageFile` and `resetImageFile` correctly clear all subsequent step data, including transcription. Made setters in `WorkflowState` more robust to handle `null` inputs from loaded drafts, defaulting to empty/appropriate initial values.
+  - **Fix (`_buildStepContent`):** Corrected a key mismatch (was looking for `'text'` instead of `'transcription'`) when accessing the transcription string for display in the Voice Assignment step.
 
 **In Progress:**
-- None
+- **Assignment Data Propagation (Modal Client-Side):**
+  - **Issue:** Individual item assignments made in the "Assign" step were not correctly reflected in the "Split" step/view, although shared item data and the overall Cloud Function call seemed successful. Log analysis showed `assignments: {}` in the client-side parsed `AssignmentResult`.
+  - **Fix Attempt (Under Test):** Identified a mismatch between the Dart `AssignmentResult` class (and its nested models like `PersonItemAssignment`, `ItemDetail`) in `lib/services/audio_transcription_service.dart` and the Pydantic models used by the `assign_people_to_items` Cloud Function. The Dart models were redefined (`ItemDetail`, `PersonItemAssignment`) and `AssignmentResult`'s fields, `fromJson`, and `toJson` methods were corrected to accurately parse/serialize the `assignments` list and its contents, aligning with the expected JSON structure from the backend.
 
 **Pending:**
+- **Assignment Data Propagation (Modal Client-Side) - Testing:**
+  - Test the fix for `AssignmentResult` models in `lib/services/audio_transcription_service.dart` to confirm that individual item assignments now propagate correctly from the "Assign" step to the "Split" step/view in the modal workflow.
 - **Data Model Refinement - Consolidate URIs to `metadata` map (Remaining Steps):**
   - **Cloud Functions:**
       - `generate_thumbnail`: Must be updated to read the main image URI from `event.data.data()['metadata']['image_uri']` and write the generated thumbnail URI to `event.data.ref.update({'metadata.thumbnail_uri': newThumbnailGsUri})`.
@@ -208,13 +216,13 @@
     - Verify the function's error handling: If thumbnail generation fails, ensure it results in `metadata.thumbnail_uri` being set to `null` or left untouched in Firestore (via the calling client logic in `FirestoreService`).
     - Ensure the function reads the main image URI from `metadata.image_uri` as originally planned.
 2.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` and other functions to ensure they use the `metadata` field correctly for URIs if needed.
-3.  **Data Migration Script:** Develop and test script to migrate existing Firestore documents to use `metadata` for URIs (handle potential `null` or incorrect `thumbnail_uri` values gracefully).
-4.  **Non-Modal Workflow URI Refactoring:** Review `lib/receipt_splitter_ui.dart` and apply URI metadata changes if needed.
-5.  **Comprehensive Testing (URI Refactor & Background Uploads):** Test modal/non-modal flows thoroughly, including draft resume, image changes, cleanup, thumbnail display, and post-migration data.
-6.  **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core Google Play Services / Firebase connectivity issues.
-7.  **Implement Receipt List Pagination:** Address performance for large numbers of receipts.
-8.  **Address Remaining App Check/Sign-In Issues (Lower Priority):** Monitor and fix after core connectivity issues resolved.
-9.  **Address Security Warnings (General Consolidation):** Verify all security best practices (App Check, API Keys, SHA keys) are correctly implemented.
+3. **Data Migration Script:** Develop and test script to migrate existing Firestore documents to use `metadata` for URIs (handle potential `null` or incorrect `thumbnail_uri` values gracefully).
+4. **Non-Modal Workflow URI Refactoring:** Review `lib/receipt_splitter_ui.dart` and apply URI metadata changes if needed.
+5. **Comprehensive Testing (URI Refactor & Background Uploads):** Test modal/non-modal flows thoroughly, including draft resume, image changes, cleanup, thumbnail display, and post-migration data.
+6. **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core Google Play Services / Firebase connectivity issues.
+7. **Implement Receipt List Pagination:** Address performance for large numbers of receipts.
+8. **Address Remaining App Check/Sign-In Issues (Lower Priority):** Monitor and fix after core connectivity issues resolved.
+9. **Address Security Warnings (General Consolidation):** Verify all security best practices (App Check, API Keys, SHA keys) are correctly implemented.
 10. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
 11. **Create Comprehensive Testing Suite (General):** Expand unit, widget, and integration tests covering all features.
 12. **Enhance Error Handling:** Improve user feedback for various error conditions.
@@ -229,4 +237,5 @@ Key learnings from recent debugging sessions regarding the modal workflow:
 - **Widget Rebuild Timing & `Consumer`:** When complex state updates happen asynchronously (like fetching URLs in `_loadReceiptData`), passing updated state values down as simple constructor parameters to child widgets can sometimes lead to the child building with stale data if the parent rebuilds too quickly. Using a `Consumer<StateType>` widget directly within the child's parent builder function (as done for `ReceiptUploadScreen` in `_buildStepContent`) ensures the child is built using the absolute latest state from the provider at the time of the build.
 - **Saving State from Children on Parent Action:** When a parent action (like `_saveDraft` triggered by `_onWillPop`) needs the *most current* data from a child widget's internal state (like `_editableItems` in `ReceiptReviewScreen`), simply relying on the last known state in the central provider (`WorkflowState`) might not be sufficient if the child's state changed *after* the last update to the provider but *before* the parent action. Implementing a callback registration pattern (e.g., `registerCurrentItemsGetter`) allows the parent to actively *pull* the latest state from the child at the exact moment it's needed (e.g., just before saving).
 - **Firestore `update` vs. `set(merge:true)`:** While `set(..., merge: true)` works for adding new documents or completely replacing existing ones, using `update(...)` is generally the more idiomatic and often more reliable method for applying partial updates to specific fields within an *existing* Firestore document. It explicitly signals the intent to modify, not replace.
-- **Debugging State Flow:** Using targeted `debugPrint` statements at key points (state mutation in Provider, parent build function before child instantiation, child build function accessing properties) is invaluable for tracing data flow and pinpointing timing issues or stale state problems. 
+- **Debugging State Flow:** Using targeted `debugPrint` statements at key points (state mutation in Provider, parent build function before child instantiation, child build function accessing properties) is invaluable for tracing data flow and pinpointing timing issues or stale state problems.
+- **Data Model Alignment (Client-Backend):** When working with data from external sources (e.g., Cloud Functions returning JSON), it's crucial that client-side Dart models (`fromJson`/`toJson` methods) perfectly match the structure and field names of the incoming data. Mismatches, especially in nested lists, maps, or subtle naming differences (e.g., `person_name` vs `personName`), can lead to silent data loss during parsing or incorrect serialization. Always log the raw data received and the data after parsing into Dart models to quickly identify such discrepancies. 
