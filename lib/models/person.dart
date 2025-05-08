@@ -56,4 +56,24 @@ class Person extends ChangeNotifier {
   double get totalAmount {
     return totalAssignedAmount + totalSharedAmount;
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': _name,
+      'assignedItems': _assignedItems.map((item) => item.toJson()).toList(),
+      'sharedItems': _sharedItems.map((item) => item.toJson()).toList(),
+    };
+  }
+
+  factory Person.fromJson(Map<String, dynamic> json) {
+    return Person(
+      name: json['name'] as String,
+      assignedItems: (json['assignedItems'] as List<dynamic>?)
+          ?.map((itemJson) => ReceiptItem.fromJson(itemJson as Map<String, dynamic>))
+          .toList(),
+      sharedItems: (json['sharedItems'] as List<dynamic>?)
+          ?.map((itemJson) => ReceiptItem.fromJson(itemJson as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 } 

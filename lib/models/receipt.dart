@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'receipt_item.dart';
+import 'person.dart';
 
 /// Receipt model representing the Firestore document structure
 /// as defined in app_navigation_redesign.md
@@ -11,17 +12,16 @@ class Receipt {
   final Map<String, dynamic>? parseReceipt;
   final Map<String, dynamic>? transcribeAudio;
   final Map<String, dynamic>? assignPeopleToItems;
-  final Map<String, dynamic>? splitManagerState;
-  
-  // Metadata fields
-  final String id;
-  final DateTime? createdAt;
-  final DateTime? updatedAt;
   final String status; // "draft" or "completed"
   final String? restaurantName;
   final List<String> people;
-  final double tip; // Default: 20%
-  final double tax; // Default: 8.875%
+  final double? tip;
+  final double? tax;
+
+  // Metadata fields
+  final String id;
+  final Timestamp? createdAt;
+  final Timestamp? updatedAt;
 
   // Transient field for display URL (not saved to Firestore)
   final String? thumbnailUrlForDisplay;
@@ -33,14 +33,13 @@ class Receipt {
     this.parseReceipt,
     this.transcribeAudio,
     this.assignPeopleToItems,
-    this.splitManagerState,
-    this.createdAt,
-    this.updatedAt,
     required this.status,
     this.restaurantName,
     this.people = const [],
-    this.tip = 20.0,
-    this.tax = 8.875,
+    this.tip,
+    this.tax,
+    this.createdAt,
+    this.updatedAt,
     this.thumbnailUrlForDisplay,
   });
   
@@ -55,22 +54,14 @@ class Receipt {
             : {};
     
     // Handle timestamps which may be null, Timestamp objects, or DateTime objects
-    DateTime? createdAt;
+    Timestamp? createdAt;
     if (metadata['created_at'] != null) {
-      createdAt = metadata['created_at'] is Timestamp 
-          ? (metadata['created_at'] as Timestamp).toDate()
-          : metadata['created_at'] is String // For ISO8601 strings if ever used
-              ? DateTime.tryParse(metadata['created_at'] as String)
-              : metadata['created_at'] as DateTime?; // Allow direct DateTime
+      createdAt = metadata['created_at'] as Timestamp;
     }
     
-    DateTime? updatedAt;
+    Timestamp? updatedAt;
     if (metadata['updated_at'] != null) {
-      updatedAt = metadata['updated_at'] is Timestamp 
-          ? (metadata['updated_at'] as Timestamp).toDate()
-          : metadata['updated_at'] is String
-              ? DateTime.tryParse(metadata['updated_at'] as String)
-              : metadata['updated_at'] as DateTime?;
+      updatedAt = metadata['updated_at'] as Timestamp;
     }
     
     // Convert people field to List<String>
@@ -90,14 +81,13 @@ class Receipt {
       parseReceipt: data['parse_receipt'] as Map<String, dynamic>?,
       transcribeAudio: data['transcribe_audio'] as Map<String, dynamic>?,
       assignPeopleToItems: data['assign_people_to_items'] as Map<String, dynamic>?,
-      splitManagerState: data['split_manager_state'] as Map<String, dynamic>?,
-      createdAt: createdAt,
-      updatedAt: updatedAt,
       status: metadata['status'] as String? ?? 'draft',
       restaurantName: metadata['restaurant_name'] as String?,
       people: people,
-      tip: (metadata['tip'] as num?)?.toDouble() ?? 20.0,
-      tax: (metadata['tax'] as num?)?.toDouble() ?? 8.875,
+      tip: (metadata['tip'] as num?)?.toDouble(),
+      tax: (metadata['tax'] as num?)?.toDouble(),
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       // thumbnailUrlForDisplay: null, // Explicitly null initially
     );
   }
@@ -113,10 +103,9 @@ class Receipt {
       'parse_receipt': parseReceipt,
       'transcribe_audio': transcribeAudio,
       'assign_people_to_items': assignPeopleToItems,
-      'split_manager_state': splitManagerState,
       'metadata': {
-        'created_at': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
-        'updated_at': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+        'created_at': createdAt ?? FieldValue.serverTimestamp(),
+        'updated_at': updatedAt ?? FieldValue.serverTimestamp(),
         'status': status,
         'restaurant_name': restaurantName,
         'people': people,
@@ -137,14 +126,13 @@ class Receipt {
     Map<String, dynamic>? parseReceipt,
     Map<String, dynamic>? transcribeAudio,
     Map<String, dynamic>? assignPeopleToItems,
-    Map<String, dynamic>? splitManagerState,
-    DateTime? createdAt,
-    DateTime? updatedAt,
     String? status,
     String? restaurantName,
     List<String>? people,
     double? tip,
     double? tax,
+    Timestamp? createdAt,
+    Timestamp? updatedAt,
     // Add parameter for the transient field
     ValueGetter<String?>? thumbnailUrlForDisplay, 
   }) {
@@ -155,14 +143,13 @@ class Receipt {
       parseReceipt: parseReceipt ?? this.parseReceipt,
       transcribeAudio: transcribeAudio ?? this.transcribeAudio,
       assignPeopleToItems: assignPeopleToItems ?? this.assignPeopleToItems,
-      splitManagerState: splitManagerState ?? this.splitManagerState,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
       status: status ?? this.status,
       restaurantName: restaurantName ?? this.restaurantName,
       people: people ?? this.people,
       tip: tip ?? this.tip,
       tax: tax ?? this.tax,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
       // Use the provided ValueGetter or keep the existing value
       thumbnailUrlForDisplay: thumbnailUrlForDisplay != null ? thumbnailUrlForDisplay() : this.thumbnailUrlForDisplay,
     );
@@ -176,7 +163,6 @@ class Receipt {
     Map<String, dynamic>? parseReceipt,
     Map<String, dynamic>? transcribeAudio,
     Map<String, dynamic>? assignPeopleToItems,
-    Map<String, dynamic>? splitManagerState,
     List<String>? people,
   }) {
     return Receipt(
@@ -186,9 +172,6 @@ class Receipt {
       parseReceipt: parseReceipt,
       transcribeAudio: transcribeAudio,
       assignPeopleToItems: assignPeopleToItems,
-      splitManagerState: splitManagerState,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
       status: 'draft',
       people: people ?? [],
     );
@@ -202,7 +185,7 @@ class Receipt {
   }) {
     return copyWith(
       status: 'completed',
-      updatedAt: DateTime.now(),
+      updatedAt: Timestamp.fromDate(DateTime.now()),
       restaurantName: restaurantName,
       tip: tip,
       tax: tax,
@@ -218,15 +201,15 @@ class Receipt {
   /// Get a formatted string of the updated date for display
   String get formattedDate {
     if (updatedAt == null) return 'Unknown date';
-    return '${updatedAt!.day}/${updatedAt!.month}/${updatedAt!.year}';
+    return '${updatedAt!.toDate().day}/${updatedAt!.toDate().month}/${updatedAt!.toDate().year}';
   }
   
   /// Get a formatted string of the total amount for display
   String get formattedAmount {
     // Try to get total from splitManagerState if available
-    if (splitManagerState != null && 
-        splitManagerState!.containsKey('totalAmount')) {
-      final total = splitManagerState!['totalAmount'];
+    if (parseReceipt != null && 
+        parseReceipt!.containsKey('totalAmount')) {
+      final total = parseReceipt!['totalAmount'];
       if (total is num) {
         return '\$${total.toStringAsFixed(2)}';
       }

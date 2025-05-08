@@ -27,12 +27,14 @@ class SplitManager extends ChangeNotifier {
     List<ReceiptItem>? unassignedItems,
     double? tipPercentage,
     double? taxPercentage,
+    double? originalReviewTotal, // Add new parameter here
   })  : _people = people ?? [],
         _sharedItems = sharedItems ?? [],
         _unassignedItems = unassignedItems ?? [],
         _originalQuantities = {},
         _tipPercentage = tipPercentage,
-        _taxPercentage = taxPercentage;
+        _taxPercentage = taxPercentage,
+        _originalReviewTotal = originalReviewTotal; // Initialize here
 
   List<Person> get people => List.unmodifiable(_people);
   List<ReceiptItem> get sharedItems => List.unmodifiable(_sharedItems);
@@ -64,7 +66,7 @@ class SplitManager extends ChangeNotifier {
     _originalQuantities = {};
     // --- EDIT: Reset modification state ---
     _unassignedItemsModified = false;
-    _originalReviewTotal = null;
+    // _originalReviewTotal = null; // No longer reset to null if passed in constructor, unless intended
     // --- END EDIT ---
     // Reset tip and tax to default values
     _tipPercentage = null;
@@ -449,5 +451,41 @@ class SplitManager extends ChangeNotifier {
     
     // Notify listeners about the copied state
     notifyListeners();
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'people': _people.map((p) => p.toJson()).toList(),
+      'sharedItems': _sharedItems.map((item) => item.toJson()).toList(),
+      'unassignedItems': _unassignedItems.map((item) => item.toJson()).toList(),
+      'originalQuantities': _originalQuantities,
+      'tipPercentage': _tipPercentage,
+      'taxPercentage': _taxPercentage,
+      'originalReviewTotal': _originalReviewTotal,
+      'unassignedItemsModified': _unassignedItemsModified,
+      'statePreserved': _statePreserved,
+      // initialSplitViewTabIndex is probably not needed for persistence
+    };
+  }
+
+  factory SplitManager.fromJson(Map<String, dynamic> json) {
+    final manager = SplitManager(
+      people: (json['people'] as List<dynamic>?)
+          ?.map((pJson) => Person.fromJson(pJson as Map<String, dynamic>))
+          .toList(),
+      sharedItems: (json['sharedItems'] as List<dynamic>?)
+          ?.map((itemJson) => ReceiptItem.fromJson(itemJson as Map<String, dynamic>))
+          .toList(),
+      unassignedItems: (json['unassignedItems'] as List<dynamic>?)
+          ?.map((itemJson) => ReceiptItem.fromJson(itemJson as Map<String, dynamic>))
+          .toList(),
+      tipPercentage: (json['tipPercentage'] as num?)?.toDouble(),
+      taxPercentage: (json['taxPercentage'] as num?)?.toDouble(),
+      originalReviewTotal: (json['originalReviewTotal'] as num?)?.toDouble(),
+    );
+    manager._originalQuantities = Map<String, int>.from(json['originalQuantities'] ?? {});
+    manager._unassignedItemsModified = json['unassignedItemsModified'] as bool? ?? false;
+    manager._statePreserved = json['statePreserved'] as bool? ?? false;
+    return manager;
   }
 } 

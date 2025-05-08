@@ -45,7 +45,7 @@
   - Updated `_handleImageSelected` and `_handleRetry` in `_ReceiptScreenWrapperState` to call `resetUploadStepStatus()` on the parent `_MainPageControllerState`, ensuring better state consistency when the image is changed or cleared in the non-modal workflow.
 - ✅ **URI Refactoring (Modal Client-Side):** Refactored `Receipt` model (`lib/models/receipt.dart`) and modal workflow (`lib/widgets/workflow_modal.dart` - `WorkflowState`, `_WorkflowModalBodyState`) to store/retrieve `imageUri` and `thumbnailUri` exclusively within the `metadata` map in Firestore documents. Removed URIs from root level and sub-maps like `parseReceiptResult`.
 - ✅ **Optimistic Upload & Cleanup (Modal Client-Side):** Implemented background image uploads in the modal workflow triggered on image selection (`onImageSelected` in `_WorkflowModalBodyState`). Adapted save (`_saveDraft`) and parse (`onParseReceipt`) logic to handle pre-uploaded images or trigger synchronous uploads if needed. Added logic and `FirestoreService.deleteImage` method to queue and process deletion of orphaned images from Storage when selections are changed (`setImageFile`, `resetImageFile`) or drafts discarded (`_onWillPop`, modal close).
-- ✅ **Faster Draft Image Loading (Modal Client-Side):** 
+- ✅ **Faster Draft Image Loading (Modal Client-Side):**
   - Implemented logic (`_loadReceiptData`, `ReceiptUploadScreen`) to fetch and display thumbnail download URLs as placeholders while the main image loads.
   - **Resolved loading delay:** Fixed issue where `ReceiptUploadScreen` didn't receive the updated `loadedThumbnailUrl` promptly after `_loadReceiptData` completed by wrapping `ReceiptUploadScreen` instantiation within a `Consumer<WorkflowState>` in `_WorkflowModalBodyState._buildStepContent`.
 - ✅ **Review Screen Data Persistence on Exit (Modal Client-Side):**
@@ -56,65 +56,57 @@
   - **Resolved:** Transcription text was not consistently loaded or displayed when resuming a draft.
   - **Fix (`WorkflowState`):** Modified `WorkflowState.setParseReceiptResult` to no longer clear `_transcribeAudioResult`. Ensured `setImageFile` and `resetImageFile` correctly clear all subsequent step data, including transcription. Made setters in `WorkflowState` more robust to handle `null` inputs from loaded drafts, defaulting to empty/appropriate initial values.
   - **Fix (`_buildStepContent`):** Corrected a key mismatch (was looking for `'text'` instead of `'transcription'`) when accessing the transcription string for display in the Voice Assignment step.
+- ✅ **Linter Error Resolution & Split Step Setup (Modal Client-Side):**
+    - Resolved all linter errors in `lib/widgets/workflow_modal.dart` related to the "Split" step data handling.
+    - Corrected `ReceiptItem.fromMap` to `ReceiptItem.fromJson`.
+    - Addressed `ReceiptItem.id` vs `ReceiptItem.itemId` discrepancies.
+    - Resolved `Person` class name collision by hiding `Person` from `audio_transcription_service.dart` import.
+    - Updated `SplitManager` instantiation in `_WorkflowModalBodyState._buildStepContent` (case 3 for "Split"):
+        - Removed outdated `isStatePreservedAcrossHotReload` and `restoreState` logic.
+        - Ensured `parseResult['subtotal']` is passed as `originalReviewTotal` to `SplitManager`.
+        - Defined `_initialSplitViewTabIndex` in `_WorkflowModalBodyState` and set it on `SplitManager`.
+    - Removed undefined parameters from `SplitView` instantiation (`onSplitChanged`, `peopleArg`, etc.) as it consumes `SplitManager` via Provider.
+- ✅ **SplitManager State Serialization & Propagation (Modal Client-Side):**
+    - Added `toJson()` and `fromJson()` methods to `lib/models/person.dart`.
+    - Added `toJson()` and `fromJson()` methods to `lib/models/split_manager.dart`.
+    - Implemented a listener in `_WorkflowModalBodyState._buildStepContent` (case 3 for "Split") for the `SplitManager` instance. When `SplitManager` notifies changes, `workflowState.setSplitManagerState(manager.toJson())` is called, ensuring `WorkflowState` holds the latest `SplitManager` data for saving drafts or completing receipts.
+- ✅ **Resolved Type Error in Summary Screen (Modal Client-Side):**
+    - Fixed a `type 'Null' is not a subtype of type 'num' in type cast` error occurring when navigating to the Summary step.
+    - **Fix:** Modified `_buildStepContent` (case 4 for Summary) to initialize `SplitManager` using `SplitManager.fromJson(workflowState.splitManagerState)` instead of creating a new empty manager. This ensures the Summary uses the up-to-date state from the Split step.
+- ✅ **Strict Data Model Adherence - Removed `split_manager_state`:**
+    - Modified `Receipt` model (`lib/models/receipt.dart`): Removed `splitManagerState` field, added `tip`, `tax` fields, updated `toMap`/`fromDocumentSnapshot` to handle `tip`/`tax` within `metadata` map.
+    - Modified `WorkflowState` (`lib/widgets/workflow_modal.dart`): Removed `_splitManagerState` and associated logic, added `_tip`, `_tax` fields and setters, updated `toReceipt()`.
+    - Modified `_loadReceiptData`: Loads `tip`/`tax` from `Receipt` metadata into `WorkflowState`.
+    - Modified Split Step (`case 3`): Always initializes `SplitManager` fresh from `assign_people_to_items` result; sets initial tip/tax from `WorkflowState`; added listener to update `WorkflowState.tip`/`tax` when `SplitManager` changes.
+    - Modified Summary Step (`case 4`): Initializes `SplitManager` fresh from `assign_people_to_items` and sets tip/tax from `WorkflowState`.
+    - Modified `_completeReceipt`: Removed direct reading of tip/tax and arguments to `firestoreService.completeReceipt` (now relies on `receipt.toMap()`).
+    - Modified `FirestoreService.completeReceipt`: Removed `tip`, `tax`, `restaurantName` parameters; now relies on the `data` map containing these within `metadata`.
+    - **Note:** This removes persistence for detailed `SplitManager` edits (like adding people *only* in the Split step) across sessions, strictly following the specified data model. Tip/Tax changes persist.
 
-**In Progress:**
-- **Assignment Data Propagation (Modal Client-Side):**
-  - **Issue:** Individual item assignments made in the "Assign" step were not correctly reflected in the "Split" step/view, although shared item data and the overall Cloud Function call seemed successful. Log analysis showed `assignments: {}` in the client-side parsed `AssignmentResult`.
-  - **Fix Attempt (Under Test):** Identified a mismatch between the Dart `AssignmentResult` class (and its nested models like `PersonItemAssignment`, `ItemDetail`) in `lib/services/audio_transcription_service.dart` and the Pydantic models used by the `assign_people_to_items` Cloud Function. The Dart models were redefined (`ItemDetail`, `PersonItemAssignment`) and `AssignmentResult`'s fields, `fromJson`, and `toJson` methods were corrected to accurately parse/serialize the `assignments` list and its contents, aligning with the expected JSON structure from the backend.
-
-**Pending:**
+**In Progress / Pending Testing:**
+- **Split Step State Persistence (Modal Client-Side):**
+    - **Status:** Partially resolved by removing `split_manager_state` and using `WorkflowState.tip`/`tax`. Requires testing.
+    - **Test Case:** Verify that changes to **tip** and **tax** in the Split step persist when navigating between steps (Split -> Summary -> Split) and when saving/resuming drafts.
+    - **Test Case:** Confirm that adding/renaming people *only* within the Split step UI (if possible) does *not* persist across sessions, as per the strict data model adherence.
 - **Assignment Data Propagation (Modal Client-Side) - Testing:**
-  - Test the fix for `AssignmentResult` models in `lib/services/audio_transcription_service.dart` to confirm that individual item assignments now propagate correctly from the "Assign" step to the "Split" step/view in the modal workflow.
+  - **Status:** Partially tested. User confirms assign view updates correctly. Further testing needed to ensure end-to-end persistence of assignments from `assign_people_to_items` through to Split/Summary views after recent changes.
+- **Split View Data Display (Modal Client-Side) - Unassigned Items:**
+  - **Issue:** The "Unassigned" tab in the Split screen sometimes appears to show all receipt items, even when `assign_people_to_items` result indicates no unassigned items (`unassigned_items: []`).
+  - **Status:** Needs testing now that `SplitManager` is always initialized fresh from `assign_people_to_items`. If issue persists, investigate `SplitView` rendering.
+
+**Pending (Longer Term / Other Areas):**
 - **Data Model Refinement - Consolidate URIs to `metadata` map (Remaining Steps):**
-  - **Cloud Functions:**
-      - `generate_thumbnail`: Must be updated to read the main image URI from `event.data.data()['metadata']['image_uri']` and write the generated thumbnail URI to `event.data.ref.update({'metadata.thumbnail_uri': newThumbnailGsUri})`.
-      - `parse_receipt`: If it reads/writes URIs, update to use `metadata` (review needed, likely no changes needed if it only receives URI as input).
-      - Other functions: Review any other functions (e.g., `assign_people_to_items` if it erroneously stored URIs) and ensure they do not store URIs and read them from `metadata` if needed.
-  - **Non-Modal Workflow (`lib/receipt_splitter_ui.dart`):**
-      - Review `_MainPageControllerState` and related logic. If it saves/loads full `Receipt` objects or interacts directly with `imageUri`/`thumbnailUri` fields in Firestore, apply similar refactoring to use the `metadata` map.
-  - **Data Migration:**
-      - Develop and execute a one-time script (e.g., Python using `firebase-admin`) to migrate existing Firestore receipt documents. Script must:
-          - Iterate through `users/{userId}/receipts/{receiptId}`.
-          - For each doc, identify the canonical `image_uri` and `thumbnail_uri` (likely from root or `parse_receipt`).
-          - Write these values into `doc.metadata.image_uri` and `doc.metadata.thumbnail_uri`.
-          - Delete the old root-level `image_uri`/`thumbnail_uri` fields.
-          - Delete redundant nested `image_uri`/`thumbnail_uri` fields from within `parse_receipt`, `assign_people_to_items`, `split_manager_state`, etc.
-          - Handle potential errors and documents already in the new format gracefully.
-  - **Testing:**
-      - Thoroughly test all URI-related operations after Cloud Function changes and data migration:
-          - New drafts (modal/non-modal).
-          - Resuming drafts (old and new structure pre/post-migration).
-          - Image changes, clearing, retries.
-          - Thumbnail generation and display (modal/non-modal, `ReceiptsScreen`).
-          - Orphaned image deletion logic.
-
-- **Workflow Stability - Upload Screen (Old Issue - Resolved, Notes Kept for History):**
-  - **Resolution Note:** Modal workflow stability issues related to image selection/parsing were resolved by fixes in `lib/widgets/workflow_modal.dart` (handling `loadedImageUrl`, integrating parser call, robust item conversion). Non-modal flow uses `_ReceiptScreenWrapperState`.
-
-- **Code Cleanup & Refactoring - Parsing Logic Duplication:**
-  - **Context:** Modal parsing uses `WorkflowState` and `_WorkflowModalBodyState`. Non-modal uses `_ReceiptScreenWrapperState` and `_MainPageControllerState`.
-  - **Observation:** Potential legacy/unused parsing logic might exist (e.g., `_MainPageControllerState._directParseReceipt`).
-  - **Action:** Review `_MainPageControllerState._directParseReceipt`. Clarify if non-modal flow requires separate parsing logic or if it can be consolidated/removed if the modal is the primary detailed workflow.
-
-- **General Modal Workflow State Consistency Plan:** (Review if any further consistency checks are needed after recent refactors)
-  - **Objective:** Ensure reliable data flow, state management, and UI consistency across all steps of the modal workflow.
-  - **Principles:** Single source of truth (`WorkflowState`), clear data propagation, scoped state management (`Provider`, `SplitManager`), immutability.
-  - **Action Plan:** Review data flow mapping, state restoration, callback integrity, and `SplitManager` initialization, especially focusing on edge cases or back navigation.
-
-- **Performance Optimization:**
-  - Optimize receipts list loading (currently fetches all receipts; needs pagination)
-  - Implement image caching for better performance (`CachedNetworkImage` helps, review overall strategy)
-  - Optimize state management to reduce unnecessary rebuilds (review `Provider` usage).
-
-- **Testing (Comprehensive Suite):**
-  - Create/expand testing suite for all components:
-    - Unit tests for services (`AuthService`, `FirestoreService` including `deleteImage`) and models (`Receipt` including metadata URI handling).
-    - Widget tests for UI components (especially `WorkflowModal`, `ReceiptUploadScreen`, `ReceiptsScreen`).
-    - Integration tests for the full end-to-end workflow (modal and non-modal if applicable), including draft resume, image changes, deletion, completion.
-
-- **Handle Edge Cases & Stability:**
-  - Test and handle completed receipt modifications (what happens if user tries to edit?).
-  - Further improve error handling and user feedback across the app (e.g., Storage deletion errors, parsing failures).
+  - Cloud Functions (`generate_thumbnail`, review others)
+  - Non-Modal Workflow (`lib/receipt_splitter_ui.dart`)
+  - Data Migration Script
+  - Testing (URI Refactor)
+- **Workflow Stability - Upload Screen (Old Issue - Resolved, Notes Kept for History)**
+- **Code Cleanup & Refactoring - Parsing Logic Duplication**
+- **General Modal Workflow State Consistency Plan**
+- **Performance Optimization (Pagination, Caching, Rebuilds)**
+- **Testing (Comprehensive Suite)**
+- **Handle Edge Cases & Stability (Completed Receipts, Error Handling)**
+- **Authentication & Emulator Connectivity Issues (`GoogleApiManager`, Network Errors)**
 
 ## Technical Implementation Details
 
@@ -157,17 +149,18 @@
 ### Current Challenges (Focus on remaining issues)
 
 1. **Data Persistence & Performance:**
-   - ⚠️ Need to handle edge cases when modifying completed receipts
+   - ⚠️ **SplitManager State Hydration:** Needs implementation as per "In Progress" section.
+   - ⚠️ Need to handle edge cases when modifying completed receipts.
    - ⚠️ Receipts list loading can be slow due to lack of pagination.
 
 2. **Image Processing:**
    - ✅ All previous image processing issues seem resolved. Requires testing with Cloud Function updates (metadata URI usage).
 
 3. **Data Flow & State Management:**
-   - ✅ Modal workflow state (`WorkflowState`) refactored for URI handling and background uploads.
+   - ✅ Modal workflow state (`WorkflowState`) refactored for URI handling, background uploads, and receiving `SplitManager` updates.
    - ✅ Non-modal workflow state (`_MainPageControllerState`) improved with reset logic.
    - ⚠️ Non-modal workflow needs review for URI metadata refactoring.
-   - ⚠️ Potential code duplication/refactoring opportunities remain (parsing logic, `SplitManager` init).
+   - ⚠️ Potential code duplication/refactoring opportunities remain (parsing logic).
 
 4. **Authentication & Emulator Connectivity:**
    - ✅ Most previous issues resolved.
@@ -211,25 +204,28 @@
 
 ## Next Steps (Priority Order)
 
-1.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (High Priority):**
-    - Review Cloud Function logs for any recurring `INTERNAL` errors.
-    - Verify the function's error handling: If thumbnail generation fails, ensure it results in `metadata.thumbnail_uri` being set to `null` or left untouched in Firestore (via the calling client logic in `FirestoreService`).
-    - Ensure the function reads the main image URI from `metadata.image_uri` as originally planned.
-2.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` and other functions to ensure they use the `metadata` field correctly for URIs if needed.
-3. **Data Migration Script:** Develop and test script to migrate existing Firestore documents to use `metadata` for URIs (handle potential `null` or incorrect `thumbnail_uri` values gracefully).
-4. **Non-Modal Workflow URI Refactoring:** Review `lib/receipt_splitter_ui.dart` and apply URI metadata changes if needed.
-5. **Comprehensive Testing (URI Refactor & Background Uploads):** Test modal/non-modal flows thoroughly, including draft resume, image changes, cleanup, thumbnail display, and post-migration data.
-6. **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core Google Play Services / Firebase connectivity issues.
-7. **Implement Receipt List Pagination:** Address performance for large numbers of receipts.
-8. **Address Remaining App Check/Sign-In Issues (Lower Priority):** Monitor and fix after core connectivity issues resolved.
-9. **Address Security Warnings (General Consolidation):** Verify all security best practices (App Check, API Keys, SHA keys) are correctly implemented.
-10. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
-11. **Create Comprehensive Testing Suite (General):** Expand unit, widget, and integration tests covering all features.
-12. **Enhance Error Handling:** Improve user feedback for various error conditions.
-13. **Handle Edge Cases (Completed Receipts):** Define and implement behavior for modifying completed receipts.
-14. **Code Cleanup/Refactoring:** Address potential duplication (parsing, `SplitManager` init) and review state management consistency.
+1.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - High Priority):**
+    - Test persistence of **Tip/Tax** changes across navigation and draft save/resume.
+    - Confirm that changes *only* made within SplitManager (like adding people) are *not* persisted (as `split_manager_state` is removed).
+    - Verify correct initial population of `SplitManager` from `assign_people_to_items`.
+    - Test display of unassigned items in `SplitView`.
+2.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (High Priority):**
+    - Review Cloud Function logs, verify error handling and URI usage (`metadata`).
+3.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
+4. **Data Migration Script:** Develop and test script for URI metadata migration.
+5. **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
+6. **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
+7. **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
+8. **Implement Receipt List Pagination:** Address performance.
+9. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
+10. **Address Security Warnings (General Consolidation).**
+11. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
+12. **Create Comprehensive Testing Suite (General).**
+13. **Enhance Error Handling.**
+14. **Handle Edge Cases (Completed Receipts).**
+15. **Code Cleanup/Refactoring (Parsing Logic).**
 
-## Developer Notes / Knowledge Transfer
+## Developer Notes / Knowledge Transfer (Updated)
 
 Key learnings from recent debugging sessions regarding the modal workflow:
 
@@ -238,4 +234,12 @@ Key learnings from recent debugging sessions regarding the modal workflow:
 - **Saving State from Children on Parent Action:** When a parent action (like `_saveDraft` triggered by `_onWillPop`) needs the *most current* data from a child widget's internal state (like `_editableItems` in `ReceiptReviewScreen`), simply relying on the last known state in the central provider (`WorkflowState`) might not be sufficient if the child's state changed *after* the last update to the provider but *before* the parent action. Implementing a callback registration pattern (e.g., `registerCurrentItemsGetter`) allows the parent to actively *pull* the latest state from the child at the exact moment it's needed (e.g., just before saving).
 - **Firestore `update` vs. `set(merge:true)`:** While `set(..., merge: true)` works for adding new documents or completely replacing existing ones, using `update(...)` is generally the more idiomatic and often more reliable method for applying partial updates to specific fields within an *existing* Firestore document. It explicitly signals the intent to modify, not replace.
 - **Debugging State Flow:** Using targeted `debugPrint` statements at key points (state mutation in Provider, parent build function before child instantiation, child build function accessing properties) is invaluable for tracing data flow and pinpointing timing issues or stale state problems.
-- **Data Model Alignment (Client-Backend):** When working with data from external sources (e.g., Cloud Functions returning JSON), it's crucial that client-side Dart models (`fromJson`/`toJson` methods) perfectly match the structure and field names of the incoming data. Mismatches, especially in nested lists, maps, or subtle naming differences (e.g., `person_name` vs `personName`), can lead to silent data loss during parsing or incorrect serialization. Always log the raw data received and the data after parsing into Dart models to quickly identify such discrepancies. 
+- **Data Model Alignment (Client-Backend):** When working with data from external sources (e.g., Cloud Functions returning JSON), it's crucial that client-side Dart models (`fromJson`/`toJson` methods) perfectly match the structure and field names of the incoming data. Mismatches, especially in nested lists, maps, or subtle naming differences (e.g., `person_name` vs `personName`), can lead to silent data loss during parsing or incorrect serialization. Always log the raw data received and the data after parsing into Dart models to quickly identify such discrepancies.
+- **Scoped Notifier State Propagation:** When a nested `ChangeNotifier` (like `SplitManager`) is modified by its UI (`SplitView`), its state needs to be propagated to the parent `WorkflowState` to ensure it's included in draft saving.
+    - **Solution (Tip/Tax only with `split_manager_state` removed):** Add specific fields (e.g., `tip`, `tax`) to the parent state (`WorkflowState`). Add listeners to the nested notifier (`SplitManager`) that call specific setters on the parent state (e.g., `workflowState.setTip(manager.tipPercentage)`). This keeps the relevant parts of the parent state synchronized.
+- **State Hydration for Nested Notifiers (Initialization Pattern):** When a step uses a nested `ChangeNotifier` (like `SplitManager` in Split/Summary steps):
+    - **Initialization:** Always create a *new* instance of the nested notifier.
+    - **Data Source:** Populate it using data from *earlier* steps stored in the parent state (`WorkflowState`), such as `assign_people_to_items`, `parse_receipt`, and the persisted `tip`/`tax`.
+    - **No `fromJson` for Full State:** Do not attempt to restore the entire nested notifier state using `fromJson` if its dedicated persistence field (like `split_manager_state`) has been removed. Only initialize with necessary base data and persisted fields like tip/tax.
+
+</rewritten_file> 

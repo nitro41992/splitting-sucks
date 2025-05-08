@@ -154,11 +154,8 @@ class FirestoreService {
   Future<String> completeReceipt({
     required String receiptId,
     required Map<String, dynamic> data,
-    required String restaurantName,
-    double? tip,
-    double? tax,
   }) async {
-    // Ensure metadata exists
+    // Ensure metadata exists (already handled by Receipt.toMap, but safe check)
     if (!data.containsKey('metadata')) {
       data['metadata'] = {};
     }
@@ -166,28 +163,18 @@ class FirestoreService {
     // Set status to completed
     data['metadata']['status'] = 'completed';
     
-    // Set restaurant name
-    data['metadata']['restaurant_name'] = restaurantName;
+    // Ensure updated_at is set (Receipt.toMap handles this)
+    data['metadata']['updated_at'] = FieldValue.serverTimestamp();
     
-    // Set default tip if not provided (20%)
-    if (tip != null) {
-      data['metadata']['tip'] = tip;
-    } else if (!data['metadata'].containsKey('tip')) {
-      data['metadata']['tip'] = 20.0; // Default 20%
+    // Update the document using the provided data map
+    try {
+      final docRef = _receiptsCollection.doc(receiptId);
+      await docRef.update(data); // Update with the map which includes metadata
+      return docRef.id;
+    } catch (e) {
+      debugPrint('Error completing receipt: $e');
+      rethrow;
     }
-    
-    // Set default tax if not provided (8.875%)
-    if (tax != null) {
-      data['metadata']['tax'] = tax;
-    } else if (!data['metadata'].containsKey('tax')) {
-      data['metadata']['tax'] = 8.875; // Default 8.875%
-    }
-    
-    // Save the receipt
-    return await saveReceipt(
-      receiptId: receiptId,
-      data: data,
-    );
   }
   
   /// Delete a receipt by ID
