@@ -113,24 +113,24 @@
         - Assign -> Split: Disabled if `!hasAssignmentData`.
         - Split -> Summary: Disabled if `!hasAssignmentData`.
     - Placeholders remain in steps as a fallback.
+- ✅ **UI Placeholders for Missing Data (Modal Client-Side):** Added placeholder widgets for Review, Assign, Split, and Summary steps shown if prerequisite data is missing. Button disabling provides primary UX feedback.
 
-**In Progress / Pending Testing:**
+**In Progress / Pending Issues:**
 
-- **Split Step State Persistence (Modal Client-Side) - Testing:**
-    - **Status:** Logic believed complete. Requires testing.
-    - **Test Case:** Verify that changes to **tip** and **tax** in the Split step persist when navigating between steps (Split -> Summary -> Split) and when saving/resuming drafts.
-    - **Test Case:** Verify that adding/removing/renaming people, adding/removing items, and reassigning items within the Split step correctly updates `WorkflowState.assignPeopleToItemsResult` and `WorkflowState.people` via the `SplitManager` listener, and that these changes persist on draft save/resume.
-- **Assignment Data Propagation (Modal Client-Side) - Testing:**
-  - **Status:** Believed complete. Needs thorough testing to ensure end-to-end persistence of assignments from `assign_people_to_items` through to Split/Summary views after recent changes, especially after re-processing assignments.
-- **Split View Data Display (Modal Client-Side) - Unassigned Items:**
-  - **Issue:** The "Unassigned" tab in the Split screen sometimes appeared to show all receipt items, even when `assign_people_to_items` result indicated no unassigned items (`unassigned_items: []`).
-  - **Status:** Needs testing now that `SplitManager` is always initialized fresh from `assign_people_to_items`. If issue persists, investigate `SplitView` rendering and `SplitManager` initialization logic for unassigned items.
-- **Split View "Go To Summary" Button Functionality:**
-  - **Issue:** User reported this button (within the SplitView UI itself) is not navigating to the Summary step.
-  - **Status:** Needs investigation. Likely requires connecting the button within `SplitView` to call `Provider.of<WorkflowState>(context, listen: false).goToStep(4)` or using a `Notification`.
-- **Summary View Subtotal Calculation:**
-  - **Issue:** User reported the subtotal calculation in the final Summary view is incorrect.
-  - **Status:** Needs investigation. Check how `FinalSummaryScreen` calculates/receives its subtotal. It should likely use the totals derived from the `SplitManager` instance provided to it (which is based on `assign_people_to_items`).
+- **UI/Functionality Bugs:**
+    - ⚠️ **App Crash/Performance Issues:** User has reported general app crashes, skipped frames, EGL errors, and potential ANR (Application Not Responding) errors. These may or may not be related to the specific connectivity issues listed under "Authentication & Emulator Connectivity".
+    - ⚠️ **Summary View Subtotal Calculation:** User reported the subtotal calculation in the final Summary view is incorrect. Needs investigation into `FinalSummaryScreen` and its `SplitManager` data source.
+    - ⚠️ **Modal Launch Context:** Occasional `[WorkflowModal.show] Error: Context is not mounted before navigation.` error. Needs investigation into where/when `WorkflowModal.show` is called.
+    - ⚠️ **Split View "Go To Summary" Button:** User reported this button (within the SplitView UI itself) is not navigating to the Summary step. Needs investigation into `SplitView`.
+    - ⚠️ **Modal Exit (`X` Button):** The top-left 'X' button currently closes the modal without triggering the draft save logic (`_onWillPop`). Needs fix or removal.
+    - ⚠️ **"Completed" Indicator:** No visual indicator on completed receipts (e.g., in Receipts list or within the summary). Needs implementation.
+    - ⚠️ **Split View "Unassigned" Tab:** Potential issue where the "Unassigned" tab might display incorrectly. Needs testing.
+- **Testing & Verification:**
+    - ⚠️ **Split Step State Persistence:** Needs testing (Tip/Tax changes, Person/Item modifications persistence via listener).
+    - ⚠️ **Assignment Data Propagation:** Needs end-to-end testing after recent confirmation/clearing changes.
+- **Authentication & Emulator Connectivity:**
+    - ⚠️ **Remaining Issue (Highest Priority):** Persistent `GoogleApiManager SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs urgent investigation (likely separate effort).
+    - ⚠️ **Remaining Issue (High Priority):** Persistent `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors. Likely related to `GoogleApiManager` issue.
 
 **Pending (Longer Term / Other Areas):**
 - **Data Model Refinement - Consolidate URIs to `metadata` map (Remaining Steps):**
@@ -138,142 +138,64 @@
   - Non-Modal Workflow (`lib/receipt_splitter_ui.dart`)
   - Data Migration Script
   - Testing (URI Refactor)
+- **Cloud Function `generate_thumbnail` Behavior:** Investigate potential internal errors.
+- **Firebase App Check/Google Sign-In:** Monitor intermittent warnings/errors (Lower Priority).
 - **Code Cleanup & Refactoring - Parsing Logic Duplication**
 - **General Modal Workflow State Consistency Plan**
 - **Performance Optimization (Pagination, Caching, Rebuilds)**
 - **Testing (Comprehensive Suite)**
 - **Handle Edge Cases & Stability (Completed Receipts, Error Handling)**
-- **Authentication & Emulator Connectivity Issues (`GoogleApiManager`, Network Errors)**
 
 ## Technical Implementation Details
-
-### Screen Component Status
-
-1. **Main Navigation:**
-   - ✅ Bottom navigation bar with tabs
-   - ✅ Tab-based routing to main screens
-   - ✅ Settings screen with working Sign Out
-
-2. **Receipts Screen:**
-   - ✅ Filter tabs for All/Completed/Drafts
-   - ✅ Search functionality with filtering
-   - ✅ Receipt cards with thumbnails
-   - ✅ FAB to create new receipts (fixed double modal issue)
-   - ✅ Resume functionality with proper parameter passing
-   - ✅ Delete functionality with confirmation dialog
-   - ⚠️ Receipts list loading performance (fetches all, no pagination yet)
-   - ✅ Fixed `setState` after dispose issue
-
-3. **Workflow Modal:**
-   - ✅ Full-page modal implementation
-   - ✅ Step indicator with navigation
-   - ✅ Navigation buttons with proper state management (including disabling)
-   - ✅ Automatic draft saving (now faster with background uploads)
-   - ✅ Parameter types between steps fixed
-   - ✅ Component interface consistency ensured
-   - ✅ Correctly uses `ChangeNotifierProvider` for `WorkflowState`
-   - ✅ Retry button on Upload step disabled appropriately post-parse.
-   - ✅ Orphaned image cleanup logic implemented.
-   - ✅ Uses thumbnail placeholder for faster initial image display on resume.
-   - ✅ Workflow interruption confirmation dialogs implemented for data re-processing actions.
-   - ✅ Placeholders added for steps when prerequisite data is missing.
-
-4. **Individual Steps (Modal Workflow):**
-   - ✅ Upload: Camera/gallery picker implemented. Retry/clear logic enhanced. Background uploads implemented. Re-parse confirmation added.
-   - ✅ Review: Item editing functionality working.
-   - ✅ Assign: Voice transcription and assignment working. Re-transcribe confirmation added. Re-process assignments confirmation added.
-   - ✅ Split: Item sharing and reassignment implemented. **(Button issue noted above)**
-   - ✅ Summary: Tax/tip calculations implemented and properly connected. **(Calculation issue noted above)**
+(Consolidated Status)
+- **Main Navigation:** ✅
+- **Receipts Screen:** ✅ (except pagination ⚠️)
+- **Workflow Modal Core:** ✅ (Navigation, State, Saving, Placeholders, Confirmations, Button Disabling)
+- **Workflow Steps:**
+    - Upload: ✅
+    - Review: ✅
+    - Assign: ✅
+    - Split: ✅ (except Go To Summary button ⚠️, Unassigned tab display ⚠️)
+    - Summary: ✅ (except Subtotal calculation ⚠️)
 
 ### Current Challenges (Focus on remaining issues)
-
-1. **UI/Functionality Bugs:**
-   - ⚠️ Split View "Go To Summary" button non-functional.
-   - ⚠️ Summary View subtotal calculation incorrect.
-   - ⚠️ Potential issue with Split View "Unassigned" tab display.
-
-2. **Data Persistence & Performance:**
-   - ⚠️ Split step state persistence needs testing.
-   - ⚠️ Assignment data propagation needs testing.
-   - ⚠️ Need to handle edge cases when modifying completed receipts.
-   - ⚠️ Receipts list loading can be slow due to lack of pagination.
-
-3. **Image Processing & Cloud Functions:**
-   - ⚠️ Need to test thumbnail generation function and verify URI metadata usage in other functions.
-
-4. **Data Flow & State Management:**
-   - ✅ Modal workflow state largely refactored.
-   - ⚠️ Non-modal workflow needs review for URI metadata refactoring.
-   - ⚠️ Potential code duplication/refactoring opportunities remain (parsing logic).
-
-5. **Authentication & Emulator Connectivity:**
-   - ✅ Most previous issues resolved.
-   - ⚠️ **Remaining Issue (Highest Priority):** Persistent `GoogleApiManager SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs urgent investigation (likely separate effort).
-   - ⚠️ **Remaining Issue (High Priority):** Persistent `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors. Likely related to `GoogleApiManager` issue.
-   - ⚠️ **Remaining Issue (Lower Priority):** App Check placeholder token warning reappears later. Monitor after fixing core issues.
-   - ⚠️ **Remaining Issue (Lower Priority):** Google Sign-In sometimes fails initially (`ApiException: 10`). Likely related to `GoogleApiManager` issue.
+(Moved details to Pending Issues above)
 
 ## Environment Setup Status
-
-### Multi-Project Firebase Setup (Dev/Prod)
-   - ✅ Setup appears complete and functional for `billfie-dev`.
-
-### Emulator Configuration
-   - ✅ Setup appears complete and functional.
+(No changes from previous state)
 
 ## Testing Status
-
-1. **Unit Tests:**
-   - Needs expansion for recent service changes (`FirestoreService.deleteImage`) and model changes (`Receipt` metadata).
-
-2. **Widget Tests:**
-   - Needs expansion for `WorkflowModal` (background uploads, cleanup), `ReceiptUploadScreen` (thumbnail placeholder).
-
-3. **Integration Tests:**
-   - Needs implementation, especially for URI refactoring, background uploads, and cleanup across full workflows.
+(Needs expansion as noted above)
 
 ## Known Issues (Consolidated)
-
-- **UI/Functionality:**
-    - ⚠️ Split View "Go To Summary" button non-functional.
-    - ⚠️ Summary View subtotal calculation incorrect.
-    - ⚠️ Split View "Unassigned" tab might display incorrectly.
-- **Google Services Connectivity:**
-    - ⚠️ **Remaining Issue (Highest Priority):** `E/GoogleApiManager: Failed to get service from broker. java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs urgent investigation.
-    - ⚠️ **Remaining Issue (High Priority):** `W/ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` / `UnknownHostException` errors. Likely symptom of `GoogleApiManager` issue.
-- **Cloud Function `generate_thumbnail` Behavior:**
-    - ⚠️ **Potential Issue:** Previous logs indicated the `generate_thumbnail` Cloud Function might error internally (`[firebase_functions/internal] INTERNAL`) under some conditions.
-    - ⚠️ **Potential Impact:** If this error occurs, the function *might* have flawed error handling (though client-side robustness added in `FirestoreService.generateThumbnail` mitigates some impact). Needs investigation for root cause and ensuring correct behavior upon failure (e.g., storing `null` for `metadata.thumbnail_uri`).
-    - ⚠️ **Consequence:** While client-side modal loading is now fixed, an underlying function error could cause issues elsewhere or represent instability.
-- **Firebase App Check:**
-    - ⚠️ Placeholder token warning reappears later in session (Lower Priority).
-- **Google Sign-In:**
-    - ⚠️ Intermittent `ApiException: 10` on first attempt (Lower Priority).
+(Moved details to Pending Issues above)
 
 ## Next Steps (Priority Order)
 
-1.  **Fix Split View "Go To Summary" Button (Modal Client-Side - High Priority):** Investigate `SplitView` and connect button to navigate.
-2.  **Fix Summary View Subtotal Calculation (Modal Client-Side - High Priority):** Investigate `FinalSummaryScreen` and its data source (`SplitManager` via Provider).
-3.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - High Priority):**
-    - Test persistence of **Tip/Tax** changes.
-    - Test persistence of **people and item assignments** made in Split step.
+1.  **Fix Summary View Subtotal Calculation (Modal Client-Side - High Priority):** Investigate `FinalSummaryScreen` and its data source (`SplitManager` via Provider).
+2.  **Fix Modal Launch Context Error (Modal Client-Side - High Priority):** Investigate `WorkflowModal.show` call sites for potential `mounted` issues before navigation.
+3.  **Fix/Remove Modal 'X' Button Save Behavior (Modal Client-Side - High Priority):** Either make 'X' trigger `_onWillPop` or remove it.
+4.  **Fix Split View "Go To Summary" Button (Modal Client-Side - High Priority):** Investigate `SplitView` and connect button to navigate.
+5.  **Implement "Completed" Indicator (UI - Medium Priority):** Add visual cues for completed receipts.
+6.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - Medium Priority):**
+    - Test persistence of Tip/Tax, people, and item assignments made in Split step.
     - Verify correct initial population of `SplitManager`.
     - Test display of unassigned items in `SplitView`.
-4.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (High Priority):**
+7.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (Medium Priority):**
     - Review Cloud Function logs, verify error handling and URI usage (`metadata`).
-5.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
-6.  **Data Migration Script:** Develop and test script for URI metadata migration.
-7.  **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
-8.  **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
-9.  **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
-10. **Implement Receipt List Pagination:** Address performance.
-11. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
-12. **Address Security Warnings (General Consolidation).**
-13. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
-14. **Create Comprehensive Testing Suite (General).**
-15. **Enhance Error Handling.**
-16. **Handle Edge Cases (Completed Receipts).**
-17. **Code Cleanup/Refactoring (Parsing Logic).**
+8.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
+9.  **Data Migration Script:** Develop and test script for URI metadata migration.
+10. **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
+11. **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
+12. **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
+13. **Implement Receipt List Pagination:** Address performance.
+14. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
+15. **Address Security Warnings (General Consolidation).**
+16. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
+17. **Create Comprehensive Testing Suite (General).**
+18. **Enhance Error Handling.**
+19. **Handle Edge Cases (Completed Receipts).**
+20. **Code Cleanup/Refactoring (Parsing Logic).**
 
 ## Developer Notes / Knowledge Transfer (Updated)
 
@@ -294,5 +216,6 @@ Key learnings from recent debugging sessions regarding the modal workflow:
     - This ensures that while `SplitManager` itself isn't directly saved, the effects of its operations (assignments, people list, tip/tax changes) are captured in `WorkflowState` and subsequently persisted to Firestore.
 - **Confirmation for Data Overwrite / Action Trigger:** Confirmation dialogs should be tied to specific user actions that *initiate* data processing or overwriting (e.g., clicking "Parse", "Start Recording", "Start Splitting"), rather than simple navigation (Back button, step taps, basic Next button). If confirmed, the relevant downstream data slice should be cleared in `WorkflowState` *before* the action proceeds. Tip/Tax should generally be preserved during these clears.
 - **Button Disabling:** Disabling navigation buttons (like "Next") when prerequisite data for the target step is missing provides clearer UX than allowing navigation and then showing a placeholder. State checks (e.g., `hasParseData`, `hasAssignmentData`) should determine button enablement.
+- **Mounted Checks:** Errors like `Context is not mounted before navigation` often occur when an `async` operation completes after a widget has been removed from the tree (e.g., user navigates away quickly). Check `if (mounted)` before accessing `context` or calling `setState` in `async` callbacks or `initState`/`addPostFrameCallback`.
 
 </rewritten_file> 
