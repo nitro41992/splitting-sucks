@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "billfie"
-  }
+    "default": "billfie",
+    "prod": "billfie",
+    "dev": "billfie-dev"
+  },
+  "targets": {},
+  "etags": {}
 }

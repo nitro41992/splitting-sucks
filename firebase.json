@@ -17,7 +17,7 @@
     "storage": {
       "host": "0.0.0.0",
       "port": 9199,
-      "rules": "storage.emulator.rules" 
+      "rules": "storage.emulator.rules"
     },
     "functions": {
       "port": 5001,
@@ -34,11 +34,11 @@
     "source": "dataconnect"
   },
   "firestore": {
-    "rules": "firestore.emulator.rules", 
+    "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "storage": {
-    "rules": "storage.emulator.rules" 
+    "rules": "storage.rules"
   },
   "extensions": {},
   "app_distribution": {
@@ -59,5 +59,28 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "billfie-dev",
+          "appId": "1:37981972803:android:53e04e1d18a42f8abca7f6",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "billfie-dev",
+          "configurations": {
+            "android": "1:37981972803:android:53e04e1d18a42f8abca7f6",
+            "ios": "1:37981972803:ios:6f1c9b76f76878edbca7f6",
+            "macos": "1:37981972803:ios:e1ae58b5d0513429bca7f6",
+            "web": "1:37981972803:web:aa81d52aca1b3837bca7f6",
+            "windows": "1:37981972803:web:aa81d52aca1b3837bca7f6"
+          }
+        }
+      }
+    }
+  }
 }

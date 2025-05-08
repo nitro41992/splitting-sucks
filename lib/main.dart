@@ -30,10 +30,19 @@ void main() async {
   
   // Initialize Firebase
   try {
-    await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform, // Ensure options are passed
-    );
-    firebaseInitialized = true;
+    if (Firebase.apps.isEmpty) {
+      debugPrint("Attempting Firebase.initializeApp as Firebase.apps is empty...");
+      await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform, // Ensure options are passed
+      );
+      firebaseInitialized = true;
+      debugPrint("Firebase.initializeApp completed successfully.");
+    } else {
+      debugPrint("Firebase.apps was not empty. Using existing [DEFAULT] app.");
+      // Get the existing app instance
+      Firebase.app();
+      firebaseInitialized = true; 
+    }
     
     // Check if using emulator and CONFIGURE services if so
     final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
@@ -74,8 +83,25 @@ void main() async {
       }
     }
   } catch (e) {
-    debugPrint("Error initializing Firebase in main(): $e");
-    firebaseInitialized = false;
+    // Add special handling for duplicate app error
+    if (e.toString().contains('core/duplicate-app')) {
+      debugPrint("Handling duplicate app error gracefully...");
+      try {
+        // Get the existing app instance
+        Firebase.app();
+        firebaseInitialized = true;
+        debugPrint("Successfully recovered using existing Firebase app.");
+      } catch (innerError) {
+        debugPrint("CRITICAL: Could not recover from Firebase init error: $innerError");
+        firebaseInitialized = false;
+      }
+    } else {
+      debugPrint("CRITICAL Error during Firebase setup in main(): $e");
+      if (e.toString().contains("[core/duplicate-app]")) {
+          debugPrint("ERROR DETAILS: Received [core/duplicate-app] despite Firebase.apps.isEmpty check or during re-initialization attempt.");
+      }
+      firebaseInitialized = false;
+    }
   }
   
   runApp(const AppWithProviders());
