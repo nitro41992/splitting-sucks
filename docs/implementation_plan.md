@@ -45,7 +45,9 @@
   - Updated `_handleImageSelected` and `_handleRetry` in `_ReceiptScreenWrapperState` to call `resetUploadStepStatus()` on the parent `_MainPageControllerState`, ensuring better state consistency when the image is changed or cleared in the non-modal workflow.
 - ✅ **URI Refactoring (Modal Client-Side):** Refactored `Receipt` model (`lib/models/receipt.dart`) and modal workflow (`lib/widgets/workflow_modal.dart` - `WorkflowState`, `_WorkflowModalBodyState`) to store/retrieve `imageUri` and `thumbnailUri` exclusively within the `metadata` map in Firestore documents. Removed URIs from root level and sub-maps like `parseReceiptResult`.
 - ✅ **Optimistic Upload & Cleanup (Modal Client-Side):** Implemented background image uploads in the modal workflow triggered on image selection (`onImageSelected` in `_WorkflowModalBodyState`). Adapted save (`_saveDraft`) and parse (`onParseReceipt`) logic to handle pre-uploaded images or trigger synchronous uploads if needed. Added logic and `FirestoreService.deleteImage` method to queue and process deletion of orphaned images from Storage when selections are changed (`setImageFile`, `resetImageFile`) or drafts discarded (`_onWillPop`, modal close).
-- ✅ **Faster Draft Image Loading (Modal Client-Side):** Implemented logic (`_loadReceiptData`, `ReceiptUploadScreen`) to fetch and display thumbnail download URLs as placeholders while the main image loads, improving perceived performance when resuming drafts in the modal workflow.
+- ✅ **Faster Draft Image Loading (Modal Client-Side):** 
+  - Implemented logic (`_loadReceiptData`, `ReceiptUploadScreen`) to fetch and display thumbnail download URLs as placeholders while the main image loads.
+  - **Resolved loading delay:** Fixed issue where `ReceiptUploadScreen` didn't receive the updated `loadedThumbnailUrl` promptly after `_loadReceiptData` completed by wrapping `ReceiptUploadScreen` instantiation within a `Consumer<WorkflowState>` in `_WorkflowModalBodyState._buildStepContent`.
 
 **In Progress:**
 - None
@@ -186,6 +188,10 @@
 - **Google Services Connectivity:**
     - ⚠️ **Remaining Issue (Highest Priority):** `E/GoogleApiManager: Failed to get service from broker. java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs urgent investigation.
     - ⚠️ **Remaining Issue (High Priority):** `W/ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` / `UnknownHostException` errors. Likely symptom of `GoogleApiManager` issue.
+- **Cloud Function `generate_thumbnail` Behavior:**
+    - ⚠️ **Potential Issue:** Previous logs indicated the `generate_thumbnail` Cloud Function might error internally (`[firebase_functions/internal] INTERNAL`) under some conditions.
+    - ⚠️ **Potential Impact:** If this error occurs, the function *might* have flawed error handling (though client-side robustness added in `FirestoreService.generateThumbnail` mitigates some impact). Needs investigation for root cause and ensuring correct behavior upon failure (e.g., storing `null` for `metadata.thumbnail_uri`).
+    - ⚠️ **Consequence:** While client-side modal loading is now fixed, an underlying function error could cause issues elsewhere or represent instability.
 - **Firebase App Check:**
     - ⚠️ Placeholder token warning reappears later in session (Lower Priority).
 - **Google Sign-In:**
@@ -193,16 +199,20 @@
 
 ## Next Steps (Priority Order)
 
-1.  **Cloud Function Updates (URI Metadata):** Modify `generate_thumbnail` and review other functions to use `metadata` field for URIs. **(BLOCKER for full URI refactor)**
-2.  **Data Migration Script:** Develop and test script to migrate existing Firestore documents to use `metadata` for URIs.
-3.  **Non-Modal Workflow URI Refactoring:** Review `lib/receipt_splitter_ui.dart` and apply URI metadata changes if needed.
-4.  **Comprehensive Testing (URI Refactor & Background Uploads):** Test modal/non-modal flows thoroughly, including draft resume, image changes, cleanup, thumbnail display, and post-migration data.
-5.  **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core Google Play Services / Firebase connectivity issues.
-6.  **Implement Receipt List Pagination:** Address performance for large numbers of receipts.
-7.  **Address Remaining App Check/Sign-In Issues (Lower Priority):** Monitor and fix after core connectivity issues resolved.
-8.  **Address Security Warnings (General Consolidation):** Verify all security best practices (App Check, API Keys, SHA keys) are correctly implemented.
-9.  **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
-10. **Create Comprehensive Testing Suite (General):** Expand unit, widget, and integration tests covering all features.
-11. **Enhance Error Handling:** Improve user feedback for various error conditions.
-12. **Handle Edge Cases (Completed Receipts):** Define and implement behavior for modifying completed receipts.
-13. **Code Cleanup/Refactoring:** Address potential duplication (parsing, `SplitManager` init) and review state management consistency. 
+1.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (High Priority):**
+    - Review Cloud Function logs for any recurring `INTERNAL` errors.
+    - Verify the function's error handling: If thumbnail generation fails, ensure it results in `metadata.thumbnail_uri` being set to `null` or left untouched in Firestore (via the calling client logic in `FirestoreService`).
+    - Ensure the function reads the main image URI from `metadata.image_uri` as originally planned.
+2.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` and other functions to ensure they use the `metadata` field correctly for URIs if needed.
+3.  **Data Migration Script:** Develop and test script to migrate existing Firestore documents to use `metadata` for URIs (handle potential `null` or incorrect `thumbnail_uri` values gracefully).
+4.  **Non-Modal Workflow URI Refactoring:** Review `lib/receipt_splitter_ui.dart` and apply URI metadata changes if needed.
+5.  **Comprehensive Testing (URI Refactor & Background Uploads):** Test modal/non-modal flows thoroughly, including draft resume, image changes, cleanup, thumbnail display, and post-migration data.
+6.  **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core Google Play Services / Firebase connectivity issues.
+7.  **Implement Receipt List Pagination:** Address performance for large numbers of receipts.
+8.  **Address Remaining App Check/Sign-In Issues (Lower Priority):** Monitor and fix after core connectivity issues resolved.
+9.  **Address Security Warnings (General Consolidation):** Verify all security best practices (App Check, API Keys, SHA keys) are correctly implemented.
+10. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
+11. **Create Comprehensive Testing Suite (General):** Expand unit, widget, and integration tests covering all features.
+12. **Enhance Error Handling:** Improve user feedback for various error conditions.
+13. **Handle Edge Cases (Completed Receipts):** Define and implement behavior for modifying completed receipts.
+14. **Code Cleanup/Refactoring:** Address potential duplication (parsing, `SplitManager` init) and review state management consistency. 

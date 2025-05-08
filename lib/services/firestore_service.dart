@@ -232,29 +232,47 @@ class FirestoreService {
   /// This should be called after uploading the original image
   Future<String?> generateThumbnail(String originalImageUri) async {
     try {
-      // Call the Cloud Function to generate a thumbnail
       final functions = FirebaseFunctions.instance;
       final callable = functions.httpsCallable('generate_thumbnail');
       
       debugPrint('Calling generate_thumbnail function with URI: $originalImageUri');
-      // Add debug print for current user
-      debugPrint('Current Firebase user before calling generate_thumbnail: ${FirebaseAuth.instance.currentUser}');
-      final result = await callable.call({
+      final HttpsCallableResult result = await callable.call({
         'imageUri': originalImageUri
       });
       
-      if (result.data != null && result.data['thumbnailUri'] != null) {
+      // Robust check for thumbnailUri in the result data
+      if (result.data != null && 
+          result.data is Map<String, dynamic> && 
+          result.data['thumbnailUri'] != null &&
+          result.data['thumbnailUri'] is String &&
+          (result.data['thumbnailUri'] as String).isNotEmpty) {
+            
         final thumbnailUri = result.data['thumbnailUri'] as String;
-        debugPrint('Thumbnail generated at: $thumbnailUri');
-        return thumbnailUri;
+        // Further check if the returned URI is for the 'thumbnails/' path
+        if (thumbnailUri.startsWith('gs://') && thumbnailUri.contains('/thumbnails/')) {
+          debugPrint('Thumbnail generated successfully at: $thumbnailUri');
+          return thumbnailUri;
+        } else {
+          debugPrint('Warning: Cloud function returned a thumbnailUri, but it does not appear to be a valid thumbnail path: $thumbnailUri. Original: $originalImageUri');
+          // This could happen if the cloud function logic is flawed and returns the original URI
+          return null; // Treat as failure if path is suspicious
+        }
       } else {
-        debugPrint('Thumbnail generation response did not contain thumbnailUri: ${result.data}');
+        debugPrint('Thumbnail generation response was missing, null, empty, or had an unexpected format for thumbnailUri. Result data: ${result.data}');
         return null;
       }
+    } on FirebaseFunctionsException catch (e) {
+      // Handle specific FirebaseFunctionsExceptions
+      debugPrint('FirebaseFunctionsException calling generate_thumbnail function: ${e.code} - ${e.message}');
+      if (e.details != null) {
+        debugPrint('FirebaseFunctionsException details: ${e.details}');
+      }
+      // Depending on the error code, you might want to handle it differently or just return null
+      return null; // Explicitly return null on caught Firebase Functions errors
     } catch (e) {
-      debugPrint('Error calling generate_thumbnail function: $e');
-      // Re-throw or handle as needed
-      rethrow; 
+      // Catch any other unexpected errors
+      debugPrint('Generic error calling generate_thumbnail function: $e');
+      return null; // Explicitly return null on other errors
     }
   }
   

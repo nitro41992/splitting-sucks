@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../services/receipt_parser_service.dart';
+import 'dart:async';
 
 /// Define NavigateToPageNotification class here to match the one in split_view.dart
 /// This avoids having to expose that class in a separate file while maintaining compatibility
@@ -197,6 +198,12 @@ class WorkflowState extends ChangeNotifier {
     _loadedThumbnailUrl = url;
     notifyListeners();
   }
+
+  void setLoadedImageAndThumbnailUrls(String? imageUrl, String? thumbnailUrl) {
+    _loadedImageUrl = imageUrl;
+    _loadedThumbnailUrl = thumbnailUrl;
+    notifyListeners(); // Notify once after both are set
+  }
   
   // Methods to manage the pending deletion list
   void clearPendingDeletions() {
@@ -335,8 +342,6 @@ class WorkflowModal extends StatelessWidget {
 
     // If a receiptId is provided, try to load the receipt and get its name
     if (receiptId != null && finalRestaurantName == null) {
-      // Temporarily show a loading indicator or handle this state appropriately
-      // For simplicity, we'll try to fetch it. In a real app, manage loading state.
       try {
         final firestoreService = FirestoreService();
         final snapshot = await firestoreService.getReceipt(receiptId);
@@ -345,7 +350,6 @@ class WorkflowModal extends StatelessWidget {
           finalRestaurantName = receipt.restaurantName;
         }
       } catch (e) {
-        // Log error or handle, for now, we'll proceed without pre-filled name
         debugPrint("Error fetching receipt name for modal: $e");
       }
     }
@@ -359,9 +363,23 @@ class WorkflowModal extends StatelessWidget {
     if (finalRestaurantName == null) {
       return null;
     }
+
+    // --- Add Safety Checks before using Navigator --- 
+    if (!context.mounted) {
+       debugPrint("[WorkflowModal.show] Error: Context is not mounted before navigation.");
+       // Optionally show a toast or log more severely
+       return null; // Cannot navigate
+    }
+    final navigator = Navigator.maybeOf(context);
+    if (navigator == null) {
+       debugPrint("[WorkflowModal.show] Error: Could not find a Navigator ancestor for the provided context.");
+       // Optionally show a toast or log more severely
+       return null; // Cannot navigate
+    }
+    // --- End Safety Checks ---
     
-    // Then show the workflow modal
-    return await Navigator.of(context).push<bool?>(
+    // Then show the workflow modal using the safe navigator reference
+    return await navigator.push<bool?>(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (context) => ChangeNotifierProvider(
@@ -455,38 +473,73 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         workflowState.setSplitManagerState(receipt.splitManagerState!); 
       }
 
-      // --- Get Download URL for Main Image if actualImageGsUri exists --- 
-      if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.startsWith('gs://')) {
-        try {
-          debugPrint('Attempting to get download URL for main image: ${workflowState.actualImageGsUri}');
-          final ref = FirebaseStorage.instance.refFromURL(workflowState.actualImageGsUri!);
-          final downloadUrl = await ref.getDownloadURL();
-          debugPrint('Got main image download URL: $downloadUrl');
-          workflowState.setLoadedImageUrl(downloadUrl); // For display
-        } catch (e) {
-          debugPrint('Error getting download URL for main image ${workflowState.actualImageGsUri}: $e');
-          workflowState.setErrorMessage('Could not load saved image preview.');
-          // Proceed without main image URL if thumbnail fails too
+      // --- Concurrently get Download URLs for Main Image and Thumbnail ---
+      String? loadedImageUrl;
+      String? loadedThumbnailUrl;
+
+      Future<String?> getMainImageUrl() async {
+        if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.startsWith('gs://')) {
+          final stopwatch = Stopwatch()..start(); // Start timer
+          try {
+            debugPrint('[LoadData Timer] Getting download URL for main image: ${workflowState.actualImageGsUri}');
+            final ref = FirebaseStorage.instance.refFromURL(workflowState.actualImageGsUri!);
+            final url = await ref.getDownloadURL();
+            stopwatch.stop(); // Stop timer
+            debugPrint('[LoadData Timer] Got main image download URL in ${stopwatch.elapsedMilliseconds}ms: $url');
+            return url;
+          } catch (e) {
+            stopwatch.stop(); // Stop timer on error too
+            debugPrint('[LoadData Timer] Error getting download URL for main image ${workflowState.actualImageGsUri} after ${stopwatch.elapsedMilliseconds}ms: $e');
+            return null; 
+          }
+        } else {
+           debugPrint('[LoadData Timer] No valid gs:// actualImageGsUri found for main image.');
+           return null;
         }
-      } else {
-        debugPrint('No valid gs:// actualImageGsUri found in loaded receipt state for main image.');
       }
 
-      // --- Get Download URL for Thumbnail if actualThumbnailGsUri exists --- 
-      if (workflowState.actualThumbnailGsUri != null && workflowState.actualThumbnailGsUri!.startsWith('gs://')) {
-        try {
-          debugPrint('Attempting to get download URL for thumbnail: ${workflowState.actualThumbnailGsUri}');
-          final ref = FirebaseStorage.instance.refFromURL(workflowState.actualThumbnailGsUri!);
-          final thumbnailUrl = await ref.getDownloadURL();
-          debugPrint('Got thumbnail download URL: $thumbnailUrl');
-          workflowState.setLoadedThumbnailUrl(thumbnailUrl); // For faster preview
-        } catch (e) {
-          // Log error but don't necessarily block UI, main image might still load
-          debugPrint('Error getting download URL for thumbnail ${workflowState.actualThumbnailGsUri}: $e');
-          // Optionally set an error message specifically for thumbnail?
+      Future<String?> getThumbnailImageUrl() async {
+         if (workflowState.actualThumbnailGsUri != null && workflowState.actualThumbnailGsUri!.startsWith('gs://')) {
+          final stopwatch = Stopwatch()..start(); // Start timer
+          try {
+            debugPrint('[LoadData Timer] Getting download URL for thumbnail: ${workflowState.actualThumbnailGsUri}');
+            final ref = FirebaseStorage.instance.refFromURL(workflowState.actualThumbnailGsUri!);
+            final url = await ref.getDownloadURL();
+            stopwatch.stop(); // Stop timer
+            debugPrint('[LoadData Timer] Got thumbnail download URL in ${stopwatch.elapsedMilliseconds}ms: $url');
+            return url;
+          } catch (e) {
+            stopwatch.stop(); // Stop timer on error too
+            debugPrint('[LoadData Timer] Error getting download URL for thumbnail ${workflowState.actualThumbnailGsUri} after ${stopwatch.elapsedMilliseconds}ms: $e');
+            return null;
+          }
+        } else {
+           debugPrint('[LoadData Timer] No valid gs:// actualThumbnailGsUri found.');
+           return null;
         }
-      } else {
-        debugPrint('No valid gs:// actualThumbnailGsUri found in loaded receipt state.');
+      }
+
+      // Run URL fetches concurrently
+      try {
+        final results = await Future.wait([
+          getMainImageUrl(),
+          getThumbnailImageUrl(),
+        ]);
+        loadedImageUrl = results[0];
+        loadedThumbnailUrl = results[1];
+      } catch (e) {
+        // Should not happen if individual futures catch errors, but as a fallback:
+        debugPrint('[LoadData] Error during Future.wait for URLs: $e');
+        workflowState.setErrorMessage('Failed to load image URLs.');
+      }
+      
+      // Update state with results from concurrent fetch
+      workflowState.setLoadedImageAndThumbnailUrls(loadedImageUrl, loadedThumbnailUrl);
+      debugPrint('[LoadData Timer] WorkflowState updated with URLs via setLoadedImageAndThumbnailUrls.');
+      
+      // Set error message if main image URL failed but thumbnail might have succeeded
+      if (loadedImageUrl == null && workflowState.actualImageGsUri != null) {
+           workflowState.setErrorMessage('Could not load saved image preview.');
       }
 
       // Determine target step (existing logic)
@@ -855,139 +908,123 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
     
     switch (currentStep) {
       case 0: // Upload
-        // Extract potential imageUrl from the state
-        final bool isSuccessfullyParsed = workflowState.parseReceiptResult.containsKey('items') &&
-                                          (workflowState.parseReceiptResult['items'] as List?)?.isNotEmpty == true;
+        // Keep workflowState from Provider.of for callbacks for now
+
+        // Wrap the part that needs the latest URLs in a Consumer
+        return Consumer<WorkflowState>(
+          builder: (context, consumedState, child) {
             
-        return ReceiptUploadScreen(
-          imageFile: workflowState.imageFile, // Local file if selected
-          imageUrl: workflowState.loadedImageUrl, // Pass the fetched download URL
-          isLoading: workflowState.isLoading,
-          isSuccessfullyParsed: isSuccessfullyParsed, // Pass the new flag
-          onImageSelected: (file) async {
-            if (file != null) {
-              workflowState.setImageFile(file);
-              workflowState.setErrorMessage(null);
+            // Use consumedState for values needed for the build
+            final bool isSuccessfullyParsed = consumedState.parseReceiptResult.containsKey('items') &&
+                                              (consumedState.parseReceiptResult['items'] as List?)?.isNotEmpty == true;
 
-              // Start optimistic background upload
-              debugPrint('[WorkflowModal onImageSelected] New file selected. Starting background upload...');
-              // No global loading indicator here, let UI handle if needed. Upload is in background.
-              _uploadImageAndProcess(file).then((uris) {
-                // Critical: Check if the context is still valid and the imageFile in state 
-                // is still the one we initiated this upload for.
-                if (mounted && workflowState.imageFile == file) {
-                  workflowState.setActualImageGsUri(uris['imageUri']);
-                  workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
-                  debugPrint('[WorkflowModal onImageSelected] Background upload complete. Actual GS URIs set for ${uris['imageUri']}.');
-                } else {
-                  debugPrint('[WorkflowModal onImageSelected] Background upload complete, but context changed or image no longer matches. URIs not set or will be overwritten.');
-                  // TODO: If uris['imageUri'] is not null, this image is now orphaned. Add to a cleanup list (Phase 3 cleanup).
-                  // For now, we are not implementing immediate deletion here to avoid complexity if the user quickly reselects.
-                }
-              }).catchError((error) {
-                if (mounted && workflowState.imageFile == file) { // Error for the current file
-                  debugPrint('[WorkflowModal onImageSelected] Background upload failed: $error');
-                  workflowState.setErrorMessage('Background image upload failed. Please try parsing again or reselect.');
-                  // Do not clear actualImageGsUri here, as it might be from a previously successful load.
-                  // The user will have to explicitly retry or re-select.
-                } else {
-                  debugPrint('[WorkflowModal onImageSelected] Background upload failed for an outdated image selection: $error');
-                }
-              });
-
-            } else {
-              // Clearing selection
-              // String? gsUriToPotentiallyDelete = workflowState.actualImageGsUri;
-              workflowState.resetImageFile(); // This clears imageFile, loadedImageUrl, actualImageGsUri, actualThumbnailGsUri, and parseResult
-              workflowState.setErrorMessage(null);
-              // TODO: If gsUriToPotentiallyDelete was not null, it's now orphaned. Add to cleanup list (Phase 3 cleanup).
-            }
-          },
-          onParseReceipt: () async {
-            workflowState.setLoading(true); // Global loading for this explicit action
-            workflowState.setErrorMessage(null);
-            
-            String? gsUriForParsing;
-
-            try {
-              // Determine the GS URI for parsing
-              if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty) {
-                // URI already available (e.g., from background upload or loaded draft)
-                gsUriForParsing = workflowState.actualImageGsUri;
-                debugPrint('[WorkflowModal onParseReceipt] Using pre-existing actualImageGsUri: $gsUriForParsing');
-              } else if (workflowState.imageFile != null) {
-                // Local file exists, but no GS URI yet. Upload it now.
-                debugPrint('[WorkflowModal onParseReceipt] Local file detected, no GS URI yet. Uploading synchronously...');
-                final uris = await _uploadImageAndProcess(workflowState.imageFile!);
-                workflowState.setActualImageGsUri(uris['imageUri']);
-                workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
-                gsUriForParsing = uris['imageUri'];
-                debugPrint('[WorkflowModal onParseReceipt] Synchronous upload complete. Actual GS URIs set. Using: $gsUriForParsing');
-              } else if (workflowState.loadedImageUrl != null) {
-                // This case implies a draft was loaded, and actualImageGsUri should have been set during _loadReceiptData.
-                // If actualImageGsUri is null here, it indicates an issue with draft loading or state.
-                debugPrint('[WorkflowModal onParseReceipt] CRITICAL: loadedImageUrl is present, but actualImageGsUri is missing. This should not happen if draft loaded correctly.');
-                throw Exception('Image loaded from draft, but its GS URI is missing in state.');
-              } else {
-                // No image available at all
-                debugPrint('[WorkflowModal onParseReceipt] No image selected or available for parsing.');
-                workflowState.setLoading(false);
-                workflowState.setErrorMessage('Please select an image first.');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
-                  );
-                }
-                return;
-              }
-
-              // Final check for GS URI before parsing
-              if (gsUriForParsing == null || gsUriForParsing.isEmpty) {
-                debugPrint('[WorkflowModal onParseReceipt] CRITICAL: gsUriForParsing is null or empty before parsing attempt after all checks.');
-                throw Exception('Image URI could not be determined for parsing.');
-              }
-
-              // Parsing logic (shouldParse, call ReceiptParserService, etc.)
-              Map<String, dynamic> newParseResult = {}; 
-
-              // Determine if parsing is needed. 
-              // If actualImageGsUri was just set by a new upload (workflowState.imageFile was not null path), always parse.
-              // If actualImageGsUri was from a loaded draft, parse only if items are missing.
-              bool isNewImageJustUploaded = workflowState.imageFile != null; // Heuristic: if local file was source of URI path
-
-              bool shouldParse = isNewImageJustUploaded || 
-                                 (!workflowState.parseReceiptResult.containsKey('items')) || 
-                                 ((workflowState.parseReceiptResult['items'] as List?)?.isEmpty ?? true);
-
-              if (shouldParse) {
-                debugPrint('[WorkflowModal onParseReceipt] Parsing needed. Calling ReceiptParserService.parseReceipt with GsUri: $gsUriForParsing');
-                final ReceiptData parsedData = await ReceiptParserService.parseReceipt(gsUriForParsing);
+            // **** Use consumedState in the debug print ****
+            debugPrint('[_buildStepContent Consumer for Upload] consumedState.loadedImageUrl: ${consumedState.loadedImageUrl}, consumedState.loadedThumbnailUrl: ${consumedState.loadedThumbnailUrl}');
                 
-                newParseResult['items'] = parsedData.items;
-                newParseResult['subtotal'] = parsedData.subtotal;
-                workflowState.setParseReceiptResult(newParseResult); // This now only sets items and subtotal
-                debugPrint('[WorkflowModal onParseReceipt] Receipt parsed successfully. Items count: ${parsedData.items.length}');
-              } else {
-                debugPrint('[WorkflowModal onParseReceipt] Parsing not needed. Using existing items from parseReceiptResult.');
-              }
+            return ReceiptUploadScreen(
+              imageFile: consumedState.imageFile, // Use consumed state
+              imageUrl: consumedState.loadedImageUrl, // Use consumed state
+              loadedThumbnailUrl: consumedState.loadedThumbnailUrl, // Use consumed state
+              isLoading: consumedState.isLoading, // Use consumed state
+              isSuccessfullyParsed: isSuccessfullyParsed, // Use calculated value
+              
+              // Callbacks still use the workflowState obtained via Provider.of outside the Consumer
+              onImageSelected: (file) async {
+                if (file != null) {
+                  workflowState.setImageFile(file); // Use original workflowState ref
+                  workflowState.setErrorMessage(null);
+                  _uploadImageAndProcess(file).then((uris) {
+                    if (mounted && workflowState.imageFile == file) { // Use original ref
+                      // Use the single update method
+                      workflowState.setActualImageGsUri(uris['imageUri']); 
+                      workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
+                      debugPrint('[WorkflowModal onImageSelected] Background upload complete. Actual GS URIs set for ${uris['imageUri']}.');
+                    } else {
+                      debugPrint('[WorkflowModal onImageSelected] Background upload complete, but context changed or image no longer matches. URIs not set or will be overwritten.');
+                    }
+                  }).catchError((error) {
+                     if (mounted && workflowState.imageFile == file) { // Use original ref
+                        debugPrint('[WorkflowModal onImageSelected] Background upload failed: $error');
+                        workflowState.setErrorMessage('Background image upload failed. Please try parsing again or reselect.');
+                      } else {
+                        debugPrint('[WorkflowModal onImageSelected] Background upload failed for an outdated image selection: $error');
+                      }
+                  });
+                } else {
+                  workflowState.resetImageFile(); // Use original ref
+                  workflowState.setErrorMessage(null);
+                }
+              },
+              onParseReceipt: () async {
+                workflowState.setLoading(true); // Use original ref
+                workflowState.setErrorMessage(null);
+                String? gsUriForParsing;
+                try {
+                  if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty) { // Use original ref
+                      gsUriForParsing = workflowState.actualImageGsUri;
+                      debugPrint('[WorkflowModal onParseReceipt] Using pre-existing actualImageGsUri: $gsUriForParsing');
+                  } else if (workflowState.imageFile != null) { // Use original ref
+                      debugPrint('[WorkflowModal onParseReceipt] Local file detected, no GS URI yet. Uploading synchronously...');
+                      final uris = await _uploadImageAndProcess(workflowState.imageFile!);
+                      workflowState.setActualImageGsUri(uris['imageUri']); // Use original ref
+                      workflowState.setActualThumbnailGsUri(uris['thumbnailUri']); // Use original ref
+                      gsUriForParsing = uris['imageUri'];
+                      debugPrint('[WorkflowModal onParseReceipt] Synchronous upload complete. Actual GS URIs set. Using: $gsUriForParsing');
+                  } else if (workflowState.loadedImageUrl != null) { // Use original ref
+                    debugPrint('[WorkflowModal onParseReceipt] CRITICAL: loadedImageUrl is present, but actualImageGsUri is missing...');
+                    throw Exception('Image loaded from draft, but its GS URI is missing in state.');
+                  } else {
+                    debugPrint('[WorkflowModal onParseReceipt] No image selected or available for parsing.');
+                    workflowState.setLoading(false);
+                    workflowState.setErrorMessage('Please select an image first.');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
+                      );
+                    }
+                    return;
+                  }
 
-              workflowState.setLoading(false);
-              workflowState.nextStep();
+                  if (gsUriForParsing == null || gsUriForParsing.isEmpty) {
+                    debugPrint('[WorkflowModal onParseReceipt] CRITICAL: gsUriForParsing is null or empty...');
+                    throw Exception('Image URI could not be determined for parsing.');
+                  }
+                  
+                  Map<String, dynamic> newParseResult = {}; 
+                  bool isNewImageJustUploaded = workflowState.imageFile != null; // Use original ref
+                  bool shouldParse = isNewImageJustUploaded || 
+                                    (!workflowState.parseReceiptResult.containsKey('items')) || // Use original ref
+                                    ((workflowState.parseReceiptResult['items'] as List?)?.isEmpty ?? true);
 
-            } catch (e) { 
-              debugPrint('[WorkflowModal onParseReceipt] Error: $e');
-              workflowState.setLoading(false);
-              workflowState.setErrorMessage('Failed to process/parse receipt: ${e.toString()}');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to process/parse receipt: ${e.toString()}'), backgroundColor: Colors.red),
-                );
-              }
-            }
-          },
-          onRetry: () { 
-            workflowState.resetImageFile();
-            workflowState.setErrorMessage(null); 
+                  if (shouldParse) {
+                    debugPrint('[WorkflowModal onParseReceipt] Parsing needed...');
+                    final ReceiptData parsedData = await ReceiptParserService.parseReceipt(gsUriForParsing);
+                    newParseResult['items'] = parsedData.items;
+                    newParseResult['subtotal'] = parsedData.subtotal;
+                    workflowState.setParseReceiptResult(newParseResult); // Use original ref
+                    debugPrint('[WorkflowModal onParseReceipt] Receipt parsed successfully...');
+                  } else {
+                    debugPrint('[WorkflowModal onParseReceipt] Parsing not needed...');
+                  }
+
+                  workflowState.setLoading(false); // Use original ref
+                  workflowState.nextStep(); // Use original ref
+                } catch (e) { 
+                  debugPrint('[WorkflowModal onParseReceipt] Error: $e');
+                  workflowState.setLoading(false); // Use original ref
+                  workflowState.setErrorMessage('Failed to process/parse receipt: ${e.toString()}');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to process/parse receipt: ${e.toString()}'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+              onRetry: () { 
+                workflowState.resetImageFile(); // Use original ref
+                workflowState.setErrorMessage(null); // Use original ref
+              },
+            );
           },
         );
         

@@ -125,6 +125,9 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final TextTheme textTheme = Theme.of(context).textTheme;
 
+    // Add debug print to see when build method runs with URLs
+    debugPrint('[ReceiptUploadScreen Build] Building - isLoading: ${widget.isLoading}, isParsed: ${widget.isSuccessfullyParsed}, hasImageFile: ${widget.imageFile != null}, hasImageUrl: ${widget.imageUrl != null}, hasThumbUrl: ${widget.loadedThumbnailUrl != null}, thumbUrlValue: ${widget.loadedThumbnailUrl}');
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
