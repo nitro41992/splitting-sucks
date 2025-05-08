@@ -1448,64 +1448,88 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
             final parseResult = workflowState.parseReceiptResult;
             
             debugPrint('[_buildStepContent SummaryProvider] Creating SplitManager for Summary.');
-            
-            final AssignmentResult assignResult = AssignmentResult.fromJson(assignResultMap);
-            final List<ReceiptItem> initialItems = 
-                (parseResult['items'] as List<dynamic>?)
-                    ?.map((itemMap) => ReceiptItem.fromJson(itemMap as Map<String, dynamic>))
-                    .toList() ?? [];
+            debugPrint('[_buildStepContent SummaryProvider] assignResultMap: $assignResultMap');
 
-            final List<Person> people = [];
-            final List<ReceiptItem> sharedItems = [];
-            final List<ReceiptItem> unassignedItems = [];
+            final List<Person> peopleForManager = [];
+            final List<ReceiptItem> sharedItemsForManager = [];
+            final List<ReceiptItem> unassignedItemsForManager = [];
 
-            for (var assignment in assignResult.assignments) {
-                final List<ReceiptItem> itemsForThisPerson = [];
-                for (var itemDetail in assignment.items) {
-                  final originalItem = initialItems.firstWhereOrNull(
-                    (ri) => ri.name == itemDetail.name && ri.price == itemDetail.price
-                  );
-                  if (originalItem != null) {
-                    itemsForThisPerson.add(ReceiptItem.fromJson(originalItem.toJson()));
-                  } else {
-                    itemsForThisPerson.add(ReceiptItem(name: itemDetail.name, quantity: itemDetail.quantity, price: itemDetail.price));
-                  }
-                }
-                people.add(Person(name: assignment.personName, assignedItems: itemsForThisPerson));
-            }
-            for (var sharedItemDetail in assignResult.sharedItems) {
-                 final originalItem = initialItems.firstWhereOrNull(
-                    (ri) => ri.name == sharedItemDetail.name && ri.price == sharedItemDetail.price
-                  );
-                  ReceiptItem sharedReceiptItem;
-                  if (originalItem != null) {
-                      sharedReceiptItem = ReceiptItem.fromJson(originalItem.toJson());
-                  } else {
-                     sharedReceiptItem = ReceiptItem(name: sharedItemDetail.name, quantity: sharedItemDetail.quantity, price: sharedItemDetail.price);
-                  }
-                  sharedItems.add(sharedReceiptItem);
-                  for (var personName in sharedItemDetail.people) {
-                    final person = people.firstWhereOrNull((p) => p.name == personName);
-                    if (person != null && !person.sharedItems.any((item) => item.isSameItem(sharedReceiptItem))) {
-                       person.addSharedItem(sharedReceiptItem);
+            // Populate directly from assignResultMap
+            if (assignResultMap.containsKey('assignments') && assignResultMap['assignments'] is List) {
+              for (var personData in (assignResultMap['assignments'] as List)) {
+                if (personData is Map<String, dynamic>) {
+                  final personName = personData['person_name'] as String? ?? 'Unknown Person';
+                  final List<ReceiptItem> personItems = [];
+                  if (personData['items'] is List) {
+                    for (var itemData in (personData['items'] as List)) {
+                      if (itemData is Map<String, dynamic>) {
+                        personItems.add(ReceiptItem.fromJson(itemData));
+                      }
                     }
                   }
-            }
-            for (var itemDetail in assignResult.unassignedItems) {
-               final originalItem = initialItems.firstWhereOrNull(
-                    (ri) => ri.name == itemDetail.name && ri.price == itemDetail.price
-                );
-                if (originalItem != null) {
-                   unassignedItems.add(ReceiptItem.fromJson(originalItem.toJson()));
-                } else {
-                   unassignedItems.add(ReceiptItem(name: itemDetail.name, quantity: itemDetail.quantity, price: itemDetail.price));
+                  // Create Person and add its shared items if they exist in personData (from assignResultMap)
+                  // For now, assuming 'shared_items' for a person might not be directly in personData here
+                  // as generateAssignmentMap() for person only serializes 'items' (assignedItems)
+                  final personInstance = Person(name: personName, assignedItems: personItems);
+
+                  // If assignResultMap's 'shared_items' list contains references to which people share them,
+                  // we could iterate through sharedItemsForManager later and add to personInstance.sharedItems.
+                  // Or, if personData itself contained 'shared_items_participation' like in earlier commented code
+                  // in generateAssignmentMap, it could be used here.
+                  // For now, this person only has assigned items.
+                  peopleForManager.add(personInstance);
                 }
+              }
             }
 
+            if (assignResultMap.containsKey('shared_items') && assignResultMap['shared_items'] is List) {
+              for (var itemData in (assignResultMap['shared_items'] as List)) {
+                if (itemData is Map<String, dynamic>) {
+                  final sharedItem = ReceiptItem.fromJson(itemData);
+                  sharedItemsForManager.add(sharedItem);
+                  
+                  // Post-process: Link shared items to people if assignResultMap indicates who shares them.
+                  // This logic might be complex if 'itemData' (from assignResultMap['shared_items'])
+                  // contains a list of person names/IDs that share this item.
+                  // The SplitManager itself, when constructed with a list of people and a list of shared items,
+                  // might internally establish these links or expect Person objects to already have their shared items populated.
+                  // The original code (that was problematic) did try to populate Person.sharedItems.
+                  // Let's assume for now that SplitManager.getPeopleForSharedItem() works by checking
+                  // which people in its _people list have this sharedItem in their _sharedItems list.
+                  // So, we need to populate Person._sharedItems based on `assignResultMap['shared_items']` if it has person linkage.
+                  // The current `SplitManager.generateAssignmentMap` does NOT put a 'people' list inside each shared_item map.
+                  // It just lists global shared items. The Person objects only have their 'assignedItems' serialized.
+                  // So, the `Person` objects in `peopleForManager` won't have their `sharedItems` list populated from this map directly
+                  // unless `SplitManager` constructor or other methods handle it.
+                  // This might be a separate area to ensure consistency if `PersonCard` relies on `person.sharedItems`.
+                  // For `summaryManager.totalAmount`, this direct population of `sharedItemsForManager` is correct.
+                }
+              }
+            }
+
+            if (assignResultMap.containsKey('unassigned_items') && assignResultMap['unassigned_items'] is List) {
+              for (var itemData in (assignResultMap['unassigned_items'] as List)) {
+                if (itemData is Map<String, dynamic>) {
+                  unassignedItemsForManager.add(ReceiptItem.fromJson(itemData));
+                }
+              }
+            }
+            
+            // After populating peopleForManager and sharedItemsForManager,
+            // we might need to iterate through sharedItemsForManager and assign them to the
+            // respective Person objects in peopleForManager if the data model requires Person.sharedItems to be populated
+            // and if assignResultMap['shared_items'] implies which person shares what.
+            // However, `SplitManager.generateAssignmentMap()` current structure:
+            // 'assignments': [{'person_name': ..., 'items': [assigned_item_jsons]}]
+            // 'shared_items': [shared_item_jsons]  <-- No direct link to people here
+            // 'unassigned_items': [unassigned_item_jsons]
+            // So, Person objects created above will only have their `assignedItems`. `sharedItemsForManager` will be the global list.
+            // This is consistent with how `SplitManager.totalAmount` works.
+
             final summaryManager = SplitManager(
-              people: people,
-              sharedItems: sharedItems,
-              unassignedItems: unassignedItems,
+              people: peopleForManager,
+              sharedItems: sharedItemsForManager,
+              unassignedItems: unassignedItemsForManager,
               tipPercentage: workflowState.tip,
               taxPercentage: workflowState.tax,
               originalReviewTotal: (parseResult['subtotal'] as num?)?.toDouble(),
