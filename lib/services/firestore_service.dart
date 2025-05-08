@@ -248,15 +248,13 @@ class FirestoreService {
         debugPrint('Thumbnail generated at: $thumbnailUri');
         return thumbnailUri;
       } else {
-        // If the response doesn't have the expected format, fall back to original image
-        debugPrint('Unexpected response format from generate_thumbnail function, using original image');
-        debugPrint('Response: $result.data');
-        return originalImageUri;
+        debugPrint('Thumbnail generation response did not contain thumbnailUri: ${result.data}');
+        return null;
       }
     } catch (e) {
-      // If there's an error, log it and return the original image
-      debugPrint('Error generating thumbnail: $e');
-      return originalImageUri;
+      debugPrint('Error calling generate_thumbnail function: $e');
+      // Re-throw or handle as needed
+      rethrow; 
     }
   }
   
@@ -274,6 +272,33 @@ class FirestoreService {
     } catch (e) {
       debugPrint('Error deleting receipt image: $e');
       rethrow;
+    }
+  }
+
+  /// Delete an image from Firebase Storage using its GS URI
+  Future<void> deleteImage(String gsUri) async {
+    if (!gsUri.startsWith('gs://')) {
+      debugPrint('Invalid GS URI provided for deletion: $gsUri');
+      throw ArgumentError('Invalid GS URI format');
+    }
+    
+    debugPrint('Attempting to delete image from Storage: $gsUri');
+    try {
+      Reference storageRef = _storage.refFromURL(gsUri);
+      await storageRef.delete();
+      debugPrint('Successfully deleted image from Storage: $gsUri');
+    } on FirebaseException catch (e) {
+      // Handle specific Firebase errors, e.g., object-not-found
+      if (e.code == 'object-not-found') {
+        debugPrint('Image not found in Storage (already deleted?): $gsUri');
+        // Optionally ignore this error if it's acceptable that the file might not exist
+      } else {
+        debugPrint('Firebase error deleting image $gsUri: $e');
+        rethrow; // Re-throw other Firebase errors
+      }
+    } catch (e) {
+      debugPrint('Generic error deleting image $gsUri: $e');
+      rethrow; // Re-throw other types of errors
     }
   }
 } 

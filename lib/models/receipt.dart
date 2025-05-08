@@ -50,21 +50,27 @@ class Receipt {
     
     // Extract metadata (handle null cases for flexibility)
     final Map<String, dynamic> metadata = 
-        data.containsKey('metadata') ? data['metadata'] as Map<String, dynamic> : {};
+        data.containsKey('metadata') && data['metadata'] is Map<String, dynamic> 
+            ? data['metadata'] as Map<String, dynamic> 
+            : {};
     
     // Handle timestamps which may be null, Timestamp objects, or DateTime objects
     DateTime? createdAt;
     if (metadata['created_at'] != null) {
       createdAt = metadata['created_at'] is Timestamp 
           ? (metadata['created_at'] as Timestamp).toDate()
-          : metadata['created_at'] as DateTime;
+          : metadata['created_at'] is String // For ISO8601 strings if ever used
+              ? DateTime.tryParse(metadata['created_at'] as String)
+              : metadata['created_at'] as DateTime?; // Allow direct DateTime
     }
     
     DateTime? updatedAt;
     if (metadata['updated_at'] != null) {
       updatedAt = metadata['updated_at'] is Timestamp 
           ? (metadata['updated_at'] as Timestamp).toDate()
-          : metadata['updated_at'] as DateTime;
+          : metadata['updated_at'] is String
+              ? DateTime.tryParse(metadata['updated_at'] as String)
+              : metadata['updated_at'] as DateTime?;
     }
     
     // Convert people field to List<String>
@@ -77,8 +83,10 @@ class Receipt {
     // It will be fetched and added via copyWith later.
     return Receipt(
       id: doc.id,
-      imageUri: data['image_uri'] as String?,
-      thumbnailUri: data['thumbnail_uri'] as String?,
+      // Read URIs from metadata
+      imageUri: metadata['image_uri'] as String?,
+      thumbnailUri: metadata['thumbnail_uri'] as String?,
+      // Keep other fields as they are, assuming they are correctly placed or don't contain URIs
       parseReceipt: data['parse_receipt'] as Map<String, dynamic>?,
       transcribeAudio: data['transcribe_audio'] as Map<String, dynamic>?,
       assignPeopleToItems: data['assign_people_to_items'] as Map<String, dynamic>?,
@@ -97,9 +105,11 @@ class Receipt {
   /// Convert the Receipt to a Map for storing in Firestore
   Map<String, dynamic> toMap() {
     // thumbnailUrlForDisplay is NOT included here
+    // URIs are now exclusively in metadata
     return {
-      'image_uri': imageUri,
-      'thumbnail_uri': thumbnailUri,
+      // Remove imageUri and thumbnailUri from the root
+      // 'image_uri': imageUri, (Removed)
+      // 'thumbnail_uri': thumbnailUri, (Removed)
       'parse_receipt': parseReceipt,
       'transcribe_audio': transcribeAudio,
       'assign_people_to_items': assignPeopleToItems,
@@ -112,6 +122,9 @@ class Receipt {
         'people': people,
         'tip': tip,
         'tax': tax,
+        // Add URIs to metadata map
+        'image_uri': imageUri,
+        'thumbnail_uri': thumbnailUri,
       },
     };
   }

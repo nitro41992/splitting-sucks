@@ -29,13 +29,24 @@ class WorkflowState extends ChangeNotifier {
   String? _receiptId;
   String _restaurantName;
   File? _imageFile;
+  String? _loadedImageUrl; // For displaying an image from a URL (e.g., loaded draft)
+  
+  // Authoritative GS URIs for the current workflow
+  String? _actualImageGsUri;
+  String? _actualThumbnailGsUri;
+
+  // URL for displaying thumbnail from loaded draft
+  String? _loadedThumbnailUrl; 
+
   Map<String, dynamic> _parseReceiptResult = {};
   Map<String, dynamic> _transcribeAudioResult = {};
   Map<String, dynamic> _assignPeopleToItemsResult = {};
   Map<String, dynamic> _splitManagerState = {};
   bool _isLoading = false;
   String? _errorMessage;
-  String? _loadedImageUrl;
+  
+  // List to track GS URIs that might need deletion
+  final List<String> _pendingDeletionGsUris = [];
   
   WorkflowState({required String restaurantName, String? receiptId})
       : _restaurantName = restaurantName,
@@ -46,13 +57,22 @@ class WorkflowState extends ChangeNotifier {
   String get restaurantName => _restaurantName;
   String? get receiptId => _receiptId;
   File? get imageFile => _imageFile;
+  String? get loadedImageUrl => _loadedImageUrl;
+  String? get actualImageGsUri => _actualImageGsUri;
+  String? get actualThumbnailGsUri => _actualThumbnailGsUri;
+
   Map<String, dynamic> get parseReceiptResult => _parseReceiptResult;
   Map<String, dynamic> get transcribeAudioResult => _transcribeAudioResult;
   Map<String, dynamic> get assignPeopleToItemsResult => _assignPeopleToItemsResult;
   Map<String, dynamic> get splitManagerState => _splitManagerState;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  String? get loadedImageUrl => _loadedImageUrl;
+  
+  // Getter for the loaded thumbnail URL
+  String? get loadedThumbnailUrl => _loadedThumbnailUrl;
+  
+  // Getter for the pending deletion list (read-only view)
+  List<String> get pendingDeletionGsUris => List.unmodifiable(_pendingDeletionGsUris);
   
   // Step navigation
   void goToStep(int step) {
@@ -88,18 +108,45 @@ class WorkflowState extends ChangeNotifier {
   }
   
   void setImageFile(File file) {
+    // If there was a previous image URI, mark it for potential deletion
+    if (_actualImageGsUri != null && _actualImageGsUri!.isNotEmpty) {
+      _pendingDeletionGsUris.add(_actualImageGsUri!);
+    }
+    if (_actualThumbnailGsUri != null && _actualThumbnailGsUri!.isNotEmpty) {
+      _pendingDeletionGsUris.add(_actualThumbnailGsUri!);
+    }
+
     _imageFile = file;
-    _loadedImageUrl = null;
+    _loadedImageUrl = null; 
+    _loadedThumbnailUrl = null; // Clear loaded thumbnail URL
+    _actualImageGsUri = null; 
+    _actualThumbnailGsUri = null; 
+    _parseReceiptResult = {}; 
     notifyListeners();
   }
   
   void resetImageFile() {
+    // If there was a previous image URI, mark it for potential deletion
+    if (_actualImageGsUri != null && _actualImageGsUri!.isNotEmpty) {
+      _pendingDeletionGsUris.add(_actualImageGsUri!);
+    }
+    if (_actualThumbnailGsUri != null && _actualThumbnailGsUri!.isNotEmpty) {
+      _pendingDeletionGsUris.add(_actualThumbnailGsUri!);
+    }
+
     _imageFile = null;
     _loadedImageUrl = null;
+    _loadedThumbnailUrl = null; // Clear loaded thumbnail URL
+    _actualImageGsUri = null;
+    _actualThumbnailGsUri = null;
+    _parseReceiptResult = {}; 
     notifyListeners();
   }
   
   void setParseReceiptResult(Map<String, dynamic> result) {
+    // Ensure result map doesn't inadvertently contain old URI fields at root
+    result.remove('image_uri');
+    result.remove('thumbnail_uri');
     _parseReceiptResult = result;
     notifyListeners();
   }
@@ -131,7 +178,44 @@ class WorkflowState extends ChangeNotifier {
   
   void setLoadedImageUrl(String? url) {
     _loadedImageUrl = url;
+    // If we are setting a loaded image URL, it implies there's no local file for now
+    // _imageFile = null; // This might be too aggressive if just previewing
     notifyListeners();
+  }
+  
+  void setActualImageGsUri(String? uri) {
+    _actualImageGsUri = uri;
+    notifyListeners();
+  }
+
+  void setActualThumbnailGsUri(String? uri) {
+    _actualThumbnailGsUri = uri;
+    notifyListeners();
+  }
+
+  void setLoadedThumbnailUrl(String? url) {
+    _loadedThumbnailUrl = url;
+    notifyListeners();
+  }
+  
+  // Methods to manage the pending deletion list
+  void clearPendingDeletions() {
+    _pendingDeletionGsUris.clear();
+    // No need to notify listeners, this is internal state management
+  }
+
+  void removeUriFromPendingDeletions(String? uri) {
+    if (uri != null && uri.isNotEmpty) {
+      _pendingDeletionGsUris.remove(uri);
+      // No need to notify listeners
+    }
+  }
+
+  void addUriToPendingDeletions(String? uri) {
+    if (uri != null && uri.isNotEmpty && !_pendingDeletionGsUris.contains(uri)) {
+        _pendingDeletionGsUris.add(uri);
+    }
+     // No need to notify listeners
   }
   
   // Convert to Receipt model for saving
@@ -139,14 +223,19 @@ class WorkflowState extends ChangeNotifier {
     return Receipt(
       id: _receiptId ?? FirebaseFirestore.instance.collection('temp').doc().id,
       restaurantName: _restaurantName,
-      imageUri: _parseReceiptResult['image_uri'] as String?,
-      thumbnailUri: _parseReceiptResult['thumbnail_uri'] as String?,
+      // URIs now come from the dedicated fields in WorkflowState for metadata
+      imageUri: _actualImageGsUri,
+      thumbnailUri: _actualThumbnailGsUri,
+      // These sub-documents should not contain URIs if functions are updated
       parseReceipt: _parseReceiptResult,
       transcribeAudio: _transcribeAudioResult,
       assignPeopleToItems: _assignPeopleToItemsResult,
       splitManagerState: _splitManagerState,
       status: 'draft',
       people: _extractPeopleFromAssignments(),
+      // TODO: Add tip/tax from splitManagerState if available for drafts too? Or only on complete?
+      // For now, using defaults or values from _splitManagerState for tip/tax might be good
+      // Or ensure these are set in metadata directly by the workflow state if needed for drafts.
     );
   }
   
@@ -325,6 +414,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       workflowState.setLoading(true);
       workflowState.setErrorMessage(null);
       workflowState.setLoadedImageUrl(null);
+      workflowState.setActualImageGsUri(null); // Reset before loading
+      workflowState.setActualThumbnailGsUri(null); // Reset before loading
       
       final snapshot = await _firestoreService.getReceipt(receiptId);
       
@@ -332,14 +423,27 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         throw Exception('Receipt not found');
       }
       
-      final receipt = Receipt.fromDocumentSnapshot(snapshot);
+      final receipt = Receipt.fromDocumentSnapshot(snapshot); // Receipt model now handles URI from metadata
       
       // --- Populate WorkflowState --- 
       if (receipt.restaurantName != null) {
         workflowState.setRestaurantName(receipt.restaurantName!); 
       }
+      // Set authoritative GS URIs from the loaded receipt (which got them from metadata)
+      if (receipt.imageUri != null) {
+        workflowState.setActualImageGsUri(receipt.imageUri);
+      }
+      if (receipt.thumbnailUri != null) {
+        workflowState.setActualThumbnailGsUri(receipt.thumbnailUri);
+      }
+
+      // Populate other results, ensuring they don't carry redundant URIs
       if (receipt.parseReceipt != null) {
-        workflowState.setParseReceiptResult(receipt.parseReceipt!); 
+        // Create a new map to avoid modifying the one from the Receipt model directly if it's cached
+        Map<String, dynamic> cleanParseResult = Map.from(receipt.parseReceipt!);
+        cleanParseResult.remove('image_uri'); // Ensure no old root URI
+        cleanParseResult.remove('thumbnail_uri'); // Ensure no old root URI
+        workflowState.setParseReceiptResult(cleanParseResult); 
       }
       if (receipt.transcribeAudio != null) {
         workflowState.setTranscribeAudioResult(receipt.transcribeAudio!); 
@@ -351,23 +455,39 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         workflowState.setSplitManagerState(receipt.splitManagerState!); 
       }
 
-      // --- Get Download URL if imageUri exists --- 
-      if (receipt.imageUri != null && receipt.imageUri!.startsWith('gs://')) {
+      // --- Get Download URL for Main Image if actualImageGsUri exists --- 
+      if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.startsWith('gs://')) {
         try {
-          debugPrint('Attempting to get download URL for: ${receipt.imageUri}');
-          final ref = FirebaseStorage.instance.refFromURL(receipt.imageUri!);
+          debugPrint('Attempting to get download URL for main image: ${workflowState.actualImageGsUri}');
+          final ref = FirebaseStorage.instance.refFromURL(workflowState.actualImageGsUri!);
           final downloadUrl = await ref.getDownloadURL();
-          debugPrint('Got download URL: $downloadUrl');
-          workflowState.setLoadedImageUrl(downloadUrl);
+          debugPrint('Got main image download URL: $downloadUrl');
+          workflowState.setLoadedImageUrl(downloadUrl); // For display
         } catch (e) {
-          debugPrint('Error getting download URL for ${receipt.imageUri}: $e');
-          // Proceed without download URL, image won't show
+          debugPrint('Error getting download URL for main image ${workflowState.actualImageGsUri}: $e');
           workflowState.setErrorMessage('Could not load saved image preview.');
+          // Proceed without main image URL if thumbnail fails too
         }
       } else {
-        debugPrint('No valid gs:// imageUri found in loaded receipt.');
+        debugPrint('No valid gs:// actualImageGsUri found in loaded receipt state for main image.');
       }
-      // --- End Get Download URL ---
+
+      // --- Get Download URL for Thumbnail if actualThumbnailGsUri exists --- 
+      if (workflowState.actualThumbnailGsUri != null && workflowState.actualThumbnailGsUri!.startsWith('gs://')) {
+        try {
+          debugPrint('Attempting to get download URL for thumbnail: ${workflowState.actualThumbnailGsUri}');
+          final ref = FirebaseStorage.instance.refFromURL(workflowState.actualThumbnailGsUri!);
+          final thumbnailUrl = await ref.getDownloadURL();
+          debugPrint('Got thumbnail download URL: $thumbnailUrl');
+          workflowState.setLoadedThumbnailUrl(thumbnailUrl); // For faster preview
+        } catch (e) {
+          // Log error but don't necessarily block UI, main image might still load
+          debugPrint('Error getting download URL for thumbnail ${workflowState.actualThumbnailGsUri}: $e');
+          // Optionally set an error message specifically for thumbnail?
+        }
+      } else {
+        debugPrint('No valid gs:// actualThumbnailGsUri found in loaded receipt state.');
+      }
 
       // Determine target step (existing logic)
       int targetStep = 0;
@@ -472,44 +592,91 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       }
       
       // Discard and exit
+      // Process deletions before exiting if changes are discarded
+      await _processPendingDeletions(isSaving: false); 
       return true;
     }
   }
   
+  // Helper function to delete orphaned images
+  Future<void> _processPendingDeletions({required bool isSaving}) async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    // Create a copy to avoid concurrent modification issues if the list is somehow changed elsewhere
+    final List<String> urisToDelete = List.from(workflowState.pendingDeletionGsUris);
+
+    if (!isSaving) {
+      // If not saving, also add the *current* URIs to the deletion list,
+      // as they represent an unsaved background upload or loaded draft being discarded.
+      if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty && !urisToDelete.contains(workflowState.actualImageGsUri!)) {
+          urisToDelete.add(workflowState.actualImageGsUri!);
+      }
+      if (workflowState.actualThumbnailGsUri != null && workflowState.actualThumbnailGsUri!.isNotEmpty && !urisToDelete.contains(workflowState.actualThumbnailGsUri!)) {
+          urisToDelete.add(workflowState.actualThumbnailGsUri!);
+      }
+    }
+    // If isSaving == true, we assume the calling method (_saveDraft/_completeReceipt) 
+    // already removed the *saved* URIs from the state's pending list before calling this.
+
+    if (urisToDelete.isEmpty) {
+      debugPrint('[Cleanup] No pending URIs to delete.');
+      return;
+    }
+
+    debugPrint('[Cleanup] Attempting to delete ${urisToDelete.length} orphaned URIs: $urisToDelete');
+
+    // Use FirestoreService (add deleteImage method there)
+    List<Future<void>> deleteFutures = [];
+    for (final uri in urisToDelete) {
+      deleteFutures.add(
+        _firestoreService.deleteImage(uri).then((_) {
+          debugPrint('[Cleanup] Successfully deleted: $uri');
+        }).catchError((e) {
+          // Log deletion errors but don't block the user flow
+          debugPrint('[Cleanup] Error deleting URI $uri: $e');
+          // Optionally, report this error more formally (e.g., to crash reporting)
+        })
+      );
+    }
+
+    // Wait for all deletions to attempt completion
+    await Future.wait(deleteFutures);
+
+    // Clear the list in the state after attempting all deletions
+    // It's important this happens AFTER the await, even if some deletions failed.
+    workflowState.clearPendingDeletions();
+    debugPrint('[Cleanup] Processed all pending deletions.');
+  }
+
   // Helper to upload image and generate thumbnail
   Future<Map<String, String?>> _uploadImageAndProcess(File imageFile) async {
-    String? imageUri;
-    String? thumbnailUri;
+    // This helper's responsibility is to upload and generate thumbnail, returning GS URIs.
+    // It does NOT set WorkflowState directly.
+    String? imageGsUri;
+    String? thumbnailGsUri;
 
-    final workflowState = Provider.of<WorkflowState>(context, listen: false); // Need access to state
+    // final workflowState = Provider.of<WorkflowState>(context, listen: false); // Not needed here
 
     try {
-      // Note: FirestoreService.uploadReceiptImage uses _userId internally,
-      // so we don't need to worry about passing a temp receiptId for the path.
       debugPrint('_uploadImageAndProcess: Uploading image...');
-      imageUri = await _firestoreService.uploadReceiptImage(imageFile);
-      debugPrint('_uploadImageAndProcess: Image uploaded to: $imageUri');
+      imageGsUri = await _firestoreService.uploadReceiptImage(imageFile);
+      debugPrint('_uploadImageAndProcess: Image uploaded to: $imageGsUri');
 
-      // Attempt thumbnail generation
-      if (imageUri != null) { // Only try if upload succeeded
+      if (imageGsUri != null) {
         try {
           debugPrint('_uploadImageAndProcess: Generating thumbnail...');
-          thumbnailUri = await _firestoreService.generateThumbnail(imageUri);
-          debugPrint('_uploadImageAndProcess: Thumbnail generated: $thumbnailUri');
+          thumbnailGsUri = await _firestoreService.generateThumbnail(imageGsUri);
+          debugPrint('_uploadImageAndProcess: Thumbnail generated: $thumbnailGsUri');
         } catch (thumbError) {
           debugPrint('_uploadImageAndProcess: Error generating thumbnail (proceeding without it): $thumbError');
-          // Proceed without thumbnail URI, imageUri is still useful
         }
       } else {
-         debugPrint('_uploadImageAndProcess: Skipping thumbnail generation because imageUri is null.');
+         debugPrint('_uploadImageAndProcess: Skipping thumbnail generation because imageGsUri is null.');
       }
     } catch (uploadError) {
        debugPrint('_uploadImageAndProcess: Error during image upload: $uploadError');
-       // Re-throw upload errors so the calling method handles them (shows snackbar etc.)
        rethrow;
     }
-
-    return {'imageUri': imageUri, 'thumbnailUri': thumbnailUri};
+    return {'imageUri': imageGsUri, 'thumbnailUri': thumbnailGsUri};
   }
 
   // Save the current state as a draft
@@ -520,42 +687,43 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       workflowState.setLoading(true);
       workflowState.setErrorMessage(null);
 
-      // --- Conditional Upload ---
-      // Check if local file exists AND remote URI is missing in state
-      if (workflowState.imageFile != null &&
-          (workflowState.parseReceiptResult == null || 
-           workflowState.parseReceiptResult['image_uri'] == null)) 
+      // --- Conditional Upload --- 
+      // Upload only if a local file exists AND the GS URI hasn't been set yet 
+      // (e.g., background upload didn't finish or wasn't triggered).
+      if (workflowState.imageFile != null && workflowState.actualImageGsUri == null) 
       {
-        debugPrint('_saveDraft: Detected local image without URI. Uploading...');
+        debugPrint('_saveDraft: Local image present without actual GS URI. Uploading synchronously before saving...');
         try {
-          // Call the helper
           final uris = await _uploadImageAndProcess(workflowState.imageFile!);
-
-          // Update parseResult state immediately
-          final parseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {}); // Ensure map exists
-          parseResult['image_uri'] = uris['imageUri'];
-          parseResult['thumbnail_uri'] = uris['thumbnailUri'];
-          workflowState.setParseReceiptResult(parseResult); // Update state BEFORE calling toReceipt
-          debugPrint('_saveDraft: Image processed. URIs added to parseReceiptResult.');
-
+          workflowState.setActualImageGsUri(uris['imageUri']);
+          workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
+          debugPrint('_saveDraft: Synchronous image upload complete. Actual GS URIs set in WorkflowState.');
         } catch (e) {
            debugPrint('_saveDraft: Error uploading image during save: $e');
            workflowState.setLoading(false); 
            workflowState.setErrorMessage('Failed to upload image while saving draft: ${e.toString()}');
-           rethrow; 
+           rethrow; // Prevent saving draft if upload fails
         }
       }
-      // --- End Conditional Upload ---
+      // If imageFile is null but loadedImageUrl/actualImageGsUri is present, we don't need to upload again.
 
-      final receipt = workflowState.toReceipt();
+      final receipt = workflowState.toReceipt(); // Gets URIs from actualImageGsUri/ThumbnailGsUri
 
       final String definitiveReceiptId = await _firestoreService.saveDraft(
-        receiptId: receipt.id, // Pass ID from receipt (could be temp or existing)
-        data: receipt.toMap(),
+        receiptId: receipt.id, 
+        data: receipt.toMap(), // toMap() places URIs in metadata
       );
 
       workflowState.setReceiptId(definitiveReceiptId);
       workflowState.setLoading(false);
+
+      // Remove successfully saved URIs from the pending deletion list
+      workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
+      workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
+      
+      // Process any remaining deletions (e.g., from rapid re-selection before save)
+      // Pass isSaving: true so it only deletes what's left in the list.
+      await _processPendingDeletions(isSaving: true);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -699,58 +867,70 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           onImageSelected: (file) async {
             if (file != null) {
               workflowState.setImageFile(file);
-              // Also clear any potential stale URI info and PARSE RESULTS if a NEW file is selected
-              final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
-              currentParseResult.remove('image_uri');
-              currentParseResult.remove('thumbnail_uri');
-              currentParseResult.remove('items'); // Clear items
-              currentParseResult.remove('subtotal'); // Clear subtotal
-              workflowState.setParseReceiptResult(currentParseResult); // Update with cleared items
-              workflowState.setErrorMessage(null); // Clear previous errors
-            } else {
-              // This case (file is null) implies clearing the selection (e.g., user tapped already selected image source to deselect)
-              // Should behave like onRetry by clearing image and associated parse results.
-              workflowState.resetImageFile(); // Clears imageFile and loadedImageUrl
-              final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
-              currentParseResult.remove('image_uri');
-              currentParseResult.remove('thumbnail_uri');
-              currentParseResult.remove('items');
-              currentParseResult.remove('subtotal');
-              workflowState.setParseReceiptResult(currentParseResult);
               workflowState.setErrorMessage(null);
+
+              // Start optimistic background upload
+              debugPrint('[WorkflowModal onImageSelected] New file selected. Starting background upload...');
+              // No global loading indicator here, let UI handle if needed. Upload is in background.
+              _uploadImageAndProcess(file).then((uris) {
+                // Critical: Check if the context is still valid and the imageFile in state 
+                // is still the one we initiated this upload for.
+                if (mounted && workflowState.imageFile == file) {
+                  workflowState.setActualImageGsUri(uris['imageUri']);
+                  workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
+                  debugPrint('[WorkflowModal onImageSelected] Background upload complete. Actual GS URIs set for ${uris['imageUri']}.');
+                } else {
+                  debugPrint('[WorkflowModal onImageSelected] Background upload complete, but context changed or image no longer matches. URIs not set or will be overwritten.');
+                  // TODO: If uris['imageUri'] is not null, this image is now orphaned. Add to a cleanup list (Phase 3 cleanup).
+                  // For now, we are not implementing immediate deletion here to avoid complexity if the user quickly reselects.
+                }
+              }).catchError((error) {
+                if (mounted && workflowState.imageFile == file) { // Error for the current file
+                  debugPrint('[WorkflowModal onImageSelected] Background upload failed: $error');
+                  workflowState.setErrorMessage('Background image upload failed. Please try parsing again or reselect.');
+                  // Do not clear actualImageGsUri here, as it might be from a previously successful load.
+                  // The user will have to explicitly retry or re-select.
+                } else {
+                  debugPrint('[WorkflowModal onImageSelected] Background upload failed for an outdated image selection: $error');
+                }
+              });
+
+            } else {
+              // Clearing selection
+              // String? gsUriToPotentiallyDelete = workflowState.actualImageGsUri;
+              workflowState.resetImageFile(); // This clears imageFile, loadedImageUrl, actualImageGsUri, actualThumbnailGsUri, and parseResult
+              workflowState.setErrorMessage(null);
+              // TODO: If gsUriToPotentiallyDelete was not null, it's now orphaned. Add to cleanup list (Phase 3 cleanup).
             }
           },
-          onParseReceipt: () async { // This is the "Use This" button's action
-            workflowState.setLoading(true);
+          onParseReceipt: () async {
+            workflowState.setLoading(true); // Global loading for this explicit action
             workflowState.setErrorMessage(null);
-            String? finalGsUri;
-            Map<String, dynamic> currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
+            
+            String? gsUriForParsing;
 
             try {
-              // Scenario 1: Local image file exists (new upload or re-upload)
-              if (workflowState.imageFile != null) {
-                debugPrint('[WorkflowModal onParseReceipt] Local file detected. Uploading and processing...');
+              // Determine the GS URI for parsing
+              if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty) {
+                // URI already available (e.g., from background upload or loaded draft)
+                gsUriForParsing = workflowState.actualImageGsUri;
+                debugPrint('[WorkflowModal onParseReceipt] Using pre-existing actualImageGsUri: $gsUriForParsing');
+              } else if (workflowState.imageFile != null) {
+                // Local file exists, but no GS URI yet. Upload it now.
+                debugPrint('[WorkflowModal onParseReceipt] Local file detected, no GS URI yet. Uploading synchronously...');
                 final uris = await _uploadImageAndProcess(workflowState.imageFile!);
-                
-                currentParseResult['image_uri'] = uris['imageUri']; // This should be the gs:// URI
-                currentParseResult['thumbnail_uri'] = uris['thumbnailUri'];
-                // Do not set parseReceiptResult yet, wait for actual parsing
-                finalGsUri = uris['imageUri'];
-                debugPrint('[WorkflowModal onParseReceipt] Local file processed. gsURI: $finalGsUri');
-
-              // Scenario 2: No local file, but a loadedImageUrl (from a draft) exists
-              } else if (workflowState.loadedImageUrl != null && workflowState.loadedImageUrl!.isNotEmpty) {
-                debugPrint('[WorkflowModal onParseReceipt] Remote image URL detected: ${workflowState.loadedImageUrl}');
-                finalGsUri = currentParseResult['image_uri'] as String?;
-                if (finalGsUri == null || finalGsUri.isEmpty) {
-                  debugPrint('[WorkflowModal onParseReceipt] CRITICAL: loadedImageUrl is present, but gs:// image_uri is missing or empty in parseReceiptResult.');
-                  throw Exception('Cannot parse, GS URI for remote image is missing.');
-                }
-                debugPrint('[WorkflowModal onParseReceipt] Proceeding with existing remote image. GS URI: $finalGsUri');
-
-              // Scenario 3: No local file and no remote URL
+                workflowState.setActualImageGsUri(uris['imageUri']);
+                workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
+                gsUriForParsing = uris['imageUri'];
+                debugPrint('[WorkflowModal onParseReceipt] Synchronous upload complete. Actual GS URIs set. Using: $gsUriForParsing');
+              } else if (workflowState.loadedImageUrl != null) {
+                // This case implies a draft was loaded, and actualImageGsUri should have been set during _loadReceiptData.
+                // If actualImageGsUri is null here, it indicates an issue with draft loading or state.
+                debugPrint('[WorkflowModal onParseReceipt] CRITICAL: loadedImageUrl is present, but actualImageGsUri is missing. This should not happen if draft loaded correctly.');
+                throw Exception('Image loaded from draft, but its GS URI is missing in state.');
               } else {
-                debugPrint('[WorkflowModal onParseReceipt] No image selected (neither local nor remote).');
+                // No image available at all
+                debugPrint('[WorkflowModal onParseReceipt] No image selected or available for parsing.');
                 workflowState.setLoading(false);
                 workflowState.setErrorMessage('Please select an image first.');
                 if (mounted) {
@@ -758,40 +938,37 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                     const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
                   );
                 }
-                return; // Exit early
+                return;
               }
 
-              // If we don't have a GsUri at this point, something went wrong
-              if (finalGsUri == null || finalGsUri.isEmpty) {
-                debugPrint('[WorkflowModal onParseReceipt] CRITICAL: finalGsUri is null or empty before parsing attempt.');
+              // Final check for GS URI before parsing
+              if (gsUriForParsing == null || gsUriForParsing.isEmpty) {
+                debugPrint('[WorkflowModal onParseReceipt] CRITICAL: gsUriForParsing is null or empty before parsing attempt after all checks.');
                 throw Exception('Image URI could not be determined for parsing.');
               }
 
-              // Now, call the actual parsing service if items are not already present or if it's a new image upload.
-              // For a new upload (imageFile was not null), we always re-parse.
-              // For a resumed draft, we only parse if items are missing.
-              bool shouldParse = (workflowState.imageFile != null) || 
-                                 (!currentParseResult.containsKey('items')) || 
-                                 ((currentParseResult['items'] as List?)?.isEmpty ?? true);
+              // Parsing logic (shouldParse, call ReceiptParserService, etc.)
+              Map<String, dynamic> newParseResult = {}; 
+
+              // Determine if parsing is needed. 
+              // If actualImageGsUri was just set by a new upload (workflowState.imageFile was not null path), always parse.
+              // If actualImageGsUri was from a loaded draft, parse only if items are missing.
+              bool isNewImageJustUploaded = workflowState.imageFile != null; // Heuristic: if local file was source of URI path
+
+              bool shouldParse = isNewImageJustUploaded || 
+                                 (!workflowState.parseReceiptResult.containsKey('items')) || 
+                                 ((workflowState.parseReceiptResult['items'] as List?)?.isEmpty ?? true);
 
               if (shouldParse) {
-                debugPrint('[WorkflowModal onParseReceipt] Parsing needed. Calling ReceiptParserService.parseReceipt with GsUri: $finalGsUri');
-                final ReceiptData parsedData = await ReceiptParserService.parseReceipt(finalGsUri);
+                debugPrint('[WorkflowModal onParseReceipt] Parsing needed. Calling ReceiptParserService.parseReceipt with GsUri: $gsUriForParsing');
+                final ReceiptData parsedData = await ReceiptParserService.parseReceipt(gsUriForParsing);
                 
-                // Update currentParseResult with the new items and subtotal from the parser
-                currentParseResult['items'] = parsedData.items; // Store the raw list of item maps as returned by the parser
-                currentParseResult['subtotal'] = parsedData.subtotal;
-                // Preserve existing image_uri and thumbnail_uri
-                currentParseResult['image_uri'] = finalGsUri; // Ensure it's the one we used
-                // Note: thumbnail_uri from a new upload is already in currentParseResult by this point.
-                // If loading from a draft, thumbnail_uri would have been in the initial currentParseResult.
-
-                workflowState.setParseReceiptResult(currentParseResult); // Update the state with all data
-                debugPrint('[WorkflowModal onParseReceipt] Receipt parsed successfully. Items count from parsedData.items: ${parsedData.items.length}, Subtotal: ${parsedData.subtotal}');
+                newParseResult['items'] = parsedData.items;
+                newParseResult['subtotal'] = parsedData.subtotal;
+                workflowState.setParseReceiptResult(newParseResult); // This now only sets items and subtotal
+                debugPrint('[WorkflowModal onParseReceipt] Receipt parsed successfully. Items count: ${parsedData.items.length}');
               } else {
-                debugPrint('[WorkflowModal onParseReceipt] Parsing not needed. Items already present or it is a draft without new image.');
-                // Ensure the existing parseResult (which should include items) is set
-                workflowState.setParseReceiptResult(currentParseResult);
+                debugPrint('[WorkflowModal onParseReceipt] Parsing not needed. Using existing items from parseReceiptResult.');
               }
 
               workflowState.setLoading(false);
@@ -810,13 +987,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           },
           onRetry: () { 
             workflowState.resetImageFile();
-            // Clear URI info AND PARSE RESULTS when retrying
-            final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult ?? {});
-            currentParseResult.remove('image_uri');
-            currentParseResult.remove('thumbnail_uri');
-            currentParseResult.remove('items'); // Clear items
-            currentParseResult.remove('subtotal'); // Clear subtotal
-            workflowState.setParseReceiptResult(currentParseResult); // Update with cleared items
             workflowState.setErrorMessage(null); 
           },
         );
@@ -1245,6 +1415,14 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       // Done
       workflowState.setLoading(false);
       
+      // Remove successfully completed URIs from the pending deletion list
+      workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
+      workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
+
+      // Process any remaining deletions
+      // Pass isSaving: true so it only deletes what's left in the list.
+      await _processPendingDeletions(isSaving: true);
+
       if (mounted) {
         // Show success snackbar
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1289,8 +1467,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () async {
-              final bool canPop = await _onWillPop(); // _onWillPop handles saving
+              final bool canPop = await _onWillPop(); // Handles confirmation/saving/deletion on discard
               if (canPop && mounted) {
+                // _onWillPop already handles calling _processPendingDeletions if discarding.
+                // If saving occurred within _onWillPop, deletions were also handled there.
                 Navigator.of(context).pop(true); // Pop with true indicating a potential change
               }
             },

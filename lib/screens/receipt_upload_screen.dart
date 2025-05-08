@@ -10,6 +10,7 @@ import 'package:cached_network_image/cached_network_image.dart'; // Needed for n
 class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
   final String? imageUrl;
+  final String? loadedThumbnailUrl;
   final bool isLoading;
   final bool isSuccessfullyParsed;
   final Function(File?) onImageSelected;
@@ -20,6 +21,7 @@ class ReceiptUploadScreen extends StatefulWidget {
     super.key,
     required this.imageFile,
     this.imageUrl,
+    this.loadedThumbnailUrl,
     required this.isLoading,
     required this.isSuccessfullyParsed,
     required this.onImageSelected,
@@ -302,20 +304,39 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                   child: Stack(
                                     fit: StackFit.expand,
                                     children: [
+                                      // Display CachedNetworkImage for loaded drafts
                                       Hero(
                                         tag: 'receipt_image',
                                         child: Material(
                                           color: Colors.transparent,
-                                          child: InkWell(
+                                          child: InkWell( // Can still allow tap to view full if needed
+                                            // onTap: _showFullNetworkImage, // Need a similar function for network images
                                             child: CachedNetworkImage(
-                                              imageUrl: widget.imageUrl!,
+                                              imageUrl: widget.imageUrl!, // Use the main image URL
                                               fit: BoxFit.cover,
-                                              placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                                              placeholder: (context, url) {
+                                                // Show thumbnail as placeholder if available
+                                                if (widget.loadedThumbnailUrl != null && widget.loadedThumbnailUrl!.isNotEmpty) {
+                                                  return CachedNetworkImage(
+                                                    imageUrl: widget.loadedThumbnailUrl!,
+                                                    fit: BoxFit.cover, // Or BoxFit.contain for placeholder?
+                                                    // Optional: add a smaller placeholder for the thumbnail itself
+                                                    placeholder: (context, url) => const Center(child: SizedBox(width: 30, height: 30, child: CircularProgressIndicator(strokeWidth: 2.0))),
+                                                    errorWidget: (context, url, error) => const Center(child: Icon(Icons.broken_image, size: 40, color: Colors.grey)),
+                                                  );
+                                                } else {
+                                                  // Default placeholder if no thumbnail URL
+                                                  return const Center(child: CircularProgressIndicator());
+                                                }
+                                              },
                                               errorWidget: (context, url, error) => _buildImageErrorWidget(context, colorScheme, textTheme, 'Saved image could not be loaded'),
                                             ),
                                           ),
                                         ),
                                       ),
+                                       // Loading indicator overlay (for parsing, not initial load)
+                                      if (widget.isLoading) 
+                                        _buildLoadingIndicator(colorScheme, textTheme),
                                     ],
                                   ),
                                 ),
