@@ -1558,7 +1558,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
           // Back button (hidden on first step)
           TextButton.icon(
             onPressed: currentStep > 0
-                ? () => workflowState.previousStep()
+                ? () => workflowState.previousStep() 
                 : null,
             icon: const Icon(Icons.arrow_back),
             label: const Text('Back'),
@@ -1586,19 +1586,50 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                 ),
           
           // Next/Complete button
-          currentStep < 4
-              ? FilledButton.icon(
-                  onPressed: () async {
-                    workflowState.nextStep();
-                  },
+          if (currentStep < 4) ...[ // Only show Next button if not on last step
+            Builder( // Use Builder to get latest workflowState for enable check
+              builder: (context) {
+                final localWorkflowState = Provider.of<WorkflowState>(context);
+                bool isNextEnabled = true;
+                if (currentStep == 0 && !localWorkflowState.hasParseData) {
+                   isNextEnabled = false;
+                }
+                else if (currentStep == 2 && !localWorkflowState.hasAssignmentData) {
+                   isNextEnabled = false;
+                }
+                else if (currentStep == 3 && !localWorkflowState.hasAssignmentData) {
+                   isNextEnabled = false;
+                }
+
+                return FilledButton.icon(
+                  onPressed: isNextEnabled 
+                    ? () async { // Enabled logic
+                        bool proceedAfterConfirm = true;
+                        // Confirmation logic for Assign -> Split
+                        if (currentStep == 2 /* && localWorkflowState.hasAssignmentData - implied by isNextEnabled */) { 
+                          proceedAfterConfirm = await _showConfirmationDialog(
+                            'Start Splitting',
+                            'This will use the current assignments to start the split. Any existing split details (people modifications, item assignments in split, tip/tax) will be based on this. If you re-assign later, you may need to re-split. Continue?'
+                          );
+                        }
+                        
+                        if (proceedAfterConfirm) {
+                            localWorkflowState.nextStep();
+                        }
+                      }
+                    : null, // Disabled
                   label: const Text('Next'),
                   icon: const Icon(Icons.arrow_forward),
-                )
-              : FilledButton.icon(
+                );
+              }
+            ),
+          ] else ...[ // Show Complete button on last step
+             FilledButton.icon(
                   onPressed: () => _completeReceipt(),
                   label: const Text('Complete'),
                   icon: const Icon(Icons.check),
                 ),
+          ],
         ],
       ),
     );

@@ -98,29 +98,39 @@
             - `workflowState.people` (by calling `manager.currentPeopleNames`).
             - `workflowState.tip` and `workflowState.tax`.
     - This ensures modifications in `SplitView` (via `SplitManager`) are reflected in `WorkflowState` and persisted correctly to `assign_people_to_items` and `metadata` in Firestore.
+- ✅ **Resolved Type Error after Re-Parse:**
+    - Fixed `type 'Null' is not a subtype of type 'String' in type cast` error occurring in `ReceiptItem.fromJson` when navigating to Split step after a re-parse.
+    - **Fix:** Made `ReceiptItem.fromJson` robust by handling potential nulls for `name`, `price`, `quantity`, `originalQuantity`, and `itemId` from JSON, providing sensible defaults.
+- ✅ **Workflow Interruption Confirmations (Modal Client-Side):**
+    - **Refined Logic:** Confirmation dialogs moved from navigation actions (back button, step taps) to specific data re-processing actions:
+        1.  **Re-Parse (Upload Step):** Dialog added to `onParseReceipt` callback. Clears parse, transcribe, assign, people (keeps tip/tax) if confirmed.
+        2.  **Re-Transcribe (Assign Step):** Dialog added to `_toggleRecording` (when starting record) via `onReTranscribeRequested` callback. Clears *only* transcription if confirmed.
+        3.  **Re-Process Assignments (Assign Step):** Dialog added to "Start Splitting" button (`_processTranscription`) via `onConfirmProcessAssignments` callback. Clears assignments and people (keeps tip/tax) if confirmed.
+    - Data clearing methods in `WorkflowState` updated to preserve tip/tax and clear specific data slices according to the action.
+- ✅ **Navigation Button Disabling (Modal Client-Side):**
+    - **Refined Logic:** Disabled the "Next" button based on whether the data required for the *next* step is available in `WorkflowState`:
+        - Upload -> Review: Disabled if `!hasParseData`.
+        - Assign -> Split: Disabled if `!hasAssignmentData`.
+        - Split -> Summary: Disabled if `!hasAssignmentData`.
+    - Placeholders remain in steps as a fallback.
 
-**In Progress / Pending Implementation & Testing:**
+**In Progress / Pending Testing:**
 
-- **Workflow Interruption Confirmations (Modal Client-Side):**
-    - **Goal:** Prevent accidental data loss by showing confirmation dialogs if a user action would discard data from subsequent workflow steps.
-    - **Locations for Confirmation:**
-        1.  **Upload Step:** When selecting a new image/re-parsing if `parseReceiptResult` already has data.
-        2.  **Assign Step (Voice Assignment):** When attempting to re-run voice transcription if `transcribeAudioResult` already has data.
-        3.  **Split Step Navigation:** When attempting to navigate back to "Assign" if `assignPeopleToItemsResult` already has data.
-    - **Action on Confirmation:** If user confirms, clear the relevant subsequent data in `WorkflowState` before proceeding with the action.
-    - **Implementation Plan:**
-        - Add boolean getters to `WorkflowState` (e.g., `hasParseData`, `hasTranscriptionData`, `hasAssignmentData`).
-        - Add specific data clearing methods to `WorkflowState` (e.g., `clearParseAndSubsequentData()`).
-        - Modify navigation logic in `_WorkflowModalBodyState` and step-specific callbacks to show `AlertDialog` and call clearing methods.
 - **Split Step State Persistence (Modal Client-Side) - Testing:**
-    - **Status:** Logic implemented as per above ✅. Requires testing.
+    - **Status:** Logic believed complete. Requires testing.
     - **Test Case:** Verify that changes to **tip** and **tax** in the Split step persist when navigating between steps (Split -> Summary -> Split) and when saving/resuming drafts.
     - **Test Case:** Verify that adding/removing/renaming people, adding/removing items, and reassigning items within the Split step correctly updates `WorkflowState.assignPeopleToItemsResult` and `WorkflowState.people` via the `SplitManager` listener, and that these changes persist on draft save/resume.
 - **Assignment Data Propagation (Modal Client-Side) - Testing:**
-  - **Status:** Partially tested. User confirms assign view updates correctly. Further testing needed to ensure end-to-end persistence of assignments from `assign_people_to_items` through to Split/Summary views after recent changes.
+  - **Status:** Believed complete. Needs thorough testing to ensure end-to-end persistence of assignments from `assign_people_to_items` through to Split/Summary views after recent changes, especially after re-processing assignments.
 - **Split View Data Display (Modal Client-Side) - Unassigned Items:**
-  - **Issue:** The "Unassigned" tab in the Split screen sometimes appears to show all receipt items, even when `assign_people_to_items` result indicates no unassigned items (`unassigned_items: []`).
+  - **Issue:** The "Unassigned" tab in the Split screen sometimes appeared to show all receipt items, even when `assign_people_to_items` result indicated no unassigned items (`unassigned_items: []`).
   - **Status:** Needs testing now that `SplitManager` is always initialized fresh from `assign_people_to_items`. If issue persists, investigate `SplitView` rendering and `SplitManager` initialization logic for unassigned items.
+- **Split View "Go To Summary" Button Functionality:**
+  - **Issue:** User reported this button (within the SplitView UI itself) is not navigating to the Summary step.
+  - **Status:** Needs investigation. Likely requires connecting the button within `SplitView` to call `Provider.of<WorkflowState>(context, listen: false).goToStep(4)` or using a `Notification`.
+- **Summary View Subtotal Calculation:**
+  - **Issue:** User reported the subtotal calculation in the final Summary view is incorrect.
+  - **Status:** Needs investigation. Check how `FinalSummaryScreen` calculates/receives its subtotal. It should likely use the totals derived from the `SplitManager` instance provided to it (which is based on `assign_people_to_items`).
 
 **Pending (Longer Term / Other Areas):**
 - **Data Model Refinement - Consolidate URIs to `metadata` map (Remaining Steps):**
@@ -157,7 +167,7 @@
 3. **Workflow Modal:**
    - ✅ Full-page modal implementation
    - ✅ Step indicator with navigation
-   - ✅ Navigation buttons with proper state management
+   - ✅ Navigation buttons with proper state management (including disabling)
    - ✅ Automatic draft saving (now faster with background uploads)
    - ✅ Parameter types between steps fixed
    - ✅ Component interface consistency ensured
@@ -165,31 +175,38 @@
    - ✅ Retry button on Upload step disabled appropriately post-parse.
    - ✅ Orphaned image cleanup logic implemented.
    - ✅ Uses thumbnail placeholder for faster initial image display on resume.
+   - ✅ Workflow interruption confirmation dialogs implemented for data re-processing actions.
+   - ✅ Placeholders added for steps when prerequisite data is missing.
 
 4. **Individual Steps (Modal Workflow):**
-   - ✅ Upload: Camera/gallery picker implemented. Retry/clear logic enhanced. Background uploads implemented.
-   - ✅ Review: Item editing functionality working
-   - ✅ Assign: Voice transcription and assignment working
-   - ✅ Split: Item sharing and reassignment implemented
-   - ✅ Summary: Tax/tip calculations implemented and properly connected
+   - ✅ Upload: Camera/gallery picker implemented. Retry/clear logic enhanced. Background uploads implemented. Re-parse confirmation added.
+   - ✅ Review: Item editing functionality working.
+   - ✅ Assign: Voice transcription and assignment working. Re-transcribe confirmation added. Re-process assignments confirmation added.
+   - ✅ Split: Item sharing and reassignment implemented. **(Button issue noted above)**
+   - ✅ Summary: Tax/tip calculations implemented and properly connected. **(Calculation issue noted above)**
 
 ### Current Challenges (Focus on remaining issues)
 
-1. **Data Persistence & Performance:**
-   - ⚠️ **SplitManager State Hydration:** Needs implementation as per "In Progress" section.
+1. **UI/Functionality Bugs:**
+   - ⚠️ Split View "Go To Summary" button non-functional.
+   - ⚠️ Summary View subtotal calculation incorrect.
+   - ⚠️ Potential issue with Split View "Unassigned" tab display.
+
+2. **Data Persistence & Performance:**
+   - ⚠️ Split step state persistence needs testing.
+   - ⚠️ Assignment data propagation needs testing.
    - ⚠️ Need to handle edge cases when modifying completed receipts.
    - ⚠️ Receipts list loading can be slow due to lack of pagination.
 
-2. **Image Processing:**
-   - ✅ All previous image processing issues seem resolved. Requires testing with Cloud Function updates (metadata URI usage).
+3. **Image Processing & Cloud Functions:**
+   - ⚠️ Need to test thumbnail generation function and verify URI metadata usage in other functions.
 
-3. **Data Flow & State Management:**
-   - ✅ Modal workflow state (`WorkflowState`) refactored for URI handling, background uploads, and receiving `SplitManager` updates.
-   - ✅ Non-modal workflow state (`_MainPageControllerState`) improved with reset logic.
+4. **Data Flow & State Management:**
+   - ✅ Modal workflow state largely refactored.
    - ⚠️ Non-modal workflow needs review for URI metadata refactoring.
    - ⚠️ Potential code duplication/refactoring opportunities remain (parsing logic).
 
-4. **Authentication & Emulator Connectivity:**
+5. **Authentication & Emulator Connectivity:**
    - ✅ Most previous issues resolved.
    - ⚠️ **Remaining Issue (Highest Priority):** Persistent `GoogleApiManager SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs urgent investigation (likely separate effort).
    - ⚠️ **Remaining Issue (High Priority):** Persistent `ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` errors. Likely related to `GoogleApiManager` issue.
@@ -217,6 +234,10 @@
 
 ## Known Issues (Consolidated)
 
+- **UI/Functionality:**
+    - ⚠️ Split View "Go To Summary" button non-functional.
+    - ⚠️ Summary View subtotal calculation incorrect.
+    - ⚠️ Split View "Unassigned" tab might display incorrectly.
 - **Google Services Connectivity:**
     - ⚠️ **Remaining Issue (Highest Priority):** `E/GoogleApiManager: Failed to get service from broker. java.lang.SecurityException: Unknown calling package name 'com.google.android.gms'`. Needs urgent investigation.
     - ⚠️ **Remaining Issue (High Priority):** `W/ManagedChannelImpl: Failed to resolve name` / Firestore `UNAVAILABLE` / `UnknownHostException` errors. Likely symptom of `GoogleApiManager` issue.
@@ -231,29 +252,28 @@
 
 ## Next Steps (Priority Order)
 
-1.  **Implement Workflow Interruption Confirmations (Modal Client-Side - High Priority):**
-    - Add getters and clear methods to `WorkflowState`.
-    - Implement dialogs and logic in `_WorkflowModalBodyState` and relevant screens/callbacks.
-2.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - High Priority):**
+1.  **Fix Split View "Go To Summary" Button (Modal Client-Side - High Priority):** Investigate `SplitView` and connect button to navigate.
+2.  **Fix Summary View Subtotal Calculation (Modal Client-Side - High Priority):** Investigate `FinalSummaryScreen` and its data source (`SplitManager` via Provider).
+3.  **Test Split Step State Persistence & Data Flow (Modal Client-Side - High Priority):**
     - Test persistence of **Tip/Tax** changes.
     - Test persistence of **people and item assignments** made in Split step.
     - Verify correct initial population of `SplitManager`.
     - Test display of unassigned items in `SplitView`.
-3.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (High Priority):**
+4.  **Investigate and Fix/Verify `generate_thumbnail` Cloud Function (High Priority):**
     - Review Cloud Function logs, verify error handling and URI usage (`metadata`).
-4.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
-5. **Data Migration Script:** Develop and test script for URI metadata migration.
-6. **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
-7. **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
-8. **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
-9. **Implement Receipt List Pagination:** Address performance.
-10. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
-11. **Address Security Warnings (General Consolidation).**
-12. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
-13. **Create Comprehensive Testing Suite (General).**
-14. **Enhance Error Handling.**
-15. **Handle Edge Cases (Completed Receipts).**
-16. **Code Cleanup/Refactoring (Parsing Logic).**
+5.  **Cloud Function Updates (URI Metadata - General Review):** Review `parse_receipt` etc.
+6.  **Data Migration Script:** Develop and test script for URI metadata migration.
+7.  **Non-Modal Workflow URI Refactoring:** Review and apply URI metadata changes.
+8.  **Comprehensive Testing (URI Refactor & Background Uploads):** Test all flows post-migration.
+9.  **Investigate and Resolve `GoogleApiManager SecurityException` & Network Errors (High Priority - Separate Effort?):** Address core connectivity issues.
+10. **Implement Receipt List Pagination:** Address performance.
+11. **Address Remaining App Check/Sign-In Issues (Lower Priority).**
+12. **Address Security Warnings (General Consolidation).**
+13. **Remove Diagnostic Delay:** Remove the `Future.delayed` call from `_loadReceipts`.
+14. **Create Comprehensive Testing Suite (General).**
+15. **Enhance Error Handling.**
+16. **Handle Edge Cases (Completed Receipts).**
+17. **Code Cleanup/Refactoring (Parsing Logic).**
 
 ## Developer Notes / Knowledge Transfer (Updated)
 
@@ -272,9 +292,7 @@ Key learnings from recent debugging sessions regarding the modal workflow:
         - Calling methods on the nested notifier to extract its current state in the desired format (e.g., `SplitManager.generateAssignmentMap()`, `SplitManager.currentPeopleNames`).
         - Updating the corresponding fields in the parent `WorkflowState` (e.g., `workflowState.setAssignPeopleToItemsResult(...)`, `workflowState.setPeople(...)`, `workflowState.setTip(...)`).
     - This ensures that while `SplitManager` itself isn't directly saved, the effects of its operations (assignments, people list, tip/tax changes) are captured in `WorkflowState` and subsequently persisted to Firestore.
-- **Confirmation for Data Overwrite:** When user actions might lead to overwriting data from subsequent workflow steps (e.g., re-uploading an image after parsing, re-transcribing after transcription, going back to assignment after splitting), it's crucial to:
-    - Implement checks in `WorkflowState` to determine if subsequent data exists.
-    - Display an `AlertDialog` to ask for user confirmation.
-    - If confirmed, call specific methods in `WorkflowState` to clear out the subsequent data before proceeding with the action. This prevents accidental data loss and makes the workflow more robust.
+- **Confirmation for Data Overwrite / Action Trigger:** Confirmation dialogs should be tied to specific user actions that *initiate* data processing or overwriting (e.g., clicking "Parse", "Start Recording", "Start Splitting"), rather than simple navigation (Back button, step taps, basic Next button). If confirmed, the relevant downstream data slice should be cleared in `WorkflowState` *before* the action proceeds. Tip/Tax should generally be preserved during these clears.
+- **Button Disabling:** Disabling navigation buttons (like "Next") when prerequisite data for the target step is missing provides clearer UX than allowing navigation and then showing a placeholder. State checks (e.g., `hasParseData`, `hasAssignmentData`) should determine button enablement.
 
 </rewritten_file> 
