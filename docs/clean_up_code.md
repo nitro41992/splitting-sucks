@@ -47,6 +47,7 @@ Understanding this structure helps in locating files and understanding module re
     *   **Objective:** Verify the logic of individual functions, methods, and classes, independent of the UI.
     *   **Actions:**
         *   `Write unit tests for WorkflowState (e.g., state transitions, data clearing logic, flag calculations).` 📝
+            *   **Note on Testability:** To facilitate focused unit testing, `WorkflowState`'s constructor (`lib/providers/workflow_state.dart`) was modified to accept an optional `ImageStateManager`. This allows a `MockImageStateManager` to be injected during tests, ensuring `WorkflowState`'s logic can be tested in isolation. The application code, which doesn't pass an `ImageStateManager`, continues to function as before, with `WorkflowState` creating its own default instance. Furthermore, the `goToStep()` method was refined to only call `notifyListeners()` if the target step is different from the current step, aligning with product requirements for efficient UI updates.
         *   `Write unit tests for ImageStateManager (e.g., URI management, pending deletions).` 📝
         *   `Write unit tests for utility functions (e.g., dialog_helpers.dart, toast_utils.dart - focusing on logic, not UI rendering).` 📝
         *   `Write unit tests for critical logic in services (e.g., FirestoreService data transformations, if any).` 📝

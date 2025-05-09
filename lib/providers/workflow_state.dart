@@ -12,7 +12,7 @@ class WorkflowState extends ChangeNotifier {
   int _currentStep = 0;
   String? _receiptId;
   String _restaurantName;
-  final ImageStateManager imageStateManager; // Add ImageStateManager instance
+  final ImageStateManager _imageStateManager; // Renamed to private
 
   Map<String, dynamic> _parseReceiptResult = {};
   Map<String, dynamic> _transcribeAudioResult = {};
@@ -23,13 +23,16 @@ class WorkflowState extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  // List to track GS URIs that might need deletion
-  List<String> get pendingDeletionGsUris => imageStateManager.pendingDeletionGsUris;
+  // Public getter for imageStateManager
+  ImageStateManager get imageStateManager => _imageStateManager;
 
-  WorkflowState({required String restaurantName, String? receiptId})
+  // List to track GS URIs that might need deletion
+  List<String> get pendingDeletionGsUris => _imageStateManager.pendingDeletionGsUris;
+
+  WorkflowState({required String restaurantName, String? receiptId, ImageStateManager? imageStateManager})
       : _restaurantName = restaurantName,
         _receiptId = receiptId,
-        imageStateManager = ImageStateManager() { // Initialize ImageStateManager
+        _imageStateManager = imageStateManager ?? ImageStateManager() { // Use provided or create new
     debugPrint('[WorkflowState Constructor] Initial _transcribeAudioResult: $_transcribeAudioResult');
   }
 
@@ -37,11 +40,11 @@ class WorkflowState extends ChangeNotifier {
   int get currentStep => _currentStep;
   String get restaurantName => _restaurantName;
   String? get receiptId => _receiptId;
-  File? get imageFile => imageStateManager.imageFile;
-  String? get loadedImageUrl => imageStateManager.loadedImageUrl;
-  String? get actualImageGsUri => imageStateManager.actualImageGsUri;
-  String? get actualThumbnailGsUri => imageStateManager.actualThumbnailGsUri;
-  String? get loadedThumbnailUrl => imageStateManager.loadedThumbnailUrl;
+  File? get imageFile => _imageStateManager.imageFile;
+  String? get loadedImageUrl => _imageStateManager.loadedImageUrl;
+  String? get actualImageGsUri => _imageStateManager.actualImageGsUri;
+  String? get actualThumbnailGsUri => _imageStateManager.actualThumbnailGsUri;
+  String? get loadedThumbnailUrl => _imageStateManager.loadedThumbnailUrl;
 
   Map<String, dynamic> get parseReceiptResult => _parseReceiptResult;
   Map<String, dynamic> get transcribeAudioResult => _transcribeAudioResult;
@@ -64,9 +67,11 @@ class WorkflowState extends ChangeNotifier {
 
   // Step navigation
   void goToStep(int step) {
-    if (step >= 0 && step < 5) {
-      _currentStep = step;
-      notifyListeners();
+    if (step >= 0 && step < 5) { // Max 5 steps (0-4)
+      if (_currentStep != step) { // Only update and notify if the step is different
+        _currentStep = step;
+        notifyListeners();
+      }
     }
   }
 
@@ -96,7 +101,7 @@ class WorkflowState extends ChangeNotifier {
   }
 
   void setImageFile(File file) {
-    imageStateManager.setNewImageFile(file);
+    _imageStateManager.setNewImageFile(file);
     _parseReceiptResult = {};
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
@@ -107,7 +112,7 @@ class WorkflowState extends ChangeNotifier {
   }
 
   void resetImageFile() {
-    imageStateManager.resetImageFile();
+    _imageStateManager.resetImageFile();
     _parseReceiptResult = {};
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
@@ -165,32 +170,32 @@ class WorkflowState extends ChangeNotifier {
   }
 
   void setUploadedGsUris(String? imageGsUri, String? thumbnailGsUri) {
-    imageStateManager.setUploadedGsUris(imageGsUri, thumbnailGsUri);
+    _imageStateManager.setUploadedGsUris(imageGsUri, thumbnailGsUri);
     notifyListeners();
   }
 
   void setLoadedImageUrls(String? imageUrl, String? thumbnailUrl) {
-    imageStateManager.setLoadedImageUrls(imageUrl, thumbnailUrl);
+    _imageStateManager.setLoadedImageUrls(imageUrl, thumbnailUrl);
     notifyListeners();
   }
 
   void setActualGsUrisOnLoad(String? imageGsUri, String? thumbnailGsUri) {
-    imageStateManager.setActualGsUrisOnLoad(imageGsUri, thumbnailGsUri);
+    _imageStateManager.setActualGsUrisOnLoad(imageGsUri, thumbnailGsUri);
     notifyListeners();
   }
 
   void clearPendingDeletions() {
-    imageStateManager.clearPendingDeletionsList();
+    _imageStateManager.clearPendingDeletionsList();
     notifyListeners();
   }
 
   void addUriToPendingDeletions(String? uri) {
-    imageStateManager.addUriToPendingDeletionsList(uri);
+    _imageStateManager.addUriToPendingDeletionsList(uri);
     notifyListeners();
   }
 
   void removeUriFromPendingDeletions(String? uri) {
-    imageStateManager.removeUriFromPendingDeletionsList(uri);
+    _imageStateManager.removeUriFromPendingDeletionsList(uri);
     notifyListeners();
   }
   
@@ -202,8 +207,8 @@ class WorkflowState extends ChangeNotifier {
     return Receipt(
       id: _receiptId ?? '', // Ensure ID is present
       restaurantName: _restaurantName,
-      imageUri: imageStateManager.actualImageGsUri,
-      thumbnailUri: imageStateManager.actualThumbnailGsUri,
+      imageUri: _imageStateManager.actualImageGsUri,
+      thumbnailUri: _imageStateManager.actualThumbnailGsUri,
       parseReceipt: _parseReceiptResult, // This map contains the items list
       transcribeAudio: _transcribeAudioResult,
       assignPeopleToItems: _assignPeopleToItemsResult, // This map contains assignments

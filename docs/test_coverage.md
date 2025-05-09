@@ -19,8 +19,9 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
 
 *   **`WorkflowState` (`lib/widgets/workflow_modal.dart` - to be moved to `lib/providers/workflow_state.dart`)**
     *   **Objective:** Verify correct state transitions, data manipulation, and flag logic.
+    *   **Note on Testability:** `WorkflowState` has been modified to accept an optional `ImageStateManager` instance via its constructor. This allows for injecting a `MockImageStateManager` during unit tests, providing better isolation and control for testing `WorkflowState`'s logic independently. If no `ImageStateManager` is provided to the constructor (e.g., in the live application code), `WorkflowState` defaults to creating its own internal `ImageStateManager` instance, ensuring no disruption to existing functionality.
     *   **Test Cases:**
-        *   `initial state`: Verify `currentStep`, `receiptId`, `restaurantName`, `imageStateManager` initialization, and all data fields (`_parseReceiptResult`, `_transcribeAudioResult`, etc.) are in their expected default states.
+        *   `initial state`: Verify `currentStep`, `receiptId`, `restaurantName`, `imageStateManager` initialization (confirming the mock is used when injected), and all data fields (`_parseReceiptResult`, `_transcribeAudioResult`, etc.) are in their expected default states.
         *   `nextStep()`:
             *   Correctly increments `_currentStep`.
             *   Does not increment beyond the maximum step count.
@@ -32,7 +33,7 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
         *   `goToStep()`:
             *   Correctly sets `_currentStep` to valid step.
             *   Ignores invalid step values.
-            *   Calls `notifyListeners()`.
+            *   Calls `notifyListeners()` only if `_currentStep` actually changes.
         *   `setRestaurantName()`: Updates `_restaurantName` and calls `notifyListeners()`.
         *   `setReceiptId()`: Updates `_receiptId` and calls `notifyListeners()`.
         *   `setImageFile()`:
@@ -56,7 +57,7 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
         *   `clearParseAndSubsequentData()`: Clears relevant fields (`_parseReceiptResult`, `_transcribeAudioResult`, `_assignPeopleToItemsResult`, `_people`) and calls `notifyListeners()`. Tip/Tax preservation should be noted/tested if that's desired behavior.
         *   `clearTranscriptionAndSubsequentData()`: Clears relevant fields (including assignments, people, tip, tax) and calls `notifyListeners()`.
         *   `clearAssignmentAndSubsequentData()`: Clears relevant fields (`_assignPeopleToItemsResult`, `_people`) and calls `notifyListeners()`.
-    *   **Mocks:** May need to mock `ImageStateManager` for some tests if its direct interaction is not being tested.
+    *   **Mocks:** `MockImageStateManager` will be injected into `WorkflowState` for most tests to isolate `WorkflowState`'s logic. Direct testing of `WorkflowState` with a real `ImageStateManager` might be considered for specific integration-like unit tests if necessary, but the primary approach will use mocks for focused unit testing.
 
 *   **`ImageStateManager` (`lib/widgets/image_state_manager.dart`)**
     *   **Objective:** Verify correct management of image file, URIs, and pending deletion list.
