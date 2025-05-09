@@ -201,6 +201,39 @@ Learnings from refactoring `workflow_modal.dart` should inform a broader effort 
 
 ---
 
+#### Phase 4: Implement Local Caching and Synchronization for Workflow Drafts
+
+*   **Objective:** Enhance data persistence for the workflow modal by saving draft data to a local cache immediately, providing instant save feedback to the user, and enabling basic offline support. Synchronize local changes with Firestore in the background.
+*   **Key Considerations & Actions:**
+    *   **Choose Local Storage:**
+        *   **Evaluate Options:** Consider SQLite (e.g., using the `sqflite` package) for structured data like receipt details, items, and assignments. For simpler flags or minimal state, SharedPreferences could be an auxiliary option, but SQLite is likely more suitable for the complexity of `Receipt` objects.
+        *   **Schema Design:** Define a local database schema that mirrors the `Receipt` model and its sub-components.
+    *   **Modify Saving Logic (`_saveDraft`, `_completeReceipt`):**
+        *   **Write to Local First:** Update `_saveDraft` to write the current `WorkflowState` (as a `Receipt` object) to the local SQLite database immediately. This makes the save operation feel instantaneous to the user.
+        *   **Queue for Sync:** Mark the locally saved record as "pending sync" or add it to a synchronization queue.
+        *   **UI Feedback:** Update UI to reflect "Saved locally" status immediately, and then potentially "Syncing..." or "Synced" as the Firestore operation completes.
+    *   **Implement Background Synchronization Service:**
+        *   **Create a Service:** Develop a new service (e.g., `LocalSyncService`) responsible for:
+            *   Detecting locally saved drafts that are pending synchronization.
+            *   Attempting to upload/update these drafts to Firestore.
+            *   Handling network availability (e.g., using `connectivity_plus` to trigger sync when online).
+            *   Implementing a retry mechanism for failed sync attempts (e.g., exponential backoff).
+        *   **Update Local Status:** Once a draft is successfully synced to Firestore, update its status in the local cache (e.g., mark as "synced", store Firestore `receiptId` if it was a new local draft).
+    *   **Modify Loading Logic (`_loadReceiptData`):**
+        *   **Check Local First:** When `_loadReceiptData` is called with a `receiptId`, first attempt to load it from the local SQLite database.
+        *   **Fetch if Not Local/Stale:** If not found locally, or if a newer version might exist on the server (requires a strategy for versioning or last-updated timestamps), then fetch from Firestore.
+        *   **Cache Fetched Data:** When data is fetched from Firestore, cache it locally.
+    *   **Conflict Resolution (Basic):**
+        *   **Timestamp-Based:** A simple strategy could be "last write wins." Include `updatedAt` timestamps both locally and in Firestore. When syncing, if the Firestore version is newer than the local "last synced" timestamp, the app might need to decide whether to overwrite local changes or prompt the user (though prompting can be complex). For drafts primarily edited on one device, direct overwrite from local to server might be acceptable initially.
+        *   **Define Policy:** Clearly define how to handle cases where data might have been modified both locally (while offline) and on the server (e.g., by another device, though less likely for this specific workflow if it's single-user-per-draft).
+    *   **Data Migration (If schema changes):** Plan for how local database schema migrations will be handled if the `Receipt` model or local storage structure evolves.
+    *   **User Experience for Offline:**
+        *   Clearly indicate when the app is offline and data is being saved locally.
+        *   Manage user expectations about when data will be available on other devices (i.e., after successful sync).
+    *   **Cleanup of Old Local Data:** Implement a strategy for cleaning up very old or successfully synced/completed drafts from the local cache to manage storage.
+
+---
+
 ## Refactoring Process Recommendations
 
 *   **Incremental Changes:** Refactor in small, manageable steps. Avoid large, sweeping changes that are hard to test and debug.

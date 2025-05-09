@@ -562,7 +562,7 @@ class _WorkflowModalBody extends StatefulWidget {
   State<_WorkflowModalBody> createState() => _WorkflowModalBodyState();
 }
 
-class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
+class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBindingObserver {
   final FirestoreService _firestoreService = FirestoreService();
   final List<String> _stepTitles = [
     'Upload',
@@ -580,6 +580,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     
     // Load the receipt data if we have a receipt ID
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -608,6 +609,29 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
         });
       }
     });
+  }
+  
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.paused) {
+      // Only attempt to save if there's potentially something to save.
+      // This mirrors part of the logic in _onWillPop.
+      final workflowState = Provider.of<WorkflowState>(context, listen: false);
+      if (workflowState.imageFile != null || workflowState.receiptId != null || workflowState.hasParseData) {
+        debugPrint("[WorkflowModal] App paused, attempting to save draft...");
+        _saveDraft(isBackgroundSave: true).catchError((e) {
+          // Log error from background save, as no SnackBar will be shown by _saveDraft.
+          debugPrint("[WorkflowModal] Error during background save draft: $e");
+        });
+      }
+    }
   }
   
   // --- EDIT: Add helper for confirmation dialog ---
@@ -781,33 +805,41 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
   Future<bool> _onWillPop() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     
-    // If we're on the first step and nothing has been uploaded yet, just exit
-    if (workflowState.currentStep == 0 && workflowState.imageFile == null) {
+    // If we're on the first step and nothing has been uploaded or parsed, just exit
+    // Adjusted condition to be more robust: if no image file, no existing receiptId, and no parse data.
+    if (workflowState.currentStep == 0 && 
+        workflowState.imageFile == null && 
+        workflowState.receiptId == null && 
+        !workflowState.hasParseData) {
+      // Before exiting, process any pending deletions that might have accumulated from UI interactions
+      // without resulting in a savable state.
+      await _processPendingDeletions(isSaving: false); 
       return true;
     }
     
     // Auto-save as draft without confirmation
     try {
-      // Show a saving indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Saving draft...'),
-          duration: Duration(seconds: 1),
-        ),
-      );
+      // REMOVED: Initial SnackBar for "Saving draft..."
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(
+      //     content: Text('Saving draft...'),
+      //     duration: Duration(seconds: 1),
+      //   ),
+      // );
       
-      await _saveDraft();
+      await _saveDraft(isBackgroundSave: false); // isBackgroundSave: false ensures SnackBars can be shown by _saveDraft
       
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Draft saved'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
+      // REMOVED: SnackBar for "Draft saved" as _saveDraft now handles this.
+      // if (mounted) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(
+      //       content: Text('Draft saved'),
+      //       duration: Duration(seconds: 1),
+      //     ),
+      //   );
+      // }
       
-      return true;
+      return true; // Allow pop if save is successful
     } catch (e) {
       // If saving fails, show an error and ask what to do
       if (!mounted) return false;
@@ -910,8 +942,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
   }
 
   // Save the current state as a draft
-  Future<void> _saveDraft() async {
+  Future<void> _saveDraft({bool isBackgroundSave = false}) async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    // Capture ScaffoldMessenger if not a background save and mounted
+    final scaffoldMessenger = !isBackgroundSave && mounted ? ScaffoldMessenger.of(context) : null;
 
     try {
       workflowState.setLoading(true);
@@ -986,8 +1020,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       // Pass isSaving: true so it only deletes what's left in the list.
       await _processPendingDeletions(isSaving: true);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      // Only show SnackBar if not a background save and context is available (via captured scaffoldMessenger)
+      if (scaffoldMessenger != null) {
+        scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Draft saved successfully'),
             backgroundColor: Colors.green,
@@ -996,13 +1031,17 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       }
     } catch (e) { 
       workflowState.setLoading(false);
+      final errorMessage = 'Failed to save draft: $e';
       if (workflowState.errorMessage == null) {
-         workflowState.setErrorMessage('Failed to save draft: $e');
+         workflowState.setErrorMessage(errorMessage);
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      debugPrint('[_saveDraft Error] $errorMessage'); // Always log the error
+
+      // Only show SnackBar if not a background save and context is available (via captured scaffoldMessenger)
+      if (scaffoldMessenger != null) {
+        scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text(workflowState.errorMessage ?? 'Failed to save draft: $e'), // Show specific error if available
+            content: Text(workflowState.errorMessage ?? errorMessage), // Show specific error if available
             backgroundColor: Colors.red,
           ),
         );
