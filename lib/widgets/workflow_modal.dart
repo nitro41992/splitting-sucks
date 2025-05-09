@@ -469,24 +469,57 @@ class WorkflowModal extends StatelessWidget {
   /// Static method to show the workflow modal with restaurant name dialog
   static Future<bool?> show(BuildContext context, {String? receiptId, String? initialRestaurantName}) async {
     String? finalRestaurantName = initialRestaurantName;
+    final firestoreService = FirestoreService(); // Instance it once
 
     // If a receiptId is provided, try to load the receipt and get its name
     if (receiptId != null && finalRestaurantName == null) {
       try {
-        final firestoreService = FirestoreService();
+        // Check context before the first await if this block is entered
+        if (!context.mounted) {
+          debugPrint("[WorkflowModal.show] Context unmounted before fetching receipt details for ID: $receiptId");
+          return null;
+        }
         final snapshot = await firestoreService.getReceipt(receiptId);
+
+        // Check context immediately after await
+        if (!context.mounted) {
+          debugPrint("[WorkflowModal.show] Context unmounted after fetching receipt details for ID: $receiptId");
+          return null;
+        }
+
         if (snapshot.exists) {
           final receipt = Receipt.fromDocumentSnapshot(snapshot);
           finalRestaurantName = receipt.restaurantName;
+        } else {
+          debugPrint("[WorkflowModal.show] Receipt with ID $receiptId not found.");
+          if (context.mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Draft receipt not found."), backgroundColor: Colors.orange));
+          }
+          return null; // Don't proceed if receipt not found
         }
       } catch (e) {
-        debugPrint("Error fetching receipt name for modal: $e");
+        debugPrint("[WorkflowModal.show] Error fetching receipt details for modal: $e");
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error loading draft: ${e.toString()}"), backgroundColor: Colors.red));
+        }
+        return null; // Don't proceed on error
       }
     }
 
-    // If restaurantName is still null, show the dialog to get it
+    // If restaurantName is still null (e.g. new receipt, or above fetch failed to set it), show the dialog
     if (finalRestaurantName == null) {
-      finalRestaurantName = await showRestaurantNameDialog(context);
+      // Check context before this await as well
+      if (!context.mounted) {
+        debugPrint("[WorkflowModal.show] Context unmounted before showing restaurant name dialog.");
+        return null;
+      }
+      finalRestaurantName = await showRestaurantNameDialog(context); // showRestaurantNameDialog now has its own internal mounted check
+      
+      // Check context again after this await
+      if (!context.mounted) {
+        debugPrint("[WorkflowModal.show] Context unmounted after showing restaurant name dialog.");
+        return null;
+      }
     }
     
     // If the user cancels the dialog or name is still null, don't show the modal
@@ -494,19 +527,16 @@ class WorkflowModal extends StatelessWidget {
       return null;
     }
 
-    // --- Add Safety Checks before using Navigator --- 
+    // Final safety check before navigation (this was the one logging your error)
     if (!context.mounted) {
        debugPrint("[WorkflowModal.show] Error: Context is not mounted before navigation.");
-       // Optionally show a toast or log more severely
-       return null; // Cannot navigate
+       return null; 
     }
     final navigator = Navigator.maybeOf(context);
     if (navigator == null) {
        debugPrint("[WorkflowModal.show] Error: Could not find a Navigator ancestor for the provided context.");
-       // Optionally show a toast or log more severely
-       return null; // Cannot navigate
+       return null; 
     }
-    // --- End Safety Checks ---
     
     // Then show the workflow modal using the safe navigator reference
     return await navigator.push<bool?>(
