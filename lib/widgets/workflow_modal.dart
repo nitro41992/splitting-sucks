@@ -1792,8 +1792,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       final receipt = workflowState.toReceipt();
       
       // --- First Await --- 
-      final receiptId = await _firestoreService.completeReceipt( 
-        receiptId: workflowState.receiptId!, 
+      // Use receipt.id which is guaranteed to be non-null by toReceipt()
+      final String definitiveReceiptId = await _firestoreService.completeReceipt( 
+        receiptId: receipt.id, 
         data: receipt.toMap(),
       );
       
@@ -1801,6 +1802,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
       if (!mounted) return; 
       
       // --- State Updates (No Context Use) --- 
+      // Update the workflowState with the definitive receiptId
+      workflowState.setReceiptId(definitiveReceiptId);
       workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
       workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
 
