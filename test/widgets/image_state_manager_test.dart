@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:billfie/widgets/image_state_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,22 +11,23 @@ void main() {
     late ImageStateManager imageStateManager;
     late MockFile mockNewFile;
     bool listenerCalled = false;
+    late Function() testListener; // Declare variable for the listener
 
     setUp(() {
       imageStateManager = ImageStateManager();
       mockNewFile = MockFile(); // Initialize mock file
       listenerCalled = false;
-      imageStateManager.addListener(() {
+      testListener = () { // Define the listener
+        debugPrint('[TEST_LISTENER] Listener called!');
         listenerCalled = true;
-      });
+      };
+      imageStateManager.addListener(testListener); // Add the stored listener
     });
 
     tearDown(() {
       // It's good practice to remove listeners, though in simple test cases
       // without async work after dispose, it might not strictly be necessary.
-      imageStateManager.removeListener(() {
-        listenerCalled = true; // The callback here isn't critical for removal itself
-      });
+      imageStateManager.removeListener(testListener); // Remove the stored listener
     });
 
     test('initial state is correct', () {

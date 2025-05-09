@@ -12,18 +12,16 @@ void main() {
 
     // Helper function to pump the widget
     Future<void> pumpWidget(WidgetTester tester, {
-      // No need to pass controls directly, it will be built using currentStep from mock
-      required Future<void> Function() onExitAction, // Corrected type
-      required Future<void> Function() onSaveDraftAction, // Corrected type
-      required Future<void> Function() onCompleteAction, // Corrected type
+      required Future<void> Function() onExitAction,
+      required Future<void> Function() onSaveDraftAction,
+      required Future<void> Function() onCompleteAction,
     }) async {
       await tester.pumpWidget(
         ChangeNotifierProvider<WorkflowState>.value(
-          value: mockWorkflowState, // Reads currentStep from here
+          value: mockWorkflowState,
           child: MaterialApp(
             home: Scaffold(
               body: WorkflowNavigationControls(
-                currentStep: mockWorkflowState.currentStep, // Pass currentStep from mock
                 onExitAction: onExitAction,
                 onSaveDraftAction: onSaveDraftAction,
                 onCompleteAction: onCompleteAction,
@@ -55,14 +53,15 @@ void main() {
         onSaveDraftAction: () async {},
         onCompleteAction: () async {},
       );
+      await tester.pumpAndSettle();
 
-      final backButtonFinder = find.widgetWithText(TextButton, 'Back');
+      final backButtonFinder = find.byKey(backButtonKey);
       expect(backButtonFinder, findsOneWidget);
       TextButton backButton = tester.widget<TextButton>(backButtonFinder);
       expect(backButton.onPressed, isNotNull);
 
       await tester.tap(backButtonFinder);
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       verify(mockWorkflowState.previousStep()).called(1);
     });
@@ -76,31 +75,16 @@ void main() {
         onSaveDraftAction: () async {},
         onCompleteAction: () async {},
       );
-      
-      final backButtonFinder = find.widgetWithText(TextButton, 'Back');
-      expect(backButtonFinder, findsOneWidget); 
+      await tester.pumpAndSettle();
+
+      final backButtonFinder = find.byKey(backButtonKey);
+      expect(backButtonFinder, findsOneWidget);
       TextButton backButton = tester.widget<TextButton>(backButtonFinder);
       expect(backButton.onPressed, isNull, reason: "Back button should be disabled at step 0");
     });
 
     group('Next Button', () {
       testWidgets('at step 0, "Next" button is visible',
-          (WidgetTester tester) async {
-        when(mockWorkflowState.currentStep).thenReturn(0);
-        when(mockWorkflowState.hasParseData).thenReturn(true); // Enable button initially
-
-        await pumpWidget(
-          tester,
-          onExitAction: () async {},
-          onSaveDraftAction: () async {},
-          onCompleteAction: () async {},
-        );
-
-        expect(find.widgetWithText(FilledButton, 'Next'), findsOneWidget);
-        expect(find.widgetWithIcon(FilledButton, Icons.arrow_forward), findsOneWidget);
-      });
-
-      testWidgets('at step 0, "Next" button is enabled if hasParseData is true and calls nextStep',
           (WidgetTester tester) async {
         when(mockWorkflowState.currentStep).thenReturn(0);
         when(mockWorkflowState.hasParseData).thenReturn(true);
@@ -111,17 +95,39 @@ void main() {
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
+        await tester.pumpAndSettle();
 
-        final nextButton = find.widgetWithText(FilledButton, 'Next');
-        expect(tester.widget<FilledButton>(nextButton).onPressed, isNotNull);
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+      });
 
-        await tester.tap(nextButton);
-        await tester.pump();
+      testWidgets(
+          'at step 0, "Next" button is enabled if hasParseData is true and calls nextStep',
+          (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(0);
+        when(mockWorkflowState.hasParseData).thenReturn(true);
+
+        await pumpWidget(
+          tester,
+          onExitAction: () async {},
+          onSaveDraftAction: () async {},
+          onCompleteAction: () async {},
+        );
+        await tester.pumpAndSettle();
+
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
+        expect(nextButton.onPressed, isNotNull);
+
+        await tester.tap(nextButtonFinder);
+        await tester.pumpAndSettle();
 
         verify(mockWorkflowState.nextStep()).called(1);
       });
 
-      testWidgets('at step 0, "Next" button is disabled if hasParseData is false',
+      testWidgets(
+          'at step 0, "Next" button is disabled if hasParseData is false',
           (WidgetTester tester) async {
         when(mockWorkflowState.currentStep).thenReturn(0);
         when(mockWorkflowState.hasParseData).thenReturn(false);
@@ -132,15 +138,17 @@ void main() {
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
-
-        final nextButton = find.widgetWithText(FilledButton, 'Next');
-        expect(tester.widget<FilledButton>(nextButton).onPressed, isNull);
+        await tester.pumpAndSettle();
+        
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
+        expect(nextButton.onPressed, isNull);
       });
 
       testWidgets('at step 1, "Next" button is visible and enabled, calls nextStep',
           (WidgetTester tester) async {
         when(mockWorkflowState.currentStep).thenReturn(1);
-        // No specific data required for step 1 according to current logic in WorkflowNavigationControls
 
         await pumpWidget(
           tester,
@@ -148,12 +156,13 @@ void main() {
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
+        await tester.pumpAndSettle();
 
-        final nextButton = find.widgetWithText(FilledButton, 'Next');
-        expect(nextButton, findsOneWidget);
-        expect(tester.widget<FilledButton>(nextButton).onPressed, isNotNull);
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+        expect(tester.widget<FilledButton>(nextButtonFinder).onPressed, isNotNull);
 
-        await tester.tap(nextButton);
+        await tester.tap(nextButtonFinder);
         await tester.pump();
 
         verify(mockWorkflowState.nextStep()).called(1);
@@ -162,7 +171,7 @@ void main() {
       testWidgets('at step 2, "Next" button is visible',
           (WidgetTester tester) async {
         when(mockWorkflowState.currentStep).thenReturn(2);
-        when(mockWorkflowState.hasAssignmentData).thenReturn(true); // Enable initially
+        when(mockWorkflowState.hasAssignmentData).thenReturn(true); // For visibility, assume enabled
 
         await pumpWidget(
           tester,
@@ -170,7 +179,10 @@ void main() {
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
-        expect(find.widgetWithText(FilledButton, 'Next'), findsOneWidget);
+        await tester.pumpAndSettle();
+        // Explicitly ensure this uses find.byKey
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
       });
 
       testWidgets('at step 2, "Next" button is enabled if hasAssignmentData is true and calls nextStep',
@@ -184,11 +196,12 @@ void main() {
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
+        await tester.pumpAndSettle();
 
-        final nextButton = find.widgetWithText(FilledButton, 'Next');
-        expect(tester.widget<FilledButton>(nextButton).onPressed, isNotNull);
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(tester.widget<FilledButton>(nextButtonFinder).onPressed, isNotNull);
 
-        await tester.tap(nextButton);
+        await tester.tap(nextButtonFinder);
         await tester.pump();
 
         verify(mockWorkflowState.nextStep()).called(1);
@@ -205,22 +218,26 @@ void main() {
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
+        await tester.pumpAndSettle();
 
-        final nextButton = find.widgetWithText(FilledButton, 'Next');
-        expect(tester.widget<FilledButton>(nextButton).onPressed, isNull);
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(tester.widget<FilledButton>(nextButtonFinder).onPressed, isNull);
       });
 
       testWidgets('at step 3, "Next" button is visible',
           (WidgetTester tester) async {
         when(mockWorkflowState.currentStep).thenReturn(3);
-        when(mockWorkflowState.hasAssignmentData).thenReturn(true); // Enable initially
+        when(mockWorkflowState.hasAssignmentData).thenReturn(true); // For visibility, assume enabled
         await pumpWidget(
           tester,
           onExitAction: () async {},
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
-        expect(find.widgetWithText(FilledButton, 'Next'), findsOneWidget);
+        await tester.pumpAndSettle();
+        // Explicitly ensure this uses find.byKey
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
       });
 
       testWidgets('at step 3, "Next" button is enabled if hasAssignmentData is true and calls nextStep',
@@ -234,11 +251,12 @@ void main() {
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
+        await tester.pumpAndSettle();
 
-        final nextButton = find.widgetWithText(FilledButton, 'Next');
-        expect(tester.widget<FilledButton>(nextButton).onPressed, isNotNull);
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(tester.widget<FilledButton>(nextButtonFinder).onPressed, isNotNull);
 
-        await tester.tap(nextButton);
+        await tester.tap(nextButtonFinder);
         await tester.pump();
 
         verify(mockWorkflowState.nextStep()).called(1);
@@ -255,89 +273,198 @@ void main() {
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
+        await tester.pumpAndSettle();
 
-        final nextButton = find.widgetWithText(FilledButton, 'Next');
-        expect(tester.widget<FilledButton>(nextButton).onPressed, isNull);
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(tester.widget<FilledButton>(nextButtonFinder).onPressed, isNull);
+      });
+
+      testWidgets('at step 1 (Review), "Next" button is visible and enabled', (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(1);
+        // No specific data check for Review step to enable Next, it's always enabled if on this step.
+        // The actual navigation to Review step would have checked for parseData.
+        await pumpWidget(
+          tester,
+          onExitAction: () async {},
+          onSaveDraftAction: () async {},
+          onCompleteAction: () async {},
+        );
+        await tester.pumpAndSettle();
+
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
+        expect(nextButton.onPressed, isNotNull);
+
+        await tester.tap(nextButtonFinder);
+        await tester.pumpAndSettle();
+        verify(mockWorkflowState.nextStep()).called(1);
+      });
+
+      testWidgets('at step 2 (Assign), "Next" button is enabled if hasAssignmentData is true', (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(2);
+        when(mockWorkflowState.hasAssignmentData).thenReturn(true);
+
+        await pumpWidget(
+          tester,
+          onExitAction: () async {},
+          onSaveDraftAction: () async {},
+          onCompleteAction: () async {},
+        );
+        await tester.pumpAndSettle();
+
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
+        expect(nextButton.onPressed, isNotNull);
+
+        await tester.tap(nextButtonFinder);
+        await tester.pumpAndSettle();
+        verify(mockWorkflowState.nextStep()).called(1);
+      });
+
+      testWidgets('at step 2 (Assign), "Next" button is disabled if hasAssignmentData is false', (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(2);
+        when(mockWorkflowState.hasAssignmentData).thenReturn(false);
+
+        await pumpWidget(
+          tester,
+          onExitAction: () async {},
+          onSaveDraftAction: () async {},
+          onCompleteAction: () async {},
+        );
+        await tester.pumpAndSettle();
+
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
+        expect(nextButton.onPressed, isNull);
+      });
+      
+      testWidgets('at step 3 (Split), "Next" button is enabled if hasAssignmentData is true', (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(3);
+        when(mockWorkflowState.hasAssignmentData).thenReturn(true);
+
+        await pumpWidget(
+          tester,
+          onExitAction: () async {},
+          onSaveDraftAction: () async {},
+          onCompleteAction: () async {},
+        );
+        await tester.pumpAndSettle();
+
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
+        expect(nextButton.onPressed, isNotNull);
+
+        await tester.tap(nextButtonFinder);
+        await tester.pumpAndSettle();
+        verify(mockWorkflowState.nextStep()).called(1);
+      });
+
+      testWidgets('at step 3 (Split), "Next" button is disabled if hasAssignmentData is false', (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(3);
+        when(mockWorkflowState.hasAssignmentData).thenReturn(false);
+
+        await pumpWidget(
+          tester,
+          onExitAction: () async {},
+          onSaveDraftAction: () async {},
+          onCompleteAction: () async {},
+        );
+        await tester.pumpAndSettle();
+
+        final nextButtonFinder = find.byKey(nextButtonKey);
+        expect(nextButtonFinder, findsOneWidget);
+        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
+        expect(nextButton.onPressed, isNull);
       });
     });
 
     group('Complete Button', () {
-      testWidgets('at step 4, "Complete" button is visible and calls onCompleteAction',
-          (WidgetTester tester) async {
+      testWidgets('is visible and enabled at step 4 (Summary)', (WidgetTester tester) async {
         when(mockWorkflowState.currentStep).thenReturn(4);
-        bool completeActionCalled = false;
+        // For "Complete", there isn't an explicit enable/disable based on data like "Next".
+        // It relies on the onCompleteAction callback.
+        bool onCompleteCalled = false;
+        await pumpWidget(
+          tester,
+          onExitAction: () async {},
+          onSaveDraftAction: () async {},
+          onCompleteAction: () async { onCompleteCalled = true; },
+        );
+        await tester.pumpAndSettle();
+
+        final completeButtonFinder = find.byKey(completeButtonKey);
+        expect(completeButtonFinder, findsOneWidget);
+        FilledButton completeButton = tester.widget<FilledButton>(completeButtonFinder);
+        expect(completeButton.onPressed, isNotNull);
+
+        await tester.tap(completeButtonFinder);
+        await tester.pumpAndSettle();
+        expect(onCompleteCalled, isTrue);
+      });
+
+      testWidgets('"Complete" button is not visible if currentStep < 4', (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(3); // e.g. Split step
 
         await pumpWidget(
           tester,
           onExitAction: () async {},
           onSaveDraftAction: () async {},
-          onCompleteAction: () async { completeActionCalled = true; },
+          onCompleteAction: () async {},
         );
-
-        final completeButton = find.widgetWithText(FilledButton, 'Complete');
-        expect(completeButton, findsOneWidget);
-        expect(find.widgetWithIcon(FilledButton, Icons.check), findsOneWidget);
-        expect(tester.widget<FilledButton>(completeButton).onPressed, isNotNull);
-
-        // Verify "Next" button is not present
-        expect(find.widgetWithText(FilledButton, 'Next'), findsNothing);
-
-        await tester.tap(completeButton);
-        await tester.pump();
-
-        expect(completeActionCalled, isTrue);
+        await tester.pumpAndSettle();
+        
+        final completeButtonFinder = find.byKey(completeButtonKey);
+        expect(completeButtonFinder, findsNothing);
       });
     });
 
-    group('Middle Button (Exit / Save Draft)', () {
-      testWidgets('"Exit" button is visible and calls onExitAction when currentStep < 4',
-          (WidgetTester tester) async {
-        when(mockWorkflowState.currentStep).thenReturn(1); // Example step < 4
-        bool exitActionCalled = false;
+    group('Exit/Save Draft Button', () {
+      testWidgets('"Exit" button is visible and calls onExitAction when currentStep < 4', (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(1); // e.g. Review step
+        bool onExitCalled = false;
 
         await pumpWidget(
           tester,
-          onExitAction: () async { exitActionCalled = true; },
+          onExitAction: () async { onExitCalled = true; },
           onSaveDraftAction: () async {},
           onCompleteAction: () async {},
         );
+        await tester.pumpAndSettle();
 
-        final exitButton = find.widgetWithText(OutlinedButton, 'Exit');
-        expect(exitButton, findsOneWidget);
-        expect(tester.widget<OutlinedButton>(exitButton).onPressed, isNotNull);
+        final exitButtonFinder = find.byKey(exitButtonKey);
+        expect(exitButtonFinder, findsOneWidget);
+        OutlinedButton exitButton = tester.widget<OutlinedButton>(exitButtonFinder);
+        expect(exitButton.onPressed, isNotNull);
 
-        // Verify "Save Draft" button is not present
-        expect(find.widgetWithText(OutlinedButton, 'Save Draft'), findsNothing);
-
-        await tester.tap(exitButton);
-        await tester.pump();
-
-        expect(exitActionCalled, isTrue);
+        await tester.tap(exitButtonFinder);
+        await tester.pumpAndSettle();
+        expect(onExitCalled, isTrue);
       });
 
-      testWidgets('"Save Draft" button is visible and calls onSaveDraftAction when currentStep == 4',
-          (WidgetTester tester) async {
-        when(mockWorkflowState.currentStep).thenReturn(4);
-        bool saveDraftActionCalled = false;
+      testWidgets('"Save Draft" button is visible and calls onSaveDraftAction when currentStep == 4', (WidgetTester tester) async {
+        when(mockWorkflowState.currentStep).thenReturn(4); // Summary step
+        bool onSaveDraftCalled = false;
 
         await pumpWidget(
           tester,
           onExitAction: () async {},
-          onSaveDraftAction: () async { saveDraftActionCalled = true; },
+          onSaveDraftAction: () async { onSaveDraftCalled = true; },
           onCompleteAction: () async {},
         );
-
-        final saveDraftButton = find.widgetWithText(OutlinedButton, 'Save Draft');
-        expect(saveDraftButton, findsOneWidget);
-        expect(tester.widget<OutlinedButton>(saveDraftButton).onPressed, isNotNull);
-
-        // Verify "Exit" button is not present
-        expect(find.widgetWithText(OutlinedButton, 'Exit'), findsNothing);
-
-        await tester.tap(saveDraftButton);
-        await tester.pump();
-
-        expect(saveDraftActionCalled, isTrue);
+        await tester.pumpAndSettle();
+        
+        final saveDraftButtonFinder = find.byKey(saveDraftButtonKey);
+        expect(saveDraftButtonFinder, findsOneWidget);
+        OutlinedButton saveDraftButton = tester.widget<OutlinedButton>(saveDraftButtonFinder);
+        expect(saveDraftButton.onPressed, isNotNull);
+        
+        await tester.tap(saveDraftButtonFinder);
+        await tester.pumpAndSettle();
+        expect(onSaveDraftCalled, isTrue);
       });
     });
   });

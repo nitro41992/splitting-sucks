@@ -19,6 +19,11 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
 
 **KT for AI Devs:** The initial focus is on `WorkflowModal` due to its complexity and recent refactoring efforts. Tests should cover both the individual extracted step widgets and the core state management. Mocking (e.g., using `mockito`) will be essential for isolating components and their dependencies. When mock definitions in `test/mocks.dart` are updated, the AI assistant should propose running the `dart run build_runner build --delete-conflicting-outputs` command (previously `flutter pub run ...`); the user will then approve its execution in their environment. To run tests, use the command line (`flutter test` for all tests, or `flutter test path/to/specific_test_file.dart` for a single file) or the IDE's built-in test runner.
 
+**Recent Progress (WorkflowNavigationControls & ImageStateManager):**
+*   Successfully refactored `WorkflowNavigationControls` to derive `currentStep` directly from `WorkflowState` via a `Consumer`, simplifying its API.
+*   Updated all widget tests for `WorkflowNavigationControls` to use `ValueKey`s for locating button elements (e.g., `find.byKey(backButtonKey)`). This significantly improved test robustness against minor structural changes in the widget tree, resolving previous intermittent test failures related to widget finders.
+*   Addressed unit test failures in `ImageStateManager` by ensuring `notifyListeners()` was called correctly in methods like `addUriToPendingDeletionsList`, `removeUriFromPendingDeletionsList`, and conditionally in `clearPendingDeletionsList`. Also ensured test listeners were correctly added and removed using the same function instance.
+
 ### 1.1 Unit Tests
 
 *   **`WorkflowState` (`lib/widgets/workflow_modal.dart` - to be moved to `lib/providers/workflow_state.dart`)**
@@ -56,33 +61,33 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
         *   ✅ `setLoading()`, `setErrorMessage()`: Update respective fields and call `notifyListeners()`.
         *   ✅ `setUploadedGsUris()`, `setLoadedImageUrls()`, `setActualGsUrisOnLoad()`: Delegate to `imageStateManager` and call `notifyListeners()`.
         *   ✅ `clearPendingDeletions()`, `removeUriFromPendingDeletions()`, `addUriToPendingDeletions()`: Delegate to `imageStateManager` and call `notifyListeners()`.
-        *   ⏳ `toReceipt()`: Correctly constructs a `Receipt` object using current state, including URIs from `imageStateManager`.
+        *   ✅ `toReceipt()`: Correctly constructs a `Receipt` object using current state, including URIs from `imageStateManager`.
         *   ⏳ `_extractPeopleFromAssignments()`: Correctly extracts unique people names from `_assignPeopleToItemsResult`.
-        *   ⏳ `hasParseData`, `hasTranscriptionData`, `hasAssignmentData`: Flags return correct boolean based on internal state.
-        *   ⏳ `clearParseAndSubsequentData()`: Clears relevant fields (`_parseReceiptResult`, `_transcribeAudioResult`, `_assignPeopleToItemsResult`, `_people`) and calls `notifyListeners()`. Tip/Tax preservation should be noted/tested if that's desired behavior.
-        *   ⏳ `clearTranscriptionAndSubsequentData()`: Clears relevant fields (including assignments, people, tip, tax) and calls `notifyListeners()`.
-        *   ⏳ `clearAssignmentAndSubsequentData()`: Clears relevant fields (`_assignPeopleToItemsResult`, `_people`) and calls `notifyListeners()`.
+        *   ✅ `hasParseData`, `hasTranscriptionData`, `hasAssignmentData`: Flags return correct boolean based on internal state.
+        *   ✅ `clearParseAndSubsequentData()`: Clears relevant fields (`_parseReceiptResult`, `_transcribeAudioResult`, `_assignPeopleToItemsResult`, `_people`) and calls `notifyListeners()`. Tip/Tax preservation should be noted/tested if that's desired behavior.
+        *   ✅ `clearTranscriptionAndSubsequentData()`: Clears relevant fields (including assignments, people, tip, tax) and calls `notifyListeners()`.
+        *   ✅ `clearAssignmentAndSubsequentData()`: Clears relevant fields (`_assignPeopleToItemsResult`, `_people`) and calls `notifyListeners()`.
     *   **Mocks:** `MockImageStateManager` will be injected into `WorkflowState` for most tests to isolate `WorkflowState`'s logic. Direct testing of `WorkflowState` with a real `ImageStateManager` might be considered for specific integration-like unit tests if necessary, but the primary approach will use mocks for focused unit testing.
 
 *   **`ImageStateManager` (`lib/widgets/image_state_manager.dart`)**
     *   **Objective:** Verify correct management of image file, URIs, and pending deletion list.
     *   **Test Cases:**
-        *   ⏳ `initial state`: Verify all URI fields, `imageFile`, and `pendingDeletionGsUris` are default/empty.
-        *   ⏳ `setNewImageFile()`:
+        *   ✅ `initial state`: Verify all URI fields, `imageFile`, and `pendingDeletionGsUris` are default/empty.
+        *   ✅ `setNewImageFile()`:
             *   Sets `_imageFile`.
             *   Adds previous `_actualImageGsUri` and `_actualThumbnailGsUri` to `pendingDeletionGsUris` if they existed.
             *   Clears `_loadedImageUrl`, `_loadedThumbnailUrl`, `_actualImageGsUri`, `_actualThumbnailGsUri`.
             *   Calls `notifyListeners()`.
-        *   ⏳ `resetImageFile()`:
+        *   ✅ `resetImageFile()`:
             *   Adds current `_actualImageGsUri` and `_actualThumbnailGsUri` to `pendingDeletionGsUris` if they existed.
             *   Clears all image file and URI fields.
             *   Calls `notifyListeners()`.
-        *   ⏳ `setUploadedGsUris()`: Sets `_actualImageGsUri`, `_actualThumbnailGsUri`, and calls `notifyListeners()`.
-        *   ⏳ `setLoadedImageUrls()`: Sets `_loadedImageUrl`, `_loadedThumbnailUrl`, and calls `notifyListeners()`.
-        *   ⏳ `setActualGsUrisOnLoad()`: Sets `_actualImageGsUri`, `_actualThumbnailGsUri` (intended for loading drafts, doesn't add to pending), and calls `notifyListeners()`.
-        *   ⏳ `addUriToPendingDeletionsList()`: Adds URI if not null and not already present. Calls `notifyListeners()`.
-        *   ⏳ `removeUriFromPendingDeletionsList()`: Removes URI. Calls `notifyListeners()`.
-        *   ⏳ `clearPendingDeletionsList()`: Clears the list. Calls `notifyListeners()`.
+        *   ✅ `setUploadedGsUris()`: Sets `_actualImageGsUri`, `_actualThumbnailGsUri`, and calls `notifyListeners()`.
+        *   ✅ `setLoadedImageUrls()`: Sets `_loadedImageUrl`, `_loadedThumbnailUrl`, and calls `notifyListeners()`.
+        *   ✅ `setActualGsUrisOnLoad()`: Sets `_actualImageGsUri`, `_actualThumbnailGsUri` (intended for loading drafts, doesn't add to pending), and calls `notifyListeners()`.
+        *   ✅ `addUriToPendingDeletionsList()`: Adds URI if not null and not already present. Calls `notifyListeners()`.
+        *   ✅ `removeUriFromPendingDeletionsList()`: Removes URI. Calls `notifyListeners()`.
+        *   ✅ `clearPendingDeletionsList()`: Clears the list. Calls `notifyListeners()` (conditionally if list was not empty).
 
 *   **`Dialog Helpers` (`lib/utils/dialog_helpers.dart`)**
     *   **Objective:** While dialogs are UI, any internal logic could be unit tested. However, widget tests are generally more suitable here to verify appearance and interaction. Focus on non-UI logic if any exists.
@@ -103,6 +108,7 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
 
 *   **`WorkflowNavigationControls` (`lib/widgets/workflow_steps/workflow_navigation_controls.dart`)**
     *   **Objective:** Verify buttons render correctly, are enabled/disabled based on `WorkflowState`, and trigger appropriate callbacks.
+    *   **KT for Devs (Robust Finders):** Using `ValueKey` for each interactive element (buttons) in this widget and `find.byKey()` in tests proved to be a very stable approach, resilient to UI structural changes that do not alter the keyed element itself. This is highly recommended for other widget tests.
     *   **Dependencies:** Mock `WorkflowState`.
     *   **Test Cases:**
         *   ✅ `Back button`:
@@ -263,3 +269,10 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
 ---
 
 This is a starting point. We can refine and add more details as we begin implementing the tests.
+
+*   **Key Takeaways & Best Practices for Testing:**
+    *   **Use `ValueKey`s for Widget Tests:** For critical UI elements like buttons or input fields that need to be found in widget tests, assign a `ValueKey` in the widget's implementation (e.g., `TextButton(key: const ValueKey('my_button'), ...)`). In tests, use `find.byKey(const ValueKey('my_button'))`. This makes tests far more resilient to changes in widget tree structure or styling compared to `find.text()`, `find.byIcon()`, or complex `find.ancestor()` chains.
+    *   **Isolate Unit Tests with Mocks:** When unit testing state management classes (like `WorkflowState`), inject mock dependencies (like `MockImageStateManager`) to ensure tests are focused and not affected by the internal logic of other classes.
+    *   **Test `notifyListeners()` Behavior:** For classes extending `ChangeNotifier`, explicitly test that `notifyListeners()` is called when expected, and *not* called when state changes do not warrant a notification. Use a boolean flag and a listener in your test setup for this.
+    *   **Verify All Paths in Conditional Logic:** Ensure tests cover all branches of `if/else` statements or `switch` cases, especially for logic that enables/disables UI elements or alters data flow.
+    *   **`pumpAndSettle()` is Your Friend:** After triggering actions in widget tests that might involve animations or multiple frames to resolve (like `tester.tap()`, or state changes that rebuild UI), use `await tester.pumpAndSettle()` to ensure the UI has reached a stable state before making assertions. Use `await tester.pump()` for single frame advances if needed, but `pumpAndSettle()` is often more reliable for complex interactions.

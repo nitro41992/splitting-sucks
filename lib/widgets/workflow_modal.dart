@@ -981,8 +981,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
               child: _buildStepContent(workflowState.currentStep),
             ),
             
-            WorkflowNavigationControls( // REPLACED CALL
-              currentStep: workflowState.currentStep,
+            WorkflowNavigationControls(
               onExitAction: _handleNavigationExitAction,
               onSaveDraftAction: _handleNavigationSaveDraftAction,
               onCompleteAction: _handleNavigationCompleteAction,

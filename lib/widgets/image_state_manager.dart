@@ -103,9 +103,13 @@ class ImageStateManager extends ChangeNotifier {
 
   // Methods to manage the pending deletion list directly (could be made private or more controlled)
   void clearPendingDeletionsList() {
-    _pendingDeletionGsUris.clear();
-    debugPrint('[ImageStateManager] Cleared all pending deletions.');
-    // notifyListeners(); // Usually not needed for observers of WorkflowState unless this direct call is exposed
+    if (_pendingDeletionGsUris.isNotEmpty) {
+      _pendingDeletionGsUris.clear();
+      debugPrint('[ImageStateManager] Cleared all pending deletions.');
+      notifyListeners(); 
+    } else {
+      debugPrint('[ImageStateManager] clearPendingDeletionsList called on already empty list.');
+    }
   }
 
   void removeUriFromPendingDeletionsList(String? uri) {
@@ -113,7 +117,7 @@ class ImageStateManager extends ChangeNotifier {
       final removed = _pendingDeletionGsUris.remove(uri);
       if (removed) {
         debugPrint('[ImageStateManager] Removed URI from pending deletions: $uri. Remaining: $_pendingDeletionGsUris');
-        // notifyListeners();
+        notifyListeners();
       }
     }
   }
@@ -122,7 +126,7 @@ class ImageStateManager extends ChangeNotifier {
     if (uri != null && uri.isNotEmpty && !_pendingDeletionGsUris.contains(uri)) {
         _pendingDeletionGsUris.add(uri);
         debugPrint('[ImageStateManager] Added URI to pending deletions: $uri. Current list: $_pendingDeletionGsUris');
-        // notifyListeners();
+        notifyListeners();
     }
   }
 } 

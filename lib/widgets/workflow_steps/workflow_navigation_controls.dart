@@ -2,15 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/workflow_state.dart'; // Added import
 
+// Define Keys for testing
+const Key backButtonKey = ValueKey('workflow_back_button');
+const Key exitButtonKey = ValueKey('workflow_exit_button');
+const Key saveDraftButtonKey = ValueKey('workflow_save_draft_button');
+const Key nextButtonKey = ValueKey('workflow_next_button');
+const Key completeButtonKey = ValueKey('workflow_complete_button');
+
 class WorkflowNavigationControls extends StatelessWidget {
-  final int currentStep; // Passed to simplify logic, though also in WorkflowState
+  // final int currentStep; // REMOVE: Get from WorkflowState via Consumer
   final Future<void> Function() onExitAction;
   final Future<void> Function() onSaveDraftAction;
   final Future<void> Function() onCompleteAction;
 
   const WorkflowNavigationControls({
     Key? key,
-    required this.currentStep,
+    // required this.currentStep, // REMOVE
     required this.onExitAction,
     required this.onSaveDraftAction,
     required this.onCompleteAction,
@@ -22,6 +29,8 @@ class WorkflowNavigationControls extends StatelessWidget {
     // buttons and for simple actions like nextStep/previousStep.
     return Consumer<WorkflowState>(
       builder: (context, workflowState, child) {
+        final currentStep = workflowState.currentStep; // USE currentStep from WorkflowState
+
         bool isNextEnabled = true;
         if (currentStep == 0 && !workflowState.hasParseData) {
           isNextEnabled = false;
@@ -50,7 +59,8 @@ class WorkflowNavigationControls extends StatelessWidget {
             children: [
               // Back button
               TextButton.icon(
-                onPressed: currentStep > 0
+                key: backButtonKey,
+                onPressed: currentStep > 0 // Use local currentStep
                     ? () => workflowState.previousStep()
                     : null,
                 icon: const Icon(Icons.arrow_back),
@@ -58,19 +68,22 @@ class WorkflowNavigationControls extends StatelessWidget {
               ),
 
               // Middle button - Exit for steps 0-3, Save Draft for step 4 (Summary)
-              currentStep < 4
+              currentStep < 4 // Use local currentStep
                   ? OutlinedButton(
+                      key: exitButtonKey,
                       onPressed: onExitAction,
                       child: const Text('Exit'),
                     )
                   : OutlinedButton(
+                      key: saveDraftButtonKey,
                       onPressed: onSaveDraftAction,
                       child: const Text('Save Draft'),
                     ),
 
               // Next/Complete button
-              if (currentStep < 4) ...[
+              if (currentStep < 4) ...[ // Use local currentStep
                 FilledButton.icon(
+                  key: nextButtonKey,
                   onPressed: isNextEnabled
                       ? () => workflowState.nextStep()
                       : null,
@@ -79,6 +92,7 @@ class WorkflowNavigationControls extends StatelessWidget {
                 ),
               ] else ...[
                 FilledButton.icon(
+                  key: completeButtonKey,
                   onPressed: onCompleteAction, // Directly use the passed callback
                   label: const Text('Complete'),
                   icon: const Icon(Icons.check),
