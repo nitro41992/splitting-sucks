@@ -1,3 +1,4 @@
+import 'dart:io'; // Import dart:io for File
 import 'package:mockito/annotations.dart';
 import 'package:billfie/widgets/image_state_manager.dart'; // Path to the class to be mocked
 
@@ -7,6 +8,7 @@ import 'package:billfie/widgets/image_state_manager.dart'; // Path to the class 
 
 @GenerateMocks([
   ImageStateManager, // Class to be mocked
+  File, // Add File to the list of mocks
   // Add other class names here if they need to be mocked, e.g.:
   // SomeService,
 ])
