@@ -169,7 +169,7 @@ Understanding this structure helps in locating files and understanding module re
 *   **Code Clarity:** 🏗️
     *   **Objective:** Make the code easier to understand and maintain.
     *   **Actions:**
-        *   `Move WorkflowState ChangeNotifier into its own file (e.g., lib/providers/workflow_state.dart) to improve separation of concerns.` 📝
+        *   `Move WorkflowState ChangeNotifier into its own file (e.g., lib/providers/workflow_state.dart) to improve separation of concerns.` ✅ (Done. Moved to `lib/providers/workflow_state.dart`. Imports updated.)
         *   `Extract pure utility functions like _convertToReceiptItems from _WorkflowModalBodyState into appropriate utility files (e.g., lib/utils/receipt_utils.dart).` 📝
         *   `Extract generic UI building helpers like _buildPlaceholder into shared widget files (e.g., lib/widgets/shared/placeholder_widget.dart).` 📝
         *   Remove obvious comments (e.g., `// Getter for people`). 🏗️

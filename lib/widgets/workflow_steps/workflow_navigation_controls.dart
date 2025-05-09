@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../workflow_modal.dart'; // For WorkflowState
+import '../../providers/workflow_state.dart'; // Added import
 
 class WorkflowNavigationControls extends StatelessWidget {
   final int currentStep; // Passed to simplify logic, though also in WorkflowState

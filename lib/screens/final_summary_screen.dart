@@ -11,6 +11,8 @@ import '../widgets/final_summary/person_summary_card.dart'; // Import the new ca
 import '../utils/platform_config.dart'; // Import platform config
 import '../utils/toast_helper.dart'; // Import toast helper
 import '../widgets/workflow_modal.dart'; // Import WorkflowState
+import '../../providers/workflow_state.dart'; // Added import
+import '../../models/receipt.dart';
 
 class FinalSummaryScreen extends StatefulWidget {
   const FinalSummaryScreen({
