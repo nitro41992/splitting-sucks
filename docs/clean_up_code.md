@@ -122,6 +122,14 @@ This document outlines a plan to address technical debt, remove redundant code, 
     *   **Actions:**
         *   Review all `try-catch` blocks. Ensure errors are caught appropriately and meaningful messages are shown to the user (e.g., via `SnackBar` or updates to `_errorMessage` in `WorkflowState`). 🏗️
         *   Verify that loading states in `WorkflowState` are correctly set and unset around asynchronous operations. 🏗️
+*   **Standardize User Notifications (SnackBars/Toasts):** 📝
+    *   **Objective:** Ensure consistent style, positioning, and color-coding for transient notifications.
+    *   **Actions:**
+        *   `Review all usages of ScaffoldMessenger.showSnackBar (or other toast mechanisms).` 📝
+        *   `Create a centralized ToastHelper (or similar utility) to display notifications.` 📝
+        *   `Ensure toasts appear at the top of the screen (or chosen consistent position).` 📝
+        *   `Implement consistent color scheme: green for success, gold/yellow for warnings, red for errors.` 📝
+        *   `Refactor existing code to use the new ToastHelper.` 📝
 
 ##### 1.6. Specific Areas of Attention from `implementation_plan.md` 🏗️
 
