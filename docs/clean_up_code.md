@@ -137,6 +137,21 @@ This document outlines a plan to address technical debt, remove redundant code, 
 *   **Blurry Thumbnail / Full Image Load:** While debugging prints were added, ensure the refactored image handling logic in `ReceiptUploadScreen` (once broken out) and `WorkflowState` clearly manages the transition from thumbnail to full image, especially on draft resume and navigation. 🏗️
 *   **Context Safety (`mounted` checks):** Continue to ensure `mounted` checks are used correctly, especially around `async` operations that interact with `BuildContext` or `setState`. 🏗️
 
+##### 1.7. Application Stability and Resilience 🏗️
+
+*   **Objective:** Enhance the application's robustness against unexpected interruptions, network instability, and lifecycle changes.
+*   **Actions:**
+    *   **Safe Navigator Usage:** 🏗️
+        *   `Ensure Navigator.pop() calls are conditional on the success of preceding asynchronous operations when appropriate (e.g., after saving a draft).` ✅ (Partially addressed for "Save Draft" button in `workflow_modal.dart`)
+        *   `Investigate and implement mechanisms (e.g., an _isPopping flag or similar state management) to prevent re-entrant or conflicting calls to Navigator.pop(), especially after lifecycle events (app pause/resume) or network recovery.` 📝
+        *   `Review all asynchronous operations that might lead to navigation changes or UI updates (like showing SnackBars) to ensure they handle mounted checks correctly and manage context safely, particularly in error paths.` 📝
+    *   **Lifecycle Event Handling:** 🏗️
+        *   `Review didChangeAppLifecycleState and other lifecycle-dependent logic (e.g., _onWillPop) to ensure they gracefully handle scenarios like network loss during background operations (e.g., draft saving).` 📝
+        *   `Minimize complex operations directly within lifecycle methods; delegate to services or orchestrators that can manage their own state and error handling robustly.` 📝
+    *   **Network Error Handling:** 🏗️
+        *   `Globally review how network errors (especially from Firestore, Storage, Cloud Functions) are caught and presented to the user. Ensure they don't lead to inconsistent states or crashes.` 📝
+        *   `Implement strategies for graceful degradation or retry mechanisms where appropriate when network connectivity is temporarily lost and then regained.` 📝
+
 ---
 
 #### Phase 2: General Application Refactoring 📝

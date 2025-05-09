@@ -1236,8 +1236,16 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 )
               : OutlinedButton(
                   onPressed: () async {
-                    await _saveDraft();
-                    if (mounted) {
+                    bool saveSuccess = false;
+                    try {
+                      await _saveDraft();
+                      saveSuccess = true;
+                    } catch (e) {
+                      // _saveDraft already handles logging and showing a SnackBar
+                      // for the error.
+                      saveSuccess = false;
+                    }
+                    if (saveSuccess && mounted) {
                       Navigator.of(context).pop(true);
                     }
                   },
