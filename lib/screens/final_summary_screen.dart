@@ -317,13 +317,25 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
     // Verification calculation
     double sumOfIndividualTotals = 0.0;
     for (var person in people) {
-      final double personSubtotal = person.totalAssignedAmount +
-          splitManager.sharedItems.where((item) =>
-            person.sharedItems.contains(item)).fold(0.0,
-            (sum, item) {
-              final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
-              return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
-            });
+      // DEBUG START
+      double sharedAmountForPerson = splitManager.sharedItems.where((item) =>
+        person.sharedItems.contains(item)).fold(0.0,
+        (sum, item) {
+          final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
+          // Ensure quantity is not zero to avoid division by zero if item.price is also zero.
+          // Though typically price or quantity would be non-zero for an item to exist.
+          return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
+        });
+      // END DEBUG
+
+      final double personSubtotal = person.totalAssignedAmount + sharedAmountForPerson;
+
+      // DEBUG PRINT
+      // Convert person.sharedItems to a list of names for cleaner logging, if ReceiptItem has a 'name' property
+      // Assuming ReceiptItem has a .name property. If not, adjust to item.toString() or similar.
+      final List<String> personSharedItemNames = person.sharedItems.map((item) => item.name ?? 'Unknown Item').toList();
+      debugPrint('[FinalSummaryScreen WARN_CALC] Person: ${person.name}, Assigned: ${person.totalAssignedAmount}, SharedCalc: $sharedAmountForPerson, PersonSubtotalForWarning: $personSubtotal, PersonSharedItems: $personSharedItemNames');
+
       final double personTax = personSubtotal * taxRate;
       final double personTip = personSubtotal * tipRate;
       sumOfIndividualTotals += personSubtotal + personTax + personTip;
@@ -334,7 +346,12 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
       final double unassignedTax = unassignedSubtotal * taxRate;
       final double unassignedTip = unassignedSubtotal * tipRate;
       sumOfIndividualTotals += unassignedSubtotal + unassignedTax + unassignedTip;
+      // DEBUG PRINT for unassigned
+      debugPrint('[FinalSummaryScreen WARN_CALC] Unassigned Subtotal: $unassignedSubtotal, Unassigned Tax: $unassignedTax, Unassigned Tip: $unassignedTip, Added to sumOfIndividualTotals');
     }
+    // DEBUG PRINT
+    debugPrint('[FinalSummaryScreen WARN_CALC] Final sumOfIndividualTotals for warning: $sumOfIndividualTotals, Overall Total: $total');
+
     // Allow for small floating point inaccuracies
     final bool totalsMatch = (total - sumOfIndividualTotals).abs() < 0.01;
 

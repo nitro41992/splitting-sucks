@@ -1594,6 +1594,22 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> {
                   // unless `SplitManager` constructor or other methods handle it.
                   // This might be a separate area to ensure consistency if `PersonCard` relies on `person.sharedItems`.
                   // For `summaryManager.totalAmount`, this direct population of `sharedItemsForManager` is correct.
+                  // --- START ADDED LOGIC TO LINK SHARED ITEMS TO PEOPLE ---
+                  if (itemData.containsKey('people') && itemData['people'] is List) {
+                    final List<String> personNamesSharingThisItem = (itemData['people'] as List).cast<String>();
+                    for (final personName in personNamesSharingThisItem) {
+                      final person = peopleForManager.firstWhereOrNull((p) => p.name == personName);
+                      if (person != null) {
+                        // Ensure the person doesn't already have this exact item instance in their shared list
+                        // This check might need to be more robust based on ReceiptItem's equality
+                        if (!person.sharedItems.any((si) => si.name == sharedItem.name && si.price == sharedItem.price && si.quantity == sharedItem.quantity)) {
+                           person.addSharedItem(sharedItem); // Use the instance from sharedItemsForManager if appropriate, or a new one.
+                                                           // For now, assuming ReceiptItem.fromJson creates a suitable instance.
+                        }
+                      }
+                    }
+                  }
+                  // --- END ADDED LOGIC ---
                 }
               }
             }

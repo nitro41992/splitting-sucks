@@ -23,95 +23,71 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 // Flag to track if Firebase initialized successfully
 bool firebaseInitialized = false;
 
-void main() async {
+// Global navigator key
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load environment variables
-  await dotenv.load(fileName: '.env');
-  
-  // Initialize Firebase
+  // Load .env file
   try {
-    if (Firebase.apps.isEmpty) {
-      debugPrint("Attempting Firebase.initializeApp as Firebase.apps is empty...");
-      await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform, // Ensure options are passed
-      );
-      debugPrint("Firebase.initializeApp completed successfully.");
-    } else {
-      debugPrint("Firebase.apps was not empty. Using existing [DEFAULT] app.");
-      // Get the existing app instance
-      Firebase.app();
-    }
-
-    // ACTIVATE APP CHECK *AFTER* Firebase.initializeApp
-    // Use Play Integrity for release, Debug for debug
-    // Note: For web, you'd use webProvider: ReCaptchaV3Provider('YOUR_RECAPTCHA_SITE_KEY')
-    // Note: For Apple, you'd use appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.appAttest,
-    await FirebaseAppCheck.instance.activate(
-      androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
-    );
-    debugPrint("Firebase App Check activated.");
-
-    firebaseInitialized = true; // Set success flag after both init and app check succeed
-
-    // Check if using emulator and CONFIGURE services if so
-    final bool useEmulator = dotenv.env['USE_FIRESTORE_EMULATOR'] == 'true';
-    if (useEmulator) {
-      try {
-        debugPrint('🔧 Configuring Firebase services for EMULATOR mode...');
-        
-        const localDevIp = '192.168.0.152'; // Your actual Wi-Fi IP
-
-        // Configure Auth Emulator
-        await FirebaseAuth.instance.useAuthEmulator(localDevIp, 9099);
-        debugPrint('  - Auth Emulator configured for $localDevIp:9099');
-        
-        // Configure Firestore Emulator
-        FirebaseFirestore.instance.useFirestoreEmulator(localDevIp, 8081);
-        debugPrint('  - Firestore Emulator configured for $localDevIp:8081');
-
-        // Configure Storage Emulator
-        await FirebaseStorage.instance.useStorageEmulator(localDevIp, 9199);
-        debugPrint('  - Storage Emulator configured for $localDevIp:9199');
-        
-        // Configure Functions Emulator
-        FirebaseFunctions.instance.useFunctionsEmulator(localDevIp, 5001);
-        debugPrint('  - Functions Emulator configured for $localDevIp:5001');
-
-        // Auto sign-in should use the service provided later by AppWithProviders
-        // Do NOT create a separate instance here.
-        // debugPrint('  - Calling autoSignInForEmulator...');
-        // final authService = AuthService(); // REMOVE THIS INSTANCE
-        // await authService.autoSignInForEmulator(); // REMOVE THIS CALL
-        // debugPrint('  - autoSignInForEmulator call finished.');
-        debugPrint('  - Emulator configuration complete. Auto sign-in will be attempted by AuthService provider.');
-
-      } catch (e) {
-        debugPrint("Error configuring Firebase Emulators: $e");
-        // Decide how to handle emulator config failure - maybe prevent app start?
-        firebaseInitialized = false; // Mark as failed if emulator setup fails
-      }
-    }
+    await dotenv.load(fileName: ".env");
+    debugPrint(".env file loaded successfully.");
   } catch (e) {
-    // Add special handling for duplicate app error
-    if (e.toString().contains('core/duplicate-app')) {
-      debugPrint("Handling duplicate app error gracefully...");
-      try {
-        // Get the existing app instance
-        Firebase.app();
-        firebaseInitialized = true;
-        debugPrint("Successfully recovered using existing Firebase app.");
-      } catch (innerError) {
-        debugPrint("CRITICAL: Could not recover from Firebase init error: $innerError");
-        firebaseInitialized = false;
+    debugPrint("Error loading .env file: $e (THIS IS NORMAL if running in prod or .env doesn't exist)");
+  }
+
+  try {
+    // Initialize Firebase
+    debugPrint("Attempting Firebase.initializeApp...");
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint("Firebase.initializeApp completed.");
+
+    // Set Firebase Auth persistence
+    // IMPORTANT: Only set persistence if NOT on Web AND using Android/iOS.
+    //            For Web, it's set by default or handled differently.
+    //            Avoid setting persistence on unsupported platforms.
+    if (!kIsWeb) {
+      if (Platform.isAndroid || Platform.isIOS) {
+        try {
+          await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+          debugPrint("FirebaseAuth persistence set to LOCAL for mobile.");
+        } catch (e) {
+          debugPrint("Error setting FirebaseAuth persistence on mobile (might be okay if already set or not critical): $e");
+        }
       }
-    } else {
-      debugPrint("CRITICAL Error during Firebase setup in main(): $e");
-      if (e.toString().contains("[core/duplicate-app]")) {
-          debugPrint("ERROR DETAILS: Received [core/duplicate-app] despite Firebase.apps.isEmpty check or during re-initialization attempt.");
-      }
-      firebaseInitialized = false;
+    } else { // Web
+        try {
+            await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+            debugPrint("Firebase Auth persistence set to LOCAL for Web (explicit).");
+        } catch (e) {
+            debugPrint("Error setting FirebaseAuth persistence on web: $e");
+        }
     }
+    
+    // Activate Firebase App Check
+    // TODO: Ensure your App Check providers (Play Integrity/Device Check/App Attest) are configured
+    // in your Firebase project console.
+    try {
+      await FirebaseAppCheck.instance.activate(
+        // You must provide a webRecaptchaSiteKey for web builds.
+        // Default is `androidDebugProvider: true` for Android debug builds.
+        // Default is `appleDebugProvider: true` for Apple debug builds.
+        webProvider: ReCaptchaV3Provider('YOUR_RECAPTCHA_V3_SITE_KEY'), // REPLACE with your actual key if targeting web
+        androidProvider: AndroidProvider.debug, // Or AndroidProvider.playIntegrity for release
+        appleProvider: AppleProvider.debug, // Or AppleProvider.appAttest for release
+      );
+      debugPrint("Firebase App Check activated.");
+    } catch (e) {
+      debugPrint("Error activating Firebase App Check: $e. Ensure providers are configured and keys are correct.");
+    }
+    
+    firebaseInitialized = true;
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+    firebaseInitialized = false; // Ensure this is set on error
   }
   
   runApp(const AppWithProviders());
@@ -122,48 +98,39 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // AuthService is now provided by AppWithProviders
-    // final authService = AuthService(); // REMOVE THIS LINE
+    // This widget now just decides between LoginScreen and MainNavigation
+    // It no longer returns a MaterialApp.
+    if (!firebaseInitialized) {
+      return const Scaffold(body: Center(child: Text("Failed to initialize Firebase")));
+    }
 
-    return MaterialApp(
-      title: 'Billfie',
-      theme: AppTheme.lightTheme,
-      debugShowCheckedModeBanner: false,
-      home: !firebaseInitialized 
-        ? const Scaffold(body: Center(child: Text("Failed to initialize Firebase")))
-        : StreamBuilder<User?>(
-            // Use the stream from the provided AuthService
-            stream: context.read<AuthService>().authStateChanges, // Use context.read
-            builder: (context, snapshot) {
-              debugPrint('[MyApp StreamBuilder] ConnectionState: ${snapshot.connectionState}');
-              debugPrint('[MyApp StreamBuilder] HasData: ${snapshot.hasData}');
-              debugPrint('[MyApp StreamBuilder] Data: ${snapshot.data}');
-              debugPrint('[MyApp StreamBuilder] HasError: ${snapshot.hasError}');
-              debugPrint('[MyApp StreamBuilder] Error: ${snapshot.error}');
+    return StreamBuilder<User?>(
+      stream: context.watch<AuthService>().authStateChanges, // Use context.watch if directly under Provider
+      builder: (context, snapshot) {
+        // ... (existing debug prints for snapshot state)
+        debugPrint('[MyApp StreamBuilder] ConnectionState: ${snapshot.connectionState}');
+        debugPrint('[MyApp StreamBuilder] HasData: ${snapshot.hasData}');
+        debugPrint('[MyApp StreamBuilder] Data: ${snapshot.data}');
+        debugPrint('[MyApp StreamBuilder] HasError: ${snapshot.hasError}');
+        debugPrint('[MyApp StreamBuilder] Error: ${snapshot.error}');
 
-              // Show spinner while waiting for the stream's initial value
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  backgroundColor: Colors.blue, // Distinct color
-                  body: Center(
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), Text('Waiting for Auth...')]),
-                  ),
-                );
-              }
-              
-              // If the stream has emitted a user object, show the main app
-              if (snapshot.hasData) {
-                debugPrint('[MyApp StreamBuilder] User detected, returning MainNavigation');
-                // User is logged in (or emulator auto-sign-in worked)
-                return const MainNavigation(); // Restore original
-              }
-              
-              // If no user data, show the LoginScreen
-              debugPrint('[MyApp StreamBuilder] No user detected, returning LoginScreen');
-              return const LoginScreen(); // Restore original
-            },
-          ),
-      routes: Routes.getRoutes(),
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Colors.blue, // Distinct color
+            body: Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), Text('Waiting for Auth...')]),
+            ),
+          );
+        }
+        
+        if (snapshot.hasData) {
+          debugPrint('[MyApp StreamBuilder] User detected, returning MainNavigation');
+          return const MainNavigation();
+        }
+        
+        debugPrint('[MyApp StreamBuilder] No user detected, returning LoginScreen');
+        return const LoginScreen();
+      },
     );
   }
 }
@@ -335,8 +302,7 @@ class AppWithProviders extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    // Always use real data
-    const useMockData = false;
+    const useMockData = false; // Keep this if needed for testing
     
     return MultiProvider(
       providers: [
@@ -349,21 +315,26 @@ class AppWithProviders extends StatelessWidget {
           create: (_) => AuthService(),
           dispose: (_, service) => service.dispose(),
         ),
-        StreamProvider<User?>(
-          create: (context) => context.read<AuthService>().authStateChanges,
-          initialData: null,
-          catchError: (_, error) {
-            debugPrint("Error in authStateChanges stream: $error");
-            return null;
-          },
-        ),
+        // StreamProvider for User? is no longer strictly necessary here if MyApp uses context.watch
+        // However, if other parts of the app might need to Provider.of<User?>(context), it can be kept.
+        // For this specific refactor, let's assume MyApp's context.watch is sufficient.
+        // If keeping, ensure it uses context.read for create:
+        // StreamProvider<User?>(
+        //   create: (context) => context.read<AuthService>().authStateChanges,
+        //   initialData: FirebaseAuth.instance.currentUser, // More robust initialData
+        //   catchError: (_, error) {
+        //     debugPrint("Error in authStateChanges stream: $error");
+        //     return null;
+        //   },
+        // ),
       ],
-      child: MaterialApp(
+      child: MaterialApp( // This is now the SINGLE, ROOT MaterialApp
+        navigatorKey: navigatorKey, // Assign the global navigator key
         title: 'Billfie',
         theme: AppTheme.lightTheme,
         routes: Routes.getRoutes(),
-        home: const MyApp(), // Set MyApp as the home widget
-        debugShowCheckedModeBanner: false, // Moved here
+        home: const MyApp(), // MyApp now just returns the content based on auth state
+        debugShowCheckedModeBanner: false,
       ),
     );
   }

@@ -58,6 +58,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
 
   @override
   void dispose() {
+    debugPrint('[_ReceiptsScreenState] dispose() called.');
     _searchController.dispose();
     // _scrollController.removeListener(_onScroll); // REMOVE
     // _scrollController.dispose(); // REMOVE
@@ -196,7 +197,11 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     label: const Text('Resume Draft'),
                     onPressed: () async {
                       Navigator.pop(context); // Close the bottom sheet
-                      if (!mounted) return;
+                      debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for RESUME draft: ${receipt.id}');
+                      if (!mounted) {
+                        debugPrint('[_ReceiptsScreenState] NOT MOUNTED before showing WorkflowModal for RESUME draft: ${receipt.id}');
+                        return;
+                      }
                       final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
                       if (result == true && mounted) {
                         // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
@@ -216,7 +221,11 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     label: const Text('Edit Receipt'),
                     onPressed: () async {
                       Navigator.pop(context); // Close the bottom sheet
-                      if (!mounted) return;
+                      debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for EDIT receipt: ${receipt.id}');
+                      if (!mounted) {
+                        debugPrint('[_ReceiptsScreenState] NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
+                        return;
+                      }
                       final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
                       if (result == true && mounted) {
                         // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
@@ -454,6 +463,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    debugPrint('[_ReceiptsScreenState] build() called.');
     return Scaffold(
       appBar: AppBar(
         title: const Text('Receipts'),
@@ -475,6 +485,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
       body: StreamBuilder<List<Receipt>>( // MODIFIED: StreamBuilder now expects List<Receipt>
         stream: _processedReceiptsStream, // MODIFIED: Use the new processed stream
         builder: (BuildContext context, AsyncSnapshot<List<Receipt>> snapshot) { // MODIFIED: Snapshot type
+          debugPrint('[_ReceiptsScreenState StreamBuilder] builder called. ConnectionState: ${snapshot.connectionState}, HasData: ${snapshot.hasData}, HasError: ${snapshot.hasError}'); // ADDED
           if (snapshot.hasError) {
             return Center(
               child: Column(

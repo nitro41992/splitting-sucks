@@ -13,10 +13,13 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
   
-  static final List<Widget> _screens = [
-    const ReceiptsScreen(),
-    const SettingsScreen(), // Placeholder for settings screen
-  ];
+  // Define pages directly if they are simple, or keep them in a list
+  // if they need more complex instantiation or keys.
+  // For IndexedStack, it's common to build them directly in the stack.
+  // final List<Widget> _screens = [
+  //   const ReceiptsScreen(), 
+  //   const SettingsScreen(),
+  // ];
   
   void _onItemTapped(int index) {
     setState(() {
@@ -27,7 +30,14 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_selectedIndex],
+      // body: _screens[_selectedIndex], // OLD WAY
+      body: IndexedStack( // NEW WAY
+        index: _selectedIndex,
+        children: const <Widget>[
+          ReceiptsScreen(), // Instantiate here
+          SettingsScreen(), // Instantiate here
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(

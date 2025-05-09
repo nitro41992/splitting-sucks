@@ -147,10 +147,13 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
     } else if (hasNetworkImage) {
       heroTag = 'receipt_image_${widget.imageUrl}';
       imagePreviewWidget = CachedNetworkImage(
+        key: ValueKey('main_image_${widget.imageUrl}'),
         imageUrl: widget.imageUrl!,
         fit: BoxFit.cover,
-        placeholder: (context, url) {
-          debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] Placeholder for ${widget.imageUrl}. Thumbnail available: $hasNetworkThumbnail');
+        fadeInDuration: Duration.zero,
+        fadeOutDuration: Duration.zero,
+        progressIndicatorBuilder: (context, url, downloadProgress) {
+          debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] ProgressIndicator for ${widget.imageUrl}. Progress: ${downloadProgress.progress}');
           if (hasNetworkThumbnail) {
             return Stack(
               fit: StackFit.expand,
@@ -159,23 +162,46 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                 // Thumbnail as background
                 CachedNetworkImage(
                   imageUrl: widget.loadedThumbnailUrl!,
-                  fit: BoxFit.cover, // MODIFIED: Was BoxFit.contain, now BoxFit.cover for consistency
+                  fit: BoxFit.cover,
                   errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                  // Optional: Simple placeholder for the thumbnail itself if it's slow for some reason
-                  // placeholder: (context, url) => Container(color: Colors.grey[300]), 
                 ),
-                // Spinner on top
-                const Center(child: CircularProgressIndicator()),
+                // Spinner on top, potentially showing progress
+                Center(
+                  child: CircularProgressIndicator(
+                    value: downloadProgress.progress, // This will show actual progress if available
+                    backgroundColor: Colors.black.withOpacity(0.2),
+                    color: colorScheme.onPrimary, // Ensure spinner is visible on thumbnail
+                  ),
+                ),
               ],
             );
           } else {
-            // Fallback if no thumbnail, just a spinner
-            return const Center(child: CircularProgressIndicator());
+            // Fallback if no thumbnail, just a spinner showing progress
+            return Center(
+              child: CircularProgressIndicator(
+                value: downloadProgress.progress,
+                backgroundColor: Colors.black.withOpacity(0.2),
+              ),
+            );
           }
         },
         errorWidget: (context, url, error) {
-          debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] Error for ${widget.imageUrl}: $error');
-          return _buildImageErrorPlaceholder(context, 'Saved image could not be loaded');
+          debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] ERROR WIDGET BUILT for ${widget.imageUrl}. Error: $error');
+          return Container(
+            color: Colors.red.withOpacity(0.3), // Make it visually obvious
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 8),
+                Text(
+                  'Main image failed to load.\nURL: ${widget.imageUrl}\nError: $error',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red, fontSize: 10),
+                ),
+              ],
+            ),
+          );
         },
       );
     } else if (hasNetworkThumbnail) {
