@@ -24,6 +24,10 @@ import './workflow_steps/review_step_widget.dart'; // Import ReviewStepWidget
 import './workflow_steps/assign_step_widget.dart'; // Import AssignStepWidget
 import './workflow_steps/split_step_widget.dart'; // Import SplitStepWidget
 import './workflow_steps/summary_step_widget.dart'; // Import SummaryStepWidget
+import '../utils/dialog_helpers.dart'; // Added import
+import './workflow_steps/workflow_step_indicator.dart'; // Import new widget
+import './workflow_steps/workflow_navigation_controls.dart'; // Import new widget
+import '../utils/toast_utils.dart'; // Import the new toast utility
 
 // --- Moved Typedef to top level --- 
 // Callback type for ReceiptReviewScreen to provide its current items
@@ -333,66 +337,6 @@ class WorkflowState extends ChangeNotifier {
   // --- END EDIT ---
 }
 
-/// Dialog to prompt for restaurant name
-Future<String?> showRestaurantNameDialog(BuildContext context, {String? initialName}) async {
-  // Add mounted check before attempting to show a dialog
-  if (!context.mounted) {
-    debugPrint("[showRestaurantNameDialog] Error: Context is not mounted before showing dialog.");
-    return null;
-  }
-  final TextEditingController controller = TextEditingController(text: initialName);
-  
-  return showDialog<String>(
-    context: context,
-    barrierDismissible: false, // User must respond to dialog
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: const Text('Restaurant Name'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Enter the name of the restaurant or store:'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Restaurant Name',
-                hintText: 'e.g., Joe\'s Diner',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(null), // Cancel
-            child: const Text('CANCEL'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final name = controller.text.trim();
-              if (name.isEmpty) {
-                // Show error if empty
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Restaurant name is required'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              } else {
-                Navigator.of(context).pop(name);
-              }
-            },
-            child: const Text('CONTINUE'),
-          ),
-        ],
-      );
-    },
-  );
-}
-
 /// Main workflow modal widget
 class WorkflowModal extends StatelessWidget {
   final String? receiptId; // If null, this is a new receipt
@@ -438,14 +382,14 @@ class WorkflowModal extends StatelessWidget {
         } else {
           debugPrint("[WorkflowModal.show] Receipt with ID $receiptId not found.");
           if (context.mounted) {
-             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Draft receipt not found."), backgroundColor: Colors.orange));
+             showAppToast(context, "Draft receipt not found.", AppToastType.warning);
           }
           return null; // Don't proceed if receipt not found
         }
       } catch (e) {
         debugPrint("[WorkflowModal.show] Error fetching receipt details for modal: $e");
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error loading draft: ${e.toString()}"), backgroundColor: Colors.red));
+          showAppToast(context, "Error loading draft: ${e.toString()}", AppToastType.error);
         }
         return null; // Don't proceed on error
       }
@@ -578,30 +522,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     }
   }
   
-  // --- EDIT: Add helper for confirmation dialog ---
-  Future<bool> _showConfirmationDialog(String title, String content) async {
-    if (!mounted) return false;
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false), // Cancel
-            child: const Text('CANCEL'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true), // Confirm
-            child: const Text('CONFIRM'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
-  }
-  // --- END EDIT ---
-  
   // Load receipt data from Firestore
   Future<void> _loadReceiptData(String receiptId) async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
@@ -730,18 +650,13 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       workflowState.setErrorMessage('Failed to load receipt: $e');
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load receipt: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showAppToast(context, "Failed to load receipt: $e", AppToastType.error);
       }
     }
   }
   
   // Show dialog when back button is pressed or Save & Exit is tapped
-  Future<bool> _onWillPop() async {
+  Future<bool> _onWillPop({BuildContext? dialogContext}) async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     
     // If we're on the first step and nothing has been uploaded or parsed, just exit
@@ -758,37 +673,21 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     
     // Auto-save as draft without confirmation
     try {
-      // REMOVED: Initial SnackBar for "Saving draft..."
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(
-      //     content: Text('Saving draft...'),
-      //     duration: Duration(seconds: 1),
-      //   ),
-      // );
-      
-      await _saveDraft(isBackgroundSave: false); // isBackgroundSave: false ensures SnackBars can be shown by _saveDraft
-      
-      // REMOVED: SnackBar for "Draft saved" as _saveDraft now handles this.
-      // if (mounted) {
-      //   ScaffoldMessenger.of(context).showSnackBar(
-      //     const SnackBar(
-      //       content: Text('Draft saved'),
-      //       duration: Duration(seconds: 1),
-      //     ),
-      //   );
-      // }
+      // Pass the current context (or dialogContext if available from a retry) for potential toasts
+      await _saveDraft(isBackgroundSave: false, toastContext: dialogContext ?? (mounted ? context : null)); 
       
       return true; // Allow pop if save is successful
     } catch (e) {
       // If saving fails, show an error and ask what to do
       if (!mounted) return false;
       
-      final result = await _showConfirmationDialog('Error Saving Draft', 'There was an error saving your draft: $e\n\n'
+      // IMPORTANT: Use a new context for the dialog, which will be `dialogContext` in recursive calls.
+      final bool result = await showConfirmationDialog(context, 'Error Saving Draft', 'There was an error saving your draft: $e\n\n'
             'Do you want to try again or discard changes?');
       
       if (result) {
-        // Try again
-        return _onWillPop();
+        // Try again, passing the context from *this* level of the dialog/error handling
+        return _onWillPop(dialogContext: context); 
       }
       
       // Discard and exit
@@ -881,10 +780,16 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   }
 
   // Save the current state as a draft
-  Future<void> _saveDraft({bool isBackgroundSave = false}) async {
+  Future<void> _saveDraft({bool isBackgroundSave = false, BuildContext? toastContext}) async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    // Capture ScaffoldMessenger if not a background save and mounted
-    final scaffoldMessenger = !isBackgroundSave && mounted ? ScaffoldMessenger.of(context) : null;
+    
+    // Use the provided toastContext if available and valid, otherwise try the state's context.
+    BuildContext? effectiveToastContext;
+    if (toastContext != null && toastContext.mounted) {
+      effectiveToastContext = toastContext;
+    } else if (mounted && !isBackgroundSave) {
+      effectiveToastContext = context; // Fallback to the state's context
+    }
 
     try {
       workflowState.setLoading(true);
@@ -958,14 +863,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       // Pass isSaving: true so it only deletes what's left in the list.
       await _processPendingDeletions(isSaving: true);
 
-      // Only show SnackBar if not a background save and context is available (via captured scaffoldMessenger)
-      if (scaffoldMessenger != null) {
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Draft saved successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      // Only show SnackBar if not a background save and context is available
+      if (!isBackgroundSave && effectiveToastContext != null && effectiveToastContext.mounted) {
+        showAppToast(effectiveToastContext, "Draft saved successfully", AppToastType.success);
       }
     } catch (e) { 
       workflowState.setLoading(false);
@@ -975,116 +875,12 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       }
       debugPrint('[_saveDraft Error] $errorMessage'); // Always log the error
 
-      // Only show SnackBar if not a background save and context is available (via captured scaffoldMessenger)
-      if (scaffoldMessenger != null) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text(workflowState.errorMessage ?? errorMessage), // Show specific error if available
-            backgroundColor: Colors.red,
-          ),
-        );
+      // Only show SnackBar if not a background save and context is available
+      if (!isBackgroundSave && effectiveToastContext != null && effectiveToastContext.mounted) {
+        showAppToast(effectiveToastContext, workflowState.errorMessage ?? errorMessage, AppToastType.error);
       }
       rethrow;
     }
-  }
-  
-  // Build the step indicator
-  Widget _buildStepIndicator(int currentStep) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 1,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Step indicator dots and lines
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              _stepTitles.length * 2 - 1,
-              (index) {
-                // If index is even, show a dot
-                if (index % 2 == 0) {
-                  final stepIndex = index ~/ 2;
-                  final isActive = stepIndex == currentStep;
-                  final isCompleted = stepIndex < currentStep;
-                  
-                  return Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isActive
-                          ? Theme.of(context).colorScheme.primary
-                          : isCompleted
-                              ? Theme.of(context).colorScheme.primaryContainer
-                              : Theme.of(context).colorScheme.surfaceVariant,
-                      border: Border.all(
-                        color: isActive || isCompleted
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).colorScheme.outline,
-                        width: 1,
-                      ),
-                    ),
-                    child: isCompleted
-                        ? Icon(
-                            Icons.check,
-                            size: 12,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
-                          )
-                        : null,
-                  );
-                } else {
-                  // If index is odd, show a line
-                  final lineIndex = index ~/ 2;
-                  final isCompleted = lineIndex < currentStep;
-                  
-                  return Container(
-                    width: 24,
-                    height: 2,
-                    color: isCompleted
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.outline,
-                  );
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 8),
-          
-          // Step titles
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              _stepTitles.length,
-              (index) => Container(
-                width: 72,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  _stepTitles[index],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: index == currentStep ? FontWeight.bold : FontWeight.normal,
-                    color: index == currentStep
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
   
   // Build the content for the current step
@@ -1335,12 +1131,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       // --- Final State Updates & UI Feedback (using captured references) --- 
       workflowState.setLoading(false); 
       
-      scaffoldMessenger.showSnackBar(
-        const SnackBar(
-          content: Text('Receipt completed successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      showAppToast(scaffoldMessenger.context, "Receipt completed successfully", AppToastType.success);
       
       // --- Navigate LAST --- 
       navigator.pop(true); 
@@ -1353,15 +1144,39 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       workflowState.setLoading(false); 
       workflowState.setErrorMessage('Failed to complete receipt: $e');
       
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text('Failed to complete receipt: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showAppToast(scaffoldMessenger.context, "Failed to complete receipt: $e", AppToastType.error);
       // Do NOT pop here on error, let the user decide or stay in modal
     }
   }
+
+  // --- START: New handlers for WorkflowNavigationControls callbacks ---
+  Future<void> _handleNavigationExitAction() async {
+    final bool canPop = await _onWillPop(); 
+    if (canPop && mounted) {
+      Navigator.of(context).pop(true); // true indicates a deliberate exit/save
+    }
+  }
+
+  Future<void> _handleNavigationSaveDraftAction() async {
+    bool saveSuccess = false;
+    try {
+      // For UI-triggered save, use the current widget's context for toasts
+      await _saveDraft(isBackgroundSave: false, toastContext: mounted ? context : null);
+      saveSuccess = true;
+    } catch (e) {
+      // _saveDraft already handles logging and showing a SnackBar
+      // for the error.
+      saveSuccess = false;
+    }
+    if (saveSuccess && mounted) {
+      Navigator.of(context).pop(true); // true indicates a deliberate exit/save
+    }
+  }
+
+  Future<void> _handleNavigationCompleteAction() async {
+    await _completeReceipt();
+  }
+  // --- END: New handlers for WorkflowNavigationControls callbacks ---
 
   @override
   Widget build(BuildContext context) {
@@ -1392,11 +1207,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         ),
         body: Column(
           children: [
-            // _buildStepIndicator(workflowState.currentStep), // REMOVED direct call
-            
             // Allow tapping on step indicators with confirmation
             GestureDetector(
-              onTapUp: (details) {
+              onTapUp: (details) async {
                 final RenderBox box = context.findRenderObject() as RenderBox;
                 final localOffset = box.globalToLocal(details.globalPosition);
                 final screenWidth = MediaQuery.of(context).size.width;
@@ -1407,9 +1220,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
 
                 if (tappedStep >= 0 && tappedStep < _stepTitles.length && tappedStep != currentStep) {
                   bool canNavigate = true;
-                  String blockingReason = 'Please complete previous steps first.';
+                  String blockingReason = 'Please complete previous steps first.'; // Default message
 
-                  if (tappedStep > currentStep) {
+                  if (tappedStep > currentStep) { // Navigating forward
                     // Check data prerequisites for all steps from currentStep up to tappedStep - 1
                     for (int stepToValidate = currentStep; stepToValidate < tappedStep; stepToValidate++) {
                       if (stepToValidate == 0 && !workflowState.hasParseData) {
@@ -1418,7 +1231,13 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                         debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: missing parse data for step 1.');
                         break;
                       }
-                      // No specific data check for leaving Review (step 1) to Assign (step 2)
+                      // No specific data check for leaving Review (step 1) to Assign (step 2) if parse data exists
+                      if (stepToValidate == 1 && !workflowState.hasParseData) { // Should also check if review step *itself* is valid if it has specific outputs beyond parseData
+                        canNavigate = false;
+                        blockingReason = 'Please ensure receipt review is complete.';
+                        debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: review step data incomplete for step 2.');
+                        break;
+                      }
                       if (stepToValidate == 2 && !workflowState.hasAssignmentData) {
                         canNavigate = false;
                         blockingReason = 'Items must be assigned before proceeding from Assign step.';
@@ -1433,31 +1252,36 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                         break;
                       }
                     }
+                  } else { // Navigating backwards (tappedStep < currentStep)
+                    // No confirmation needed for navigating backwards via step indicator.
+                    // Data clearing is handled by explicit user actions (e.g., re-parse, re-assign).
+                    canNavigate = true; 
+                    debugPrint('[WorkflowModal] StepIndicator: Navigating backwards from $currentStep to $tappedStep directly.');
                   }
 
                   if (canNavigate) {
                     workflowState.goToStep(tappedStep);
                   } else {
+                    // This 'else' block is now only for forward navigation failures.
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(blockingReason),
-                          duration: const Duration(seconds: 3),
-                          backgroundColor: Theme.of(context).colorScheme.error,
-                        ),
-                      );
+                      showAppToast(context, blockingReason, AppToastType.warning);
                     }
                   }
                 }
               },
-              child: _buildStepIndicator(workflowState.currentStep),
+              child: WorkflowStepIndicator(currentStep: workflowState.currentStep, stepTitles: _stepTitles),
             ),
             
             Expanded(
               child: _buildStepContent(workflowState.currentStep),
             ),
             
-            _buildNavigation(workflowState.currentStep),
+            WorkflowNavigationControls( // REPLACED CALL
+              currentStep: workflowState.currentStep,
+              onExitAction: _handleNavigationExitAction,
+              onSaveDraftAction: _handleNavigationSaveDraftAction,
+              onCompleteAction: _handleNavigationCompleteAction,
+            ),
           ],
         ),
       ),
@@ -1526,11 +1350,12 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   }
   // --- END EDIT ---
 
-  // --- START OF NEW HELPER METHODS FOR UPLOAD STEP CALLBACKS ---
+  // --- START OF NEW HELPER METHODS FOR UPLOAD STEP ---
   Future<void> _handleImageSelectedForUploadStep(File? file) async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     if (workflowState.hasParseData) {
-      final confirmed = await _showConfirmationDialog(
+      final confirmed = await showConfirmationDialog(
+        context,
         'Confirm Action',
         'Selecting a new image will clear all currently reviewed items, assigned people, and split details. Do you want to continue?'
       );
@@ -1572,7 +1397,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
 
     if (workflowState.hasParseData) {
-      final confirmed = await _showConfirmationDialog(
+      final confirmed = await showConfirmationDialog(
+        context,
         'Confirm Re-Parse',
         'Parsing again will clear all currently reviewed items, voice assignments, and split details. Tip and Tax will be preserved. Do you want to continue?'
       );
@@ -1601,9 +1427,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         workflowState.setLoading(false);
         workflowState.setErrorMessage('Please select an image first.');
         if (mounted) {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
-          );
+          showAppToast(scaffoldMessenger.context, "Please select an image first.", AppToastType.error);
         }
         return;
       }
@@ -1628,128 +1452,121 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       workflowState.setLoading(false);
       workflowState.setErrorMessage('Failed to process/parse receipt: ${e.toString()}');
       if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('Failed to process/parse receipt: ${e.toString()}'), backgroundColor: Colors.red),
-        );
+        showAppToast(scaffoldMessenger.context, "Failed to process/parse receipt: ${e.toString()}", AppToastType.error);
       }
     }
   }
 
-  void _handleRetryForUploadStep() {
+  void _handleRetryForUploadStep() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    workflowState.resetImageFile();
-    workflowState.setErrorMessage(null);
+    // Show confirmation dialog before clearing data
+    final confirm = await showConfirmationDialog( 
+      context,
+      "Confirm Retry",
+      "Retrying will clear any existing parsed receipt data. Are you sure you want to continue?",
+    );
+
+    if (confirm) {
+      workflowState.resetImageFile();
+      workflowState.setErrorMessage(null);
+    }
   }
   // --- END OF NEW HELPER METHODS FOR UPLOAD STEP ---
 
-  // --- START OF NEW HELPER METHODS FOR REVIEW STEP CALLBACKS ---
-  void _handleReviewCompleteForReviewStep(List<ReceiptItem> updatedItems, List<ReceiptItem> deletedItems) {
+  // --- START OF NEW HELPER METHODS FOR REVIEW STEP ---
+  void _handleReviewCompleteForReviewStep(List<ReceiptItem> updatedItems, List<ReceiptItem> deletedItems) { 
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     
-    // Calculate the new subtotal from the updated items
-    double newSubtotal = 0.0;
-    for (var item in updatedItems) {
-      newSubtotal += item.price * item.quantity;
-    }
-    newSubtotal = double.parse(newSubtotal.toStringAsFixed(2)); // Mitigate floating point issues for storage/comparison
+    // The updatedItems are used to ensure the parseReceiptResult is current before proceeding.
+    // This is important if _saveDraft hasn't been called or if items changed since last save.
+    final newParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
+    newParseResult['items'] = updatedItems.map((item) => 
+      {'name': item.name, 'price': item.price, 'quantity': item.quantity}
+    ).toList();
+    // Potentially update subtotal or other derived data if necessary here
+    workflowState.setParseReceiptResult(newParseResult);
+    debugPrint('[_WorkflowModalBodyState._handleReviewCompleteForReviewStep] Review complete. Items processed: ${updatedItems.length}. Deleted: ${deletedItems.length}');
 
-    // Update workflowState's parseReceiptResult to reflect the reviewed items AND the new subtotal
-    Map<String, dynamic> currentParseResult = Map.from(workflowState.parseReceiptResult);
-    currentParseResult['items'] = updatedItems.map((item) => item.toJson()).toList();
-    currentParseResult['subtotal'] = newSubtotal; // Store the recalculated subtotal
-    
-    workflowState.setParseReceiptResult(currentParseResult);
-
-    debugPrint('[_WorkflowModalBodyState._handleReviewCompleteForReviewStep] Review complete. Subtotal: $newSubtotal. workflowState.parseReceiptResult updated. Updated items: ${updatedItems.length}, Deleted: ${deletedItems.length}');
-    
-    workflowState.clearTranscriptionAndSubsequentData();
-    workflowState.nextStep();
+    workflowState.nextStep(); 
   }
 
-  void _handleItemsUpdatedForReviewStep(List<ReceiptItem> currentItems) {
-    // Optional: Could use this to update a temporary state if needed.
-    // For now, we rely on onReviewComplete and the getter for _saveDraft.
-    // This method is extracted for consistency if logic is added later.
-    debugPrint('[_WorkflowModalBodyState._handleItemsUpdatedForReviewStep] Items updated in review screen. Count: ${currentItems.length}');
+  // Signature: void Function(List<ReceiptItem> updatedItems)
+  void _handleItemsUpdatedForReviewStep(List<ReceiptItem> updatedItems) {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    final newParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
+    newParseResult['items'] = updatedItems.map((item) => 
+      {'name': item.name, 'price': item.price, 'quantity': item.quantity}
+    ).toList();
+    workflowState.setParseReceiptResult(newParseResult);
+    debugPrint('[_WorkflowModalBodyState._handleItemsUpdatedForReviewStep] Items updated. Count: ${updatedItems.length}');
   }
 
+  // Signature: void Function(GetCurrentItemsCallback getter)
   void _handleRegisterCurrentItemsGetterForReviewStep(GetCurrentItemsCallback getter) {
-    // This assigns the callback provided by ReceiptReviewScreen to the _WorkflowModalBodyState variable.
-    // This allows _saveDraft to fetch the latest items from ReceiptReviewScreen if it's the current step.
     _getCurrentReviewItemsCallback = getter;
-    debugPrint('[_WorkflowModalBodyState._handleRegisterCurrentItemsGetterForReviewStep] Registered getCurrentItems callback from ReceiptReviewScreen.');
+    debugPrint('[_WorkflowModalBodyState._handleRegisterCurrentItemsGetterForReviewStep] Registered getCurrentItems callback.');
   }
   // --- END OF NEW HELPER METHODS FOR REVIEW STEP ---
 
-  // --- START OF NEW HELPER METHODS FOR ASSIGN STEP CALLBACKS ---
+  // --- START OF NEW HELPER METHODS FOR ASSIGN STEP ---
+  // Signature: void Function(Map<String, dynamic> assignmentResultData)
   void _handleAssignmentProcessedForAssignStep(Map<String, dynamic> assignmentResultData) {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    debugPrint('[_WorkflowModalBodyState._handleAssignmentProcessedForAssignStep] Received data type: ${assignmentResultData.runtimeType}');
-    debugPrint('[_WorkflowModalBodyState._handleAssignmentProcessedForAssignStep] Data content: $assignmentResultData');
     workflowState.setAssignPeopleToItemsResult(assignmentResultData);
-    workflowState.nextStep();
+    debugPrint('[WorkflowModal] Assignment processed, new state: ${workflowState.assignPeopleToItemsResult}');
+    // workflowState.nextStep(); // Decision: nextStep is usually called by the "Next" button in navigation after data is ready.
   }
 
-  // Method to handle when new transcription is available from VoiceAssignmentScreen
+  // Signature: void Function(String? newTranscription)
   void _handleTranscriptionChangedForAssignStep(String? newTranscription) {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    Map<String, dynamic> newResult = Map.from(workflowState.transcribeAudioResult);
+    final currentTranscriptionResult = Map<String, dynamic>.from(workflowState.transcribeAudioResult);
     if (newTranscription == null || newTranscription.isEmpty) {
-      newResult.remove('text'); 
+      currentTranscriptionResult.remove('text');
     } else {
-      newResult['text'] = newTranscription;
+      currentTranscriptionResult['text'] = newTranscription;
     }
-    workflowState.setTranscribeAudioResult(newResult);
+    workflowState.setTranscribeAudioResult(currentTranscriptionResult);
     debugPrint('[WorkflowModal] Transcription updated by AssignStep: $newTranscription');
   }
 
-  // Method to handle re-transcription request from VoiceAssignmentScreen
+  // Signature: Future<bool> Function() // async
   Future<bool> _handleReTranscribeRequestedForAssignStep() async {
-      final confirmed = await _showConfirmationDialog(
-      // Positional arguments for title and content
-      'Re-record Audio',
-      'Are you sure you want to re-record the audio? The current transcription will be discarded.',
-      );
-    if (confirmed) { // _showConfirmationDialog returns bool, not bool?
-      final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    final confirm = await showConfirmationDialog(
+        context,
+        "Confirm Re-transcribe",
+        "This will clear your current transcription and any subsequent assignments, tip, and tax. Are you sure you want to re-transcribe?");
+    if (confirm) {
       workflowState.clearTranscriptionAndSubsequentData();
-      debugPrint('[WorkflowModal] Re-transcription confirmed. Data cleared.');
     }
-    return confirmed;
+    return confirm;
   }
 
-  // Method to handle confirmation before processing assignments in VoiceAssignmentScreen
+  // Corrected Signature: Future<bool> Function() // async
+  // This method is called by AssignStepWidget's onConfirmProcessAssignments to confirm with the user.
+  // It does NOT process the data itself; that's done by _handleAssignmentProcessedForAssignStep.
   Future<bool> _handleConfirmProcessAssignmentsForAssignStep() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    // Access transcription via transcribeAudioResult map
-    final transcription = workflowState.transcribeAudioResult['text'] as String?;
+    // final transcription = workflowState.transcribeAudioResult['text'] as String? ?? '';
+    
+    // Always confirm before processing assignments, as it's a significant step.
+    // The previous logic to bypass confirmation for empty transcription/assignments might be too implicit.
+    // VoiceAssignmentScreen will provide the actual assignment map to _handleAssignmentProcessedForAssignStep.
 
-    if (transcription == null || transcription.isEmpty) {
-      // Use ScaffoldMessenger directly for error snackbar
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Please record or ensure transcription is available before processing.'),
-            backgroundColor: Theme.of(context).colorScheme.error, 
-          ),
-        );
-      }
-      return false; 
-    }
-
-      final confirmed = await _showConfirmationDialog(
-      // Positional arguments for title and content
-      'Process Assignments',
-      'Are you sure you want to process the assignments with the current transcription?',
+    final confirmed = await showConfirmationDialog(
+      context, 
+      'Process Assignments', 
+      'Are you sure you want to process these assignments? This will overwrite any previous assignments.'
     );
-    if (confirmed) { // _showConfirmationDialog returns bool, not bool?
-      debugPrint('[WorkflowModal] Assignment processing confirmed by user.');
-    }
+
+    // This handler's role is only to return the confirmation status.
+    // The actual data processing happens in _handleAssignmentProcessedForAssignStep.
     return confirmed;
   }
   // --- END OF NEW HELPER METHODS FOR ASSIGN STEP ---
 
-  // --- START OF NEW HELPER METHODS FOR SPLIT STEP CALLBACKS ---
+  // --- START OF NEW HELPER METHODS FOR SPLIT STEP ---
   void _handleTipChangedForSplitStep(double? newTip) {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     if (workflowState.tip != newTip) {
@@ -1778,13 +1595,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       if (pageIndex == 4) { // Tapped "Go to Summary" (index 4) from Split (index 3)
         if (!workflowState.hasAssignmentData) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Cannot proceed to Summary: Assignment data is missing.'),
-                duration: const Duration(seconds: 3),
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-            );
+            showAppToast(context, "Cannot proceed to Summary: Assignment data is missing.", AppToastType.error);
           }
           return; // Block navigation
         }

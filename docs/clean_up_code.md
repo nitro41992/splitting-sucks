@@ -4,9 +4,68 @@ This document outlines a plan to address technical debt, remove redundant code, 
 
 ## Task Status
 
+### Relevant Project Structure Overview
+
+This provides a high-level overview of the key directories within the Flutter project structure relevant to development and refactoring:
+
+*   `splitting_sucks/` (Workspace Root)
+    *   `lib/` (Main Dart application code)
+        *   `env/`: Environment configuration.
+        *   `models/`: Data model classes (e.g., `Receipt.dart`, `ReceiptItem.dart`).
+        *   `screens/`: Top-level UI screens for different parts of the application flow.
+        *   `services/`: Business logic, API interactions (e.g., `FirestoreService.dart`, `ReceiptParserService.dart`).
+        *   `theme/`: Application-wide theming and styling.
+        *   `utils/`: Utility functions and helper classes.
+        *   `widgets/`: Reusable UI components.
+            *   `cards/`
+            *   `dialogs/`
+            *   `final_summary/`
+            *   `receipt_review/`
+            *   `receipt_upload/`
+            *   `shared/`
+            *   `workflow_steps/`: Widgets for individual steps in `workflow_modal.dart`.
+        *   `main.dart`: Application entry point.
+    *   `android/`: Android-specific project files.
+    *   `ios/`: iOS-specific project files.
+    *   `functions/`: Firebase Cloud Functions.
+    *   `docs/`: Project documentation, including this cleanup plan.
+    *   `test/`: Unit and widget tests.
+    *   `pubspec.yaml`: Flutter project manifest (dependencies, assets).
+    *   `README.md`: Project overview.
+
+Understanding this structure helps in locating files and understanding module responsibilities.
+
 ### To Do
 
-#### Phase 1: Refactoring `lib/widgets/workflow_modal.dart`
+#### Phase 0: Implementing Foundational Tests 🧐 (Prioritized)
+
+**Objective:** Establish a testing safety net to catch regressions and ensure stability during ongoing refactoring and development. This phase is prioritized due to bugs encountered during the refactoring of `WorkflowModal`.
+
+**KT for future AI Devs:** Refactoring of `WorkflowModal` (Phase 1) is temporarily paused to build up test coverage. Recent bugs related to `ScaffoldMessenger` and `Scaffold.of()` when showing toasts (especially from `_saveDraft` and `_onWillPop`) highlighted the need for this. Changes were made to `lib/widgets/workflow_modal.dart` (context handling in `_saveDraft`, `_onWillPop`) and `lib/utils/toast_utils.dart` (toast positioning logic) to address these.
+
+*   **Unit Tests:** 📝
+    *   **Objective:** Verify the logic of individual functions, methods, and classes, independent of the UI.
+    *   **Actions:**
+        *   `Write unit tests for WorkflowState (e.g., state transitions, data clearing logic, flag calculations).` 📝
+        *   `Write unit tests for ImageStateManager (e.g., URI management, pending deletions).` 📝
+        *   `Write unit tests for utility functions (e.g., dialog_helpers.dart, toast_utils.dart - focusing on logic, not UI rendering).` 📝
+        *   `Write unit tests for critical logic in services (e.g., FirestoreService data transformations, if any).` 📝
+*   **Widget Tests:** 📝
+    *   **Objective:** Verify that widgets render correctly and respond to user interactions as expected.
+    *   **Actions:**
+        *   `Write widget tests for the newly extracted workflow step widgets (UploadStepWidget, ReviewStepWidget, AssignStepWidget, SplitStepWidget, SummaryStepWidget). Mock dependencies like WorkflowState and callbacks.` 📝
+        *   `Write widget tests for WorkflowStepIndicator.` 📝
+        *   `Write widget tests for WorkflowNavigationControls.` 📝
+        *   `Write widget tests for individual dialogs in dialog_helpers.dart (e.g., ensuring they appear and buttons can be interacted with).` 📝
+        *   `Write widget tests for critical UI interaction paths within _WorkflowModalBodyState if complex logic remains there (e.g., step indicator tap logic).` 📝
+*   **Integration Tests:** (Consider after initial unit/widget tests are in place) 📝
+    *   **Objective:** Verify the interaction between different parts of the app, including navigation, services, and UI.
+    *   **Actions:**
+        *   `Plan integration tests for the complete WorkflowModal flow (e.g., creating a new draft, resuming a draft, completing a receipt).` 📝
+
+---
+
+#### Phase 1: Refactoring `lib/widgets/workflow_modal.dart` (Paused ⏸️)
 
 `workflow_modal.dart` is a critical component of the redesigned receipt processing workflow. Refactoring it will provide significant benefits and insights for the rest of the application.
 
@@ -61,12 +120,12 @@ This document outlines a plan to address technical debt, remove redundant code, 
         *   `Review long callback functions passed to step screens (e.g., onImageSelected, onParseReceipt in ReceiptUploadScreen setup).` - ✅ Done for Upload, Review, Assign, and Split steps. (Summary step has no callbacks to `_WorkflowModalBodyState` currently).
         *   `If these callbacks contain significant logic, consider extracting that logic into private methods within _WorkflowModalBodyState.` - ✅ Implemented for Upload, Review, Assign, and Split steps.
         *   `For very complex interactions, a small, dedicated controller or helper class for certain actions might be considered, though this should be weighed against over-engineering.` - 📝 To be evaluated as we proceed.
-*   **Review Core Logic Methods:** 📝
-    *   **Objective:** Ensure methods like `_loadReceiptData`, `_saveDraft`, `_completeReceipt`, and `_onWillPop` have clear responsibilities and are not overly complex.
+*   **Review Core Logic Methods:** ✅
+    *   **Objective:** Ensure methods like `_loadReceiptData`, `_saveDraft`, `_completeReceipt`, and `_onWillPop` have clear responsibilities and are not overly complex. (Reviewed: Methods found to be robust and well-structured).
     *   **Actions:**
-        *   `_loadReceiptData`: 📝 Verify its flow, error handling, and how it determines the target step.
-        *   `_saveDraft` & `_completeReceipt`: 📝 Check for clarity, robust error handling, and clean interaction with `WorkflowState` and `FirestoreService`. Ensure the sequence of operations (e.g., UI updates, async calls, state changes) is logical and safe (e.g., using `mounted` checks appropriately).
-        *   `_processPendingDeletions`: 📝 Ensure this logic is robust and correctly handles all scenarios for image cleanup.
+        *   `_loadReceiptData`: ✅ Verify its flow, error handling, and how it determines the target step. (Found to be in good shape, including target step determination.)
+        *   `_saveDraft` & `_completeReceipt`: ✅ Check for clarity, robust error handling, and clean interaction with `WorkflowState` and `FirestoreService`. Ensure the sequence of operations (e.g., UI updates, async calls, state changes) is logical and safe (e.g., using `mounted` checks appropriately). (Found to be well-implemented with good `mounted` check practices.)
+        *   `_processPendingDeletions`: ✅ Ensure this logic is robust and correctly handles all scenarios for image cleanup. (Found to be robust.)
 *   **Use of `Consumer` vs. `Provider.of`:** 🏗️
     *   **Objective:** Optimize widget rebuilds.
     *   **Actions:**
@@ -79,19 +138,19 @@ This document outlines a plan to address technical debt, remove redundant code, 
 
 ##### 1.3. Dialogs and Navigation 🏗️
 
-*   **Standardize Dialogs:** 📝
+*   **Standardize Dialogs:** ✅
     *   **Objective:** Consistent look, feel, and behavior for dialogs.
     *   **Actions:**
-        *   `Extract showRestaurantNameDialog and _WorkflowModalBodyState._showConfirmationDialog into a common dialog utility file (e.g., lib/utils/dialog_helpers.dart).` 📝
-        *   `Ensure they follow Material Design guidelines.` 📝
+        *   `Extract showRestaurantNameDialog and _WorkflowModalBodyState._showConfirmationDialog into a common dialog utility file (e.g., lib/utils/dialog_helpers.dart).` ✅ (Done. Dialogs moved to `lib/utils/dialog_helpers.dart` and `workflow_modal.dart` updated to use them. Callback signatures for dialog interactions reviewed and corrected.)
+        *   `Ensure they follow Material Design guidelines.` ✅ (Reviewed. Dialogs use `AlertDialog` and standard action button patterns, conforming to Material Design.)
 *   **Navigation Logic:** 🏗️
     *   **Objective:** Clear, predictable, and robust navigation within the modal.
     *   **Actions:**
-        *   `Review the logic for the step indicator taps, "Next," "Back," and "Exit" buttons.` 🏗️
-        *   `Ensure that conditions for enabling/disabling navigation (e.g., isNextEnabled logic) are comprehensive and clearly tied to the WorkflowState (e.g., hasParseData).` 🏗️
-        *   `The WillPopScope and _onWillPop logic should be robust for saving drafts automatically.` 🏗️
-        *   `Extract _WorkflowModalBodyState._buildStepIndicator into its own reusable widget (e.g., WorkflowStepIndicator) and move to a new file.` 📝
-        *   `Extract _WorkflowModalBodyState._buildNavigation into its own reusable widget (e.g., WorkflowNavigationControls) and move to a new file.` 📝
+        *   `Review the logic for the step indicator taps, "Next," "Back," and "Exit" buttons.` ✅ (Step indicator tap logic in `workflow_modal.dart` updated to allow direct backward navigation without disruptive dialogs, aligning with "Back" button behavior. Forward navigation retains validation. Toast messages improved.)
+        *   `Ensure that conditions for enabling/disabling navigation (e.g., isNextEnabled logic) are comprehensive and clearly tied to the WorkflowState (e.g., hasParseData).` 🏗️ (Partially reviewed during step indicator update. Navigation controls widget needs further review.)
+        *   `The WillPopScope and _onWillPop logic should be robust for saving drafts automatically.` 🏗️ (Reviewed and updated to fix `Scaffold.of()` / `ScaffoldMessenger` errors when showing toasts during save operations triggered by `_onWillPop`. Context handling for `_saveDraft` improved.)
+        *   `Extract _WorkflowModalBodyState._buildStepIndicator into its own reusable widget (e.g., WorkflowStepIndicator) and move to a new file.` ✅ (Done. Moved to `lib/widgets/workflow_steps/workflow_step_indicator.dart`)
+        *   `Extract _WorkflowModalBodyState._buildNavigation into its own reusable widget (e.g., WorkflowNavigationControls) and move to a new file.` ✅ (Done. Moved to `lib/widgets/workflow_steps/workflow_navigation_controls.dart`)
 
 ##### 1.4. Service Interactions 🏗️
 
@@ -122,14 +181,14 @@ This document outlines a plan to address technical debt, remove redundant code, 
     *   **Actions:**
         *   Review all `try-catch` blocks. Ensure errors are caught appropriately and meaningful messages are shown to the user (e.g., via `SnackBar` or updates to `_errorMessage` in `WorkflowState`). 🏗️
         *   Verify that loading states in `WorkflowState` are correctly set and unset around asynchronous operations. 🏗️
-*   **Standardize User Notifications (SnackBars/Toasts):** 📝
+*   **Standardize User Notifications (SnackBars/Toasts):** 🏗️ -> ✅
     *   **Objective:** Ensure consistent style, positioning, and color-coding for transient notifications.
     *   **Actions:**
-        *   `Review all usages of ScaffoldMessenger.showSnackBar (or other toast mechanisms).` 📝
-        *   `Create a centralized ToastHelper (or similar utility) to display notifications.` 📝
-        *   `Ensure toasts appear at the top of the screen (or chosen consistent position).` 📝
-        *   `Implement consistent color scheme: green for success, gold/yellow for warnings, red for errors.` 📝
-        *   `Refactor existing code to use the new ToastHelper.` 📝
+        *   `Review all usages of ScaffoldMessenger.showSnackBar (or other toast mechanisms).` ✅ (Reviewed in `workflow_modal.dart` and `receipts_screen.dart`)
+        *   `Create a centralized ToastHelper (or similar utility) to display notifications.` ✅ (Created `lib/utils/toast_utils.dart` with `showAppToast` function.)
+        *   `Ensure toasts appear at the top of the screen (or chosen consistent position).` ✅ (`showAppToast` positions `SnackBar` at the top.)
+        *   `Implement consistent color scheme: green for success, gold/yellow for warnings, red for errors.` ✅ (`showAppToast` uses `AppColors` for success, error, warning, and info types.)
+        *   `Refactor existing code to use the new ToastHelper.` ✅ (Done for `workflow_modal.dart` and `receipts_screen.dart`.)
 
 ##### 1.6. Specific Areas of Attention from `implementation_plan.md` 🏗️
 

@@ -6,6 +6,8 @@ import '../widgets/workflow_modal.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/dialog_helpers.dart';
+import '../utils/toast_utils.dart';
 
 class ReceiptsScreen extends StatefulWidget {
   const ReceiptsScreen({Key? key}) : super(key: key);
@@ -356,16 +358,18 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         await _firestoreService.deleteReceipt(receipt.id);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('"${receipt.restaurantName ?? 'Receipt'}" deleted successfully')),
-          );
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(content: Text('"${receipt.restaurantName ?? 'Receipt'}" deleted successfully')),
+          // );
+          showAppToast(context, '"${receipt.restaurantName ?? 'Receipt'}" deleted successfully', AppToastType.success);
         }
       } catch (e) {
         debugPrint('Error during deletion process: $e');
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error deleting receipt: $e'), backgroundColor: Colors.red),
-          );
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(content: Text('Error deleting receipt: $e'), backgroundColor: Colors.red),
+          // );
+          showAppToast(context, "Error deleting receipt: $e", AppToastType.error);
         }
       }
     }
