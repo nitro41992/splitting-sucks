@@ -483,7 +483,8 @@ class WorkflowModal extends StatelessWidget {
 
         // Check context immediately after await
         if (!context.mounted) {
-          debugPrint("[WorkflowModal.show] Context unmounted after fetching receipt details for ID: $receiptId");
+          // THIS IS THE SOURCE OF YOUR LOG MESSAGE
+          debugPrint("[WorkflowModal.show] Calling context for receiptId '$receiptId' unmounted after 'firestoreService.getReceipt()' await."); // MODIFIED: Clarified log message
           return null;
         }
 

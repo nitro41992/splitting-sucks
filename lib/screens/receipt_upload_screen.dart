@@ -151,26 +151,27 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
         fit: BoxFit.cover,
         placeholder: (context, url) {
           debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] Placeholder for ${widget.imageUrl}. Thumbnail available: $hasNetworkThumbnail');
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          if (hasNetworkThumbnail) {
+            return Stack(
+              fit: StackFit.expand,
+              alignment: Alignment.center,
               children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 8),
-                if (hasNetworkThumbnail) // Show thumbnail while full image loads if available
-                  Expanded(
-                    child: CachedNetworkImage(
-                      imageUrl: widget.loadedThumbnailUrl!,
-                      fit: BoxFit.contain, // Or BoxFit.cover
-                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48),
-                      placeholder: (context, url) => const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.0))),
-                    ),
-                  )
-                else 
-                  const Text('Loading full image...'),
+                // Thumbnail as background
+                CachedNetworkImage(
+                  imageUrl: widget.loadedThumbnailUrl!,
+                  fit: BoxFit.cover, // MODIFIED: Was BoxFit.contain, now BoxFit.cover for consistency
+                  errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                  // Optional: Simple placeholder for the thumbnail itself if it's slow for some reason
+                  // placeholder: (context, url) => Container(color: Colors.grey[300]), 
+                ),
+                // Spinner on top
+                const Center(child: CircularProgressIndicator()),
               ],
-            ),
-          );
+            );
+          } else {
+            // Fallback if no thumbnail, just a spinner
+            return const Center(child: CircularProgressIndicator());
+          }
         },
         errorWidget: (context, url, error) {
           debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] Error for ${widget.imageUrl}: $error');
@@ -371,21 +372,6 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                    ],
-                    // "Parse Receipt" and "Retry" buttons (conditionally shown)
-                    if (shouldShowImagePreview && !widget.isSuccessfullyParsed) ...[
-                      FilledButton.icon(
-                        icon: const Icon(Icons.document_scanner_outlined),
-                        label: const Text('Parse Receipt'),
-                        onPressed: widget.isLoading ? null : widget.onParseReceipt,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(200, 50),
-                          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-                          backgroundColor: AppColors.accent, // Corrected to AppColors.accent
-                          foregroundColor: colorScheme.onSecondary,   // Changed to colorScheme.onSecondary as a fallback
-                        ),
-                      ),
-                      const SizedBox(height: 16),
                     ],
                     if (widget.isLoading) ... [
                         const SizedBox(height: 20), // Add some space if loading indicator is shown for processing
