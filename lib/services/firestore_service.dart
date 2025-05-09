@@ -90,6 +90,30 @@ class FirestoreService {
     return await query.get();
   }
   
+  /// Get a stream of all receipts for the current user, ordered by updated_at.
+  /// Useful for real-time updates in the UI.
+  Stream<QuerySnapshot> getReceiptsStream() {
+    Query query = _receiptsCollection.orderBy('metadata.updated_at', descending: true);
+    return query.snapshots();
+  }
+  
+  /// Get a paginated list of receipts for the current user.
+  /// 
+  /// [limit] specifies the number of receipts to retrieve per page.
+  /// [startAfterDoc] is an optional [DocumentSnapshot] to start fetching after.
+  Future<QuerySnapshot> getReceiptsPaginated({
+    required int limit,
+    DocumentSnapshot? startAfterDoc,
+  }) async {
+    Query query = _receiptsCollection.orderBy('metadata.updated_at', descending: true).limit(limit);
+
+    if (startAfterDoc != null) {
+      query = query.startAfterDocument(startAfterDoc);
+    }
+
+    return await query.get();
+  }
+  
   /// Create a new receipt or update an existing one
   /// If [receiptId] is null, a new receipt will be created
   /// Returns the ID of the created/updated receipt

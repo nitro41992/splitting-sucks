@@ -18,20 +18,29 @@ class ReceiptsScreen extends StatefulWidget {
 class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProviderStateMixin {
   final FirestoreService _firestoreService = FirestoreService();
   late TabController _tabController;
-  bool _isLoading = true;
-  List<Receipt> _allReceipts = [];
   String? _errorMessage;
   
   // Search functionality
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // --- State Variables for Pagination ---
+  List<Receipt> _receipts = [];
+  DocumentSnapshot? _lastDocument;
+  bool _isLoadingInitial = true;
+  bool _isLoadingMore = false;
+  bool _hasMoreData = true;
+  final ScrollController _scrollController = ScrollController();
+  final int _pageSize = 15; // Or your preferred page size
+  // --- End Pagination State Variables ---
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_handleTabChange);
-    _loadReceipts();
+    _fetchInitialReceipts();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -39,6 +48,8 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
     _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     _searchController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -49,54 +60,36 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
     }
   }
 
-  Future<void> _loadReceipts() async {
-    // Use try-finally to ensure loading indicator is always turned off
-    try {
-      if (!mounted) return; // Check mounted at the beginning
+  Future<void> _fetchInitialReceipts() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingInitial = true;
+      _errorMessage = null;
+      _receipts = [];
+      _lastDocument = null;
+      _hasMoreData = true;
+    });
+
+    // Log the user ID being used for the fetch
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    debugPrint('[_fetchInitialReceipts] Attempting to load initial receipts for UID: $currentUid');
+    if (currentUid == null) {
+      debugPrint('[_fetchInitialReceipts] User ID is null, cannot load receipts.');
+      if (mounted) {
+        setState(() {
+          _isLoadingInitial = false;
+          _errorMessage = "User not logged in.";
+        });
+      }
+      return;
+    }
+
+    await _fetchMoreReceipts(); // Load the first page
+
+    if (mounted) {
       setState(() {
-        _isLoading = true;
-        _errorMessage = null;
+        _isLoadingInitial = false;
       });
-
-      // Log the user ID being used for the fetch
-      final currentUid = FirebaseAuth.instance.currentUser?.uid;
-      debugPrint('[_loadReceipts] Attempting to load receipts for UID: $currentUid');
-
-      if (currentUid == null) {
-        debugPrint('[_loadReceipts] User ID is null, cannot load receipts.');
-        return; // Don't proceed if no user
-      }
-
-      // --- DIAGNOSTIC DELAY --- 
-      await Future.delayed(const Duration(milliseconds: 500));
-      debugPrint('[_loadReceipts] Proceeding after delay...');
-      // --- END DIAGNOSTIC DELAY ---
-
-      final QuerySnapshot snapshot = await _firestoreService.getReceipts();
-      
-      // Process receipts and fetch URLs
-      final List<Receipt> processedReceipts = await _processReceiptsWithThumbnails(snapshot.docs);
-      
-      // Update state only if still mounted
-      if (mounted) {
-        setState(() {
-          _allReceipts = processedReceipts;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading receipts: $e');
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Error loading receipts: ${e.toString()}';
-        });
-      }
-    } finally {
-      // Ensure loading is turned off even if errors occur or widget is disposed
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
@@ -144,14 +137,14 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
     
     switch (_tabController.index) {
       case 1: // Completed
-        tabFiltered = _allReceipts.where((receipt) => receipt.isCompleted).toList();
+        tabFiltered = _receipts.where((receipt) => receipt.isCompleted).toList();
         break;
       case 2: // Drafts
-        tabFiltered = _allReceipts.where((receipt) => receipt.isDraft).toList();
+        tabFiltered = _receipts.where((receipt) => receipt.isDraft).toList();
         break;
       case 0: // All
       default:
-        tabFiltered = _allReceipts;
+        tabFiltered = _receipts;
         break;
     }
     
@@ -184,7 +177,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
     if (restaurantName != null) {
       final bool? result = await WorkflowModal.show(context, initialRestaurantName: restaurantName);
       if (result == true && mounted) {
-        _loadReceipts();
+        _fetchInitialReceipts();
       }
     }
   }
@@ -244,7 +237,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                       if (!mounted) return;
                       final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
                       if (result == true && mounted) {
-                        _loadReceipts();
+                        _fetchInitialReceipts();
                       }
                     },
                   ),
@@ -264,7 +257,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                       if (!mounted) return;
                       final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
                       if (result == true && mounted) {
-                        _loadReceipts();
+                        _fetchInitialReceipts();
                       }
                     },
                   ),
@@ -338,7 +331,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
     if (confirmation == true) {
       // User confirmed, delete the receipt
       setState(() {
-        _isLoading = true;
+        _isLoadingInitial = true;
       });
       
       try {
@@ -350,7 +343,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
         }
         
         setState(() {
-          _isLoading = false;
+          _isLoadingInitial = false;
         });
         
         if (!mounted) return;
@@ -365,10 +358,10 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
         );
         
         // Reload receipts
-        _loadReceipts();
+        _fetchInitialReceipts();
       } catch (e) {
         setState(() {
-          _isLoading = false;
+          _isLoadingInitial = false;
           _errorMessage = 'Error deleting receipt: $e';
         });
         
@@ -513,7 +506,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
               showSearch(
                 context: context,
                 delegate: _ReceiptSearchDelegate(
-                  receipts: _allReceipts,
+                  receipts: _receipts,
                   onReceiptTap: _viewReceiptDetails,
                 ),
               );
@@ -529,7 +522,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
           ],
         ),
       ),
-      body: _isLoading
+      body: _isLoadingInitial
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
               ? Center(
@@ -539,7 +532,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                       Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: _loadReceipts,
+                        onPressed: _fetchInitialReceipts,
                         child: const Text('Retry'),
                       ),
                     ],
@@ -566,11 +559,23 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
                       ),
                     )
                   : RefreshIndicator(
-                      onRefresh: _loadReceipts,
+                      onRefresh: _fetchInitialReceipts,
                       child: ListView.builder(
-                        itemCount: _filteredReceipts.length,
+                        controller: _scrollController,
+                        itemCount: _filteredReceipts.length + (_hasMoreData ? 1 : 0),
                         itemBuilder: (context, index) {
-                          return _buildReceiptCard(_filteredReceipts[index]);
+                          if (index == _filteredReceipts.length && _hasMoreData) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                          if (index < _filteredReceipts.length) {
+                             return _buildReceiptCard(_filteredReceipts[index]);
+                          } 
+                          return null;
                         },
                       ),
                     ),
@@ -581,6 +586,77 @@ class _ReceiptsScreenState extends State<ReceiptsScreen> with SingleTickerProvid
       ),
     );
   }
+
+  // --- Placeholder for _onScroll method ---
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 && // 200 is an arbitrary offset
+        !_isLoadingMore &&
+        _hasMoreData) {
+      debugPrint("[_onScroll] Reached end of list, fetching more receipts...");
+      _fetchMoreReceipts();
+    }
+  }
+  // --- End Placeholder ---
+
+  // --- Placeholder for _fetchMoreReceipts method ---
+  Future<void> _fetchMoreReceipts() async {
+    if (_isLoadingMore || !_hasMoreData) {
+      debugPrint('[_fetchMoreReceipts] Skipping fetch: isLoadingMore: $_isLoadingMore, hasMoreData: $_hasMoreData');
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isLoadingMore = true;
+      if (_receipts.isEmpty) { // Also set initial loading if it's the first fetch via _fetchInitialReceipts
+        _isLoadingInitial = true;
+      }
+      _errorMessage = null;
+    });
+
+    try {
+      final QuerySnapshot snapshot = await _firestoreService.getReceiptsPaginated(
+        limit: _pageSize,
+        startAfterDoc: _lastDocument,
+      );
+
+      if (!mounted) return;
+
+      final List<Receipt> newReceipts = await _processReceiptsWithThumbnails(snapshot.docs);
+
+      if (!mounted) return;
+
+      setState(() {
+        _receipts.addAll(newReceipts);
+        if (snapshot.docs.isNotEmpty) {
+          _lastDocument = snapshot.docs.last;
+        }
+        _hasMoreData = newReceipts.length == _pageSize;
+      });
+    } catch (e) {
+      debugPrint('Error loading more receipts: $e');
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error loading receipts: ${e.toString()}';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+          // Ensure initial loading is also turned off if this was the first fetch
+          if (_isLoadingInitial && _receipts.isNotEmpty) {
+             _isLoadingInitial = false;
+          }
+          // If it was an initial load that fetched nothing and errored, ensure _isLoadingInitial is false.
+          if (_isLoadingInitial && _receipts.isEmpty) {
+             _isLoadingInitial = false;
+          }
+        });
+      }
+    }
+  }
+  // --- End Placeholder ---
 }
 
 /// Search delegate for receipts

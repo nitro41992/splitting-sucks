@@ -149,27 +149,33 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
       imagePreviewWidget = CachedNetworkImage(
         imageUrl: widget.imageUrl!,
         fit: BoxFit.cover,
-        placeholder: (context, url) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 8),
-              if (hasNetworkThumbnail) // Show thumbnail while full image loads if available
-                Expanded(
-                  child: CachedNetworkImage(
-                    imageUrl: widget.loadedThumbnailUrl!,
-                    fit: BoxFit.contain, // Or BoxFit.cover
-                    errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48),
-                    placeholder: (context, url) => const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.0))),
-                  ),
-                )
-              else 
-                const Text('Loading full image...'),
-            ],
-          ),
-        ),
-        errorWidget: (context, url, error) => _buildImageErrorPlaceholder(context, 'Saved image could not be loaded'),
+        placeholder: (context, url) {
+          debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] Placeholder for ${widget.imageUrl}. Thumbnail available: $hasNetworkThumbnail');
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 8),
+                if (hasNetworkThumbnail) // Show thumbnail while full image loads if available
+                  Expanded(
+                    child: CachedNetworkImage(
+                      imageUrl: widget.loadedThumbnailUrl!,
+                      fit: BoxFit.contain, // Or BoxFit.cover
+                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48),
+                      placeholder: (context, url) => const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.0))),
+                    ),
+                  )
+                else 
+                  const Text('Loading full image...'),
+              ],
+            ),
+          );
+        },
+        errorWidget: (context, url, error) {
+          debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] Error for ${widget.imageUrl}: $error');
+          return _buildImageErrorPlaceholder(context, 'Saved image could not be loaded');
+        },
       );
     } else if (hasNetworkThumbnail) {
       heroTag = 'receipt_image_${widget.loadedThumbnailUrl}';
@@ -380,16 +386,6 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                    ],
-                    if (shouldShowImagePreview && !widget.isLoading) ...[ // Show retry only if an image is shown & not loading
-                       TextButton.icon(
-                         icon: const Icon(Icons.refresh),
-                         label: const Text('Clear Image'),
-                         onPressed: (widget.isLoading || widget.isSuccessfullyParsed) ? null : widget.onRetry,
-                         style: TextButton.styleFrom(
-                           foregroundColor: colorScheme.error,
-                         ),
-                       ),
                     ],
                     if (widget.isLoading) ... [
                         const SizedBox(height: 20), // Add some space if loading indicator is shown for processing
