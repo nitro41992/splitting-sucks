@@ -17,6 +17,13 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../services/receipt_parser_service.dart';
 import '../services/audio_transcription_service.dart' hide Person;
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import './image_state_manager.dart'; // Import the new manager
+import './workflow_steps/upload_step_widget.dart'; // Corrected import path
+import './workflow_steps/review_step_widget.dart'; // Import ReviewStepWidget
+import './workflow_steps/assign_step_widget.dart'; // Import AssignStepWidget
+import './workflow_steps/split_step_widget.dart'; // Import SplitStepWidget
+import './workflow_steps/summary_step_widget.dart'; // Import SummaryStepWidget
 
 // --- Moved Typedef to top level --- 
 // Callback type for ReceiptReviewScreen to provide its current items
@@ -35,16 +42,8 @@ class WorkflowState extends ChangeNotifier {
   int _currentStep = 0;
   String? _receiptId;
   String _restaurantName;
-  File? _imageFile;
-  String? _loadedImageUrl; // For displaying an image from a URL (e.g., loaded draft)
+  final ImageStateManager imageStateManager; // Add ImageStateManager instance
   
-  // Authoritative GS URIs for the current workflow
-  String? _actualImageGsUri;
-  String? _actualThumbnailGsUri;
-
-  // URL for displaying thumbnail from loaded draft
-  String? _loadedThumbnailUrl; 
-
   Map<String, dynamic> _parseReceiptResult = {};
   Map<String, dynamic> _transcribeAudioResult = {};
   Map<String, dynamic> _assignPeopleToItemsResult = {};
@@ -55,22 +54,27 @@ class WorkflowState extends ChangeNotifier {
   String? _errorMessage;
   
   // List to track GS URIs that might need deletion
-  final List<String> _pendingDeletionGsUris = [];
+  List<String> get pendingDeletionGsUris => imageStateManager.pendingDeletionGsUris;
   
   WorkflowState({required String restaurantName, String? receiptId})
       : _restaurantName = restaurantName,
-        _receiptId = receiptId {
+        _receiptId = receiptId,
+        imageStateManager = ImageStateManager() { // Initialize ImageStateManager
     debugPrint('[WorkflowState Constructor] Initial _transcribeAudioResult: $_transcribeAudioResult');
+    // If ImageStateManager itself calls notifyListeners and WorkflowState needs to propagate that:
+    // imageStateManager.addListener(notifyListeners);
+    // However, we'll have WorkflowState methods call its own notifyListeners after imageStateManager calls.
   }
   
   // Getters
   int get currentStep => _currentStep;
   String get restaurantName => _restaurantName;
   String? get receiptId => _receiptId;
-  File? get imageFile => _imageFile;
-  String? get loadedImageUrl => _loadedImageUrl;
-  String? get actualImageGsUri => _actualImageGsUri;
-  String? get actualThumbnailGsUri => _actualThumbnailGsUri;
+  File? get imageFile => imageStateManager.imageFile;
+  String? get loadedImageUrl => imageStateManager.loadedImageUrl;
+  String? get actualImageGsUri => imageStateManager.actualImageGsUri;
+  String? get actualThumbnailGsUri => imageStateManager.actualThumbnailGsUri;
+  String? get loadedThumbnailUrl => imageStateManager.loadedThumbnailUrl;
 
   Map<String, dynamic> get parseReceiptResult => _parseReceiptResult;
   Map<String, dynamic> get transcribeAudioResult => _transcribeAudioResult;
@@ -79,12 +83,6 @@ class WorkflowState extends ChangeNotifier {
   double? get tax => _tax;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  
-  // Getter for the loaded thumbnail URL
-  String? get loadedThumbnailUrl => _loadedThumbnailUrl;
-  
-  // Getter for the pending deletion list (read-only view)
-  List<String> get pendingDeletionGsUris => List.unmodifiable(_pendingDeletionGsUris);
   
   // Getter for people
   List<String> get people => _people;
@@ -134,20 +132,12 @@ class WorkflowState extends ChangeNotifier {
   }
   
   void setImageFile(File file) {
-    // If there was a previous image URI, mark it for potential deletion
-    if (_actualImageGsUri != null && _actualImageGsUri!.isNotEmpty) {
-      _pendingDeletionGsUris.add(_actualImageGsUri!);
-    }
-    if (_actualThumbnailGsUri != null && _actualThumbnailGsUri!.isNotEmpty) {
-      _pendingDeletionGsUris.add(_actualThumbnailGsUri!);
-    }
+    // imageStateManager.setNewImageFile will handle adding old _actualImageGsUri 
+    // and _actualThumbnailGsUri from its own state to its pending deletions list.
 
-    _imageFile = file;
-    _loadedImageUrl = null; 
-    _loadedThumbnailUrl = null; 
-    _actualImageGsUri = null; 
-    _actualThumbnailGsUri = null; 
-    // When a new image is selected, CLEAR ALL SUBSEQUENT STEP DATA
+    imageStateManager.setNewImageFile(file); // Correct delegation
+
+    // When a new image is selected, CLEAR ALL SUBSEQUENT STEP DATA (This logic STAYS in WorkflowState)
     _parseReceiptResult = {}; 
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
@@ -158,20 +148,12 @@ class WorkflowState extends ChangeNotifier {
   }
   
   void resetImageFile() {
-    // If there was a previous image URI, mark it for potential deletion
-    if (_actualImageGsUri != null && _actualImageGsUri!.isNotEmpty) {
-      _pendingDeletionGsUris.add(_actualImageGsUri!);
-    }
-    if (_actualThumbnailGsUri != null && _actualThumbnailGsUri!.isNotEmpty) {
-      _pendingDeletionGsUris.add(_actualThumbnailGsUri!);
-    }
+    // imageStateManager.resetImageFile will handle adding old _actualImageGsUri 
+    // and _actualThumbnailGsUri from its own state to its pending deletions list.
 
-    _imageFile = null;
-    _loadedImageUrl = null;
-    _loadedThumbnailUrl = null; 
-    _actualImageGsUri = null;
-    _actualThumbnailGsUri = null;
-    // When image is reset, CLEAR ALL SUBSEQUENT STEP DATA
+    imageStateManager.resetImageFile(); // Correct delegation
+
+    // When image is reset, CLEAR ALL SUBSEQUENT STEP DATA (This logic STAYS in WorkflowState)
     _parseReceiptResult = {}; 
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
@@ -187,11 +169,6 @@ class WorkflowState extends ChangeNotifier {
     result.remove('thumbnail_uri');
     _parseReceiptResult = result;
     
-    // DO NOT CLEAR _transcribeAudioResult, _assignPeopleToItemsResult, _splitManagerState here.
-    // These should be cleared more intentionally, for example when a new image is set
-    // or when moving from review back to upload.
-    // If items are re-parsed from the *same* image, subsequent steps might still be valid
-    // or need specific invalidation logic.
     notifyListeners();
   }
   
@@ -236,53 +213,36 @@ class WorkflowState extends ChangeNotifier {
     notifyListeners();
   }
   
-  void setLoadedImageUrl(String? url) {
-    _loadedImageUrl = url;
-    // If we are setting a loaded image URL, it implies there's no local file for now
-    // _imageFile = null; // This might be too aggressive if just previewing
+  // These setters will now delegate to ImageStateManager
+  void setUploadedGsUris(String? imageGsUri, String? thumbnailGsUri) {
+    imageStateManager.setUploadedGsUris(imageGsUri, thumbnailGsUri);
+    notifyListeners();
+  }
+
+  void setLoadedImageUrls(String? imageUrl, String? thumbnailUrl) {
+    imageStateManager.setLoadedImageUrls(imageUrl, thumbnailUrl);
+    notifyListeners();
+  }
+
+  void setActualGsUrisOnLoad(String? imageGsUri, String? thumbnailGsUri) {
+    imageStateManager.setActualGsUrisOnLoad(imageGsUri, thumbnailGsUri);
     notifyListeners();
   }
   
-  void setActualImageGsUri(String? uri) {
-    _actualImageGsUri = uri;
-    notifyListeners();
-  }
-
-  void setActualThumbnailGsUri(String? uri) {
-    _actualThumbnailGsUri = uri;
-    notifyListeners();
-  }
-
-  void setLoadedThumbnailUrl(String? url) {
-    _loadedThumbnailUrl = url;
-    notifyListeners();
-  }
-
-  void setLoadedImageAndThumbnailUrls(String? imageUrl, String? thumbnailUrl) {
-    _loadedImageUrl = imageUrl;
-    _loadedThumbnailUrl = thumbnailUrl;
-    notifyListeners(); // Notify once after both are set
-  }
-  
-  // Methods to manage the pending deletion list
+  // Methods to manage the pending deletion list - delegate to ImageStateManager
   void clearPendingDeletions() {
-    _pendingDeletionGsUris.clear();
-    // No need to notify listeners, this is internal state management
+    imageStateManager.clearPendingDeletionsList();
+    notifyListeners(); // WorkflowState should notify its own listeners
   }
 
   void removeUriFromPendingDeletions(String? uri) {
-    if (uri != null && uri.isNotEmpty) {
-      _pendingDeletionGsUris.remove(uri);
-      // No need to notify listeners
-    }
+    imageStateManager.removeUriFromPendingDeletionsList(uri);
+    notifyListeners(); // WorkflowState should notify its own listeners
   }
 
   void addUriToPendingDeletions(String? uri) {
-    if (uri != null && uri.isNotEmpty && !_pendingDeletionGsUris.contains(uri)) {
-        _pendingDeletionGsUris.add(uri);
-        debugPrint('[WorkflowState] Added to pending deletions: $uri. Current list: $_pendingDeletionGsUris');
-    }
-     // No need to notify listeners
+    imageStateManager.addUriToPendingDeletionsList(uri);
+    notifyListeners(); // WorkflowState should notify its own listeners
   }
   
   // Convert to Receipt model for saving
@@ -290,10 +250,9 @@ class WorkflowState extends ChangeNotifier {
     return Receipt(
       id: _receiptId ?? FirebaseFirestore.instance.collection('temp').doc().id,
       restaurantName: _restaurantName,
-      // URIs now come from the dedicated fields in WorkflowState for metadata
-      imageUri: _actualImageGsUri,
-      thumbnailUri: _actualThumbnailGsUri,
-      // These sub-documents should not contain URIs if functions are updated
+      // URIs now come from imageStateManager
+      imageUri: imageStateManager.actualImageGsUri,
+      thumbnailUri: imageStateManager.actualThumbnailGsUri,
       parseReceipt: _parseReceiptResult,
       transcribeAudio: _transcribeAudioResult,
       assignPeopleToItems: _assignPeopleToItemsResult,
@@ -301,9 +260,6 @@ class WorkflowState extends ChangeNotifier {
       people: _people,
       tip: _tip,
       tax: _tax,
-      // TODO: Add tip/tax from splitManagerState if available for drafts too? Or only on complete?
-      // For now, using defaults or values from _splitManagerState for tip/tax might be good
-      // Or ensure these are set in metadata directly by the workflow state if needed for drafts.
     );
   }
   
@@ -342,18 +298,7 @@ class WorkflowState extends ChangeNotifier {
       }
     }
     
-    // Sort for consistency? Optional.
-    // people.sort(); 
     return people;
-  }
-
-  // Added setter for people list
-  void setPeople(List<String> newPeople) {
-    // Use ListEquality to check if lists are deeply equal to avoid unnecessary notifications
-    if (!const DeepCollectionEquality().equals(_people, newPeople)) {
-       _people = newPeople;
-       notifyListeners();
-    }
   }
 
   // --- EDIT: Add specific data clearing methods ---
@@ -361,28 +306,27 @@ class WorkflowState extends ChangeNotifier {
     _parseReceiptResult = {};
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
-    // _tip = null; // Keep Tip
-    // _tax = null; // Keep Tax
     _people = [];
+    // Tip and Tax are preserved when re-parsing, as they might have been manually set
+    // or are global to the receipt rather than dependent on specific parse data.
+    // However, if they WERE dependent on parsed items that are now gone, user should re-verify.
     debugPrint('[WorkflowState] Cleared Parse, Transcription, Assignment, People. Tip/Tax remain.');
     notifyListeners();
   }
 
   void clearTranscriptionAndSubsequentData() {
     _transcribeAudioResult = {};
-    // _assignPeopleToItemsResult = {}; // Keep Assignments
-    // _tip = null; // Keep Tip
-    // _tax = null; // Keep Tax
-    // _people = []; // Keep People (derived from assignments)
-    debugPrint('[WorkflowState] Cleared ONLY Transcription. Assignments, People, Tip/Tax remain.');
+    _assignPeopleToItemsResult = {}; // Also clear assignments
+    _people = []; // Also clear people list
+    _tip = null; // Also clear tip
+    _tax = null; // Also clear tax
+    debugPrint('[WorkflowState] Cleared Transcription, Assignments, People, Tip, and Tax.');
     notifyListeners();
   }
 
   void clearAssignmentAndSubsequentData() {
     _assignPeopleToItemsResult = {};
-    // _tip = null; // Keep Tip
-    // _tax = null; // Keep Tax
-    _people = []; // People list depends on assignments, so clear it.
+    _people = []; 
     debugPrint('[WorkflowState] Cleared Assignments and People. Tip/Tax remain.');
     notifyListeners();
   }
@@ -665,9 +609,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     try {
       workflowState.setLoading(true);
       workflowState.setErrorMessage(null);
-      workflowState.setLoadedImageUrl(null);
-      workflowState.setActualImageGsUri(null); 
-      workflowState.setActualThumbnailGsUri(null);
+      workflowState.setLoadedImageUrls(null, null); // Clears both loaded URLs
+      workflowState.setActualGsUrisOnLoad(null, null); // Clears both actual GS URIs
       
       final snapshot = await _firestoreService.getReceipt(receiptId);
       
@@ -680,12 +623,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       if (receipt.restaurantName != null) {
         workflowState.setRestaurantName(receipt.restaurantName!); 
       }
-      if (receipt.imageUri != null) {
-        workflowState.setActualImageGsUri(receipt.imageUri);
-      }
-      if (receipt.thumbnailUri != null) {
-        workflowState.setActualThumbnailGsUri(receipt.thumbnailUri);
-      }
+      // Set both actual URIs from the loaded receipt data
+      workflowState.setActualGsUrisOnLoad(receipt.imageUri, receipt.thumbnailUri);
       debugPrint('[_loadReceiptData] Loaded from Firestore. WorkflowState updated - ActualImageGsUri: ${workflowState.actualImageGsUri}, ActualThumbnailGsUri: ${workflowState.actualThumbnailGsUri}');
 
       // Load sub-document data, defaulting to empty maps if null from Firestore
@@ -697,10 +636,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       
       debugPrint('[_loadReceiptData] Data from Firestore for receipt.transcribeAudio: ${receipt.transcribeAudio}');
       workflowState.setTranscribeAudioResult(receipt.transcribeAudio); 
-      workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems); 
+      workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems); // This will call _extractPeopleFromAssignments and update _people
       workflowState.setTip(receipt.tip);
       workflowState.setTax(receipt.tax);
-      workflowState.setPeople(receipt.people ?? []);
+      // workflowState.setPeople(receipt.people ?? []); // REMOVED: _people is now derived from assignPeopleToItemsResult
       
       // --- Concurrently get Download URLs for Main Image and Thumbnail ---
       String? loadedImageUrl;
@@ -763,8 +702,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       }
       
       // Update state with results from concurrent fetch
-      workflowState.setLoadedImageAndThumbnailUrls(loadedImageUrl, loadedThumbnailUrl);
-      debugPrint('[LoadData Timer] WorkflowState updated with URLs via setLoadedImageAndThumbnailUrls.');
+      workflowState.setLoadedImageUrls(loadedImageUrl, loadedThumbnailUrl);
+      debugPrint('[LoadData Timer] WorkflowState updated with URLs via setLoadedImageUrls.');
       
       // Set error message if main image URL failed but thumbnail might have succeeded
       if (loadedImageUrl == null && workflowState.actualImageGsUri != null) {
@@ -985,8 +924,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         debugPrint('_saveDraft: Local image present without actual GS URI. Uploading synchronously before saving...');
         try {
           final uris = await _uploadImageAndProcess(workflowState.imageFile!);
-          workflowState.setActualImageGsUri(uris['imageUri']);
-          workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
+          workflowState.setUploadedGsUris(uris['imageUri'], uris['thumbnailUri']);
           debugPrint('_saveDraft: Synchronous image upload complete. Actual GS URIs set in WorkflowState.');
         } catch (e) {
            debugPrint('_saveDraft: Error uploading image during save: $e');
@@ -1151,557 +1089,105 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   
   // Build the content for the current step
   Widget _buildStepContent(int currentStep) {
-    final workflowState = Provider.of<WorkflowState>(context);
+    final workflowState = Provider.of<WorkflowState>(context); // Keep for general access
     
     switch (currentStep) {
       case 0: // Upload
-        // Keep workflowState from Provider.of for callbacks for now
-
-        // Wrap the part that needs the latest URLs in a Consumer
         return Consumer<WorkflowState>(
           builder: (context, consumedState, child) {
-            
-            // Use consumedState for values needed for the build
             final bool isSuccessfullyParsed = consumedState.parseReceiptResult.containsKey('items') &&
                                               (consumedState.parseReceiptResult['items'] as List?)?.isNotEmpty == true;
 
-            // **** Use consumedState in the debug print ****
-            debugPrint('[_buildStepContent Consumer for Upload] consumedState.loadedImageUrl: ${consumedState.loadedImageUrl}, consumedState.loadedThumbnailUrl: ${consumedState.loadedThumbnailUrl}');
+            // debugPrint('[_buildStepContent Consumer for Upload] consumedState.loadedImageUrl: ${consumedState.loadedImageUrl}, consumedState.loadedThumbnailUrl: ${consumedState.loadedThumbnailUrl}');
                 
-            return ReceiptUploadScreen(
-              imageFile: consumedState.imageFile, // Use consumed state
-              imageUrl: consumedState.loadedImageUrl, // Use consumed state
-              loadedThumbnailUrl: consumedState.loadedThumbnailUrl, // Use consumed state
-              isLoading: consumedState.isLoading, // Use consumed state
-              isSuccessfullyParsed: isSuccessfullyParsed, // Use calculated value
-              
-              // Callbacks still use the workflowState obtained via Provider.of outside the Consumer
-              onImageSelected: (file) async {
-                // --- EDIT: Add confirmation if parse data exists ---
-                if (workflowState.hasParseData) {
-                  final confirmed = await _showConfirmationDialog(
-                    'Confirm Action',
-                    'Selecting a new image will clear all currently reviewed items, assigned people, and split details. Do you want to continue?'
-                  );
-                  if (!confirmed) return; // User cancelled
-                  workflowState.clearParseAndSubsequentData();
-                }
-                // --- END EDIT ---
-
-                if (file != null) {
-                  workflowState.setImageFile(file); // This already clears subsequent data internally
-                  workflowState.setErrorMessage(null);
-                  // Store the file reference used for this specific upload attempt
-                  final File imageFileForThisUpload = file; 
-
-                  _uploadImageAndProcess(imageFileForThisUpload).then((uris) {
-                    // Check if the widget is still mounted AND if the current imageFile in state is still the one we started this upload for.
-                    if (mounted && workflowState.imageFile == imageFileForThisUpload) { 
-                      workflowState.setActualImageGsUri(uris['imageUri']); 
-                      workflowState.setActualThumbnailGsUri(uris['thumbnailUri']);
-                      debugPrint('[WorkflowModal onImageSelected] Background upload complete. WorkflowState updated - ActualImageGsUri: ${workflowState.actualImageGsUri}, ActualThumbnailGsUri: ${workflowState.actualThumbnailGsUri}');
-                    } else {
-                      debugPrint('[WorkflowModal onImageSelected] Background upload complete, but context changed or image no longer matches. URIs not set or will be overwritten. Orphaned URIs might be ${uris['imageUri']}, ${uris['thumbnailUri']}');
-                      // If URIs were generated but not set, they are now orphans. Add them to pending deletion.
-                      if (uris['imageUri'] != null) workflowState.addUriToPendingDeletions(uris['imageUri']);
-                      if (uris['thumbnailUri'] != null) workflowState.addUriToPendingDeletions(uris['thumbnailUri']);
-                    }
-                  }).catchError((error) {
-                     // Check if the widget is still mounted AND if the current imageFile in state is still the one we started this upload for.
-                     if (mounted && workflowState.imageFile == imageFileForThisUpload) { 
-                        debugPrint('[WorkflowModal onImageSelected] Background upload failed for current image: $error');
-                        workflowState.setErrorMessage('Background image upload failed. Please try parsing again or reselect.');
-                        // Explicitly clear URIs in state as the upload for the current imageFile failed
-                        workflowState.setActualImageGsUri(null);
-                        workflowState.setActualThumbnailGsUri(null);
-                      } else {
-                        debugPrint('[WorkflowModal onImageSelected] Background upload failed for an outdated image selection: $error');
-                        // The URIs that might have been generated for this outdated attempt are unknown here,
-                        // but _uploadImageAndProcess should not return URIs if it hard-fails.
-                        // If it somehow did, they'd be handled by the 'else' in the 'then' block if a new image was selected quickly.
-                      }
-                  });
-                } else {
-                  workflowState.resetImageFile(); 
-                  workflowState.setErrorMessage(null);
-                }
-              },
-              onParseReceipt: () async {
-                // --- EDIT: Add confirmation dialog ---
-                if (workflowState.hasParseData) {
-                  final confirmed = await _showConfirmationDialog(
-                    'Confirm Re-Parse',
-                    'Parsing again will clear all currently reviewed items, voice assignments, and split details. Tip and Tax will be preserved. Do you want to continue?'
-                  );
-                  if (!confirmed) return;
-                  workflowState.clearParseAndSubsequentData(); // Clears relevant data, preserves tip/tax
-                }
-                // --- END EDIT ---
-
-                workflowState.setLoading(true); 
-                workflowState.setErrorMessage(null);
-                String? gsUriForParsing;
-                try {
-                  if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty) { // Use original ref
-                      gsUriForParsing = workflowState.actualImageGsUri;
-                      debugPrint('[WorkflowModal onParseReceipt] Using pre-existing actualImageGsUri: $gsUriForParsing');
-                  } else if (workflowState.imageFile != null) { // Use original ref
-                      debugPrint('[WorkflowModal onParseReceipt] Local file detected, no GS URI yet. Uploading synchronously...');
-                      final uris = await _uploadImageAndProcess(workflowState.imageFile!);
-                      workflowState.setActualImageGsUri(uris['imageUri']); // Use original ref
-                      workflowState.setActualThumbnailGsUri(uris['thumbnailUri']); // Use original ref
-                      gsUriForParsing = uris['imageUri'];
-                      debugPrint('[WorkflowModal onParseReceipt] Synchronous upload complete. WorkflowState updated - ActualImageGsUri: ${workflowState.actualImageGsUri}, ActualThumbnailGsUri: ${workflowState.actualThumbnailGsUri}. Using: $gsUriForParsing for parsing.');
-                  } else if (workflowState.loadedImageUrl != null) { // Use original ref
-                    debugPrint('[WorkflowModal onParseReceipt] CRITICAL: loadedImageUrl is present, but actualImageGsUri is missing...');
-                    throw Exception('Image loaded from draft, but its GS URI is missing in state.');
-                  } else {
-                    debugPrint('[WorkflowModal onParseReceipt] No image selected or available for parsing.');
-                    workflowState.setLoading(false);
-                    workflowState.setErrorMessage('Please select an image first.');
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
-                      );
-                    }
-                    return;
-                  }
-
-                  if (gsUriForParsing == null || gsUriForParsing.isEmpty) {
-                    debugPrint('[WorkflowModal onParseReceipt] CRITICAL: gsUriForParsing is null or empty...');
-                    throw Exception('Image URI could not be determined for parsing.');
-                  }
-                  
-                  Map<String, dynamic> newParseResult = {}; 
-                  bool isNewImageJustUploaded = workflowState.imageFile != null; // Use original ref
-                  bool shouldParse = isNewImageJustUploaded || 
-                                    (!workflowState.parseReceiptResult.containsKey('items')) || // Use original ref
-                                    ((workflowState.parseReceiptResult['items'] as List?)?.isEmpty ?? true);
-
-                  if (shouldParse) {
-                    debugPrint('[WorkflowModal onParseReceipt] Parsing needed...');
-                    final ReceiptData parsedData = await ReceiptParserService.parseReceipt(gsUriForParsing);
-                    newParseResult['items'] = parsedData.items;
-                    newParseResult['subtotal'] = parsedData.subtotal;
-                    workflowState.setParseReceiptResult(newParseResult); // Use original ref
-                    debugPrint('[WorkflowModal onParseReceipt] Receipt parsed successfully...');
-                  } else {
-                    debugPrint('[WorkflowModal onParseReceipt] Parsing not needed...');
-                  }
-
-                  workflowState.setLoading(false); // Use original ref
-                  workflowState.nextStep(); // Use original ref
-                } catch (e) { 
-                  debugPrint('[WorkflowModal onParseReceipt] Error: $e');
-                  workflowState.setLoading(false); // Use original ref
-                  workflowState.setErrorMessage('Failed to process/parse receipt: ${e.toString()}');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to process/parse receipt: ${e.toString()}'), backgroundColor: Colors.red),
-                    );
-                  }
-                }
-              },
-              onRetry: () { 
-                workflowState.resetImageFile(); // Use original ref
-                workflowState.setErrorMessage(null); // Use original ref
-              },
-            );
+            return UploadStepWidget(
+              imageFile: consumedState.imageFile,
+              imageUrl: consumedState.loadedImageUrl,
+              loadedThumbnailUrl: consumedState.loadedThumbnailUrl,
+              isLoading: consumedState.isLoading,
+              isSuccessfullyParsed: isSuccessfullyParsed,
+              onImageSelected: _handleImageSelectedForUploadStep, // Use new handler
+              onParseReceipt: _handleParseReceiptForUploadStep,    // Use new handler
+              onRetry: _handleRetryForUploadStep,                // Use new handler
+            ) as Widget; // Explicit cast
           },
         );
         
       case 1: // Review
-        // Convert receipt data to ReceiptItem objects for review
         // --- EDIT: Check for parse data before building ---
         if (!workflowState.hasParseData) {
-          return _buildPlaceholder('Please upload and parse a receipt first.');
+          return _buildPlaceholder('Please upload and parse a receipt first.') as Widget; // Explicit cast
         }
         // --- END EDIT ---
         final List<ReceiptItem> items = _convertToReceiptItems(workflowState.parseReceiptResult);
         
-        debugPrint('[_buildStepContent Consumer for Review] Building ReceiptReviewScreen with ${items.length} items.');
+        // debugPrint('[_buildStepContent Consumer for Review] Building ReceiptReviewScreen with ${items.length} items.');
 
-        return ReceiptReviewScreen(
+        return ReviewStepWidget(
+          key: const ValueKey('ReviewStepWidget'), 
           initialItems: items,
-          onReviewComplete: (updatedItems, deletedItems) {
-            workflowState.setParseReceiptResult({
-              ...workflowState.parseReceiptResult,
-              'items': updatedItems.map((item) => item.toJson()).toList(),
-            });
-            debugPrint('Review complete. Updated items: ${updatedItems.length}, Deleted: ${deletedItems.length}');
-            workflowState.nextStep();
-          },
-          onItemsUpdated: (currentItems) {
-            // Optional: Could use this to update a temporary state if needed
-            // For now, we rely on onReviewComplete and the getter for _saveDraft
-          },
-          registerCurrentItemsGetter: (getter) {
-            _getCurrentReviewItemsCallback = getter;
-            debugPrint('[_buildStepContent] Registered getCurrentItems callback from ReceiptReviewScreen.');
-          }
+          onReviewComplete: _handleReviewCompleteForReviewStep,
+          onItemsUpdated: _handleItemsUpdatedForReviewStep,
+          registerCurrentItemsGetter: _handleRegisterCurrentItemsGetterForReviewStep,
         );
         
-      case 2: // Assign
+      case 2: // Assign people to items (Voice Assignment)
         return Consumer<WorkflowState>(
-          builder: (context, consumedState, child) {
-            // --- EDIT: Check for parse data before building ---
-            if (!consumedState.hasParseData) {
-              return _buildPlaceholder('Please complete the Review step first.');
-            }
-            // --- END EDIT ---
-            final List<ReceiptItem> items = _convertToReceiptItems(consumedState.parseReceiptResult);
-            
-            debugPrint('[_buildStepContent Assign] consumedState._transcribeAudioResult: ${consumedState._transcribeAudioResult}');
-            final String? initialTranscriptionFromState = consumedState.transcribeAudioResult['text'] as String?;
-            debugPrint('[_buildStepContent Assign] initialTranscription from state for VoiceScreen: $initialTranscriptionFromState');
+          builder: (context, workflowState, child) {
+            final List<ReceiptItem> itemsToAssign = _convertToReceiptItems(workflowState.parseReceiptResult);
 
-            return VoiceAssignmentScreen(
-              itemsToAssign: items, 
-              initialTranscription: initialTranscriptionFromState ?? '',
-              onAssignmentProcessed: (assignmentResultData) {
-                debugPrint('[WorkflowModal Assign CB] onAssignmentProcessed received data type: ${assignmentResultData.runtimeType}');
-                debugPrint('[WorkflowModal Assign CB] onAssignmentProcessed data content: $assignmentResultData');
-                workflowState.setAssignPeopleToItemsResult(assignmentResultData);
-                workflowState.nextStep();
-              },
-              onTranscriptionChanged: (newTranscription) {
-                final currentTranscribeResult = Map<String, dynamic>.from(workflowState.transcribeAudioResult);
-                currentTranscribeResult['text'] = newTranscription;
-                workflowState.setTranscribeAudioResult(currentTranscribeResult);
-                debugPrint('[WorkflowModal] Transcription updated in WorkflowState using key \'text\': $newTranscription');
-              },
-              onReTranscribeRequested: () async {
-                if (workflowState.hasTranscriptionData) {
-                  final confirmed = await _showConfirmationDialog(
-                    'Confirm Re-transcribe',
-                    'Starting a new recording will clear the current transcription text. Assignments and split details will be preserved unless you re-process assignments later. Continue?'
-                  );
-                  if (!confirmed) return false;
-                  workflowState.clearTranscriptionAndSubsequentData();
-                  debugPrint('[WorkflowModal] Re-transcribe confirmed. Transcription cleared.');
-                  return true;
-                }
-                return true;
-              },
-              onConfirmProcessAssignments: () async {
-                if (workflowState.hasAssignmentData) {
-                  final confirmed = await _showConfirmationDialog(
-                    'Confirm Process Assignments',
-                    'This will re-process assignments based on the current transcription and overwrite any existing assignment data. Tip and tax will be preserved. Continue?'
-                  );
-                  if (!confirmed) return false;
-                  workflowState.clearAssignmentAndSubsequentData();
-                  debugPrint('[WorkflowModal] Process assignments confirmed. Previous assignments cleared.');
-                  return true;
-                }
-                return true;
-              },
+            if (itemsToAssign.isEmpty) {
+               return _buildPlaceholder('Please complete the review step first. No items to assign.');
+            }
+            return AssignStepWidget(
+              key: ValueKey('AssignStepWidget_${itemsToAssign.length}_${(workflowState.transcribeAudioResult['text'] as String?)?.hashCode ?? 0}'),
+              itemsToAssign: itemsToAssign, 
+              initialTranscription: workflowState.transcribeAudioResult['text'] as String?,
+              onAssignmentProcessed: _handleAssignmentProcessedForAssignStep,
+              onTranscriptionChanged: _handleTranscriptionChangedForAssignStep,
+              onReTranscribeRequested: _handleReTranscribeRequestedForAssignStep,
+              onConfirmProcessAssignments: _handleConfirmProcessAssignmentsForAssignStep,
             );
-          }
+          },
         );
         
       case 3: // Split
         return Consumer<WorkflowState>(
           builder: (context, workflowState, child) {
-            // --- EDIT: Check for assignment data before building ---
             if (!workflowState.hasAssignmentData) {
               return _buildPlaceholder('Please complete the voice assignment first, or ensure people/items were assigned.');
             }
-            // --- END EDIT ---
-            final parseResult = workflowState.parseReceiptResult;
-            final assignResultMap = workflowState.assignPeopleToItemsResult;
-            debugPrint('[_buildStepContent SplitProvider] assignResultMap runtimeType: ${assignResultMap.runtimeType}');
-            debugPrint('[_buildStepContent SplitProvider] assignResultMap content: $assignResultMap');
-
-            // Always initialize SplitManager from the current workflowState's
-            // parseReceiptResult and assignPeopleToItemsResult.
-            debugPrint('[_buildStepContent SplitProvider] Creating/Recreating SplitManager for Split view.');
-
-            final List<Map<String, dynamic>> assignments = 
-                (assignResultMap['assignments'] as List<dynamic>?)
-                    ?.map((e) => e as Map<String, dynamic>)
-                    .toList() ?? [];
-            
-            final List<Map<String, dynamic>> sharedItemsFromAssign = 
-                (assignResultMap['shared_items'] as List<dynamic>?)
-                    ?.map((e) => e as Map<String, dynamic>)
-                    .toList() ?? [];
-
-            final List<Map<String, dynamic>> unassignedItemsFromAssign = 
-                (assignResultMap['unassigned_items'] as List<dynamic>?)
-                    ?.map((e) => e as Map<String, dynamic>)
-                    .toList() ?? [];
-
-            final List<Person> people = assignments.map((assignment) {
-              final personName = assignment['person_name'] as String;
-              final itemsForPerson = (assignment['items'] as List<dynamic>).map((itemMap) {
-                final itemDetail = itemMap as Map<String, dynamic>;
-                // Here, we need to create ReceiptItem instances.
-                // We need a source for itemId if it exists, otherwise it's a new item.
-                // For now, let's assume items parsed here might not have a persistent itemId yet,
-                // or we can generate one if needed. This part might need refinement based on how
-                // items are initially created and identified before explicit splitting.
-                return ReceiptItem(
-                  name: itemDetail['name'] as String,
-                  quantity: (itemDetail['quantity'] as num).toInt(),
-                  price: (itemDetail['price'] as num).toDouble(),
-                  // itemId: if it comes from a parsed source, use it, else it's new.
-                );
-              }).toList();
-              return Person(name: personName, assignedItems: itemsForPerson);
-            }).toList();
-
-            final List<ReceiptItem> sharedItems = sharedItemsFromAssign.map((itemMap) {
-              // Similar to above, how do we get itemId if these are pre-existing items?
-              return ReceiptItem(
-                name: itemMap['name'] as String,
-                quantity: (itemMap['quantity'] as num).toInt(),
-                price: (itemMap['price'] as num).toDouble(),
-                // people: (itemMap['people'] as List<dynamic>).cast<String>(), // This was for AssignmentResult.SharedItemDetail
-              );
-            }).toList();
-            
-            // Populate shared items for each person based on the 'people' field in sharedItemsFromAssign
-            for (final sharedItemMap in sharedItemsFromAssign) {
-                final itemName = sharedItemMap['name'] as String;
-                final itemPrice = (sharedItemMap['price'] as num).toDouble();
-                final sharedItemInstance = sharedItems.firstWhereOrNull(
-                    (ri) => ri.name == itemName && ri.price == itemPrice
-                );
-                if (sharedItemInstance != null) {
-                    final List<String> personNamesSharingThisItem = (sharedItemMap['people'] as List<dynamic>).cast<String>();
-                    for (final personName in personNamesSharingThisItem) {
-                        final person = people.firstWhereOrNull((p) => p.name == personName);
-                        if (person != null && !person.sharedItems.any((si) => si.itemId == sharedItemInstance.itemId)) { // Ensure itemId is unique if used
-                            person.addSharedItem(sharedItemInstance);
-                        }
-                    }
-                }
-            }
-
-
-            final List<ReceiptItem> unassignedItemsFromAssignResult = unassignedItemsFromAssign.map((itemMap) {
-              return ReceiptItem(
-                name: itemMap['name'] as String,
-                quantity: (itemMap['quantity'] as num).toInt(),
-                price: (itemMap['price'] as num).toDouble(),
-              );
-            }).toList();
-            
-            // Extract initial items list from parseResult to get original quantities
-            final initialItemsFromParse = (parseResult['items'] as List<dynamic>?)
-              ?.map((itemMap) => ReceiptItem.fromJson(itemMap as Map<String, dynamic>))
-              .toList() ?? [];
-
-            final manager = SplitManager(
-              people: people,
-              sharedItems: sharedItems, // These are template shared items, not assigned yet. SplitManager handles distribution.
-              unassignedItems: unassignedItemsFromAssignResult, 
-              tipPercentage: workflowState.tip ?? (parseResult['tip'] as num?)?.toDouble(), // Prioritize workflowState tip
-              taxPercentage: workflowState.tax ?? (parseResult['tax'] as num?)?.toDouble(), // Prioritize workflowState tax
-              originalReviewTotal: (parseResult['subtotal'] as num?)?.toDouble(),
-            );
-            
-            // Set original quantities in the manager
-            for (var item in initialItemsFromParse) {
-              manager.setOriginalQuantity(item, item.quantity);
-            }
-            // Also for items that might have come from assign_people_to_items but were not in original parse
-            // (e.g. manually added items in a previous session that were saved in assign_people_to_items)
-            final allKnownItemsForQuantities = [
-              ...people.expand((p) => p.assignedItems),
-              ...sharedItems, // these are distinct instances
-              ...unassignedItemsFromAssignResult,
-            ];
-            for (var item in allKnownItemsForQuantities) {
-                if (manager.getOriginalQuantity(item) == 0 && item.quantity > 0) { // only if not already set by parseResult
-                    manager.setOriginalQuantity(item, item.quantity);
-                }
-            }
-            
-            manager.initialSplitViewTabIndex = _initialSplitViewTabIndex;
-
-            // The SplitManager instance (manager) is created fresh.
-            // Attach the listener directly here for this new instance.
-            manager.addListener(() {
-              if (mounted && Provider.of<WorkflowState>(context, listen: false) == workflowState) {
-                if (workflowState.tip != manager.tipPercentage) {
-                  workflowState.setTip(manager.tipPercentage);
-                }
-                if (workflowState.tax != manager.taxPercentage) {
-                  workflowState.setTax(manager.taxPercentage);
-                }
-                final newAssignmentMap = manager.generateAssignmentMap();
-                workflowState.setAssignPeopleToItemsResult(newAssignmentMap);
-                final newPeopleList = manager.currentPeopleNames;
-                workflowState.setPeople(newPeopleList);
-              }
-            });
-
-            // Wrap SplitView with NotificationListener
-            return NotificationListener<NavigateToPageNotification>(
-              onNotification: (notification) {
-                if (notification.pageIndex >= 0 && notification.pageIndex < _stepTitles.length) {
-                  if (notification.pageIndex == 4) { // Tapped "Go to Summary" (index 4) from Split (index 3)
-                    if (!workflowState.hasAssignmentData) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Cannot proceed to Summary: Assignment data is missing.'),
-                          duration: const Duration(seconds: 3),
-                          backgroundColor: Theme.of(context).colorScheme.error,
-                        ),
-                      );
-                      return true; // Notification handled, block navigation
-                    }
-                  }
-                  workflowState.goToStep(notification.pageIndex);
-                }
-                return true; // Notification handled
-              },
-              child: ChangeNotifierProvider.value(
-                value: manager,
-                child: const SplitView(), 
-              ),
+            return SplitStepWidget(
+              key: const ValueKey('SplitStepWidget'),
+              parseResult: workflowState.parseReceiptResult,
+              assignResultMap: workflowState.assignPeopleToItemsResult,
+              currentTip: workflowState.tip,
+              currentTax: workflowState.tax,
+              initialSplitViewTabIndex: _initialSplitViewTabIndex, 
+              onTipChanged: _handleTipChangedForSplitStep,
+              onTaxChanged: _handleTaxChangedForSplitStep,
+              onAssignmentsUpdatedBySplit: _handleAssignmentsUpdatedBySplitStep,
+              onNavigateToPage: _handleNavigateToPageForSplitStep, 
             );
           }
         );
         
       case 4: // Summary
-        // --- EDIT: Check for assignment data before building ---
+        return Consumer<WorkflowState>(
+          builder: (context, workflowState, child) {
         if (!workflowState.hasAssignmentData) {
            return _buildPlaceholder('Please complete the Split step first, ensuring items are assigned.');
         }
-        // --- END EDIT ---
-        return ChangeNotifierProvider(
-          create: (context) {
-            final assignResultMap = workflowState.assignPeopleToItemsResult;
-            final parseResult = workflowState.parseReceiptResult;
-            
-            debugPrint('[_buildStepContent SummaryProvider] Creating SplitManager for Summary.');
-            debugPrint('[_buildStepContent SummaryProvider] assignResultMap: $assignResultMap');
-
-            final List<Person> peopleForManager = [];
-            final List<ReceiptItem> sharedItemsForManager = [];
-            final List<ReceiptItem> unassignedItemsForManager = [];
-
-            // Populate directly from assignResultMap
-            if (assignResultMap.containsKey('assignments') && assignResultMap['assignments'] is List) {
-              for (var personData in (assignResultMap['assignments'] as List)) {
-                if (personData is Map<String, dynamic>) {
-                  final personName = personData['person_name'] as String? ?? 'Unknown Person';
-                  final List<ReceiptItem> personItems = [];
-                  if (personData['items'] is List) {
-                    for (var itemData in (personData['items'] as List)) {
-                      if (itemData is Map<String, dynamic>) {
-                        personItems.add(ReceiptItem.fromJson(itemData));
-                      }
-                    }
-                  }
-                  // Create Person and add its shared items if they exist in personData (from assignResultMap)
-                  // For now, assuming 'shared_items' for a person might not be directly in personData here
-                  // as generateAssignmentMap() for person only serializes 'items' (assignedItems)
-                  final personInstance = Person(name: personName, assignedItems: personItems);
-
-                  // If assignResultMap's 'shared_items' list contains references to which people share them,
-                  // we could iterate through sharedItemsForManager later and add to personInstance.sharedItems.
-                  // Or, if personData itself contained 'shared_items_participation' like in earlier commented code
-                  // in generateAssignmentMap, it could be used here.
-                  // For now, this person only has assigned items.
-                  peopleForManager.add(personInstance);
-                }
-              }
-            }
-
-            if (assignResultMap.containsKey('shared_items') && assignResultMap['shared_items'] is List) {
-              for (var itemData in (assignResultMap['shared_items'] as List)) {
-                if (itemData is Map<String, dynamic>) {
-                  final sharedItem = ReceiptItem.fromJson(itemData);
-                  sharedItemsForManager.add(sharedItem);
-                  
-                  // Post-process: Link shared items to people if assignResultMap indicates who shares them.
-                  // This logic might be complex if 'itemData' (from assignResultMap['shared_items'])
-                  // contains a list of person names/IDs that share this item.
-                  // The SplitManager itself, when constructed with a list of people and a list of shared items,
-                  // might internally establish these links or expect Person objects to already have their shared items populated.
-                  // The original code (that was problematic) did try to populate Person.sharedItems.
-                  // Let's assume for now that SplitManager.getPeopleForSharedItem() works by checking
-                  // which people in its _people list have this sharedItem in their _sharedItems list.
-                  // So, we need to populate Person._sharedItems based on `assignResultMap['shared_items']` if it has person linkage.
-                  // The current `SplitManager.generateAssignmentMap` does NOT put a 'people' list inside each shared_item map.
-                  // It just lists global shared items. The Person objects only have their 'assignedItems' serialized.
-                  // So, the `Person` objects in `peopleForManager` won't have their `sharedItems` list populated from this map directly
-                  // unless `SplitManager` constructor or other methods handle it.
-                  // This might be a separate area to ensure consistency if `PersonCard` relies on `person.sharedItems`.
-                  // For `summaryManager.totalAmount`, this direct population of `sharedItemsForManager` is correct.
-                  // --- START ADDED LOGIC TO LINK SHARED ITEMS TO PEOPLE ---
-                  if (itemData.containsKey('people') && itemData['people'] is List) {
-                    final List<String> personNamesSharingThisItem = (itemData['people'] as List).cast<String>();
-                    for (final personName in personNamesSharingThisItem) {
-                      final person = peopleForManager.firstWhereOrNull((p) => p.name == personName);
-                      if (person != null) {
-                        // Ensure the person doesn't already have this exact item instance in their shared list
-                        // This check might need to be more robust based on ReceiptItem's equality
-                        if (!person.sharedItems.any((si) => si.name == sharedItem.name && si.price == sharedItem.price && si.quantity == sharedItem.quantity)) {
-                           person.addSharedItem(sharedItem); // Use the instance from sharedItemsForManager if appropriate, or a new one.
-                                                           // For now, assuming ReceiptItem.fromJson creates a suitable instance.
-                        }
-                      }
-                    }
-                  }
-                  // --- END ADDED LOGIC ---
-                }
-              }
-            }
-
-            if (assignResultMap.containsKey('unassigned_items') && assignResultMap['unassigned_items'] is List) {
-              for (var itemData in (assignResultMap['unassigned_items'] as List)) {
-                if (itemData is Map<String, dynamic>) {
-                  unassignedItemsForManager.add(ReceiptItem.fromJson(itemData));
-                }
-              }
-            }
-            
-            // After populating peopleForManager and sharedItemsForManager,
-            // we might need to iterate through sharedItemsForManager and assign them to the
-            // respective Person objects in peopleForManager if the data model requires Person.sharedItems to be populated
-            // and if assignResultMap['shared_items'] implies which person shares what.
-            // However, `SplitManager.generateAssignmentMap()` current structure:
-            // 'assignments': [{'person_name': ..., 'items': [assigned_item_jsons]}]
-            // 'shared_items': [shared_item_jsons]  <-- No direct link to people here
-            // 'unassigned_items': [unassigned_item_jsons]
-            // So, Person objects created above will only have their `assignedItems`. `sharedItemsForManager` will be the global list.
-            // This is consistent with how `SplitManager.totalAmount` works.
-
-            final summaryManager = SplitManager(
-              people: peopleForManager,
-              sharedItems: sharedItemsForManager,
-              unassignedItems: unassignedItemsForManager,
-              tipPercentage: workflowState.tip,
-              taxPercentage: workflowState.tax,
-              originalReviewTotal: (parseResult['subtotal'] as num?)?.toDouble(),
+            // All data preparation for FinalSummaryScreen's SplitManager is now within SummaryStepWidget.
+            return SummaryStepWidget(
+              key: const ValueKey('SummaryStepWidget'), // Add a key
+              parseResult: workflowState.parseReceiptResult,
+              assignResultMap: workflowState.assignPeopleToItemsResult,
+              currentTip: workflowState.tip,
+              currentTax: workflowState.tax,
+              // onNavigateToPage: _handleNavigateToPageForSummaryStep, // If summary needs to navigate
             );
-            
-            return summaryManager;
-          },
-          // REMOVE the listener from here if SplitView is the only source
-          // child: Column(
-          //   children: [
-          //     const Expanded(
-          //       child: FinalSummaryScreen(),
-          //     ),
-          //     NotificationListener<NavigateToPageNotification>(
-          //       onNotification: (notification) {
-          //         if (notification.pageIndex < 5) { 
-          //           workflowState.goToStep(notification.pageIndex);
-          //         }
-          //         return true; 
-          //       },
-          //       child: const SizedBox.shrink(), 
-          //     ),
-          //   ],
-          // ),
-          // Replace with direct child if listener is removed
-          child: const FinalSummaryScreen(),
+          }
         );
         
       default:
@@ -1777,20 +1263,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 return FilledButton.icon(
                   onPressed: isNextEnabled 
                     ? () async { // Enabled logic
-                        // REMOVE the confirmation logic from here
-                        // bool proceedAfterConfirm = true;
-                        // if (currentStep == 2 /* && localWorkflowState.hasAssignmentData - implied by isNextEnabled */) { 
-                        //   proceedAfterConfirm = await _showConfirmationDialog(
-                        //     'Start Splitting',
-                        //     'This will use the current assignments to start the split. Any existing split details (people modifications, item assignments in split, tip/tax) will be based on this. If you re-assign later, you may need to re-split. Continue?'
-                        //   );
-                        // }
-                        // 
-                        // if (proceedAfterConfirm) {
-                        //     localWorkflowState.nextStep();
-                        // }
-                        
-                        // Simply navigate if enabled
                         localWorkflowState.nextStep();
                       }
                     : null, // Disabled
@@ -2045,4 +1517,272 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     );
   }
   // --- END EDIT ---
-} 
+
+  // --- START OF NEW HELPER METHODS FOR UPLOAD STEP CALLBACKS ---
+  Future<void> _handleImageSelectedForUploadStep(File? file) async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    if (workflowState.hasParseData) {
+      final confirmed = await _showConfirmationDialog(
+        'Confirm Action',
+        'Selecting a new image will clear all currently reviewed items, assigned people, and split details. Do you want to continue?'
+      );
+      if (!confirmed) return; // User cancelled
+      workflowState.clearParseAndSubsequentData();
+    }
+
+    if (file != null) {
+      workflowState.setImageFile(file); // This already clears subsequent data internally
+      workflowState.setErrorMessage(null);
+      final File imageFileForThisUpload = file; 
+
+      _uploadImageAndProcess(imageFileForThisUpload).then((uris) {
+        if (mounted && workflowState.imageFile == imageFileForThisUpload) { 
+          workflowState.setUploadedGsUris(uris['imageUri'], uris['thumbnailUri']);
+          debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload complete. WorkflowState updated.');
+        } else {
+          debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload complete, but context changed or image no longer matches. URIs not set. Orphaned URIs might be ${uris['imageUri']}, ${uris['thumbnailUri']}');
+          if (uris['imageUri'] != null) workflowState.addUriToPendingDeletions(uris['imageUri']);
+          if (uris['thumbnailUri'] != null) workflowState.addUriToPendingDeletions(uris['thumbnailUri']);
+        }
+      }).catchError((error) {
+         if (mounted && workflowState.imageFile == imageFileForThisUpload) { 
+            debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload failed for current image: $error');
+            workflowState.setErrorMessage('Background image upload failed. Please try parsing again or reselect.');
+            workflowState.setUploadedGsUris(null, null);
+          } else {
+            debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload failed for an outdated image selection: $error');
+          }
+      });
+    } else {
+      workflowState.resetImageFile(); 
+      workflowState.setErrorMessage(null);
+    }
+  }
+
+  Future<void> _handleParseReceiptForUploadStep() async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
+
+    if (workflowState.hasParseData) {
+      final confirmed = await _showConfirmationDialog(
+        'Confirm Re-Parse',
+        'Parsing again will clear all currently reviewed items, voice assignments, and split details. Tip and Tax will be preserved. Do you want to continue?'
+      );
+      if (!confirmed) return;
+      workflowState.clearParseAndSubsequentData();
+    }
+
+    workflowState.setLoading(true); 
+    workflowState.setErrorMessage(null);
+    String? gsUriForParsing;
+    try {
+      if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty) {
+          gsUriForParsing = workflowState.actualImageGsUri;
+          debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Using pre-existing actualImageGsUri: $gsUriForParsing');
+      } else if (workflowState.imageFile != null) {
+          debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Local file detected, no GS URI yet. Uploading synchronously...');
+          final uris = await _uploadImageAndProcess(workflowState.imageFile!);
+          workflowState.setUploadedGsUris(uris['imageUri'], uris['thumbnailUri']);
+          gsUriForParsing = uris['imageUri'];
+          debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Synchronous upload complete. Using: $gsUriForParsing for parsing.');
+      } else if (workflowState.loadedImageUrl != null) {
+        debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] CRITICAL: loadedImageUrl is present, but actualImageGsUri is missing...');
+        throw Exception('Image loaded from draft, but its GS URI is missing in state.');
+      } else {
+        debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] No image selected or available for parsing.');
+        workflowState.setLoading(false);
+        workflowState.setErrorMessage('Please select an image first.');
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('Please select an image first.'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
+      if (gsUriForParsing == null || gsUriForParsing.isEmpty) {
+        debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] CRITICAL: gsUriForParsing is null or empty...');
+        throw Exception('Image URI could not be determined for parsing.');
+      }
+      
+      Map<String, dynamic> newParseResult = {}; 
+      debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Parsing receipt with URI: $gsUriForParsing');
+      final ReceiptData parsedData = await ReceiptParserService.parseReceipt(gsUriForParsing);
+      newParseResult['items'] = parsedData.items;
+      newParseResult['subtotal'] = parsedData.subtotal;
+      workflowState.setParseReceiptResult(newParseResult);
+      debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Receipt parsed successfully.');
+
+      workflowState.setLoading(false);
+      workflowState.nextStep();
+    } catch (e) { 
+      debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Error: $e');
+      workflowState.setLoading(false);
+      workflowState.setErrorMessage('Failed to process/parse receipt: ${e.toString()}');
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Failed to process/parse receipt: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _handleRetryForUploadStep() {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    workflowState.resetImageFile();
+    workflowState.setErrorMessage(null);
+  }
+  // --- END OF NEW HELPER METHODS FOR UPLOAD STEP ---
+
+  // --- START OF NEW HELPER METHODS FOR REVIEW STEP CALLBACKS ---
+  void _handleReviewCompleteForReviewStep(List<ReceiptItem> updatedItems, List<ReceiptItem> deletedItems) {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
+    // Calculate the new subtotal from the updated items
+    double newSubtotal = 0.0;
+    for (var item in updatedItems) {
+      newSubtotal += item.price * item.quantity;
+    }
+    newSubtotal = double.parse(newSubtotal.toStringAsFixed(2)); // Mitigate floating point issues for storage/comparison
+
+    // Update workflowState's parseReceiptResult to reflect the reviewed items AND the new subtotal
+    Map<String, dynamic> currentParseResult = Map.from(workflowState.parseReceiptResult);
+    currentParseResult['items'] = updatedItems.map((item) => item.toJson()).toList();
+    currentParseResult['subtotal'] = newSubtotal; // Store the recalculated subtotal
+    
+    workflowState.setParseReceiptResult(currentParseResult);
+
+    debugPrint('[_WorkflowModalBodyState._handleReviewCompleteForReviewStep] Review complete. Subtotal: $newSubtotal. workflowState.parseReceiptResult updated. Updated items: ${updatedItems.length}, Deleted: ${deletedItems.length}');
+    
+    workflowState.clearTranscriptionAndSubsequentData();
+    workflowState.nextStep();
+  }
+
+  void _handleItemsUpdatedForReviewStep(List<ReceiptItem> currentItems) {
+    // Optional: Could use this to update a temporary state if needed.
+    // For now, we rely on onReviewComplete and the getter for _saveDraft.
+    // This method is extracted for consistency if logic is added later.
+    debugPrint('[_WorkflowModalBodyState._handleItemsUpdatedForReviewStep] Items updated in review screen. Count: ${currentItems.length}');
+  }
+
+  void _handleRegisterCurrentItemsGetterForReviewStep(GetCurrentItemsCallback getter) {
+    // This assigns the callback provided by ReceiptReviewScreen to the _WorkflowModalBodyState variable.
+    // This allows _saveDraft to fetch the latest items from ReceiptReviewScreen if it's the current step.
+    _getCurrentReviewItemsCallback = getter;
+    debugPrint('[_WorkflowModalBodyState._handleRegisterCurrentItemsGetterForReviewStep] Registered getCurrentItems callback from ReceiptReviewScreen.');
+  }
+  // --- END OF NEW HELPER METHODS FOR REVIEW STEP ---
+
+  // --- START OF NEW HELPER METHODS FOR ASSIGN STEP CALLBACKS ---
+  void _handleAssignmentProcessedForAssignStep(Map<String, dynamic> assignmentResultData) {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    debugPrint('[_WorkflowModalBodyState._handleAssignmentProcessedForAssignStep] Received data type: ${assignmentResultData.runtimeType}');
+    debugPrint('[_WorkflowModalBodyState._handleAssignmentProcessedForAssignStep] Data content: $assignmentResultData');
+    workflowState.setAssignPeopleToItemsResult(assignmentResultData);
+    workflowState.nextStep();
+  }
+
+  // Method to handle when new transcription is available from VoiceAssignmentScreen
+  void _handleTranscriptionChangedForAssignStep(String? newTranscription) {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    Map<String, dynamic> newResult = Map.from(workflowState.transcribeAudioResult);
+    if (newTranscription == null || newTranscription.isEmpty) {
+      newResult.remove('text'); 
+    } else {
+      newResult['text'] = newTranscription;
+    }
+    workflowState.setTranscribeAudioResult(newResult);
+    debugPrint('[WorkflowModal] Transcription updated by AssignStep: $newTranscription');
+  }
+
+  // Method to handle re-transcription request from VoiceAssignmentScreen
+  Future<bool> _handleReTranscribeRequestedForAssignStep() async {
+      final confirmed = await _showConfirmationDialog(
+      // Positional arguments for title and content
+      'Re-record Audio',
+      'Are you sure you want to re-record the audio? The current transcription will be discarded.',
+      );
+    if (confirmed) { // _showConfirmationDialog returns bool, not bool?
+      final workflowState = Provider.of<WorkflowState>(context, listen: false);
+      workflowState.clearTranscriptionAndSubsequentData();
+      debugPrint('[WorkflowModal] Re-transcription confirmed. Data cleared.');
+    }
+    return confirmed;
+  }
+
+  // Method to handle confirmation before processing assignments in VoiceAssignmentScreen
+  Future<bool> _handleConfirmProcessAssignmentsForAssignStep() async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    // Access transcription via transcribeAudioResult map
+    final transcription = workflowState.transcribeAudioResult['text'] as String?;
+
+    if (transcription == null || transcription.isEmpty) {
+      // Use ScaffoldMessenger directly for error snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please record or ensure transcription is available before processing.'),
+            backgroundColor: Theme.of(context).colorScheme.error, 
+          ),
+        );
+      }
+      return false; 
+    }
+
+      final confirmed = await _showConfirmationDialog(
+      // Positional arguments for title and content
+      'Process Assignments',
+      'Are you sure you want to process the assignments with the current transcription?',
+    );
+    if (confirmed) { // _showConfirmationDialog returns bool, not bool?
+      debugPrint('[WorkflowModal] Assignment processing confirmed by user.');
+    }
+    return confirmed;
+  }
+  // --- END OF NEW HELPER METHODS FOR ASSIGN STEP ---
+
+  // --- START OF NEW HELPER METHODS FOR SPLIT STEP CALLBACKS ---
+  void _handleTipChangedForSplitStep(double? newTip) {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    if (workflowState.tip != newTip) {
+      workflowState.setTip(newTip);
+      debugPrint('[_WorkflowModalBodyState._handleTipChangedForSplitStep] Tip updated from SplitStep: $newTip');
+    }
+  }
+
+  void _handleTaxChangedForSplitStep(double? newTax) {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    if (workflowState.tax != newTax) {
+      workflowState.setTax(newTax);
+      debugPrint('[_WorkflowModalBodyState._handleTaxChangedForSplitStep] Tax updated from SplitStep: $newTax');
+    }
+  }
+
+  void _handleAssignmentsUpdatedBySplitStep(Map<String, dynamic> newAssignments) {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    workflowState.setAssignPeopleToItemsResult(newAssignments);
+    debugPrint('[_WorkflowModalBodyState._handleAssignmentsUpdatedBySplitStep] Assignments updated from SplitStep.');
+  }
+
+  void _handleNavigateToPageForSplitStep(int pageIndex) {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    if (pageIndex >= 0 && pageIndex < _stepTitles.length) {
+      if (pageIndex == 4) { // Tapped "Go to Summary" (index 4) from Split (index 3)
+        if (!workflowState.hasAssignmentData) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Cannot proceed to Summary: Assignment data is missing.'),
+                duration: const Duration(seconds: 3),
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
+          return; // Block navigation
+        }
+      }
+      workflowState.goToStep(pageIndex);
+    }
+  }
+  // --- END OF NEW HELPER METHODS FOR SPLIT STEP ---
+}

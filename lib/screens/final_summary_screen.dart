@@ -355,14 +355,24 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
     // Allow for small floating point inaccuracies
     final bool totalsMatch = (total - sumOfIndividualTotals).abs() < 0.01;
 
+    // --- DEBUG PRINT BEFORE WARNING WIDGET ---
+    debugPrint('[FinalSummaryScreen Before Warning Widget] sumOfIndividualTotals: ${sumOfIndividualTotals.toStringAsFixed(2)}, total: ${total.toStringAsFixed(2)}, totalsMatch: $totalsMatch');
+    // --- END DEBUG PRINT ---
+
+    // --- NEW Warning Logic ---
+    // 'subtotal' variable (which is splitManager.totalAmount) is already defined and represents the current subtotal in summary.
+    final double subtotalFromReview = splitManager.originalReviewTotal ?? 0.0; 
+    final bool showSubtotalMismatchWarning = (subtotalFromReview - subtotal).abs() >= 0.01;
+    // --- END NEW Warning Logic ---
+
     return Stack(
       children: [
         ListView(
           // Add padding at the bottom to ensure content isn't hidden by FABs
           padding: const EdgeInsets.only(bottom: 100),
           children: [
-            // Show warning if totals don't match due to rounding/distribution
-            if (!totalsMatch)
+            // Show warning if subtotals don't match (NEW LOGIC)
+            if (showSubtotalMismatchWarning) // Use the new condition
               Card(
                 elevation: 0,
                 margin: const EdgeInsets.only(bottom: 16),
@@ -376,9 +386,9 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Warning: Sum of parts (\$${sumOfIndividualTotals.toStringAsFixed(2)}) '
-                          'doesn\'t perfectly match total (\$${total.toStringAsFixed(2)}). '
-                          'This might be due to rounding.',
+                          'Warning: Current item subtotal (\$${subtotal.toStringAsFixed(2)}) '
+                          'differs from the subtotal after review (\$${subtotalFromReview.toStringAsFixed(2)}). '
+                          'This may indicate items were changed after the review step or an issue with item processing.',
                           style: textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onErrorContainer,
                             fontWeight: FontWeight.w500,

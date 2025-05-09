@@ -206,7 +206,7 @@ class _SplitViewState extends State<SplitView> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        'The current total (\$${currentTotal.toStringAsFixed(2)}) differs from the receipt total in the Review tab (\$${originalTotal?.toStringAsFixed(2) ?? 'N/A'}).',
+                        'Warning: Current item sum in split (\$${currentTotal.toStringAsFixed(2)}) doesn\'t match reviewed subtotal (\$${originalTotal?.toStringAsFixed(2) ?? 'N/A'}). This might be due to rounding or changes made during splitting.',
                         style: textTheme.bodyMedium?.copyWith(
                           color: puceColor,
                           fontWeight: FontWeight.w500,
