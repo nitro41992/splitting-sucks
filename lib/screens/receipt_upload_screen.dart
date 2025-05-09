@@ -152,43 +152,29 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
         fit: BoxFit.cover,
         fadeInDuration: Duration.zero,
         fadeOutDuration: Duration.zero,
-        progressIndicatorBuilder: (context, url, downloadProgress) {
-          debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] ProgressIndicator for ${widget.imageUrl}. Progress: ${downloadProgress.progress}');
+        placeholder: (context, url) {
           if (hasNetworkThumbnail) {
-            return Stack(
-              fit: StackFit.expand,
-              alignment: Alignment.center,
-              children: [
-                // Thumbnail as background
-                CachedNetworkImage(
-                  imageUrl: widget.loadedThumbnailUrl!,
-                  fit: BoxFit.cover,
-                  errorWidget: (context, url, error) => const Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                ),
-                // Spinner on top, potentially showing progress
-                Center(
-                  child: CircularProgressIndicator(
-                    value: downloadProgress.progress, // This will show actual progress if available
-                    backgroundColor: Colors.black.withOpacity(0.2),
-                    color: colorScheme.onPrimary, // Ensure spinner is visible on thumbnail
-                  ),
-                ),
-              ],
-            );
-          } else {
-            // Fallback if no thumbnail, just a spinner showing progress
-            return Center(
-              child: CircularProgressIndicator(
-                value: downloadProgress.progress,
-                backgroundColor: Colors.black.withOpacity(0.2),
+            return CachedNetworkImage(
+              key: ValueKey('thumbnail_as_placeholder_${widget.loadedThumbnailUrl}'),
+              imageUrl: widget.loadedThumbnailUrl!,
+              fit: BoxFit.cover,
+              placeholder: (ctx, thumbnailUrl) => Container(
+                color: colorScheme.surfaceVariant.withOpacity(0.5),
+              ),
+              errorWidget: (context, thumbnailUrl, error) => const Icon(
+                Icons.broken_image,
+                size: 48,
+                color: Colors.grey,
               ),
             );
+          } else {
+            return const Center(child: CircularProgressIndicator());
           }
         },
         errorWidget: (context, url, error) {
           debugPrint('[ReceiptUploadScreen MainImage CachedNetworkImage] ERROR WIDGET BUILT for ${widget.imageUrl}. Error: $error');
           return Container(
-            color: Colors.red.withOpacity(0.3), // Make it visually obvious
+            color: Colors.red.withOpacity(0.3),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

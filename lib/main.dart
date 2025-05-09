@@ -10,7 +10,6 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'models/split_manager.dart';
-import 'receipt_splitter_ui.dart';
 import 'screens/main_navigation.dart';
 import 'services/mock_data_service.dart';
 import 'services/auth_service.dart';

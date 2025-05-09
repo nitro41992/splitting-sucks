@@ -146,13 +146,17 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
   }
 
   void _viewReceiptDetails(Receipt receipt) {
+    // Capture the ReceiptsScreen's context BEFORE showing the bottom sheet.
+    // This context should remain valid even after the bottom sheet is popped.
+    final BuildContext screenContext = context; // IMPORTANT CHANGE HERE
+
     showModalBottomSheet(
-      context: context,
+      context: screenContext, // Use the captured screenContext to show the sheet
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (bottomSheetContext) { // This is the bottom sheet's own context
         return SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -171,7 +175,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                   ),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(bottomSheetContext), // Use bottomSheetContext to pop itself
                   ),
                 ],
               ),
@@ -196,14 +200,16 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Resume Draft'),
                     onPressed: () async {
-                      Navigator.pop(context); // Close the bottom sheet
+                      Navigator.pop(bottomSheetContext); // Pop the bottom sheet using ITS context
                       debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for RESUME draft: ${receipt.id}');
-                      if (!mounted) {
-                        debugPrint('[_ReceiptsScreenState] NOT MOUNTED before showing WorkflowModal for RESUME draft: ${receipt.id}');
+                      
+                      // Use the CAPTURED screenContext from ReceiptsScreen for WorkflowModal.show
+                      if (!screenContext.mounted) { 
+                        debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for RESUME draft: ${receipt.id}');
                         return;
                       }
-                      final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
-                      if (result == true && mounted) {
+                      final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
+                      if (result == true && screenContext.mounted) {
                         // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
                       }
                     },
@@ -220,14 +226,16 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     icon: const Icon(Icons.edit),
                     label: const Text('Edit Receipt'),
                     onPressed: () async {
-                      Navigator.pop(context); // Close the bottom sheet
+                      Navigator.pop(bottomSheetContext); // Pop the bottom sheet using ITS context
                       debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for EDIT receipt: ${receipt.id}');
-                      if (!mounted) {
-                        debugPrint('[_ReceiptsScreenState] NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
+                      
+                      // Use the CAPTURED screenContext from ReceiptsScreen for WorkflowModal.show
+                      if (!screenContext.mounted) {
+                        debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
                         return;
                       }
-                      final bool? result = await WorkflowModal.show(context, receiptId: receipt.id);
-                      if (result == true && mounted) {
+                      final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
+                      if (result == true && screenContext.mounted) {
                         // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
                       }
                     },
@@ -246,10 +254,24 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     side: const BorderSide(color: Colors.red),
                   ),
                   label: const Text('Delete Receipt'),
-                  onPressed: () => _confirmDeleteReceipt(context, receipt),
+                  // Pass screenContext to _confirmDeleteReceipt if it also needs to show dialogs/modals
+                  onPressed: () async {
+                    // Pop the details bottom sheet FIRST.
+                    Navigator.pop(bottomSheetContext); 
+                    
+                    // Yield to the event loop to allow the pop to be processed.
+                    await Future.microtask(() {}); 
+
+                    // Ensure the screenContext is still mounted before showing the dialog.
+                    if (screenContext.mounted) {
+                      // Then show the confirmation dialog
+                      // IMPORTANT: Use screenContext for showing the dialog,
+                      // as bottomSheetContext is no longer valid after the pop.
+                      await _confirmDeleteReceipt(screenContext, receipt); 
+                    }
+                  },
                 ),
               ),
-              const SizedBox(height: 12),
             ],
           ),
         );
@@ -276,70 +298,75 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
     );
   }
   
+  // Helper for confirmation dialog before deleting a receipt
   Future<void> _confirmDeleteReceipt(BuildContext context, Receipt receipt) async {
-    final confirmation = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Receipt?'),
-        content: Text(
-          'Are you sure you want to delete this receipt${receipt.restaurantName != null ? ' from ${receipt.restaurantName}' : ''}? '
-          'This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('DELETE'),
-          ),
-        ],
-      ),
+    // Show the confirmation dialog
+    final bool? confirmed = await showDialog<bool>(
+      context: context, // Use the passed context (screenContext) to display the dialog over
+      barrierDismissible: false, // PREVENT dismissal by tapping outside or system back for now
+      builder: (alertDialogContext) { // This context is specific to the AlertDialog
+        return AlertDialog(
+          title: const Text('Delete Receipt?'),
+          content: Text('Are you sure you want to delete "${receipt.restaurantName ?? 'this receipt'}"? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('CANCEL'),
+              onPressed: () {
+                Navigator.of(alertDialogContext).pop(false); // Dismiss dialog with false
+              },
+            ),
+            FilledButton(
+              child: const Text('DELETE'),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Navigator.of(alertDialogContext).pop(true); // Dismiss dialog with true
+              },
+            ),
+          ],
+        );
+      },
     );
-    
-    if (confirmation == true) {
-      // User confirmed, delete the receipt
-      setState(() {
-        // _isLoadingInitial = true; // REMOVE - StreamBuilder will handle loading state
-      });
-      
+
+    // If the user confirmed
+    if (confirmed == true) {
+      if (!context.mounted) return; // Check if the original context (screenContext) is still mounted
+
       try {
-        await _firestoreService.deleteReceipt(receipt.id);
-        
-        // If there was an image, delete that too
-        if (receipt.imageUri != null) {
-          await _firestoreService.deleteReceiptImage(receipt.imageUri!);
+        // Attempt to delete associated images from Firebase Storage
+        if (receipt.imageUri != null && receipt.imageUri!.startsWith('gs://')) {
+          try {
+            await _firestoreService.deleteImage(receipt.imageUri!);
+            debugPrint('Deleted main image from Storage: ${receipt.imageUri}');
+          } catch (e) {
+            debugPrint('Error deleting main image ${receipt.imageUri}: $e');
+            // Optionally, show a specific error for image deletion failure but continue to delete receipt
+          }
         }
-        
-        // _isLoadingInitial = false; // REMOVE - StreamBuilder will handle loading state
-        
-        if (!mounted) return;
-        Navigator.of(context).pop(); // Close the bottom sheet
-        
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Receipt deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // Reload receipts
-        // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
+        if (receipt.thumbnailUri != null && receipt.thumbnailUri!.startsWith('gs://')) {
+          try {
+            await _firestoreService.deleteImage(receipt.thumbnailUri!);
+            debugPrint('Deleted thumbnail from Storage: ${receipt.thumbnailUri}');
+          } catch (e) {
+            debugPrint('Error deleting thumbnail ${receipt.thumbnailUri}: $e');
+            // Optionally, show a specific error for image deletion failure but continue to delete receipt
+          }
+        }
+
+        // Delete the receipt document from Firestore
+        await _firestoreService.deleteReceipt(receipt.id);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"${receipt.restaurantName ?? 'Receipt'}" deleted successfully')),
+          );
+        }
       } catch (e) {
-        // _isLoadingInitial = false; // REMOVE - StreamBuilder will handle loading state
-        
-        if (!mounted) return;
-        
-        // Show error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error deleting receipt: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        debugPrint('Error during deletion process: $e');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting receipt: $e'), backgroundColor: Colors.red),
+          );
+        }
       }
     }
   }
@@ -466,7 +493,37 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
     debugPrint('[_ReceiptsScreenState] build() called.');
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Receipts'),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Image.asset(
+            'logo.png', // Changed path
+            width: 32,
+            height: 32,
+            fit: BoxFit.contain,
+          ),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Billfie',
+              style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              'Smarter bill splitting',
+              style: TextStyle(
+                color: Colors.black54,
+                fontSize: 14,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -474,7 +531,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
               showSearch(
                 context: context,
                 delegate: _ReceiptSearchDelegate(
-                  receipts: _receipts,
+                  receipts: _receipts, // Use the locally held _receipts list
                   onReceiptTap: _viewReceiptDetails,
                 ),
               );

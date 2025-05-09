@@ -25,6 +25,7 @@ service firebase.storage {
     // Rule for user-specific thumbnail images under /thumbnails/receipts/{userId}/
     match /thumbnails/receipts/{userId}/{filename} {
       allow read: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
       // Write access for thumbnails is typically handled by the Cloud Function's service account,
       // so client-side write might not be needed or could be more restrictive.
     }

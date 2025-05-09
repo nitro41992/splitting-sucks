@@ -11,7 +11,6 @@ import 'cards/person_card.dart';
 import 'cards/shared_item_card.dart';
 import 'cards/unassigned_item_card.dart';
 import '../theme/app_colors.dart';
-import '../receipt_splitter_ui.dart';
 
 // Define a notification class to request navigation
 class NavigateToPageNotification extends Notification {
