@@ -82,14 +82,16 @@ This document outlines a plan to address technical debt, remove redundant code, 
 *   **Standardize Dialogs:** 📝
     *   **Objective:** Consistent look, feel, and behavior for dialogs.
     *   **Actions:**
-        *   Review `showRestaurantNameDialog` and `_showConfirmationDialog`. Consider extracting them to a common dialogs utility file if they are (or could be) used elsewhere, or if more standardized dialogs are needed. 📝
-        *   Ensure they follow Material Design guidelines. 📝
+        *   `Extract showRestaurantNameDialog and _WorkflowModalBodyState._showConfirmationDialog into a common dialog utility file (e.g., lib/utils/dialog_helpers.dart).` 📝
+        *   `Ensure they follow Material Design guidelines.` 📝
 *   **Navigation Logic:** 🏗️
     *   **Objective:** Clear, predictable, and robust navigation within the modal.
     *   **Actions:**
-        *   Review the logic for the step indicator taps, "Next," "Back," and "Exit" buttons. 🏗️
-        *   Ensure that conditions for enabling/disabling navigation (e.g., `isNextEnabled` logic) are comprehensive and clearly tied to the `WorkflowState` (e.g., `hasParseData`). 🏗️
-        *   The `WillPopScope` and `_onWillPop` logic should be robust for saving drafts automatically. 🏗️
+        *   `Review the logic for the step indicator taps, "Next," "Back," and "Exit" buttons.` 🏗️
+        *   `Ensure that conditions for enabling/disabling navigation (e.g., isNextEnabled logic) are comprehensive and clearly tied to the WorkflowState (e.g., hasParseData).` 🏗️
+        *   `The WillPopScope and _onWillPop logic should be robust for saving drafts automatically.` 🏗️
+        *   `Extract _WorkflowModalBodyState._buildStepIndicator into its own reusable widget (e.g., WorkflowStepIndicator) and move to a new file.` 📝
+        *   `Extract _WorkflowModalBodyState._buildNavigation into its own reusable widget (e.g., WorkflowNavigationControls) and move to a new file.` 📝
 
 ##### 1.4. Service Interactions 🏗️
 
@@ -98,16 +100,23 @@ This document outlines a plan to address technical debt, remove redundant code, 
     *   **Actions:**
         *   Ensure `WorkflowModal` delegates persistence and complex business logic (like image uploading, parsing) to `FirestoreService`, `ReceiptParserService`, etc. 🏗️
         *   The modal should primarily be responsible for orchestrating the workflow and managing UI-related state. 🏗️
+*   **Orchestration Logic within `_WorkflowModalBodyState`:** 📝
+    *   **Objective:** Simplify `_WorkflowModalBodyState` by delegating complex process logic.
+    *   **Actions:**
+        *   `For complex methods in _WorkflowModalBodyState (e.g., _loadReceiptData, _saveDraft, _completeReceipt, _processPendingDeletions), evaluate extracting this orchestration logic into a dedicated non-widget helper class or service (e.g., WorkflowOrchestrator) to simplify _WorkflowModalBodyState.` 📝
 
 ##### 1.5. Code Comments, Readability, and Error Handling 🏗️
 
 *   **Code Clarity:** 🏗️
     *   **Objective:** Make the code easier to understand and maintain.
     *   **Actions:**
+        *   `Move WorkflowState ChangeNotifier into its own file (e.g., lib/providers/workflow_state.dart) to improve separation of concerns.` 📝
+        *   `Extract pure utility functions like _convertToReceiptItems from _WorkflowModalBodyState into appropriate utility files (e.g., lib/utils/receipt_utils.dart).` 📝
+        *   `Extract generic UI building helpers like _buildPlaceholder into shared widget files (e.g., lib/widgets/shared/placeholder_widget.dart).` 📝
         *   Remove obvious comments (e.g., `// Getter for people`). 🏗️
         *   Add comments to explain non-trivial logic, complex conditions, or important decisions. 🏗️
         *   Ensure consistent naming conventions for variables, methods, and classes. 🏗️
-        *   Break down overly long methods if it improves readability. 🏗️
+        *   `Continue to break down overly long methods if it improves readability or identify candidates for extraction into helper classes/services.` 🏗️
 *   **Error Handling & User Feedback:** 🏗️
     *   **Objective:** Provide clear, actionable feedback to the user for any errors.
     *   **Actions:**
