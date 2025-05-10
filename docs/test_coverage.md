@@ -59,8 +59,43 @@ We will prioritize:
 ### 1.2 Critical Service Logic Unit Tests
 
 *   **`Critical Service Logic Unit Tests (Phase 0 Priority)`**
-    *   **Objective:** Verify critical data transformations or specific logic within services (e.g., `FirestoreService`, `ReceiptParserService`, etc.) as prioritized in the initial "Phase 0" plan, independent of UI or full service integration. This is important as caching may alter how services are interacted with, and this logic must remain correct.
-    *   **(⏳ To be identified and detailed for specific services and methods)**
+    *   **Objective:** Verify critical data transformations or specific logic within services (e.g., `FirestoreService`, `ReceiptParserService`, etc.) as prioritized in the initial "Phase 0" plan, independent of UI or full service integration. This is important as caching may alter how services are interacted with, and this logic must remain correct. **Testing will rely on mocking external dependencies (AI APIs, Firestore SDK) to ensure tests are fast, isolated, and do not incur external service costs.**
+    *   **Python Cloud Functions (AI-related - in `functions/main.py` or similar):
+        *   General Mocking Strategy: Use `unittest.mock` (with `pytest-mock` if using `pytest`) to patch the actual AI SDK calls. Tests will verify:
+            *   Correct pre-processing of input data before it would be sent to the AI.
+            *   Correct handling of various mocked AI responses (success, specific data scenarios, errors).
+            *   Correct parsing and validation of mocked AI responses into Pydantic models (where applicable).
+            *   Correct formatting of the final output of the function.
+        *   **`parse_receipt` function (or equivalent e.g. `parse_receipt_function`):
+            *   (⏳) Test with mocked successful AI response (various valid receipt structures).
+            *   (⏳) Test with mocked AI response that would lead to Pydantic validation errors.
+            *   (⏳) Test handling of potential AI service error (e.g., mocked API error response).
+            *   (⏳) Test any specific pre-processing logic for the input (e.g., image data).
+        *   **`assign_people_to_items` function (or equivalent):
+            *   (⏳) Test with mocked successful AI response (various valid assignment structures).
+            *   (⏳) Test with mocked AI response leading to Pydantic validation errors.
+            *   (⏳) Test handling of potential AI service error.
+            *   (⏳) Test pre-processing of input (e.g., item lists, people data).
+        *   **`transcribe_audio` function (or equivalent):
+            *   (⏳) Test with mocked successful transcription response (sample text outputs).
+            *   (⏳) Test handling of potential transcription service error.
+            *   (⏳) Test any specific pre-processing logic for audio input.
+        *   **(Placeholder for other Python AI Cloud Functions - please identify)**
+            *   (⏳)
+    *   **Flutter Services (e.g., `FirestoreService` - in `lib/services/`):
+        *   General Mocking Strategy: Use `mockito` to create mock instances of Firestore (e.g., `MockFirebaseFirestore`, `MockCollectionReference`, `MockDocumentReference`, `MockQuerySnapshot`, `MockDocumentSnapshot`). Tests will verify:
+            *   Correct construction of Firestore queries/paths.
+            *   Correct data formatting before sending to Firestore (e.g., `toMap()` calls).
+            *   Correct parsing of data from Firestore (e.g., `fromSnapshot()` or `fromJson()` calls).
+            *   Handling of non-existent documents or empty query results.
+        *   **`FirestoreService` (specific methods to be identified by user):
+            *   **(⏳) e.g., `saveReceipt(Receipt receipt)`: Verify correct path, data from `receipt.toMap()` is used with `set()` or `add()`.
+            *   **(⏳) e.g., `getReceipt(String receiptId)`: Verify correct path, mock `DocumentSnapshot` data, verify `Receipt.fromDocumentSnapshot()` is called and result is correct. Test not found case.
+            *   **(⏳) e.g., `getReceiptsStream()`: Verify correct query, mock `QuerySnapshot` data, verify mapping to `List<Receipt>`. Test empty result.
+            *   **(Placeholder for other FirestoreService methods - please identify)**
+                *   (⏳)
+        *   **(Placeholder for other Flutter Services with external dependencies - please identify)**
+            *   (⏳)
 
 ### 1.3 Core Workflow Logic & Data Flow Widget Tests
 
