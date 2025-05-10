@@ -28,28 +28,33 @@ We will prioritize:
 *   **Classes to Test:**
     *   **`Receipt` (`lib/models/receipt.dart`)**
         *   **Unit Test Cases:**
-            *   ⏳ `fromDocumentSnapshot()` / `fromJson()`: Correctly parses Firestore data (including all fields, nested objects, and handling of nulls/defaults).
-            *   ⏳ `toMap()` / `toJson()`: Correctly serializes data for Firestore (including all fields).
-            *   ⏳ Computed properties (e.g., `formattedDate`, `formattedAmount`, `isDraft`, `isCompleted`, `numberOfPeople`): Verify correct calculations/logic.
-            *   ⏳ `copyWith()` method if implemented.
+            *   ✅ `fromDocumentSnapshot()` / `fromJson()`: Correctly parses Firestore data (including all fields, nested objects, and handling of nulls/defaults).
+            *   ✅ `toMap()` / `toJson()`: Correctly serializes data for Firestore (including all fields).
+            *   ✅ Computed properties (e.g., `formattedDate`, `formattedAmount`, `isDraft`, `isCompleted`, `numberOfPeople`): Verify correct calculations/logic.
+            *   ✅ `copyWith()` method if implemented.
+            *   ✅ `createDraft()`
+            *   ✅ `markAsCompleted()`
     *   **`ReceiptItem` (`lib/models/receipt_item.dart`)**
         *   **Unit Test Cases:**
-            *   ⏳ `fromJson()` / `toMap()` (or equivalent for parsing/serialization).
-            *   ⏳ Constructor logic and field initialization.
-            *   ⏳ Any helper methods.
+            *   ✅ `fromJson()` / `toMap()` (or equivalent for parsing/serialization).
+            *   ✅ Constructor logic and field initialization (Factory, `clone`).
+            *   ✅ Helper methods (`isSameItem`, `copyWithQuantity`, `updateName`, `updatePrice`, `updateQuantity`, `resetQuantity`, `copyWith`, `total` getter, `ChangeNotifier` notifications, `==` and `hashCode`).
     *   **`Person` (`lib/models/person.dart`)**
         *   **Unit Test Cases:**
-            *   ⏳ `fromJson()` / `toMap()` (or equivalent).
-            *   ⏳ Constructor logic.
+            *   ✅ `fromJson()` / `toMap()` (or equivalent).
+            *   ✅ Constructor logic (default constructor, item list handling, unmodifiable list getters).
+            *   ✅ Helper methods (`updateName`, `addAssignedItem`, `removeAssignedItem`, `addSharedItem`, `removeSharedItem`, `totalAssignedAmount`, `totalSharedAmount`, `totalAmount`, `ChangeNotifier` notifications).
     *   **`SplitManager` (`lib/models/split_manager.dart`)**
         *   **Unit Test Cases:** This class is critical for calculations.
-            *   ⏳ Initialization with various inputs (items, people, shared items, tip, tax).
-            *   ⏳ `addPerson()`, `removePerson()`.
-            *   ⏳ `assignItemToPerson()`, `unassignItemFromPerson()`.
-            *   ⏳ `addSharedItem()`, `updateSharedItemAssignments()`.
+            *   ✅ Initialization with various inputs (items, people, shared items, tip, tax, `originalReviewTotal`). Includes getters for lists (unmodifiable) and setters for percentages with `notifyListeners`. Also covers `reset()`.
+            *   ✅ `addPerson()`, `removePerson()`, `updatePersonName()`.
+            *   ✅ `assignItemToPerson()`, `unassignItemFromPerson()`.
+            *   ⏳ `addSharedItem()`, `removeSharedItem()`, `addItemToShared()`, `removeItemFromShared()`, `addPersonToSharedItem()`, `removePersonFromSharedItem()`
             *   ⏳ Tip and tax calculation and application (percentage, fixed, per person if applicable).
-            *   ⏳ `calculateTotals()`: Verification of individual totals, grand total, subtotal.
+            *   ⏳ `calculateTotals()`: Verification of individual totals, grand total, subtotal. (Partially covered by `totalAmount` getter, but needs more specific tests for `calculateTotals` if it exists or detailed breakdown if `totalAmount` is the main method).
             *   ⏳ Edge cases: No items, no people, zero tip/tax, etc.
+            *   ⏳ Unassigned item management (`addUnassignedItem`, `removeUnassignedItem`)
+            *   ⏳ Original quantity methods (`setOriginalQuantity`, `getOriginalQuantity`, `getTotalUsedQuantity`)
 
 ### 1.2 Critical Service Logic Unit Tests
 

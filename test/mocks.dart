@@ -3,6 +3,7 @@ import 'package:mockito/annotations.dart';
 import 'package:billfie/widgets/image_state_manager.dart'; // Path to the class to be mocked
 import 'package:billfie/providers/workflow_state.dart'; // Import for WorkflowState
 import 'package:billfie/models/split_manager.dart'; // ADDED: Import for SplitManager
+import 'package:cloud_firestore/cloud_firestore.dart'; // ADDED: Import for DocumentSnapshot
 
 // If you have other classes to mock from different files, add their imports here.
 // For example:
@@ -13,6 +14,7 @@ import 'package:billfie/models/split_manager.dart'; // ADDED: Import for SplitMa
   File, // Add File to the list of mocks
   WorkflowState, // Add WorkflowState to the list of mocks
   SplitManager, // ADDED: SplitManager to the list of mocks
+  DocumentSnapshot, // ADDED: DocumentSnapshot to the list of mocks
   // Add other class names here if they need to be mocked, e.g.:
   // SomeService,
 ])

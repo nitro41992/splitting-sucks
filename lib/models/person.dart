@@ -31,8 +31,8 @@ class Person extends ChangeNotifier {
   }
 
   void removeAssignedItem(ReceiptItem item) {
-    _assignedItems.remove(item);
-    notifyListeners();
+    final removed = _assignedItems.remove(item);
+    if (removed) notifyListeners();
   }
 
   void addSharedItem(ReceiptItem item) {
@@ -41,8 +41,8 @@ class Person extends ChangeNotifier {
   }
 
   void removeSharedItem(ReceiptItem item) {
-    _sharedItems.remove(item);
-    notifyListeners();
+    final removed = _sharedItems.remove(item);
+    if (removed) notifyListeners();
   }
 
   double get totalAssignedAmount {

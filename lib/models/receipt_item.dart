@@ -60,11 +60,12 @@ class ReceiptItem extends ChangeNotifier {
 
   // Create a copy of this item with a new quantity
   ReceiptItem copyWithQuantity(int newQuantity) {
-    return ReceiptItem(
+    return ReceiptItem._internal(
       name: _name,
       price: _price,
       quantity: newQuantity,
-      itemId: _itemId, // Keep the same ID to track that it's the same item
+      originalQuantity: newQuantity, // Set both to new value
+      itemId: _itemId,
     );
   }
 

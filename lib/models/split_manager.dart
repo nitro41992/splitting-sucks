@@ -270,6 +270,12 @@ class SplitManager extends ChangeNotifier {
       }
     }
     
+    // Notify listeners if state was not preserved
+    if (!_statePreserved) {
+      notifyListeners();
+      _statePreserved = true; // Mark as preserved for future hot reloads
+    }
+    
     return total;
   }
 
@@ -502,4 +508,21 @@ class SplitManager extends ChangeNotifier {
     };
   }
   // --- END EDIT ---
+
+  // --- TIP, TAX, and FINAL TOTAL GETTERS ---
+  double get tipAmount {
+    return totalAmount * (_tipPercentage ?? 0.0);
+  }
+
+  double get taxAmount {
+    return totalAmount * (_taxPercentage ?? 0.0);
+  }
+
+  double get finalTotal {
+    return totalAmount + tipAmount + taxAmount;
+  }
+  // --- END TIP, TAX, and FINAL TOTAL GETTERS ---
+
+  // Optional: Method to calculate total for a specific person (including their share of shared items)
+  // This might be useful for UI display.
 } 

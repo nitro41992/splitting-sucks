@@ -26,6 +26,8 @@ class Receipt {
   // Transient field for display URL (not saved to Firestore)
   final String? thumbnailUrlForDisplay;
   
+  static const Object _noValue = Object();
+  
   Receipt({
     required this.id,
     this.imageUri,
@@ -121,36 +123,34 @@ class Receipt {
   /// Create a copy of the receipt with updated fields
   Receipt copyWith({
     String? id,
-    String? imageUri,
-    String? thumbnailUri,
+    Object? imageUri = _noValue,
+    Object? thumbnailUri = _noValue,
     Map<String, dynamic>? parseReceipt,
     Map<String, dynamic>? transcribeAudio,
     Map<String, dynamic>? assignPeopleToItems,
     String? status,
-    String? restaurantName,
+    Object? restaurantName = _noValue,
     List<String>? people,
-    double? tip,
-    double? tax,
-    Timestamp? createdAt,
-    Timestamp? updatedAt,
-    // Add parameter for the transient field
-    ValueGetter<String?>? thumbnailUrlForDisplay, 
+    Object? tip = _noValue,
+    Object? tax = _noValue,
+    Object? createdAt = _noValue,
+    Object? updatedAt = _noValue,
+    ValueGetter<String?>? thumbnailUrlForDisplay,
   }) {
     return Receipt(
       id: id ?? this.id,
-      imageUri: imageUri ?? this.imageUri,
-      thumbnailUri: thumbnailUri ?? this.thumbnailUri,
+      imageUri: identical(imageUri, _noValue) ? this.imageUri : imageUri as String?,
+      thumbnailUri: identical(thumbnailUri, _noValue) ? this.thumbnailUri : thumbnailUri as String?,
       parseReceipt: parseReceipt ?? this.parseReceipt,
       transcribeAudio: transcribeAudio ?? this.transcribeAudio,
       assignPeopleToItems: assignPeopleToItems ?? this.assignPeopleToItems,
       status: status ?? this.status,
-      restaurantName: restaurantName ?? this.restaurantName,
+      restaurantName: identical(restaurantName, _noValue) ? this.restaurantName : restaurantName as String?,
       people: people ?? this.people,
-      tip: tip ?? this.tip,
-      tax: tax ?? this.tax,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      // Use the provided ValueGetter or keep the existing value
+      tip: identical(tip, _noValue) ? this.tip : tip as double?,
+      tax: identical(tax, _noValue) ? this.tax : tax as double?,
+      createdAt: identical(createdAt, _noValue) ? this.createdAt : createdAt as Timestamp?,
+      updatedAt: identical(updatedAt, _noValue) ? this.updatedAt : updatedAt as Timestamp?,
       thumbnailUrlForDisplay: thumbnailUrlForDisplay != null ? thumbnailUrlForDisplay() : this.thumbnailUrlForDisplay,
     );
   }
