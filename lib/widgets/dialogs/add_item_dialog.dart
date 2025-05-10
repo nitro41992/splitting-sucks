@@ -74,6 +74,7 @@ class _AddItemDialogContentState extends State<_AddItemDialogContent> {
           children: [
             // Item name field with character counter
             TextField(
+              key: const ValueKey('addItemDialog_name_field'),
               controller: _nameController,
               decoration: InputDecoration(
                 labelText: 'Item Name',
@@ -95,6 +96,7 @@ class _AddItemDialogContentState extends State<_AddItemDialogContent> {
             const SizedBox(height: 16),
             // Price field
             TextField(
+              key: const ValueKey('addItemDialog_price_field'),
               controller: _priceController,
               decoration: InputDecoration(
                 labelText: 'Price',
@@ -119,6 +121,7 @@ class _AddItemDialogContentState extends State<_AddItemDialogContent> {
                 ),
                 const Spacer(), // Push controls to the right
                 IconButton(
+                  key: const ValueKey('addItemDialog_quantity_decrement_button'),
                   onPressed: () {
                     if (_quantity > 1) {
                       setState(() => _quantity--);
@@ -141,6 +144,7 @@ class _AddItemDialogContentState extends State<_AddItemDialogContent> {
                   ),
                 ),
                 IconButton(
+                  key: const ValueKey('addItemDialog_quantity_increment_button'),
                   onPressed: () {
                     setState(() => _quantity++);
                   },
@@ -162,6 +166,7 @@ class _AddItemDialogContentState extends State<_AddItemDialogContent> {
           ),
         ),
         FilledButton.icon(
+          key: const ValueKey('addItemDialog_add_button'),
           onPressed: _addItem,
           icon: const Icon(Icons.add_circle_outline),
           label: const Text('Add Item'),

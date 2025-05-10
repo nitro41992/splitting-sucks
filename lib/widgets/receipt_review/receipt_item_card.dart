@@ -23,6 +23,7 @@ class ReceiptItemCard extends StatelessWidget {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Card(
+      key: ValueKey('receiptItemCard_${item.itemId}'),
       margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4.0), // Adjust margin for use in list
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -71,6 +72,7 @@ class ReceiptItemCard extends StatelessWidget {
                         const SizedBox(height: 6),
                         Text(
                           '\$${item.price.toStringAsFixed(2)} each',
+                          key: ValueKey('receiptItemCard_price_${item.itemId}'),
                           style: textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),

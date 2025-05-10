@@ -77,6 +77,7 @@ class _EditItemDialogContentState extends State<_EditItemDialogContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
+              key: const ValueKey('editItemDialog_name_field'),
               controller: _nameController,
               decoration: InputDecoration(
                 labelText: 'Item Name',
@@ -97,6 +98,7 @@ class _EditItemDialogContentState extends State<_EditItemDialogContent> {
             ),
             const SizedBox(height: 16),
             TextField(
+              key: const ValueKey('editItemDialog_price_field'),
               controller: _priceController,
               decoration: InputDecoration(
                 labelText: 'Price',
@@ -122,6 +124,7 @@ class _EditItemDialogContentState extends State<_EditItemDialogContent> {
           ),
         ),
         FilledButton.icon(
+          key: const ValueKey('editItemDialog_save_button'),
           onPressed: _saveChanges,
           icon: const Icon(Icons.check),
           label: const Text('Save'),

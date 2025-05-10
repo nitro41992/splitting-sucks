@@ -391,26 +391,28 @@ This is a starting point. We can refine and add more details as we begin impleme
     *   [✅] Total price is \$0.00 or not shown.
 *   **Adding a New Item:**
     *   [✅] Tapping "Add Item" opens `ItemEditDialog` (verified by checking for dialog title).
-    *   [ ] Saving the dialog adds a new `ReceiptItemCard` to the list.
-    *   [ ] `onItemsUpdated` callback is triggered with the new list.
-    *   [ ] Total price is updated.
+    *   [✅] Saving the dialog adds a new `ReceiptItemCard` to the list.
+    *   [✅] `onItemsUpdated` callback is triggered with the new list.
+    *   [✅] Total price is updated.
 *   **Editing an Existing Item:**
-    *   [ ] Tapping the edit button on a `ReceiptItemCard` opens `ItemEditDialog` pre-filled with item data.
-    *   [ ] Saving the dialog updates the corresponding `ReceiptItemCard`.
-    *   [ ] `onItemsUpdated` callback is triggered.
-    *   [ ] Total price is updated.
+    *   [✅] Tapping the edit button on a `ReceiptItemCard` opens `ItemEditDialog` pre-filled with item data.
+    *   [✅] Saving the dialog updates the corresponding `ReceiptItemCard`.
+    *   [✅] `onItemsUpdated` callback is triggered.
+    *   [✅] Total price is updated.
 *   **Deleting an Item:**
-    *   [ ] Tapping the delete button on a `ReceiptItemCard` shows a confirmation dialog.
-    *   [ ] Confirming deletion removes the `ReceiptItemCard`.
-    *   [ ] `onItemsUpdated` callback is triggered (with the item marked for deletion or removed, TBD by implementation).
-    *   [ ] Total price is updated.
-    *   [ ] Cancelling deletion does nothing.
+    *   [✅] Tapping the delete button on a `ReceiptItemCard` shows a confirmation dialog.
+    *   [✅] Confirming deletion removes the `ReceiptItemCard`.
+    *   [✅] `onItemsUpdated` callback is triggered (with the item marked for deletion or removed, TBD by implementation).
+    *   [✅] Total price is updated.
+    *   [✅] Cancelling deletion does nothing.
 *   **Confirming Review:**
-    *   [ ] Tapping "Confirm Review" calls `onReviewComplete` with the current list of items and any deleted items.
+    *   [✅] Tapping "Confirm Review" calls `onReviewComplete` with the current list of items and any deleted items.
 *   **`registerCurrentItemsGetter` Interaction:**
-    *   [ ] Verify that the callback provided to `registerCurrentItemsGetter` can be called and returns the current state of items.
+    *   [✅] Verify that the callback provided to `registerCurrentItemsGetter` can be called and returns the current state of items.
 **KT for Devs:**
 *   `ItemEditDialog` will need its own set of thorough tests.
+*   When testing interactions with dialogs that modify list items (like `EditItemDialog`), ensure to correctly calculate expected states (e.g., total price) by creating a new representation of the list with the modifications, especially if item models are immutable. Directly modifying iterated items or original list items in the test logic can lead to incorrect assertions if the underlying widget state manages its own copy or creates new instances.
+*   Refactored tests to use `ValueKey`s for more robust finding of elements within `ReceiptItemCard` (e.g., specific price text) and dialogs. Ensured test stability by flushing toast message timers using `tester.pumpAndSettle(Duration)`.
 *   Decide how deleted items are handled by `onItemsUpdated` vs `onReviewComplete` (e.g., immediately removed from UI list vs. kept with a "deleted" visual state until review completion).
 
 ### 4. `AssignPeopleScreen` / `AssignStepWidget` Widget Tests
