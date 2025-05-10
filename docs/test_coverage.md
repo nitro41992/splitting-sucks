@@ -100,9 +100,13 @@ We will prioritize:
             *   **Mock Configuration:** When updating AI provider configurations (changing from OpenAI to Google Gemini or vice versa), ensure you update the corresponding mocks in the test files. The test structure allows easy swapping between providers.
             *   **Running Tests:** Run tests from the `functions/` directory with `python -m unittest discover` to ensure proper import paths.
             *   **Common Failures (Safe to Ignore):** 
-                *   GCS authentication errors in non-production environments are expected and not critical for unit testing, as we're primarily testing code paths rather than external service integration.
+                *   GCS authentication errors in non-development environments are expected and not critical for unit testing, as we're primarily testing code paths rather than external service integration.
                 *   Small variations in error message formats are acceptable as long as the status codes are correct and appropriate error information is returned.
                 *   Multiple `os.remove()` calls on cleanup may appear as "already removed" warnings and can be safely ignored.
+            *   **Known Environment-Specific Test Issues:**
+                *   **Google Gemini API version mismatches:** The test_assign_people.py tests may fail with `AttributeError: 'module' object has no attribute 'GenerativeModel'` if your installed Google Generative AI library version differs from the version used in production. This is an expected library version discrepancy.
+                *   **Path differences:** Tests expecting UNIX paths (`/tmp/file.txt`) will fail on Windows systems using Windows paths (`C:\Users\...\Temp\file.txt`). This can be safely ignored as the tests verify the core logic, not the exact paths.
+                *   **Image processing specifics:** Some tests for the generate_thumbnail function may require additional mocking of PIL.Image objects due to platform-specific implementation details.
         *   **(No other Python Cloud Functions identified in `main.py` based on `@https_fn.on_request` decorators. If others exist in different files, please specify.)**
     *   **Flutter Services (e.g., `FirestoreService` - in `lib/services/`):
         *   General Mocking Strategy: Use `mockito` to create mock instances of Firestore (e.g., `MockFirebaseFirestore`, `MockCollectionReference`, `MockDocumentReference`, `MockQuerySnapshot`, `MockDocumentSnapshot`). Tests will verify:
