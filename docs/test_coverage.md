@@ -130,65 +130,186 @@ We will prioritize:
                 *   (⏳) Mock `FirebaseStorage`, `Reference`, `UploadTask`, `TaskSnapshot`.
                 *   (⏳) Verify correct GCS path generation (includes user ID, timestamp).
                 *   (⏳) Verify `putFile()` is called with correct `File` and `SettableMetadata`.
-                *   (⏳) Verify correct `
+                *   (⏳) Verify correct `gs://` URI is constructed and returned from mocked `TaskSnapshot`.
+            *   **(Consider if `_userId` getter needs specific tests, especially around emulator/prod logic if complex, though it's more internal state management).**
+        *   **(Placeholder for other Flutter Services with external dependencies - please identify)**
+            *   (⏳)
 
-## Group 1 (Core Data/Logic Stability)
+### 1.3 Core Workflow Logic & Data Flow Widget Tests
 
-### Local Caching & File Management (✅ #35)
-Functions and models related to local caching, especially those interacting with shared preferences and SQLite:
-* 🔴 FileService tests:
-  * Unit tests for read/write operations for receipts
-  * Tests for the upgrade path (sqlite schema migrations)
-  * Mock for file system interactions
+*   **`_WorkflowModalBodyState` (selected parts, `lib/widgets/workflow_modal.dart`)**
+    *   **Objective:** Test critical UI interaction paths and complex logic remaining in `_WorkflowModalBodyState` (Phase 0 Priority), such as the `GestureDetector` for the step indicator (which also covers `WorkflowStepIndicator` tap logic) and `WillPopScope` logic (especially draft saving). These ensure core navigation and state progression within the modal remain intact.
+    *   **Test Cases:**
+        *   ⏳ `Step Indicator Tap Logic`:
+            *   Tapping a previous step calls `workflowState.goToStep()` with the correct `tappedStep`.
+            *   Tapping a future step (that's allowed by data prerequisites) calls `workflowState.goToStep()`.
+            *   Tapping a future step (blocked by data prerequisites) shows a `showAppToast` and does NOT call `goToStep()`.
+        *   ⏳ `_onWillPop` behavior (this is harder to test purely as a widget test due to navigation, but can test parts):
+            *   If no data, returns true.
+            *   If data exists, verify `_saveDraft` is called (mocked).
+            *   If `_saveDraft` (mocked) throws, verify `showConfirmationDialog` is called.
 
-### Receipt Data Models & Processing Pipeline (✅ #36)
-* 🟡 ReceiptDataModel tests:
-  * Serialization/deserialization
-  * Field validation
-  * Mock models for testing associated functionality
-* 🟡 ReceiptLineItem tests:
-  * Assigning users to items
-  * Splitting logic
-  * Price calculations
+*   **`AssignPeopleScreen` / `AssignStepWidget` (`lib/widgets/workflow_steps/assign_step_widget.dart` or `lib/screens/assign_people_screen.dart`)**
+    *   **Covered By:** `test/screens/assign_people_screen_test.dart` (To be created)
+    *   **Objective:** Verify the UI for assigning people to items, managing shared items, adding/removing people, and ensuring correct data propagation for the next step (Phase 0 Priority). Focus on data flow and `WorkflowState` interaction to ensure underlying assignment logic is sound regardless of UI changes.
+    *   **Setup:**
+        *   Mock `WorkflowState` to provide items, people, and manage assignments.
+        *   Provide callbacks: `onAssignmentsUpdated` (or similar, to reflect changes to `WorkflowState`).
+        *   Use `FakeReceiptItem` and `FakePerson` data.
+    *   **Test Cases (focus on logic, state changes, and callbacks):**
+        *   [ ] **Initial Display:** Correct data from `WorkflowState` is displayed.
+        *   [ ] **Adding a Person:** `WorkflowState` is updated correctly.
+        *   [ ] **Assigning an Item to a Person:** `WorkflowState` is updated correctly.
+        *   [ ] **Unassigning an Item:** `WorkflowState` is updated correctly.
+        *   [ ] **Marking an Item as Shared:** `WorkflowState` is updated correctly.
+        *   [ ] **"Next" / "Confirm Assignments" Button Logic:** Callback is triggered with correct data; button enabled/disabled based on assignment completion reflected in `WorkflowState`.
+    *   **KT for Devs:** Interactions like drag-and-drop can be complex; initial tests might focus on simpler assignment mechanisms if available, or mock these interactions heavily.
 
-### Group Billing & Split Workflows (✅ #37)
-* 🟠 BillSplitModel tests:
-  * Calculating splits
-  * Edge cases (zero items, single person, etc)
-  * Maintaining consistency between models
+*   **`SplitStepWidget` (`lib/widgets/workflow_steps/split_step_widget.dart`)**
+    *   ⏳ **Objective:** Verify UI for displaying split amounts per person, handling adjustments, and confirming the split (Phase 0 Priority). Focus on data from `WorkflowState` and updates back to it, ensuring calculation logic tied to this step is validated.
+    *   **(⏳ To be detailed, focusing on data flow and state)**
 
-### Cloud Functions (🟢 Fixed)
-* ✅ Parse receipt function tests
-* ✅ Assign people to items function tests
-* ✅ Transcribe audio function tests
-* ✅ Generate thumbnail tests
-* ✅ Error handling for all functions
+*   **`SummaryStepWidget` (`lib/widgets/workflow_steps/summary_step_widget.dart`)**
+    *   ⏳ **Objective:** Verify final summary display, including individual totals, grand total (Phase 0 Priority). Ensure correct data is pulled from `WorkflowState` and accurately reflects prior steps.
+    *   **(⏳ To be detailed, focusing on data accuracy)**
 
-## Group 2 (Component Stability)
+### 1.4 Integration Test Planning (Core Workflow)
 
-### UI Component Tests (✅ #38)
-* 🔴 ListTile tests
-* 🔴 Card tests 
-* 🔴 Dialog tests
+*   **Objective:** Ensure the main user flow through the `WorkflowModal` functions end-to-end, validating that all core components, including new caching mechanisms, work together.
+*   **Key User Flows:**
+    *   Full `WorkflowModal` lifecycle (new, resume, complete).
+        *   [ ] Plan detailed test scenarios for this flow (Phase 0 Priority). Scenarios should verify data persistence (drafts), state progression, and final output, being as resilient to UI changes as possible by focusing on high-level interactions and results.
 
-### Auth & User Management (✅ #39)
-* 🟠 Auth service tests
-* 🟠 User model tests
-* 🟠 Provider tests
+## Priority Group 2: Supporting Workflow Components & Interactions
 
-## Group 3 (Backend Integration)
+**Rationale:** These tests cover components that are part of the workflow or common interactions. While important for a fully functional and polished user experience, they are often more susceptible to UI changes or address risks that are secondary to the fundamental data/logic integrity covered in Group 1. They become particularly crucial for validating UI changes and deeper caching integrations once the Group 1 foundation is stable.
 
-### Firestore Integration (✅ #40)
-* 🔴 CRUD operations
-* 🔴 Mock Firestore for testing
+### 2.1 Other Workflow Step Widget Tests & Core UI Logic
 
-### Storage Integration (✅ #41)
-* 🔴 Image upload tests
-* 🔴 Audio upload tests
+*   **`WorkflowStepIndicator` (`lib/widgets/workflow_steps/workflow_step_indicator.dart`)**
+    *   **Objective:** Verify correct rendering based on `currentStep` and `stepTitles`. (Tap logic covered by `_WorkflowModalBodyState` tests in Group 1).
+    *   **Test Cases (Completed for rendering - see `test_coverage_completed.md`)**
 
-## Appendix: Legend
+*   **`SplitViewWidget` (`lib/widgets/split_view.dart`)**
+    *   **(⏳ To be tested)** **Objective:** Verify the overall split view renders correctly, including person assignment, item allocation, and summary calculations. This is a potentially complex widget that might be used within `SplitStepWidget` or other places. (Consider its priority based on how much logic it contains vs. `SplitStepWidget` itself).
 
-* ✅ - Complete
-* 🟡 - 50% and above
-* 🟠 - 25% and above
-* 🔴 - Less than 25% or not started
+### 2.2 Dialog Widget Tests
+
+*   **Objective:** Verify dialogs appear, display correct content, buttons can be interacted with, and return expected values on button presses. (Phase 0 Priority for these dialogs). These are key for user interaction consistency, especially during/after UI redesign.
+*   **Dialog Helpers (`lib/utils/dialog_helpers.dart`) based Dialogs:**
+    *   **Test Cases (`showRestaurantNameDialog`):**
+        *   ⏳ Dialog appears when called.
+        *   ⏳ Displays title "Restaurant Name".
+        *   ⏳ `TextField` is present, accepts input, shows `initialName`.
+        *   ⏳ "CANCEL" button returns `null`.
+        *   ⏳ "CONFIRM" button returns entered text (or `initialName` if unchanged).
+        *   ⏳ Handles empty input on confirm (should it be allowed or show error/disable button?).
+    *   **Test Cases (`showConfirmationDialog`):**
+        *   ⏳ Dialog appears with given `title` and `content`.
+        *   ⏳ "CANCEL" (or negative action) button returns `false`.
+        *   ⏳ "CONFIRM" (or positive action) button returns `true`.
+*   **Custom Dialog Widgets from `lib/widgets/dialogs/`**
+    *   **`AddItemDialog` (`lib/widgets/dialogs/add_item_dialog.dart`)**
+        *   **(⏳ To be tested)** **Objective:** Verify fields for item name, price, quantity; validation; and correct data returned on save.
+    *   **`EditItemDialog` (`lib/widgets/dialogs/edit_item_dialog.dart`)**
+        *   **(⏳ To be tested)** **Objective:** Verify pre-fill with existing item data; field updates; and correct data returned on save.
+
+### 2.3 Utility Function Unit Tests (Internal Logic)
+
+*   **`Dialog Helpers` (`lib/utils/dialog_helpers.dart`)**
+    *   **Objective:** Verify any internal logic independent of UI rendering (Phase 0 Priority). Widget tests (Section 2.2) cover UI interaction.
+    *   **(⏳ To be identified and detailed if complex non-UI logic exists)**
+
+*   **`Toast Utils` (`lib/utils/toast_utils.dart`)**
+    *   **Objective:** Verify any complex message formatting or internal logic independent of UI rendering (Phase 0 Priority). Widget tests would cover appearance if needed.
+    *   **(⏳ To be identified and detailed if complex non-UI logic exists)**
+
+## Priority Group 3: General UI Components & Broader Application Coverage
+
+These components and areas are important for overall application quality but are either more likely to be significantly changed by a UI redesign or are broader in scope than the immediate needs for caching/core redesign stability.
+
+### 3.1 Reusable UI Components (Used within Workflow and potentially elsewhere)
+
+*   **Objective:** Ensure these reusable components function correctly in isolation. Tests here might need significant rework after UI redesign.
+*   **`FullImageViewer` (`lib/widgets/receipt_upload/full_image_viewer.dart`)**
+    *   **(⏳ To be tested)** **Objective:** Verify correct display of local or network images, zoom/pan functionalities if any. (Currently indirectly tested via `ReceiptUploadScreen`)
+*   **`PersonSummaryCard` (`lib/widgets/final_summary/person_summary_card.dart`)**
+    *   **(⏳ To be tested)** **Objective:** Verify correct display of person's name, total amount, and potentially assigned items. (Likely part of `SummaryStepWidget` but consider dedicated tests if complex).
+*   **Cards from `lib/widgets/cards/`**
+    *   `SharedItemCard` (⏳ To be tested)
+    *   `PersonCard` (⏳ To be tested)
+    *   `UnassignedItemCard` (⏳ To be tested)
+    *   **Objective:** Verify correct rendering based on input data and handling of any interactions.
+*   **Shared Utility Widgets from `lib/widgets/shared/`**
+    *   `WaveDividerPainter` (⏳ To be tested - verify no paint errors, visual inspection or specific paint call verification).
+    *   `QuantitySelector` (⏳ To be tested - verify increment/decrement logic, callbacks, min/max constraints).
+    *   `ItemRow` (⏳ To be tested - verify layout, display of item name/price/quantity).
+    *   `EditableText` (⏳ To be tested - verify edit mode, view mode, callbacks on change).
+    *   `EditablePrice` (⏳ To be tested - verify currency formatting, edit mode, callbacks).
+
+### 3.2 Other Screens (`lib/screens/`)
+
+*   **`ReceiptsScreen` (`lib/screens/receipts_screen.dart`)**
+    *   **Objective:** Verify UI rendering, list display, interactions, and basic navigation triggers. These tests will likely need significant updates post-UI redesign.
+    *   **Widget Test Cases:**
+        *   ⏳ Initial state: Displays loading indicator or empty state correctly.
+        *   ⏳ Stream data handling: Renders list of `ReceiptCard` widgets when data arrives from mocked stream.
+        *   ⏳ Error state: Displays error message if stream provides error.
+        *   ⏳ Empty state: Displays "No receipts yet" message correctly.
+        *   ⏳ Search functionality.
+        *   ⏳ `FloatingActionButton` tap triggers `WorkflowModal`.
+        *   ⏳ `ReceiptCard` tap triggers details view.
+        *   ⏳ Details view interactions (Resume, Edit, Delete triggers).
+    *   **Mocks:** `FirestoreService`, `WorkflowModal.show`.
+
+*   **Other Screens (e.g., `SettingsScreen`, any future screens)**
+    *   **Objective:** Basic UI rendering and interaction tests.
+    *   **Widget Test Cases:** (⏳ To be detailed as screens are developed/reviewed)
+
+### 3.3 Application Setup and Main (`lib/main.dart`)
+
+*   **Objective:** Verify initial app setup, provider configuration, and root-level navigation based on auth state.
+*   **Widget Test Cases:**
+    *   ⏳ `MyApp` widget (theme, routes, providers).
+    *   ⏳ Auth state changes and navigation.
+    *   **Mocks:** `AuthService`, `Firebase.initializeApp`.
+
+## Future Phases / Full Integration & Service Testing
+
+This section covers tests that are generally broader or require more setup, such as full service tests with emulators or more comprehensive integration tests beyond initial planning.
+
+*   **Services (`lib/services/`) - Full Integration/Emulator Tests**
+    *   `FirestoreService`
+    *   `ReceiptParserService`
+    *   `AudioTranscriptionService`
+    *   `AuthService`
+*   **Integration Tests for Key User Flows - Implementation**
+    *   Login/Logout flows.
+    *   (Full `WorkflowModal` lifecycle implementation, building on planning from Group 1)
+*   **Firebase Functions Testing (using Emulator Suite)**
+
+---
+
+## Test Structure and Setup Considerations
+
+*   Tests will reside in the `test/` directory, mirroring the `lib/` structure.
+*   `flutter_test` will be the primary testing framework.
+*   `mockito` will be used for creating mock objects for dependencies.
+    *   Generate mocks using `build_runner build`.
+*   Each test file will use `setUp()` for common test arrangements and `tearDown()` for cleanup if necessary.
+*   `group()` will be used to organize related tests.
+
+---
+
+## Key Takeaways & Best Practices for Testing
+
+*   **Use `ValueKey`s for Widget Tests:** For critical UI elements.
+*   **Isolate Unit Tests with Mocks:** For focused testing.
+*   **Test `notifyListeners()` Behavior:** For `ChangeNotifier` classes.
+*   **Verify All Paths in Conditional Logic.**
+*   **Use `pumpAndSettle()` generally, `pump()` with duration for `HttpOverrides`/dialogs.**
+
+## Key Unresolved Issues & KT for Next Dev
+
+*   **Build Runner for Mocks:**
+    *   **Reminder:** If any mock definitions (e.g., in `test/mocks.dart` or other files using `@GenerateMocks`) are updated, remember to run `dart run build_runner build --delete-conflicting-outputs` to regenerate the mock implementation files.
