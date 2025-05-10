@@ -66,34 +66,66 @@ We will prioritize:
             *   Correct handling of various mocked AI responses (success, specific data scenarios, errors).
             *   Correct parsing and validation of mocked AI responses into Pydantic models (where applicable).
             *   Correct formatting of the final output of the function.
-        *   **`parse_receipt` function (or equivalent e.g. `parse_receipt_function`):
+        *   **`generate_thumbnail` function (Image Manipulation & GCS):
+            *   Mocking: GCS client (`google.cloud.storage`), `tempfile`, `PIL.Image`.
+            *   (⏳) Test successful thumbnail generation flow (URI parsing, GCS download/upload calls, PIL calls, output URI).
+            *   (⏳) Test with invalid `imageUri` format.
+            *   (⏳) Test when GCS download fails (mocked).
+            *   (⏳) Test when the downloaded file is not a valid image type.
+            *   (⏳) Test when GCS upload fails (mocked).
+        *   **`parse_receipt` function (AI - OpenAI/Google Gemini):
             *   (⏳) Test with mocked successful AI response (various valid receipt structures).
             *   (⏳) Test with mocked AI response that would lead to Pydantic validation errors.
             *   (⏳) Test handling of potential AI service error (e.g., mocked API error response).
             *   (⏳) Test any specific pre-processing logic for the input (e.g., image data).
-        *   **`assign_people_to_items` function (or equivalent):
+        *   **`assign_people_to_items` function (AI - OpenAI/Google Gemini):
             *   (⏳) Test with mocked successful AI response (various valid assignment structures).
             *   (⏳) Test with mocked AI response leading to Pydantic validation errors.
             *   (⏳) Test handling of potential AI service error.
             *   (⏳) Test pre-processing of input (e.g., item lists, people data).
-        *   **`transcribe_audio` function (or equivalent):
+        *   **`transcribe_audio` function (AI - Google Gemini):
             *   (⏳) Test with mocked successful transcription response (sample text outputs).
             *   (⏳) Test handling of potential transcription service error.
             *   (⏳) Test any specific pre-processing logic for audio input.
-        *   **(Placeholder for other Python AI Cloud Functions - please identify)**
-            *   (⏳)
+        *   **(No other Python Cloud Functions identified in `main.py` based on `@https_fn.on_request` decorators. If others exist in different files, please specify.)**
     *   **Flutter Services (e.g., `FirestoreService` - in `lib/services/`):
         *   General Mocking Strategy: Use `mockito` to create mock instances of Firestore (e.g., `MockFirebaseFirestore`, `MockCollectionReference`, `MockDocumentReference`, `MockQuerySnapshot`, `MockDocumentSnapshot`). Tests will verify:
             *   Correct construction of Firestore queries/paths.
             *   Correct data formatting before sending to Firestore (e.g., `toMap()` calls).
             *   Correct parsing of data from Firestore (e.g., `fromSnapshot()` or `fromJson()` calls).
             *   Handling of non-existent documents or empty query results.
-        *   **`FirestoreService` (specific methods to be identified by user):
-            *   **(⏳) e.g., `saveReceipt(Receipt receipt)`: Verify correct path, data from `receipt.toMap()` is used with `set()` or `add()`.
-            *   **(⏳) e.g., `getReceipt(String receiptId)`: Verify correct path, mock `DocumentSnapshot` data, verify `Receipt.fromDocumentSnapshot()` is called and result is correct. Test not found case.
-            *   **(⏳) e.g., `getReceiptsStream()`: Verify correct query, mock `QuerySnapshot` data, verify mapping to `List<Receipt>`. Test empty result.
-            *   **(Placeholder for other FirestoreService methods - please identify)**
-                *   (⏳)
+        *   **`FirestoreService` methods:
+            *   `Future<String> saveReceipt({String? receiptId, required Map<String, dynamic> data})`
+                *   (⏳) Test new receipt creation (`receiptId` is null, `add()` called, `created_at`/`updated_at` set).
+                *   (⏳) Test existing receipt update (`receiptId` provided, doc exists, `set()` with merge called, `updated_at` set, `created_at` preserved).
+                *   (⏳) Test new receipt creation with client-provided ID (`receiptId` provided, doc doesn't exist, `set()` called, `created_at`/`updated_at` set).
+                *   (⏳) Test correct Firestore path and data mapping.
+            *   `Future<String> saveDraft({String? receiptId, required Map<String, dynamic> data})`
+                *   (⏳) Verify `data['metadata']['status']` is set to 'draft'.
+                *   (⏳) Verify it calls `saveReceipt` with correct parameters (mock `saveReceipt` or test integrated behavior carefully).
+            *   `Future<String> completeReceipt({required String receiptId, required Map<String, dynamic> data})`
+                *   (⏳) Verify `data['metadata']['status']` is set to 'completed'.
+                *   (⏳) Verify `data['metadata']['updated_at']` is set.
+                *   (⏳) Verify `_receiptsCollection.doc(receiptId).update(data)` is called with correct path and data.
+            *   `Stream<QuerySnapshot> getReceiptsStream()`
+                *   (⏳) Verify correct query construction (`orderBy`).
+                *   (⏳) Mock `snapshots()` stream and verify service passes it through.
+            *   `Future<QuerySnapshot> getReceipts({String? status})`
+                *   (⏳) Test query with no status filter.
+                *   (⏳) Test query with status filter.
+                *   (⏳) Mock `get()` call and verify result.
+            *   `Future<DocumentSnapshot> getReceipt(String receiptId)`
+                *   (⏳) Verify correct document path.
+                *   (⏳) Mock `get()` call for existing doc and verify result.
+                *   (⏳) Test for non-existent document (e.g., mock `snapshot.exists` as false).
+            *   `Future<void> deleteReceipt(String receiptId)`
+                *   (⏳) Verify `delete()` is called on the correct document reference.
+            *   `Future<String> uploadReceiptImage(File imageFile)` (Interacts with Firebase Storage)
+                *   (⏳) Mock `FirebaseStorage`, `Reference`, `UploadTask`, `TaskSnapshot`.
+                *   (⏳) Verify correct GCS path generation (includes user ID, timestamp).
+                *   (⏳) Verify `putFile()` is called with correct `File` and `SettableMetadata`.
+                *   (⏳) Verify correct `gs://` URI is constructed and returned from mocked `TaskSnapshot`.
+            *   **(Consider if `_userId` getter needs specific tests, especially around emulator/prod logic if complex, though it's more internal state management).**
         *   **(Placeholder for other Flutter Services with external dependencies - please identify)**
             *   (⏳)
 
