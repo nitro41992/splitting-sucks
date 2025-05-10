@@ -89,10 +89,11 @@ We will prioritize:
             *   ✅ Test handling of potential transcription service error.
             *   ✅ Test input validation (missing URI/data, b64decode error, unsupported MIME type).
         *   **Update:** Fixed Python Cloud Functions tests by:
-            *   Updating mocks to use the correct import paths (`main.genai_legacy` and `main.genai_new` instead of `google.genai`)
-            *   Correcting assertion patterns to match actual error messages
-            *   Updated status code expectations to match actual function behavior
-            *   Fixed validation error handling tests
+            *   Updating import paths to use direct imports from `main` instead of `functions.main`
+            *   Removing dependency on `ConfigSection` class and using dictionary configuration instead
+            *   Fixing mock setup for file operations and context managers
+            *   Updating expected status codes and error messages to match actual implementation
+            *   Improved application context handling for Flask-based tests
         *   **(No other Python Cloud Functions identified in `main.py` based on `@https_fn.on_request` decorators. If others exist in different files, please specify.)**
     *   **Flutter Services (e.g., `FirestoreService` - in `lib/services/`):
         *   General Mocking Strategy: Use `mockito` to create mock instances of Firestore (e.g., `MockFirebaseFirestore`, `MockCollectionReference`, `MockDocumentReference`, `MockQuerySnapshot`, `MockDocumentSnapshot`). Tests will verify:
@@ -210,7 +211,11 @@ We will prioritize:
         *   ⏳ "CONFIRM" (or positive action) button returns `true`.
 *   **Custom Dialog Widgets from `lib/widgets/dialogs/`**
     *   **`AddItemDialog` (`lib/widgets/dialogs/add_item_dialog.dart`)**
-        *   **(⏳ To be tested)** **Objective:** Verify fields for item name, price, quantity; validation; and correct data returned on save.
+        *   ✅ Verify dialog renders with all required elements.
+        *   ✅ Verify dialog returns null when canceled.
+        *   ✅ Verify quantity controls (increment/decrement) work with proper limits.
+        *   ✅ Verify dialog returns ReceiptItem with correct values when valid input is provided.
+        *   ✅ Verify validation (shows error for empty name, invalid price, negative price).
     *   **`EditItemDialog` (`lib/widgets/dialogs/edit_item_dialog.dart`)**
         *   **(⏳ To be tested)** **Objective:** Verify pre-fill with existing item data; field updates; and correct data returned on save.
 
@@ -298,6 +303,19 @@ This section covers tests that are generally broader or require more setup, such
     *   Generate mocks using `build_runner build`.
 *   Each test file will use `setUp()` for common test arrangements and `tearDown()` for cleanup if necessary.
 *   `group()` will be used to organize related tests.
+
+### Python Cloud Functions Test Directory Structure (`functions/`)
+
+Unit tests for Python cloud functions located in `functions/main.py` are organized as follows:
+
+- `functions/test_main.py`: Test runner, discovers and executes tests from other `test_*.py` files in the `functions/` directory.
+- `functions/test_main_helpers.py`: Tests for helper functions in `main.py` (e.g., `_download_blob_to_tempfile`).
+- `functions/test_generate_thumbnail.py`: Tests for the `generate_thumbnail` cloud function.
+- `functions/test_parse_receipt.py`: Tests for the `parse_receipt` cloud function.
+- `functions/test_assign_people.py`: Tests for the `assign_people_to_items` cloud function.
+- `functions/test_transcribe_audio.py`: Tests for the `transcribe_audio` cloud function.
+
+To run these Python tests, navigate to the `functions` directory and execute `python -m unittest discover` or simply `python -m unittest` if your `test_main.py` is configured as a runner for files in its own directory.
 
 ---
 

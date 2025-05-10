@@ -3,7 +3,8 @@
 # Deploy with `firebase deploy`
 
 from firebase_functions import https_fn, options
-from firebase_admin import initialize_app, storage # Import storage
+import firebase_admin # Import firebase_admin directly
+from firebase_admin import initialize_app, storage # Keep existing specific imports
 from google.cloud import storage as gcs # Import Google Cloud Storage client library
 from openai import OpenAI
 # Import the two libraries with distinct aliases
@@ -26,7 +27,8 @@ import traceback # Keep for error logging
 from config_helper import get_dynamic_config # Import the config helper
 
 # Initialize Firebase Admin SDK
-initialize_app()
+if not firebase_admin._apps: # Now firebase_admin is defined
+    initialize_app()
 
 # --- Pydantic Models (Keep as is) ---
 class ReceiptItem(BaseModel):
