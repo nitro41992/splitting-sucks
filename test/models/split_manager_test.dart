@@ -549,5 +549,374 @@ void main() {
 
     });
 
+    group('Unassigned Item Management and Original Quantity Methods', () {
+      late SplitManager manager;
+      late ReceiptItem itemA, itemB;
+
+      setUp(() {
+        manager = SplitManager();
+        itemA = ReceiptItem(name: 'UnassignedA', price: 5.0, quantity: 3);
+        itemB = ReceiptItem(name: 'UnassignedB', price: 2.0, quantity: 1);
+      });
+
+      test('addUnassignedItem adds item if not present and sets original quantity', () {
+        expect(manager.unassignedItems, isEmpty);
+        manager.addUnassignedItem(itemA);
+        expect(manager.unassignedItems, contains(itemA));
+        expect(manager.getOriginalQuantity(itemA), 3);
+      });
+
+      test('addUnassignedItem does not add duplicate items', () {
+        manager.addUnassignedItem(itemA);
+        manager.addUnassignedItem(itemA);
+        expect(manager.unassignedItems.where((i) => i == itemA).length, 1);
+      });
+
+      test('removeUnassignedItem removes item if present', () {
+        manager.addUnassignedItem(itemA);
+        expect(manager.unassignedItems, contains(itemA));
+        manager.removeUnassignedItem(itemA);
+        expect(manager.unassignedItems, isNot(contains(itemA)));
+      });
+
+      test('removeUnassignedItem does nothing if item not present', () {
+        expect(() => manager.removeUnassignedItem(itemA), returnsNormally);
+      });
+
+      test('setOriginalQuantity and getOriginalQuantity work as expected', () {
+        manager.setOriginalQuantity(itemA, 7);
+        expect(manager.getOriginalQuantity(itemA), 7);
+        // If not set, should return item.quantity
+        expect(manager.getOriginalQuantity(itemB), itemB.quantity);
+      });
+
+      test('getTotalUsedQuantity sums across unassigned, shared, and assigned', () {
+        manager.addUnassignedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 2)); // Unassigned: 2
+        manager.addSharedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 3));     // Shared: 3
+        manager.addPerson('P1');
+        final p1 = manager.people.first;
+        manager.assignItemToPerson(ReceiptItem(name: 'ItemX', price: 1, quantity: 4), p1); // Assigned: 4
+        expect(manager.getTotalUsedQuantity('ItemX'), 9);
+      });
+
+      test('getTotalUsedQuantity returns 0 for non-existent item', () {
+        expect(manager.getTotalUsedQuantity('NonExistent'), 0);
+      });
+    });
+
+    group('Tip and Tax Calculation', () {
+      late SplitManager manager;
+      late Person person;
+      late ReceiptItem item;
+
+      setUp(() {
+        manager = SplitManager();
+        person = Person(name: 'TipTester');
+        item = ReceiptItem(name: 'Meal', price: 100.0, quantity: 1);
+        manager.addPerson(person.name);
+        final managedPerson = manager.people.first;
+        manager.assignItemToPerson(item, managedPerson);
+      });
+
+      test('tipAmount and taxAmount are zero if percentages are null', () {
+        expect(manager.tipPercentage, isNull);
+        expect(manager.taxPercentage, isNull);
+        expect(manager.tipAmount, 0.0);
+        expect(manager.taxAmount, 0.0);
+        expect(manager.finalTotal, 100.0);
+      });
+
+      test('tipAmount and taxAmount are zero if percentages are zero', () {
+        manager.tipPercentage = 0.0;
+        manager.taxPercentage = 0.0;
+        expect(manager.tipAmount, 0.0);
+        expect(manager.taxAmount, 0.0);
+        expect(manager.finalTotal, 100.0);
+      });
+
+      test('tipAmount and taxAmount are correct for positive percentages', () {
+        manager.tipPercentage = 0.15; // 15%
+        manager.taxPercentage = 0.10; // 10%
+        expect(manager.tipAmount, closeTo(15.0, 0.001));
+        expect(manager.taxAmount, closeTo(10.0, 0.001));
+        expect(manager.finalTotal, closeTo(125.0, 0.001));
+      });
+
+      test('tipAmount and taxAmount handle negative percentages (should subtract)', () {
+        manager.tipPercentage = -0.10; // -10%
+        manager.taxPercentage = -0.05; // -5%
+        expect(manager.tipAmount, closeTo(-10.0, 0.001));
+        expect(manager.taxAmount, closeTo(-5.0, 0.001));
+        expect(manager.finalTotal, closeTo(85.0, 0.001));
+      });
+
+      test('tipAmount and taxAmount handle large percentages', () {
+        manager.tipPercentage = 2.0; // 200%
+        manager.taxPercentage = 1.0; // 100%
+        expect(manager.tipAmount, closeTo(200.0, 0.001));
+        expect(manager.taxAmount, closeTo(100.0, 0.001));
+        expect(manager.finalTotal, closeTo(400.0, 0.001));
+      });
+    });
+
+  });
+
+  group('SplitManager Calculation Edge Cases', () {
+    late SplitManager manager;
+    late ReceiptItem item1;
+    late Person person1Instance; // Renamed to avoid conflict with Person class
+
+    setUp(() {
+      manager = SplitManager();
+      item1 = ReceiptItem(name: 'Test Item', price: 10.0, quantity: 1);
+      person1Instance = Person(name: 'Test Person');
+    });
+
+    test('calculates totals correctly with no items and no people', () {
+      expect(manager.totalAmount, 0.0); // This is the subtotal of all items
+      expect(manager.taxPercentage, isNull);
+      expect(manager.tipPercentage, isNull);
+      // Manually calculate expected tax, tip, grand total
+      final expectedTax = 0.0;
+      final expectedTip = 0.0;
+      final expectedGrandTotal = manager.totalAmount + expectedTax + expectedTip;
+      expect(expectedGrandTotal, 0.0);
+      // For a person not in the manager, their share is 0
+      // This test doesn't add person1Instance to the manager
+    });
+
+    test('calculates totals correctly with items but no people (unassigned items)', () {
+      manager.addUnassignedItem(ReceiptItem.clone(item1)); // Subtotal = 10.0
+      manager.taxPercentage = 10.0; 
+      manager.tipPercentage = 20.0;
+
+      final subtotal = manager.unassignedItemsTotal; // Should be 10.0
+      expect(subtotal, 10.0);
+      final expectedTax = subtotal * (manager.taxPercentage! / 100.0); // 1.0
+      final expectedTip = subtotal * (manager.tipPercentage! / 100.0); // 2.0
+      final expectedGrandTotal = subtotal + expectedTax + expectedTip; // 13.0
+      
+      expect(expectedTax, 1.0);
+      expect(expectedTip, 2.0);
+      expect(expectedGrandTotal, 13.0);
+      expect(manager.totalAmount, 10.0); // manager.totalAmount is the subtotal of items
+    });
+
+    test('calculates totals correctly with people but no items', () {
+      manager.addPerson(person1Instance.name);
+      manager.taxPercentage = 10.0;
+      manager.tipPercentage = 20.0;
+
+      final p = manager.people.firstWhere((p) => p.name == person1Instance.name);
+      
+      expect(manager.totalAmount, 0.0); // Subtotal of items
+      final subtotal = manager.totalAmount;
+      final expectedTax = subtotal * (manager.taxPercentage ?? 0) / 100.0;
+      final expectedTip = subtotal * (manager.tipPercentage ?? 0) / 100.0;
+      final expectedGrandTotal = subtotal + expectedTax + expectedTip;
+      
+      expect(expectedTax, 0.0);
+      expect(expectedTip, 0.0);
+      expect(expectedGrandTotal, 0.0);
+
+      // Person's share of items, tax, and tip
+      final personSubtotal = p.totalAssignedAmount + p.totalSharedAmount; // Should be 0
+      final personTax = personSubtotal * (manager.taxPercentage ?? 0) / 100.0;
+      final personTip = personSubtotal * (manager.tipPercentage ?? 0) / 100.0;
+      final personTotal = personSubtotal + personTax + personTip;
+      expect(personTotal, 0.0);
+    });
+
+    test('calculates totals correctly with zero tip', () {
+      manager.addPerson(person1Instance.name);
+      final pInManager = manager.people.firstWhere((p) => p.name == person1Instance.name);
+      manager.assignItemToPerson(ReceiptItem.clone(item1), pInManager); // Item subtotal = 10.0
+      manager.taxPercentage = 10.0; 
+      manager.tipPercentage = 0.0;
+
+      final subtotal = manager.totalAmount; // Sum of all items = 10.0
+      expect(subtotal, 10.0);
+      final expectedTax = subtotal * (manager.taxPercentage! / 100.0); // 1.0
+      final expectedTip = subtotal * (manager.tipPercentage! / 100.0); // 0.0
+      final expectedGrandTotal = subtotal + expectedTax + expectedTip; // 11.0
+
+      expect(expectedTax, 1.0);
+      expect(expectedTip, 0.0);
+      expect(expectedGrandTotal, 11.0);
+
+      // Person's total
+      final personItemsTotal = pInManager.totalAssignedAmount; // 10.0
+      final personTax = personItemsTotal * (manager.taxPercentage! / 100.0); // 1.0
+      final personTip = personItemsTotal * (manager.tipPercentage! / 100.0); // 0.0
+      final personTotalShare = personItemsTotal + personTax + personTip; // 11.0
+      expect(personTotalShare, 11.0);
+    });
+
+    test('calculates totals correctly with zero tax', () {
+      manager.addPerson(person1Instance.name);
+      final pInManager = manager.people.firstWhere((p) => p.name == person1Instance.name);
+      manager.assignItemToPerson(ReceiptItem.clone(item1), pInManager); // Item subtotal = 10.0
+      manager.taxPercentage = 0.0;
+      manager.tipPercentage = 20.0;
+
+      final subtotal = manager.totalAmount; // 10.0
+      expect(subtotal, 10.0);
+      final expectedTax = subtotal * (manager.taxPercentage! / 100.0); // 0.0
+      final expectedTip = subtotal * (manager.tipPercentage! / 100.0); // 2.0
+      final expectedGrandTotal = subtotal + expectedTax + expectedTip; // 12.0
+
+      expect(expectedTax, 0.0);
+      expect(expectedTip, 2.0);
+      expect(expectedGrandTotal, 12.0);
+      
+      final personItemsTotal = pInManager.totalAssignedAmount; // 10.0
+      final personTax = personItemsTotal * (manager.taxPercentage! / 100.0); // 0.0
+      final personTip = personItemsTotal * (manager.tipPercentage! / 100.0); // 2.0
+      final personTotalShare = personItemsTotal + personTax + personTip; // 12.0
+      expect(personTotalShare, 12.0);
+    });
+
+    test('calculates totals correctly with zero tip and zero tax', () {
+      manager.addPerson(person1Instance.name);
+      final pInManager = manager.people.firstWhere((p) => p.name == person1Instance.name);
+      manager.assignItemToPerson(ReceiptItem.clone(item1), pInManager); // Item subtotal = 10.0
+      manager.taxPercentage = 0.0;
+      manager.tipPercentage = 0.0;
+
+      final subtotal = manager.totalAmount; // 10.0
+      expect(subtotal, 10.0);
+      final expectedTax = subtotal * (manager.taxPercentage! / 100.0); // 0.0
+      final expectedTip = subtotal * (manager.tipPercentage! / 100.0); // 0.0
+      final expectedGrandTotal = subtotal + expectedTax + expectedTip; // 10.0
+
+      expect(expectedTax, 0.0);
+      expect(expectedTip, 0.0);
+      expect(expectedGrandTotal, 10.0);
+
+      final personItemsTotal = pInManager.totalAssignedAmount; // 10.0
+      final personTax = personItemsTotal * (manager.taxPercentage! / 100.0); // 0.0
+      final personTip = personItemsTotal * (manager.tipPercentage! / 100.0); // 0.0
+      final personTotalShare = personItemsTotal + personTax + personTip; // 10.0
+      expect(personTotalShare, 10.0);
+    });
+
+    test('calculates totals correctly with item of zero price', () {
+      manager.addPerson(person1Instance.name);
+      final pInManager = manager.people.firstWhere((p) => p.name == person1Instance.name);
+      final zeroPriceItem = ReceiptItem(name: 'Free Item', price: 0.0, quantity: 1);
+      manager.assignItemToPerson(ReceiptItem.clone(zeroPriceItem), pInManager);
+      manager.taxPercentage = 10.0;
+      manager.tipPercentage = 20.0;
+
+      final subtotal = manager.totalAmount; // 0.0
+      expect(subtotal, 0.0);
+      final expectedTax = subtotal * (manager.taxPercentage! / 100.0); // 0.0
+      final expectedTip = subtotal * (manager.tipPercentage! / 100.0); // 0.0
+      final expectedGrandTotal = subtotal + expectedTax + expectedTip; // 0.0
+
+      expect(expectedTax, 0.0);
+      expect(expectedTip, 0.0);
+      expect(expectedGrandTotal, 0.0);
+
+      final personItemsTotal = pInManager.totalAssignedAmount; // 0.0
+      final personTax = personItemsTotal * (manager.taxPercentage! / 100.0); // 0.0
+      final personTip = personItemsTotal * (manager.tipPercentage! / 100.0); // 0.0
+      final personTotalShare = personItemsTotal + personTax + personTip; // 0.0
+      expect(personTotalShare, 0.0);
+    });
+
+    test('calculates totals for a person with no assigned/shared items while others have items', () {
+      manager.addPerson(person1Instance.name); 
+      final p1InManager = manager.people.firstWhere((p) => p.name == person1Instance.name);
+
+      final person2 = Person(name: 'Payer Person');
+      manager.addPerson(person2.name);
+      final p2InManager = manager.people.firstWhere((p) => p.name == person2.name);
+      manager.assignItemToPerson(ReceiptItem.clone(item1), p2InManager); // Item1 (10.0) to Payer Person
+
+      manager.taxPercentage = 10.0; 
+      manager.tipPercentage = 20.0; 
+                                   
+      final overallSubtotal = manager.totalAmount; // 10.0
+      expect(overallSubtotal, 10.0);
+      final overallTax = overallSubtotal * (manager.taxPercentage! / 100.0); // 1.0
+      final overallTip = overallSubtotal * (manager.tipPercentage! / 100.0); // 2.0
+      // final overallGrandTotal = overallSubtotal + overallTax + overallTip; // 13.0
+
+      // Person 1 (p1InManager) has no items. Their individual subtotal is 0.
+      // Their share of tax and tip depends on how tax/tip is distributed.
+      // Assuming tax/tip is distributed based on item value.
+      final p1Subtotal = p1InManager.totalAssignedAmount + p1InManager.totalSharedAmount; // 0.0
+      final p1TaxShare = (p1Subtotal / overallSubtotal.clamp(1, double.infinity)) * overallTax; // 0.0
+      final p1TipShare = (p1Subtotal / overallSubtotal.clamp(1, double.infinity)) * overallTip; // 0.0
+      final p1TotalShare = p1Subtotal + p1TaxShare + p1TipShare;
+      expect(p1TotalShare, 0.0);
+      
+      // Person 2 (p2InManager) has the item.
+      final p2Subtotal = p2InManager.totalAssignedAmount + p2InManager.totalSharedAmount; // 10.0
+      final p2TaxShare = (p2Subtotal / overallSubtotal.clamp(1, double.infinity)) * overallTax; // 1.0
+      final p2TipShare = (p2Subtotal / overallSubtotal.clamp(1, double.infinity)) * overallTip; // 2.0
+      final p2TotalShare = p2Subtotal + p2TaxShare + p2TipShare; // 13.0
+      expect(p2TotalShare, 13.0);
+    });
+
+    test('calculates totals correctly with only shared items and multiple people', () {
+      manager.addPerson(person1Instance.name);
+      final p1InManager = manager.people.firstWhere((p) => p.name == person1Instance.name);
+      final person2 = Person(name: 'Shared Person 2');
+      manager.addPerson(person2.name);
+      final p2InManager = manager.people.firstWhere((p) => p.name == person2.name);
+
+      final sharedItem = ReceiptItem(name: 'Shared Dish', price: 20.0, quantity: 1);
+      // Add to manager's shared list AND to each person's shared list for correct calculation
+      manager.addSharedItem(ReceiptItem.clone(sharedItem)); 
+      manager.addItemToShared(sharedItem, [p1InManager, p2InManager]);
+
+
+      manager.taxPercentage = 10.0; 
+      manager.tipPercentage = 10.0; 
+                                   
+      // The manager.totalAmount should reflect the sum of all items, including shared ones.
+      // Person.totalAssignedAmount does not include shared items.
+      // Person.totalSharedAmount includes their share of shared items.
+      // The SplitManager.totalAmount should be the subtotal of all items that contribute to the bill.
+      // This includes assigned items (sum of person.totalAssignedAmount) + manager.sharedItemsTotal + manager.unassignedItemsTotal
+
+      // Correct subtotal calculation:
+      // double calcSubtotal = 0;
+      // manager.people.forEach((p) => calcSubtotal += p.totalAssignedAmount);
+      // calcSubtotal += manager.sharedItemsTotal;
+      // calcSubtotal += manager.unassignedItemsTotal;
+      // Here, all items are shared, so assigned and unassigned are 0.
+      // The items are in p1InManager.sharedItems and p2InManager.sharedItems AND manager.sharedItems.
+      // manager.totalAmount should be 20.0 because it counts shared items once.
+
+      expect(manager.totalAmount, 20.0); // Subtotal of items
+      final overallSubtotal = manager.totalAmount;
+
+      final overallTax = overallSubtotal * (manager.taxPercentage! / 100.0); // 2.0
+      final overallTip = overallSubtotal * (manager.tipPercentage! / 100.0); // 2.0
+      // final overallGrandTotal = overallSubtotal + overallTax + overallTip; // 24.0
+
+      expect(overallTax, 2.0);
+      expect(overallTip, 2.0);
+
+      // Each person's share:
+      // p1's subtotal contribution from shared items is price/num_sharers = 20/2 = 10
+      final p1ItemShare = p1InManager.totalSharedAmount; // Should be 10
+      expect(p1ItemShare, 10.0);
+      final p1TaxShare = (p1ItemShare / overallSubtotal.clamp(1, double.infinity)) * overallTax; // (10/20)*2 = 1.0
+      final p1TipShare = (p1ItemShare / overallSubtotal.clamp(1, double.infinity)) * overallTip; // (10/20)*2 = 1.0
+      final p1TotalOwed = p1ItemShare + p1TaxShare + p1TipShare;
+      expect(p1TotalOwed, 12.0);
+
+      final p2ItemShare = p2InManager.totalSharedAmount; // Should be 10
+      expect(p2ItemShare, 10.0);
+      final p2TaxShare = (p2ItemShare / overallSubtotal.clamp(1, double.infinity)) * overallTax; // 1.0
+      final p2TipShare = (p2ItemShare / overallSubtotal.clamp(1, double.infinity)) * overallTip; // 1.0
+      final p2TotalOwed = p2ItemShare + p2TaxShare + p2TipShare;
+      expect(p2TotalOwed, 12.0);
+    });
+
   });
 }

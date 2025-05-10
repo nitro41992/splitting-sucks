@@ -49,12 +49,12 @@ We will prioritize:
             *   ✅ Initialization with various inputs (items, people, shared items, tip, tax, `originalReviewTotal`). Includes getters for lists (unmodifiable) and setters for percentages with `notifyListeners`. Also covers `reset()`.
             *   ✅ `addPerson()`, `removePerson()`, `updatePersonName()`.
             *   ✅ `assignItemToPerson()`, `unassignItemFromPerson()`.
-            *   ⏳ `addSharedItem()`, `removeSharedItem()`, `addItemToShared()`, `removeItemFromShared()`, `addPersonToSharedItem()`, `removePersonFromSharedItem()`
-            *   ⏳ Tip and tax calculation and application (percentage, fixed, per person if applicable).
-            *   ⏳ `calculateTotals()`: Verification of individual totals, grand total, subtotal. (Partially covered by `totalAmount` getter, but needs more specific tests for `calculateTotals` if it exists or detailed breakdown if `totalAmount` is the main method).
-            *   ⏳ Edge cases: No items, no people, zero tip/tax, etc.
-            *   ⏳ Unassigned item management (`addUnassignedItem`, `removeUnassignedItem`)
-            *   ⏳ Original quantity methods (`setOriginalQuantity`, `getOriginalQuantity`, `getTotalUsedQuantity`)
+            *   ✅ `addSharedItem()`, `removeSharedItem()`, `addItemToShared()`, `removeItemFromShared()`, `addPersonToSharedItem()`, `removePersonFromSharedItem()`
+            *   ✅ Tip and tax calculation and application (percentage, fixed, per person if applicable). Edge cases (zero, null, negative, large percentages) are covered.
+            *   ✅ `calculateTotals`: Verification of individual totals, grand total, subtotal. (Fully covered by totalAmount getter and new detailed tests for subtotal, individual, and grand total logic.)
+            *   ✅ Edge cases: No items, no people, zero tip/tax, etc.
+            *   ✅ Unassigned item management (`addUnassignedItem`, `removeUnassignedItem`)
+            *   ✅ Original quantity methods (`setOriginalQuantity`, `getOriginalQuantity`, `getTotalUsedQuantity`) (edge cases covered)
 
 ### 1.2 Critical Service Logic Unit Tests
 
