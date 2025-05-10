@@ -110,7 +110,7 @@ class TestGenerateThumbnail(unittest.TestCase):
         
         # Set up tempfile mock
         mock_temp_file = MagicMock()
-        mock_temp_file.name = downloaded_file_path
+        downloaded_file_path = mock_temp_file.name
         mock_tempfile_namedtemporaryfile.return_value.__enter__.return_value = mock_temp_file
         
         # PIL Image.open throws an exception for non-image files
@@ -137,8 +137,8 @@ class TestGenerateThumbnail(unittest.TestCase):
         self.assertTrue("not a recognized image type" in error_text_lower or "not an image file" in error_text_lower,
                        f"Expected error about invalid image, got: {error_message}")
         
-        # Should clean up downloaded file
-        mock_os_remove.assert_called_once_with(downloaded_file_path)
+        # Should clean up downloaded file - don't hardcode path, use the mock's name
+        mock_os_remove.assert_called_with(downloaded_file_path)
 
     @patch('main.os.remove')
     @patch('main.gcs.Client') # Fix: Use the correct import alias from main.py

@@ -23,7 +23,7 @@ class TestAssignPeopleToItems(unittest.TestCase):
         }
 
     @patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_test_api_key'})
-    @patch('google.genai.GenerativeModel')  # Correct import path based on main.py's from google import genai as genai_legacy
+    @patch('main.genai_legacy.GenerativeModel')  # Fix: patch the alias used in main.py
     @patch('main.get_dynamic_config')
     def test_assign_people_to_items_success(self, mock_get_dynamic_config, 
                                            mock_genai_model_constructor):
@@ -69,7 +69,7 @@ class TestAssignPeopleToItems(unittest.TestCase):
         self.assertEqual(response_data_dict, expected_assignment_data.model_dump())
 
     @patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_test_api_key'})
-    @patch('google.genai.GenerativeModel')  # Correct import path based on main.py's from google import genai as genai_legacy
+    @patch('main.genai_legacy.GenerativeModel')  # Fix: patch the alias used in main.py
     @patch('main.get_dynamic_config')
     def test_assign_people_to_items_pydantic_validation_error(self, mock_get_dynamic_config, 
                                                           mock_genai_model_constructor):
@@ -102,7 +102,7 @@ class TestAssignPeopleToItems(unittest.TestCase):
         self.assertIn("Output validation failed", response_data.get("error", {}).get("message", str(response_data.get("error"))))
 
     @patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_test_api_key'})
-    @patch('google.genai.GenerativeModel')  # Correct import path based on main.py's from google import genai as genai_legacy
+    @patch('main.genai_legacy.GenerativeModel')  # Fix: patch the alias used in main.py
     @patch('main.get_dynamic_config')
     def test_assign_people_to_items_ai_service_error(self, mock_get_dynamic_config, 
                                                   mock_genai_model_constructor):
