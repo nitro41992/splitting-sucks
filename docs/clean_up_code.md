@@ -290,6 +290,12 @@ Learnings from refactoring `workflow_modal.dart` should inform a broader effort 
     *   Review `pubspec.yaml` for any outdated dependencies. Plan for updates. 🏗️
     *   Remove any dependencies that are no longer used by the project. 🏗️
 
+##### 2.10. UI/UX Polish Items 📝
+
+*   **Objective:** Address specific UI/UX enhancements for better usability.
+*   **Actions:**
+    *   `Improve placeholder text on ReceiptReviewScreen when no items are parsed (e.g., "Looks like we couldn't find any items..." instead of just "Items (0)").` 📝
+
 ---
 
 ### 🏗️ In Progress

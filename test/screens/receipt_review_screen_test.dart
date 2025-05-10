@@ -88,4 +88,60 @@ void main() {
       expect(tester.widget<Text>(subtotalAmountFinder).data, '\$${expectedTotal.toStringAsFixed(2)}');
     });
   });
+
+  group('ReceiptReviewScreen - Initial Display (No Items)', () {
+    testWidgets('Displays "Items (0)" text, no item cards, "Add Item" button, and correct total when no items are present', (WidgetTester tester) async {
+      await tester.pumpWidget(_boilerplate(initialItems: []));
+      await tester.pumpAndSettle();
+
+      // Expect "Items (0)" text
+      expect(find.text('Items (0)'), findsOneWidget);
+
+      // Expect no ReceiptItemCard widgets
+      expect(find.byType(ReceiptItemCard), findsNothing);
+
+      // Expect "Add Item" button
+      expect(find.byKey(const ValueKey('addItemFAB')), findsOneWidget);
+
+      // Expect "Confirm Review" button to be present and disabled
+      final confirmButtonFinder = find.byKey(const ValueKey('confirmReviewButton'));
+      expect(confirmButtonFinder, findsOneWidget);
+      final ElevatedButton confirmButton = tester.widget<ElevatedButton>(confirmButtonFinder);
+      expect(confirmButton.onPressed, isNull, reason: "Confirm button should be disabled when there are no items.");
+      
+      // Verify Subtotal Label (Expanded) - should still be present
+      final subtotalLabelFinder = find.byKey(const ValueKey('subtotal_label_expanded'));
+      expect(subtotalLabelFinder, findsOneWidget);
+      expect(tester.widget<Text>(subtotalLabelFinder).data, 'Subtotal');
+
+      // Verify Subtotal Amount (Expanded) - should be $0.00
+      final subtotalAmountFinder = find.byKey(const ValueKey('subtotal_amount_expanded'));
+      expect(subtotalAmountFinder, findsOneWidget);
+      expect(tester.widget<Text>(subtotalAmountFinder).data, '\$0.00'); 
+    });
+  });
+
+  group('ReceiptReviewScreen - Adding a New Item', () {
+    testWidgets('Tapping "Add Item" FAB opens AddItemDialog', (WidgetTester tester) async {
+      final mockNavigatorObserver = MockNavigatorObserver();
+      await tester.pumpWidget(_boilerplate(
+        initialItems: [], 
+        navigatorObserver: mockNavigatorObserver,
+      ));
+      await tester.pumpAndSettle();
+
+      // Verify dialog title is not visible initially
+      expect(find.text('Add New Item'), findsNothing);
+
+      // Tap the "Add Item" FAB
+      await tester.tap(find.byKey(const ValueKey('addItemFAB')));
+      await tester.pumpAndSettle(); // Allow dialog to appear
+
+      // Verify dialog title is now visible (indicating the dialog is open)
+      expect(find.text('Add New Item'), findsOneWidget);
+      
+      // TODO: Revisit Mockito verify issue with NavigatorObserver.didPush
+      // verify(mockNavigatorObserver.didPush(any, any)).called(1);
+    });
+  });
 } 

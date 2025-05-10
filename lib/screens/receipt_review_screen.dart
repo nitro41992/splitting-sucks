@@ -396,7 +396,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                     height: 56.0,
                     child: ElevatedButton.icon(
                       key: const ValueKey('confirmReviewButton'),
-                      onPressed: _isContinueButtonVisible
+                      onPressed: _isContinueButtonVisible && _editableItems.isNotEmpty
                           ? () => widget.onReviewComplete(_editableItems, _deletedItems)
                           : null,
                       icon: Icon(

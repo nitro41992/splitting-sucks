@@ -108,15 +108,14 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
         *   ⏳ Tapping a step indicator (Handled in `_WorkflowModalBodyState` tests, as indicator has no direct tap callback).
 
 *   **`WorkflowNavigationControls` (`lib/widgets/workflow_steps/workflow_navigation_controls.dart`)**
-    *   ⏳ **Objective:** Verify correct button visibility, enabled/disabled states based on `WorkflowState.currentStep` and other `WorkflowState` flags (`hasParseData`, etc.), and correct callback invocation. (Currently Failing)
+    *   ✅ **Objective:** Verify correct button visibility, enabled/disabled states based on `WorkflowState.currentStep` and other `WorkflowState` flags (`hasParseData`, etc.), and correct callback invocation.
     *   **Setup:** Mocked `WorkflowState` provided via `ChangeNotifierProvider`.
-    *   **Tests Added (Current Status: Failing ⏳):**
-        *   ⏳ Visibility and state of "Back", "Next", "Complete", "Exit", "Save Draft" buttons across all relevant workflow steps (0 through 3, and final step). (Failing: Buttons not found)
-        *   ⏳ Callbacks (`previousStep`, `nextStep`, `onExitAction`, `onSaveDraftAction`, `onCompleteAction`) are called on tap. (Failing: Buttons not found)
+    *   **Tests Added (Current Status: Passing ✅):**
+        *   ✅ Visibility and state of "Back", "Next", "Complete", "Exit", "Save Draft" buttons across all relevant workflow steps (0 through 3, and final step).
+        *   ✅ Callbacks (`previousStep`, `nextStep`, `onExitAction`, `onSaveDraftAction`, `onCompleteAction`) are called on tap.
         *   Use of `ValueKey`s for robust button finding is implemented in tests and widget.
     *   **KT for Devs:**
         *   Tests use `ValueKey`s for all navigation buttons. Ensure these keys are consistently maintained in `WorkflowNavigationControls.dart` and correctly referenced in the test file.
-        *   The primary issue is that finders (including `find.byKey()`) are not locating the button widgets. See "Key Unresolved Issues & KT for Next Dev" for detailed troubleshooting steps.
         *   Ensure `await tester.pumpAndSettle()` is used after `pumpWidget` and any actions that trigger UI rebuilds to allow the UI to stabilize.
 
 *   **`UploadStepWidget` (`lib/widgets/workflow_steps/upload_step_widget.dart`)**
@@ -373,7 +372,7 @@ This is a starting point. We can refine and add more details as we begin impleme
 *   Linter errors with `verify(mockNavigator.didPush(...))` were persistent. Testing for the presence of the pushed route's widgets (`FullImageViewer`) is a more stable alternative.
 
 ### 3. `ReceiptReviewScreen` / `ReviewStepWidget` Widget Tests
-**Covered By:** `test/screens/receipt_review_screen_test.dart` (to be created)
+**Covered By:** `test/screens/receipt_review_screen_test.dart` (✅ In Progress)
 **Objective:** Verify item display, editing, adding, deleting, and review completion.
 **Setup:**
 *   Mock `WorkflowState` (if `ReceiptReviewScreen` starts using it directly for item fetching, otherwise pass `initialItems`).
@@ -381,17 +380,17 @@ This is a starting point. We can refine and add more details as we begin impleme
 *   Use `FakeReceiptItem` data.
 **Test Cases:**
 *   **Initial Display with Items:**
-    *   [ ] Displays `ReceiptItemCard` for each initial item.
-    *   [ ] "Add Item" button is visible.
-    *   [ ] "Confirm Review" button is visible.
-    *   [ ] Total price is correctly calculated and displayed.
+    *   [✅] Displays `ReceiptItemCard` for each initial item.
+    *   [✅] "Add Item" button is visible.
+    *   [✅] "Confirm Review" button is visible.
+    *   [✅] Total price is correctly calculated and displayed.
 *   **Initial Display (No Items):**
-    *   [ ] Shows a message indicating no items (e.g., "No items to review. Add some!").
-    *   [ ] "Add Item" button is visible.
-    *   [ ] "Confirm Review" button might be disabled or show a different text.
-    *   [ ] Total price is £0.00 or not shown.
+    *   [✅] Shows a message indicating no items (e.g., "Items (0)" is displayed, no item cards).
+    *   [✅] "Add Item" button is visible.
+    *   [✅] "Confirm Review" button is disabled.
+    *   [✅] Total price is \$0.00 or not shown.
 *   **Adding a New Item:**
-    *   [ ] Tapping "Add Item" opens `ItemEditDialog`.
+    *   [✅] Tapping "Add Item" opens `ItemEditDialog` (verified by checking for dialog title).
     *   [ ] Saving the dialog adds a new `ReceiptItemCard` to the list.
     *   [ ] `onItemsUpdated` callback is triggered with the new list.
     *   [ ] Total price is updated.
