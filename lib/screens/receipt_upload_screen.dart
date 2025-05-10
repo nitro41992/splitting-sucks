@@ -16,6 +16,7 @@ class ReceiptUploadScreen extends StatefulWidget {
   final Function(File?) onImageSelected;
   final Function() onParseReceipt;
   final Function() onRetry; // Callback to clear the image
+  final ImagePicker? picker; // Added for testability
 
   const ReceiptUploadScreen({
     super.key,
@@ -27,6 +28,7 @@ class ReceiptUploadScreen extends StatefulWidget {
     required this.onImageSelected,
     required this.onParseReceipt,
     required this.onRetry,
+    this.picker, // Added
   });
 
   @override
@@ -34,7 +36,14 @@ class ReceiptUploadScreen extends StatefulWidget {
 }
 
 class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
-  final ImagePicker _picker = ImagePicker();
+  // Use the injected picker if available, otherwise create a new one.
+  late final ImagePicker _picker;
+
+  @override
+  void initState() {
+    super.initState();
+    _picker = widget.picker ?? ImagePicker();
+  }
 
   Future<void> _takePicture() async {
     try {
@@ -116,7 +125,9 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
 
   void _showFullImage() {
      if (widget.imageFile != null) {
-       showFullImageDialog(context, widget.imageFile!);
+       showFullImageDialog(context, imageFile: widget.imageFile!);
+     } else if (widget.imageUrl != null) {
+       showFullImageDialog(context, imageFile: null, imageUrl: widget.imageUrl!);
      }
    }
 
@@ -251,18 +262,17 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                         child: Material(
                                           color: Colors.transparent,
                                           child: InkWell(
+                                            key: const ValueKey('image_preview_inkwell'),
                                             onTap: () {
                                               if (hasLocalImage) {
-                                                _showFullImage(); // For local file
+                                                _showFullImage();
                                               } else if (hasNetworkImage) {
-                                                // For network image, pass URL
-                                                showFullImageDialog(context, null, networkImageUrl: widget.imageUrl);
+                                                showFullImageDialog(context, imageFile: null, imageUrl: widget.imageUrl);
                                               } else if (hasNetworkThumbnail) {
-                                                 // For thumbnail, pass URL
-                                                showFullImageDialog(context, null, networkImageUrl: widget.loadedThumbnailUrl);
+                                                showFullImageDialog(context, imageFile: null, imageUrl: widget.loadedThumbnailUrl);
                                               }
                                             },
-                                            child: imagePreviewWidget, // Use the selected widget
+                                            child: imagePreviewWidget,
                                           ),
                                         ),
                                       ),
@@ -274,11 +284,13 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 CircularProgressIndicator(
+                                                  key: const ValueKey('loading_indicator'),
                                                   color: colorScheme.onPrimary,
                                                 ),
                                                 const SizedBox(height: 16),
                                                 Text(
                                                   'Processing Receipt...',
+                                                  key: const ValueKey('loading_text'),
                                                   style: textTheme.bodyLarge?.copyWith(
                                                     color: colorScheme.onPrimary,
                                                   ),
@@ -300,6 +312,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                     if (!widget.isLoading) ...[
                                       Expanded(
                                         child: FilledButton.icon(
+                                          key: const ValueKey('retry_button'),
                                           onPressed: (widget.isLoading || widget.isSuccessfullyParsed || (widget.imageFile == null && widget.imageUrl == null))
                                               ? null // Disabled if loading, successfully parsed, or no image to clear
                                               : widget.onRetry, // Call the retry callback
@@ -315,6 +328,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                       const SizedBox(width: 16),
                                       Expanded(
                                         child: FilledButton.icon(
+                                          key: const ValueKey('use_this_button'),
                                           onPressed: widget.onParseReceipt,
                                           icon: const Icon(Icons.check_circle_outline),
                                           label: const Text('Use This'),
@@ -337,17 +351,18 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                       Icon(
                         Icons.receipt_long_outlined,
                         size: 80,
-                        color: colorScheme.primary.withOpacity(0.7),
+                        color: colorScheme.primary.withOpacity(0.6),
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'Upload Your Receipt',
+                        'Upload or Take a Photo of Your Receipt',
+                        key: const ValueKey('upload_placeholder_text'),
+                        textAlign: TextAlign.center,
                         style: textTheme.headlineSmall?.copyWith(
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface.withOpacity(0.8),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 32),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 40.0),
                         child: Text(
@@ -363,6 +378,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           OutlinedButton.icon(
+                            key: const ValueKey('gallery_button'),
                             icon: const Icon(Icons.photo_library_outlined),
                             label: const Text('Gallery'),
                             onPressed: widget.isLoading ? null : _pickImage,
@@ -373,6 +389,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                           ),
                           const SizedBox(width: 16),
                           FilledButton.icon(
+                            key: const ValueKey('camera_button'),
                             icon: const Icon(Icons.camera_alt_outlined),
                             label: const Text('Camera'),
                             onPressed: widget.isLoading ? null : _takePicture,
@@ -439,6 +456,6 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
 }
 
 // Ensure showFullImageDialog can handle network URLs (add nullable networkImageUrl)
-void showFullImageDialog(BuildContext context, File? imageFile, {String? networkImageUrl}) {
-  // ... existing code ...
-} 
+// void showFullImageDialog(BuildContext context, File? imageFile, {String? networkImageUrl}) { // REMOVED this conflicting local definition
+//   // ... existing code ...
+// } 

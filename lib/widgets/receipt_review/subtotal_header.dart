@@ -58,6 +58,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                 children: [
                   Text(
                     'Subtotal',
+                    key: const ValueKey('subtotal_label_collapsed'),
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onSurface,
@@ -65,6 +66,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                   ),
                   Text(
                     '\$${subtotal.toStringAsFixed(2)}',
+                    key: const ValueKey('subtotal_amount_collapsed'),
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.primary,
@@ -87,6 +89,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                       const SizedBox(width: 16),
                       Text(
                         'Subtotal',
+                        key: const ValueKey('subtotal_label_expanded'),
                         style: textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: colorScheme.onSurfaceVariant,
@@ -96,6 +99,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                   ),
                   Text(
                     '\$${subtotal.toStringAsFixed(2)}',
+                    key: const ValueKey('subtotal_amount_expanded'),
                     style: textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.primary,

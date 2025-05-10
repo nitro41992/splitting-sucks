@@ -372,10 +372,17 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
               AnimatedOpacity(
                 duration: const Duration(milliseconds: 150),
                 opacity: _isFabVisible ? 1.0 : 0.0,
-                child: FloatingActionButton(
-                  onPressed: _isFabVisible ? _addItem : null, // Use the extracted add dialog
-                  heroTag: 'addItemFab', // Add unique hero tag
-                  child: const Icon(Icons.playlist_add),
+                child: FloatingActionButton.extended(
+                  key: const ValueKey('addItemFAB'),
+                  onPressed: _addItem,
+                  icon: const Icon(Icons.add_shopping_cart_outlined),
+                  label: Text(
+                    'Add Item',
+                    style: textTheme.titleSmall?.copyWith(
+                      color: colorScheme.onPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   tooltip: 'Add Item',
                 ),
               ),
@@ -388,6 +395,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                   child: SizedBox(
                     height: 56.0,
                     child: ElevatedButton.icon(
+                      key: const ValueKey('confirmReviewButton'),
                       onPressed: _isContinueButtonVisible
                           ? () => widget.onReviewComplete(_editableItems, _deletedItems)
                           : null,

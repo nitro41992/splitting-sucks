@@ -672,4 +672,85 @@ void main() {
       expect(listenerCalled, isTrue, reason: 'Notify listeners should have been called');
     });
   });
+
+  // Test for _extractPeopleFromAssignments (tested via setAssignPeopleToItemsResult and people getter)
+  group('_extractPeopleFromAssignments', () {
+    test('extracts unique people names correctly from valid assignments', () {
+      final assignments = {
+        'assignments': [
+          {'item': 'Burger', 'people': ['Alice', 'Bob']},
+          {'item': 'Fries', 'people': ['Alice']},
+          {'item': 'Soda', 'people': ['Charlie', 'Bob']},
+          {'item': 'Salad', 'people': []}, // No people assigned
+          {'item': 'Water'} // No 'people' key
+        ]
+      };
+      workflowState.setAssignPeopleToItemsResult(assignments);
+      expect(workflowState.people, unorderedEquals(['Alice', 'Bob', 'Charlie']));
+    });
+
+    test('returns empty list if assignments map is null or empty', () {
+      workflowState.setAssignPeopleToItemsResult(null);
+      expect(workflowState.people, isEmpty);
+
+      workflowState.setAssignPeopleToItemsResult({});
+      expect(workflowState.people, isEmpty);
+    });
+
+    test('returns empty list if "assignments" key is missing or list is empty', () {
+      workflowState.setAssignPeopleToItemsResult({'other_key': []});
+      expect(workflowState.people, isEmpty);
+
+      workflowState.setAssignPeopleToItemsResult({'assignments': []});
+      expect(workflowState.people, isEmpty);
+    });
+
+    test('handles malformed data gracefully (e.g., non-list assignments, non-map item)', () {
+      // "assignments" is not a list
+      workflowState.setAssignPeopleToItemsResult({'assignments': 'not_a_list'});
+      expect(workflowState.people, isEmpty, reason: 'Assignments not a list');
+
+      // Item in assignments is not a map
+      workflowState.setAssignPeopleToItemsResult({
+        'assignments': ['not_a_map', {'item': 'Burger', 'people': ['Alice']}]
+      });
+      // Should still extract from valid parts.
+      expect(workflowState.people, unorderedEquals(['Alice']), reason: 'Should process valid map item even if other items are not maps'); 
+
+      // Reset and test a slightly different malformed case
+      workflowState = WorkflowState(restaurantName: 'Test'); // Re-initialize to clear previous state
+      workflowState.addListener(() { listenerCalled = true; }); // Re-add listener for consistency if needed by other parts, though not strictly for .people
+      workflowState.setAssignPeopleToItemsResult({
+        'assignments': [
+          {'item': 'Valid Item', 'people': ['ValidPerson']},
+          'another_string_instead_of_map' 
+        ]
+      });
+      expect(workflowState.people, unorderedEquals(['ValidPerson']), reason: 'Should process valid items even if one is malformed string');
+
+    });
+
+    test('handles items where "people" key is missing or people list is null/not a list', () {
+      workflowState.setAssignPeopleToItemsResult({
+        'assignments': [
+          {'item': 'ItemA'}, // No 'people' key
+          {'item': 'ItemB', 'people': null}, // 'people' is null
+          {'item': 'ItemC', 'people': 'not_a_list'}, // 'people' is not a list
+          {'item': 'ItemD', 'people': ['Dave']}
+        ]
+      });
+      expect(workflowState.people, unorderedEquals(['Dave']));
+    });
+
+     test('handles non-string person names in people list gracefully (if possible, though typing should prevent)', () {
+      workflowState.setAssignPeopleToItemsResult({
+        'assignments': [
+          {'item': 'ItemX', 'people': ['Eve', 123, 'Frank', true, null]}
+        ]
+      });
+      // Expect only strings to be added
+      expect(workflowState.people, unorderedEquals(['Eve', 'Frank']));
+    });
+
+  });
 } 

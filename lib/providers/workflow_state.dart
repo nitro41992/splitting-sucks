@@ -229,21 +229,35 @@ class WorkflowState extends ChangeNotifier {
         !_assignPeopleToItemsResult.containsKey('assignments')) {
       return [];
     }
-    final assignments = _assignPeopleToItemsResult['assignments'] as List<dynamic>?;
-    if (assignments == null || assignments.isEmpty) {
+
+    // Check if 'assignments' is a list before casting
+    final dynamic assignmentsDynamic = _assignPeopleToItemsResult['assignments'];
+    if (assignmentsDynamic is! List) {
+      debugPrint('[WorkflowState _extractPeopleFromAssignments] \'assignments\' is not a List. Found: ${assignmentsDynamic.runtimeType}');
+      return [];
+    }
+    final List<dynamic> assignmentsList = assignmentsDynamic; // Safe cast now, renamed to avoid conflict
+
+    if (assignmentsList.isEmpty) {
       return [];
     }
 
     final Set<String> peopleSet = {};
-    for (var assignment in assignments) {
-      if (assignment is Map<String, dynamic> &&
-          assignment.containsKey('people')) {
-        final peopleInAssignment = assignment['people'] as List<dynamic>?;
-        if (peopleInAssignment != null) {
-          for (var person in peopleInAssignment) {
-            if (person is String) {
-              peopleSet.add(person);
-            }
+    for (var assignmentItem in assignmentsList) { // Use the correctly typed and named list
+      if (assignmentItem is Map<String, dynamic> &&
+          assignmentItem.containsKey('people')) {
+        
+        // Check if 'people' is a list before casting
+        final dynamic peopleInAssignmentDynamic = assignmentItem['people'];
+        if (peopleInAssignmentDynamic is! List) {
+          debugPrint('[WorkflowState _extractPeopleFromAssignments] \'people\' in an assignment is not a List. Found: ${peopleInAssignmentDynamic.runtimeType}');
+          continue; // Skip this assignment item
+        }
+        final List<dynamic> peopleInAssignment = peopleInAssignmentDynamic; // Safe cast now
+
+        for (var person in peopleInAssignment) {
+          if (person is String && person.isNotEmpty) { // Also check if string is not empty
+            peopleSet.add(person);
           }
         }
       }

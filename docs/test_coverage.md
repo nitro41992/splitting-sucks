@@ -21,8 +21,8 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
 
 **Recent Progress (WorkflowNavigationControls & ImageStateManager):**
 *   Successfully refactored `WorkflowNavigationControls` to derive `currentStep` directly from `WorkflowState` via a `Consumer`, simplifying its API.
-*   Updated all widget tests for `WorkflowNavigationControls` to use `ValueKey`s for locating button elements (e.g., `find.byKey(backButtonKey)`). This significantly improved test robustness against minor structural changes in the widget tree, resolving previous intermittent test failures related to widget finders.
-*   Addressed unit test failures in `ImageStateManager` by ensuring `notifyListeners()` was called correctly in methods like `addUriToPendingDeletionsList`, `removeUriFromPendingDeletionsList`, and conditionally in `clearPendingDeletionsList`. Also ensured test listeners were correctly added and removed using the same function instance.
+*   Implemented `ValueKey`s for locating button elements in `WorkflowNavigationControls` tests (e.g., `find.byKey(backButtonKey)`). While this is a robust approach, tests for these controls are currently still failing to find the button widgets (see "Key Unresolved Issues" below).
+*   Successfully resolved all unit test failures in `ImageStateManager`. This involved ensuring `notifyListeners()` was called correctly in methods like `addUriToPendingDeletionsList`, `removeUriFromPendingDeletionsList`, and conditionally in `clearPendingDeletionsList`. Additionally, test listeners were corrected to use the same function instance for adding and removing, resolving listener-related assertions.
 
 ### 1.1 Unit Tests
 
@@ -62,7 +62,8 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
         *   ✅ `setUploadedGsUris()`, `setLoadedImageUrls()`, `setActualGsUrisOnLoad()`: Delegate to `imageStateManager` and call `notifyListeners()`.
         *   ✅ `clearPendingDeletions()`, `removeUriFromPendingDeletions()`, `addUriToPendingDeletions()`: Delegate to `imageStateManager` and call `notifyListeners()`.
         *   ✅ `toReceipt()`: Correctly constructs a `Receipt` object using current state, including URIs from `imageStateManager`.
-        *   ⏳ `_extractPeopleFromAssignments()`: Correctly extracts unique people names from `_assignPeopleToItemsResult`.
+        *   ✅ `_extractPeopleFromAssignments()`: Correctly extracts unique people names from `_assignPeopleToItemsResult`.
+            *   **KT for Devs:** This method was made more robust to handle various forms of malformed data in the `assignments` list (e.g., non-list `assignments` field, non-map items within the `assignments` list, non-list `people` fields within an assignment item). It now safely skips malformed parts and extracts people from valid entries. Test cases cover these scenarios.
         *   ✅ `hasParseData`, `hasTranscriptionData`, `hasAssignmentData`: Flags return correct boolean based on internal state.
         *   ✅ `clearParseAndSubsequentData()`: Clears relevant fields (`_parseReceiptResult`, `_transcribeAudioResult`, `_assignPeopleToItemsResult`, `_people`) and calls `notifyListeners()`. Tip/Tax preservation should be noted/tested if that's desired behavior.
         *   ✅ `clearTranscriptionAndSubsequentData()`: Clears relevant fields (including assignments, people, tip, tax) and calls `notifyListeners()`.
@@ -107,27 +108,49 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
         *   ⏳ Tapping a step indicator (Handled in `_WorkflowModalBodyState` tests, as indicator has no direct tap callback).
 
 *   **`WorkflowNavigationControls` (`lib/widgets/workflow_steps/workflow_navigation_controls.dart`)**
-    *   **Objective:** Verify buttons render correctly, are enabled/disabled based on `WorkflowState`, and trigger appropriate callbacks.
-    *   **KT for Devs (Robust Finders):** Using `ValueKey` for each interactive element (buttons) in this widget and `find.byKey()` in tests proved to be a very stable approach, resilient to UI structural changes that do not alter the keyed element itself. This is highly recommended for other widget tests.
-    *   **Dependencies:** Mock `WorkflowState`.
-    *   **Test Cases:**
-        *   ✅ `Back button`:
-            *   Visible and enabled when `currentStep > 0`.
-            *   Hidden or disabled when `currentStep == 0`.
-            *   Calls `workflowState.previousStep()` when tapped and enabled.
-        *   ✅ `Exit button`:
-            *   Visible when `currentStep < 4`.
-            *   Calls `onExitAction` callback when tapped.
-        *   ✅ `Save Draft button`:
-            *   Visible when `currentStep == 4`.
-            *   Calls `onSaveDraftAction` callback when tapped.
-        *   ✅ `Next button`:
-            *   Visible when `currentStep < 4`.
-            *   Enabled/disabled based on `WorkflowState` data (e.g., `hasParseData` for step 0, `hasAssignmentData` for step 2 & 3).
-            *   Calls `workflowState.nextStep()` when tapped and enabled.
-        *   ✅ `Complete button`:
-            *   Visible when `currentStep == 4`.
-            *   Calls `onCompleteAction` callback when tapped.
+    *   ⏳ **Objective:** Verify correct button visibility, enabled/disabled states based on `WorkflowState.currentStep` and other `WorkflowState` flags (`hasParseData`, etc.), and correct callback invocation. (Currently Failing)
+    *   **Setup:** Mocked `WorkflowState` provided via `ChangeNotifierProvider`.
+    *   **Tests Added (Current Status: Failing ⏳):**
+        *   ⏳ Visibility and state of "Back", "Next", "Complete", "Exit", "Save Draft" buttons across all relevant workflow steps (0 through 3, and final step). (Failing: Buttons not found)
+        *   ⏳ Callbacks (`previousStep`, `nextStep`, `onExitAction`, `onSaveDraftAction`, `onCompleteAction`) are called on tap. (Failing: Buttons not found)
+        *   Use of `ValueKey`s for robust button finding is implemented in tests and widget.
+    *   **KT for Devs:**
+        *   Tests use `ValueKey`s for all navigation buttons. Ensure these keys are consistently maintained in `WorkflowNavigationControls.dart` and correctly referenced in the test file.
+        *   The primary issue is that finders (including `find.byKey()`) are not locating the button widgets. See "Key Unresolved Issues & KT for Next Dev" for detailed troubleshooting steps.
+        *   Ensure `await tester.pumpAndSettle()` is used after `pumpWidget` and any actions that trigger UI rebuilds to allow the UI to stabilize.
+
+*   **`UploadStepWidget` (`lib/widgets/workflow_steps/upload_step_widget.dart`)**
+    *   ✅ **Objective:** Primarily verify that it correctly passes parameters to and displays `ReceiptUploadScreen`.
+    *   **Status:** Considered covered by `ReceiptUploadScreen` tests, as `UploadStepWidget` is a thin wrapper.
+    *   **KT for Devs:** Ensure `UploadStepWidget` continues to correctly map its inputs to `ReceiptUploadScreen` props. If logic is added to `UploadStepWidget` itself, dedicated tests will be needed.
+
+*   **`ReceiptUploadScreen` (`lib/screens/receipt_upload_screen.dart`)**
+    *   ✅ **Objective:** Verify UI states for no image, local image, network image, loading, parsing, and successful parsing. Test interactions with image picker, parse, and retry/change image buttons.
+    *   **Setup:**
+        *   Mocked `ImagePicker` injected for controlling image selection simulation.
+        *   Mocked callbacks for `onImageSelected`, `onParseReceipt`, `onRetry`.
+        *   Uses `HttpOverrides.runZoned` with `FakeHttpClient` for network image tests.
+    *   **Tests Added (All Passing ✅):**
+        *   **Initial State (No Image):** ✅ Correct placeholder, "Select Image" & "Take Picture" buttons visible, "Parse Receipt" absent.
+        *   **Local Image Display:** ✅ `Image.file` used, "Parse Receipt" & "Change Image" buttons visible/enabled. ✅ Tapping image shows `FullImageViewer`.
+        *   **Network Image Display:** ✅ `CachedNetworkImage` used (main and thumbnail as placeholder via `ValueKey`s), "Parse Receipt" & "Change Image" buttons. ✅ Tapping image shows `FullImageViewer`.
+        *   **Button Interactions & Callbacks:**
+            *   ✅ "Select Image"/"Take Picture": Calls `mockImagePicker.pickImage`, then `onImageSelected` with `File` on success, no call if picker returns null. Includes checks for `FileHelper.isValidImageFile`.
+            *   ✅ "Parse Receipt": Calls `onParseReceipt` when image present.
+            *   ✅ "Change Image" / "Retry": Calls `onRetry` when image present.
+        *   **Loading State:** ✅ "Parse Receipt" button shows "Parsing...", a `CircularProgressIndicator`, and is disabled. Other action buttons hidden.
+        *   **Successfully Parsed State:** ✅ "Retry" button is disabled. "Use This" (Parse) button remains enabled.
+    *   **KT for Devs:**
+        *   `ReceiptUploadScreen` was refactored to accept an `ImagePicker` for testability.
+        *   Testing `FileHelper.isValidImageFile` path (e.g. invalid extension, empty file) is done by checking that `onImageSelected` is not called.
+        *   **`CachedNetworkImage` and Dialogs under Test:**
+            *   When testing `CachedNetworkImage` or widgets that show dialogs (like `FullImageViewer`), it's crucial to use `HttpOverrides.runZoned(() async { ... }, createHttpClient: (_) => FakeHttpClient());` to provide a mock HTTP client. This prevents real network calls and allows controlled responses.
+            *   `await tester.pumpAndSettle()` can be unreliable and cause timeouts when used with `CachedNetworkImage` loading or after triggering dialogs (especially within `HttpOverrides.runZoned`). Prefer `await tester.pump();` or `await tester.pump(const Duration(milliseconds: 500));` after `tester.tap()` that shows a dialog, and also after `Navigator.pop()` that dismisses a dialog. This allows animations and asynchronous operations (like image fetching or dialog transitions) to complete gracefully.
+        *   Ensure `ValueKey`s are used for important widgets like `CachedNetworkImage` instances if you need to differentiate them or check their specific properties.
+        *   The previous linter errors with `verify(mockNavigator.didPush(...))` were resolved by directly checking for the presence of the dialog's content (e.g., `FullImageViewer` widget type).
+
+*   **`ParseStepWidget` (`lib/widgets/workflow_steps/parse_step_widget.dart`)**
+    *   ⏳ **Objective:** Verify display of parsed data (items, prices), handling of transcription data, and interactions if any (e.g., editing items - though this might be out of scope for the widget itself if it only displays).
 
 *   **Individual Step Widgets (e.g., `UploadStepWidget`, `ReviewStepWidget`, `AssignStepWidget`, `SplitStepWidget`, `SummaryStepWidget`)**
     *   **Objective:** Verify each step widget renders correctly based on input from `WorkflowState` and that its specific interactions trigger the correct callbacks.
@@ -141,19 +164,45 @@ Integration tests and tests requiring Firebase emulators (for services and cloud
         *   ⏳ UI changes if `isSuccessfullyParsed` is true.
     *   **(⏳ Similar detailed test cases for other step widgets)**
 
-*   **Dialogs from `lib/utils/dialog_helpers.dart`**
+*   **`SplitViewWidget` (`lib/widgets/split_view.dart`)**
+    *   **(⏳ To be tested)** **Objective:** Verify the overall split view renders correctly, including person assignment, item allocation, and summary calculations. This is a potentially complex widget.
+
+*   **Reusable Child Widgets (Cards, Interaction Elements)**
+    *   **Objective:** Ensure these reusable components function correctly in isolation.
+    *   **`FullImageViewer` (`lib/widgets/receipt_upload/full_image_viewer.dart`)**
+        *   **(⏳ To be tested)** **Objective:** Verify correct display of local or network images, zoom/pan functionalities if any. (Currently indirectly tested via `ReceiptUploadScreen`)
+    *   **`PersonSummaryCard` (`lib/widgets/final_summary/person_summary_card.dart`)**
+        *   **(⏳ To be tested)** **Objective:** Verify correct display of person's name, total amount, and potentially assigned items. (Likely part of `SummaryStepWidget` but consider dedicated tests if complex).
+    *   **Cards from `lib/widgets/cards/`**
+        *   `SharedItemCard` (⏳ To be tested)
+        *   `PersonCard` (⏳ To be tested)
+        *   `UnassignedItemCard` (⏳ To be tested)
+        *   **Objective:** Verify correct rendering based on input data and handling of any interactions. (May be covered by parent step widgets like `AssignStepWidget` or `SplitStepWidget`, but consider dedicated tests if complex or highly reusable).
+    *   **Shared Utility Widgets from `lib/widgets/shared/`**
+        *   `WaveDividerPainter` (⏳ To be tested - verify no paint errors, visual inspection or specific paint call verification).
+        *   `QuantitySelector` (⏳ To be tested - verify increment/decrement logic, callbacks, min/max constraints).
+        *   `ItemRow` (⏳ To be tested - verify layout, display of item name/price/quantity).
+        *   `EditableText` (⏳ To be tested - verify edit mode, view mode, callbacks on change).
+        *   `EditablePrice` (⏳ To be tested - verify currency formatting, edit mode, callbacks).
+        *   **Objective:** Ensure these common UI elements are robust and behave as expected.
+
+*   **Dialogs from `lib/widgets/dialogs/` (and `lib/utils/dialog_helpers.dart`)**
     *   **Objective:** Verify dialogs appear, display correct content, and return expected values on button presses.
-    *   **Test Cases (`showRestaurantNameDialog`):**
+    *   **Test Cases (`showRestaurantNameDialog` from `dialog_helpers.dart`):**
         *   ⏳ Dialog appears when called.
         *   ⏳ Displays title "Restaurant Name".
         *   ⏳ `TextField` is present, accepts input, shows `initialName`.
         *   ⏳ "CANCEL" button returns `null`.
         *   ⏳ "CONFIRM" button returns entered text (or `initialName` if unchanged).
         *   ⏳ Handles empty input on confirm (should it be allowed or show error/disable button?).
-    *   **Test Cases (`showConfirmationDialog`):**
+    *   **Test Cases (`showConfirmationDialog` from `dialog_helpers.dart`):**
         *   ⏳ Dialog appears with given `title` and `content`.
         *   ⏳ "CANCEL" (or negative action) button returns `false`.
         *   ⏳ "CONFIRM" (or positive action) button returns `true`.
+    *   **`AddItemDialog` (`lib/widgets/dialogs/add_item_dialog.dart`)**
+        *   **(⏳ To be tested)** **Objective:** Verify fields for item name, price, quantity; validation; and correct data returned on save.
+    *   **`EditItemDialog` (`lib/widgets/dialogs/edit_item_dialog.dart`)**
+        *   **(⏳ To be tested)** **Objective:** Verify pre-fill with existing item data; field updates; and correct data returned on save.
 
 *   **`_WorkflowModalBodyState` (selected parts, `lib/widgets/workflow_modal.dart`)**
     *   **Objective:** Test critical UI interaction logic that remains in `_WorkflowModalBodyState`, such as the `GestureDetector` for the step indicator.
@@ -275,4 +324,94 @@ This is a starting point. We can refine and add more details as we begin impleme
     *   **Isolate Unit Tests with Mocks:** When unit testing state management classes (like `WorkflowState`), inject mock dependencies (like `MockImageStateManager`) to ensure tests are focused and not affected by the internal logic of other classes.
     *   **Test `notifyListeners()` Behavior:** For classes extending `ChangeNotifier`, explicitly test that `notifyListeners()` is called when expected, and *not* called when state changes do not warrant a notification. Use a boolean flag and a listener in your test setup for this.
     *   **Verify All Paths in Conditional Logic:** Ensure tests cover all branches of `if/else` statements or `switch` cases, especially for logic that enables/disables UI elements or alters data flow.
-    *   **`pumpAndSettle()` is Your Friend:** After triggering actions in widget tests that might involve animations or multiple frames to resolve (like `tester.tap()`, or state changes that rebuild UI), use `await tester.pumpAndSettle()` to ensure the UI has reached a stable state before making assertions. Use `await tester.pump()` for single frame advances if needed, but `pumpAndSettle()` is often more reliable for complex interactions.
+    *   **Use `pumpAndSettle()` is Your Friend:** After triggering actions in widget tests that might involve animations or multiple frames to resolve (like `tester.tap()`, or state changes that rebuild UI), use `await tester.pumpAndSettle()` to ensure the UI has reached a stable state before making assertions. Use `await tester.pump()` for single frame advances if needed, but `pumpAndSettle()` is often more reliable for complex interactions. **Exception:** See KT for Devs under `ReceiptUploadScreen` for scenarios involving `HttpOverrides` and dialogs where `pump()` with a duration might be necessary.
+
+### Key Unresolved Issues & KT for Next Dev
+
+1.  **Linter/Compilation Errors in `test/screens/receipt_upload_screen_test.dart` (Resolved)**
+    *   **Problem:** The file `test/screens/receipt_upload_screen_test.dart` had a persistent compilation error: "Undefined class 'CompressionState'" (and related errors) in its fake HTTP client implementation.
+    *   **Status:** ✅ **Resolved.** The issue was fixed by correctly implementing the `compressionState` getter in the `FakeHttpClientResponse` to return an `HttpClientResponseCompressionState` enum value (e.g., `HttpClientResponseCompressionState.notCompressed`), aligning with Dart SDK changes.
+    *   **KT for Devs:** Ensure fake HTTP client implementations for testing `dart:io` dependent classes like `HttpClientResponse` are kept up-to-date with the `dart:io` interface, especially regarding new or modified enums like `HttpClientResponseCompressionState`.
+
+2.  **Build Runner for Mocks:**
+    *   **Reminder:** If any mock definitions (e.g., in `test/mocks.dart` or other files using `@GenerateMocks`) are updated, remember to run `dart run build_runner build --delete-conflicting-outputs` to regenerate the mock implementation files.
+
+### 2. `ReceiptUploadScreen` / `UploadStepWidget` Widget Tests
+**Covered By:** `test/screens/receipt_upload_screen_test.dart`
+**Objective:** Verify UI elements, image selection/capture, parsing initiation, and state changes.
+**Setup:**
+*   Mock `ImagePicker` to simulate image selection/capture.
+*   Mock `ImageStateManager` to control image state (local, network).
+*   Mock `WorkflowState` for parsing status.
+*   Provide necessary callbacks (`onImageSelected`, `onParseReceipt`, `onRetry`).
+*   Use `HttpOverrides.runZoned` with `FakeHttpClient` for network image tests.
+**Test Cases:**
+*   **Initial State (No Image):**
+    *   [✅] Displays placeholder icon and text.
+    *   [✅] Displays "Select Image" and "Take Picture" buttons.
+    *   [✅] "Parse Receipt" button is not visible.
+*   **Local Image Selected:**
+    *   [✅] Displays the selected image using `Image.file`.
+    *   [✅] "Parse Receipt" and "Change Image" buttons are visible.
+    *   [✅] Tapping the image shows `FullImageViewer`.
+*   **Network Image (Already Uploaded):**
+    *   [✅] Displays the image using `CachedNetworkImage` (with thumbnail as placeholder).
+    *   [✅] "Parse Receipt" and "Change Image" buttons are visible.
+    *   [✅] Tapping the image shows `FullImageViewer`.
+*   **Button Interactions & Callbacks:**
+    *   [✅] Tapping "Select Image" calls `mockImagePicker.pickImage` and `onImageSelected` (respecting `FileHelper.isValidImageFile`).
+    *   [✅] Tapping "Take Picture" calls `mockImagePicker.pickImage` and `onImageSelected` (respecting `FileHelper.isValidImageFile`).
+    *   [✅] Tapping "Parse Receipt" calls `onParseReceipt`.
+    *   [✅] Tapping "Change Image" / "Retry" calls `onRetry`.
+*   **Loading State (Parsing):**
+    *   [✅] "Parse Receipt" button shows "Parsing...", a `CircularProgressIndicator`, and is disabled. Other action buttons hidden.
+*   **Successfully Parsed State:**
+    *   [✅] "Retry" button is disabled. "Use This" (Parse) button remains enabled.
+**KT for Devs:**
+*   Testing `FileHelper.isValidImageFile` directly is hard due to static nature; test its effect (e.g., `onImageSelected` not called).
+*   **Crucial for `CachedNetworkImage`/Dialogs:** Use `HttpOverrides.runZoned` with a `FakeHttpClient`. Avoid `pumpAndSettle()` after taps showing dialogs or after `Navigator.pop()`; use `pump()` or `pump(Duration)` instead to prevent timeouts.
+*   Linter errors with `verify(mockNavigator.didPush(...))` were persistent. Testing for the presence of the pushed route's widgets (`FullImageViewer`) is a more stable alternative.
+
+### 3. `ReceiptReviewScreen` / `ReviewStepWidget` Widget Tests
+**Covered By:** `test/screens/receipt_review_screen_test.dart` (to be created)
+**Objective:** Verify item display, editing, adding, deleting, and review completion.
+**Setup:**
+*   Mock `WorkflowState` (if `ReceiptReviewScreen` starts using it directly for item fetching, otherwise pass `initialItems`).
+*   Provide callbacks: `onReviewComplete`, `onItemsUpdated`, `registerCurrentItemsGetter`.
+*   Use `FakeReceiptItem` data.
+**Test Cases:**
+*   **Initial Display with Items:**
+    *   [ ] Displays `ReceiptItemCard` for each initial item.
+    *   [ ] "Add Item" button is visible.
+    *   [ ] "Confirm Review" button is visible.
+    *   [ ] Total price is correctly calculated and displayed.
+*   **Initial Display (No Items):**
+    *   [ ] Shows a message indicating no items (e.g., "No items to review. Add some!").
+    *   [ ] "Add Item" button is visible.
+    *   [ ] "Confirm Review" button might be disabled or show a different text.
+    *   [ ] Total price is £0.00 or not shown.
+*   **Adding a New Item:**
+    *   [ ] Tapping "Add Item" opens `ItemEditDialog`.
+    *   [ ] Saving the dialog adds a new `ReceiptItemCard` to the list.
+    *   [ ] `onItemsUpdated` callback is triggered with the new list.
+    *   [ ] Total price is updated.
+*   **Editing an Existing Item:**
+    *   [ ] Tapping the edit button on a `ReceiptItemCard` opens `ItemEditDialog` pre-filled with item data.
+    *   [ ] Saving the dialog updates the corresponding `ReceiptItemCard`.
+    *   [ ] `onItemsUpdated` callback is triggered.
+    *   [ ] Total price is updated.
+*   **Deleting an Item:**
+    *   [ ] Tapping the delete button on a `ReceiptItemCard` shows a confirmation dialog.
+    *   [ ] Confirming deletion removes the `ReceiptItemCard`.
+    *   [ ] `onItemsUpdated` callback is triggered (with the item marked for deletion or removed, TBD by implementation).
+    *   [ ] Total price is updated.
+    *   [ ] Cancelling deletion does nothing.
+*   **Confirming Review:**
+    *   [ ] Tapping "Confirm Review" calls `onReviewComplete` with the current list of items and any deleted items.
+*   **`registerCurrentItemsGetter` Interaction:**
+    *   [ ] Verify that the callback provided to `registerCurrentItemsGetter` can be called and returns the current state of items.
+**KT for Devs:**
+*   `ItemEditDialog` will need its own set of thorough tests.
+*   Decide how deleted items are handled by `onItemsUpdated` vs `onReviewComplete` (e.g., immediately removed from UI list vs. kept with a "deleted" visual state until review completion).
+
+### 4. `AssignPeopleScreen` / `AssignStepWidget` Widget Tests

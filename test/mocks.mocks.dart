@@ -9,7 +9,10 @@ import 'dart:io' as _i2;
 import 'dart:typed_data' as _i9;
 import 'dart:ui' as _i5;
 
+import 'package:billfie/models/person.dart' as _i12;
 import 'package:billfie/models/receipt.dart' as _i4;
+import 'package:billfie/models/receipt_item.dart' as _i13;
+import 'package:billfie/models/split_manager.dart' as _i11;
 import 'package:billfie/providers/workflow_state.dart' as _i10;
 import 'package:billfie/widgets/image_state_manager.dart' as _i3;
 import 'package:mockito/mockito.dart' as _i1;
@@ -1269,6 +1272,468 @@ class MockWorkflowState extends _i1.Mock implements _i10.WorkflowState {
         ),
         returnValueForMissingStub: null,
       );
+
+  @override
+  void addListener(_i5.VoidCallback? listener) => super.noSuchMethod(
+        Invocation.method(
+          #addListener,
+          [listener],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void removeListener(_i5.VoidCallback? listener) => super.noSuchMethod(
+        Invocation.method(
+          #removeListener,
+          [listener],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void dispose() => super.noSuchMethod(
+        Invocation.method(
+          #dispose,
+          [],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void notifyListeners() => super.noSuchMethod(
+        Invocation.method(
+          #notifyListeners,
+          [],
+        ),
+        returnValueForMissingStub: null,
+      );
+}
+
+/// A class which mocks [SplitManager].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockSplitManager extends _i1.Mock implements _i11.SplitManager {
+  MockSplitManager() {
+    _i1.throwOnMissingStub(this);
+  }
+
+  @override
+  List<_i12.Person> get people => (super.noSuchMethod(
+        Invocation.getter(#people),
+        returnValue: <_i12.Person>[],
+      ) as List<_i12.Person>);
+
+  @override
+  List<_i13.ReceiptItem> get sharedItems => (super.noSuchMethod(
+        Invocation.getter(#sharedItems),
+        returnValue: <_i13.ReceiptItem>[],
+      ) as List<_i13.ReceiptItem>);
+
+  @override
+  List<_i13.ReceiptItem> get unassignedItems => (super.noSuchMethod(
+        Invocation.getter(#unassignedItems),
+        returnValue: <_i13.ReceiptItem>[],
+      ) as List<_i13.ReceiptItem>);
+
+  @override
+  bool get unassignedItemsWereModified => (super.noSuchMethod(
+        Invocation.getter(#unassignedItemsWereModified),
+        returnValue: false,
+      ) as bool);
+
+  @override
+  double get totalAmount => (super.noSuchMethod(
+        Invocation.getter(#totalAmount),
+        returnValue: 0.0,
+      ) as double);
+
+  @override
+  double get sharedItemsTotal => (super.noSuchMethod(
+        Invocation.getter(#sharedItemsTotal),
+        returnValue: 0.0,
+      ) as double);
+
+  @override
+  double get unassignedItemsTotal => (super.noSuchMethod(
+        Invocation.getter(#unassignedItemsTotal),
+        returnValue: 0.0,
+      ) as double);
+
+  @override
+  bool get isStatePreserved => (super.noSuchMethod(
+        Invocation.getter(#isStatePreserved),
+        returnValue: false,
+      ) as bool);
+
+  @override
+  List<String> get currentPeopleNames => (super.noSuchMethod(
+        Invocation.getter(#currentPeopleNames),
+        returnValue: <String>[],
+      ) as List<String>);
+
+  @override
+  set initialSplitViewTabIndex(int? _initialSplitViewTabIndex) =>
+      super.noSuchMethod(
+        Invocation.setter(
+          #initialSplitViewTabIndex,
+          _initialSplitViewTabIndex,
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  set tipPercentage(double? value) => super.noSuchMethod(
+        Invocation.setter(
+          #tipPercentage,
+          value,
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  set taxPercentage(double? value) => super.noSuchMethod(
+        Invocation.setter(
+          #taxPercentage,
+          value,
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  bool get hasListeners => (super.noSuchMethod(
+        Invocation.getter(#hasListeners),
+        returnValue: false,
+      ) as bool);
+
+  @override
+  void reset() => super.noSuchMethod(
+        Invocation.method(
+          #reset,
+          [],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void addPerson(String? name) => super.noSuchMethod(
+        Invocation.method(
+          #addPerson,
+          [name],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void removePerson(_i12.Person? person) => super.noSuchMethod(
+        Invocation.method(
+          #removePerson,
+          [person],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void updatePersonName(
+    _i12.Person? person,
+    String? newName,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #updatePersonName,
+          [
+            person,
+            newName,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void addSharedItem(_i13.ReceiptItem? item) => super.noSuchMethod(
+        Invocation.method(
+          #addSharedItem,
+          [item],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void removeSharedItem(_i13.ReceiptItem? item) => super.noSuchMethod(
+        Invocation.method(
+          #removeSharedItem,
+          [item],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void assignItemToPerson(
+    _i13.ReceiptItem? item,
+    _i12.Person? person,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #assignItemToPerson,
+          [
+            item,
+            person,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void unassignItemFromPerson(
+    _i13.ReceiptItem? item,
+    _i12.Person? person,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #unassignItemFromPerson,
+          [
+            item,
+            person,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void addItemToShared(
+    _i13.ReceiptItem? item,
+    List<_i12.Person>? people,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #addItemToShared,
+          [
+            item,
+            people,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void removeItemFromShared(_i13.ReceiptItem? item) => super.noSuchMethod(
+        Invocation.method(
+          #removeItemFromShared,
+          [item],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void addUnassignedItem(_i13.ReceiptItem? item) => super.noSuchMethod(
+        Invocation.method(
+          #addUnassignedItem,
+          [item],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void removeUnassignedItem(_i13.ReceiptItem? item) => super.noSuchMethod(
+        Invocation.method(
+          #removeUnassignedItem,
+          [item],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void addPersonToSharedItem(
+    _i13.ReceiptItem? item,
+    _i12.Person? person,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #addPersonToSharedItem,
+          [
+            item,
+            person,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void removePersonFromSharedItem(
+    _i13.ReceiptItem? item,
+    _i12.Person? person,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #removePersonFromSharedItem,
+          [
+            item,
+            person,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void setOriginalQuantity(
+    _i13.ReceiptItem? item,
+    int? quantity,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #setOriginalQuantity,
+          [
+            item,
+            quantity,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  int getOriginalQuantity(_i13.ReceiptItem? item) => (super.noSuchMethod(
+        Invocation.method(
+          #getOriginalQuantity,
+          [item],
+        ),
+        returnValue: 0,
+      ) as int);
+
+  @override
+  int getTotalUsedQuantity(String? itemName) => (super.noSuchMethod(
+        Invocation.method(
+          #getTotalUsedQuantity,
+          [itemName],
+        ),
+        returnValue: 0,
+      ) as int);
+
+  @override
+  int getAvailableQuantity(_i13.ReceiptItem? item) => (super.noSuchMethod(
+        Invocation.method(
+          #getAvailableQuantity,
+          [item],
+        ),
+        returnValue: 0,
+      ) as int);
+
+  @override
+  void updateItemQuantity(
+    _i13.ReceiptItem? item,
+    int? newQuantity,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #updateItemQuantity,
+          [
+            item,
+            newQuantity,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void transferItemQuantity(
+    _i13.ReceiptItem? sourceItem,
+    int? quantityToTransfer,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #transferItemQuantity,
+          [
+            sourceItem,
+            quantityToTransfer,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  _i13.ReceiptItem? findMatchingUnassignedItem(
+    String? name,
+    double? price,
+  ) =>
+      (super.noSuchMethod(Invocation.method(
+        #findMatchingUnassignedItem,
+        [
+          name,
+          price,
+        ],
+      )) as _i13.ReceiptItem?);
+
+  @override
+  List<_i12.Person> getPeopleForSharedItem(_i13.ReceiptItem? item) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #getPeopleForSharedItem,
+          [item],
+        ),
+        returnValue: <_i12.Person>[],
+      ) as List<_i12.Person>);
+
+  @override
+  void setOriginalUnassignedSubtotal(double? subtotal) => super.noSuchMethod(
+        Invocation.method(
+          #setOriginalUnassignedSubtotal,
+          [subtotal],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void setOriginalReviewTotal(double? subtotal) => super.noSuchMethod(
+        Invocation.method(
+          #setOriginalReviewTotal,
+          [subtotal],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void updateUnassignedItem(
+    _i13.ReceiptItem? itemToUpdate,
+    int? newQuantity,
+    double? newPrice,
+  ) =>
+      super.noSuchMethod(
+        Invocation.method(
+          #updateUnassignedItem,
+          [
+            itemToUpdate,
+            newQuantity,
+            newPrice,
+          ],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void setReceiptItems(List<_i13.ReceiptItem>? items) => super.noSuchMethod(
+        Invocation.method(
+          #setReceiptItems,
+          [items],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void preserveState(_i11.SplitManager? other) => super.noSuchMethod(
+        Invocation.method(
+          #preserveState,
+          [other],
+        ),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  Map<String, dynamic> generateAssignmentMap() => (super.noSuchMethod(
+        Invocation.method(
+          #generateAssignmentMap,
+          [],
+        ),
+        returnValue: <String, dynamic>{},
+      ) as Map<String, dynamic>);
 
   @override
   void addListener(_i5.VoidCallback? listener) => super.noSuchMethod(
