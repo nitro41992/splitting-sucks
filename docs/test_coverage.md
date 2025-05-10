@@ -2,7 +2,7 @@
 
 **Note: Completed test items have been moved to [docs/test_coverage_completed.md](docs/test_coverage_completed.md) to keep this document focused on pending and in-progress work.**
 
-This document outlines the strategy and specific areas for implementing unit and widget tests. The sections below are **prioritized** based on the upcoming goals of implementing **local caching and a significant UI redesign**. The highest priority items are those essential for ensuring core logic, data integrity, and key user flows remain stable during these changes.
+This document outlines the strategy and specific areas for implementing unit and widget tests. The sections below are **prioritized** based on the upcoming goals of implementing **local caching and a significant UI redesign**. The highest priority items (Group 1) are those essential for ensuring core logic, data integrity, and key user flows remain stable during these foundational architectural and visual changes. Subsequent groups cover important supporting components and broader application stability.
 
 **Note on Default Widget Test (`test/widget_test.dart.disabled`):** The default Flutter widget test file (originally `test/widget_test.dart`) has been renamed to `test/widget_test.dart.disabled` to temporarily exclude it from test runs. It was causing failures due to UI setup issues (e.g., missing Directionality) unrelated to the current `WorkflowModal` testing effort. Fixing this default test and implementing broader UI smoke tests for the main application is considered out of scope for the initial focused testing phases but is a recommended activity for later to ensure overall application UI integrity.
 
@@ -20,7 +20,7 @@ We will prioritize:
 
 ## Priority Group 1: Foundational Logic & Data Integrity (Essential for Caching & Redesign Stability)
 
-This group contains tests critical for ensuring the application's core business logic, data handling, and key workflow mechanics are robust before and after implementing local caching and UI redesigns.
+**Rationale:** This group contains tests critical for ensuring the application's core "engine" – its business logic, data handling, and key workflow mechanics – is robust. These tests are paramount before and after implementing local caching (which relies on data integrity and correct model behavior) and UI redesigns (which need a stable logical foundation). Without these, there's a high risk of systemic failures, data corruption, or breaking fundamental user tasks during major architectural or visual changes.
 
 ### 1.1 Model Unit Tests (`lib/models/`)
 
@@ -54,13 +54,13 @@ This group contains tests critical for ensuring the application's core business 
 ### 1.2 Critical Service Logic Unit Tests
 
 *   **`Critical Service Logic Unit Tests (Phase 0 Priority)`**
-    *   **Objective:** Verify critical data transformations or specific logic within services (e.g., `FirestoreService`, `ReceiptParserService`, etc.) as prioritized in the initial "Phase 0" plan, independent of UI or full service integration. This is important as caching may alter how services are interacted with.
+    *   **Objective:** Verify critical data transformations or specific logic within services (e.g., `FirestoreService`, `ReceiptParserService`, etc.) as prioritized in the initial "Phase 0" plan, independent of UI or full service integration. This is important as caching may alter how services are interacted with, and this logic must remain correct.
     *   **(⏳ To be identified and detailed for specific services and methods)**
 
 ### 1.3 Core Workflow Logic & Data Flow Widget Tests
 
 *   **`_WorkflowModalBodyState` (selected parts, `lib/widgets/workflow_modal.dart`)**
-    *   **Objective:** Test critical UI interaction paths and complex logic remaining in `_WorkflowModalBodyState` (Phase 0 Priority), such as the `GestureDetector` for the step indicator (which also covers `WorkflowStepIndicator` tap logic) and `WillPopScope` logic (especially draft saving).
+    *   **Objective:** Test critical UI interaction paths and complex logic remaining in `_WorkflowModalBodyState` (Phase 0 Priority), such as the `GestureDetector` for the step indicator (which also covers `WorkflowStepIndicator` tap logic) and `WillPopScope` logic (especially draft saving). These ensure core navigation and state progression within the modal remain intact.
     *   **Test Cases:**
         *   ⏳ `Step Indicator Tap Logic`:
             *   Tapping a previous step calls `workflowState.goToStep()` with the correct `tappedStep`.
@@ -73,7 +73,7 @@ This group contains tests critical for ensuring the application's core business 
 
 *   **`AssignPeopleScreen` / `AssignStepWidget` (`lib/widgets/workflow_steps/assign_step_widget.dart` or `lib/screens/assign_people_screen.dart`)**
     *   **Covered By:** `test/screens/assign_people_screen_test.dart` (To be created)
-    *   **Objective:** Verify the UI for assigning people to items, managing shared items, adding/removing people, and ensuring correct data propagation for the next step (Phase 0 Priority). Focus on data flow and `WorkflowState` interaction.
+    *   **Objective:** Verify the UI for assigning people to items, managing shared items, adding/removing people, and ensuring correct data propagation for the next step (Phase 0 Priority). Focus on data flow and `WorkflowState` interaction to ensure underlying assignment logic is sound regardless of UI changes.
     *   **Setup:**
         *   Mock `WorkflowState` to provide items, people, and manage assignments.
         *   Provide callbacks: `onAssignmentsUpdated` (or similar, to reflect changes to `WorkflowState`).
@@ -88,23 +88,23 @@ This group contains tests critical for ensuring the application's core business 
     *   **KT for Devs:** Interactions like drag-and-drop can be complex; initial tests might focus on simpler assignment mechanisms if available, or mock these interactions heavily.
 
 *   **`SplitStepWidget` (`lib/widgets/workflow_steps/split_step_widget.dart`)**
-    *   ⏳ **Objective:** Verify UI for displaying split amounts per person, handling adjustments, and confirming the split (Phase 0 Priority). Focus on data from `WorkflowState` and updates back to it.
+    *   ⏳ **Objective:** Verify UI for displaying split amounts per person, handling adjustments, and confirming the split (Phase 0 Priority). Focus on data from `WorkflowState` and updates back to it, ensuring calculation logic tied to this step is validated.
     *   **(⏳ To be detailed, focusing on data flow and state)**
 
 *   **`SummaryStepWidget` (`lib/widgets/workflow_steps/summary_step_widget.dart`)**
-    *   ⏳ **Objective:** Verify final summary display, including individual totals, grand total (Phase 0 Priority). Ensure correct data is pulled from `WorkflowState`.
+    *   ⏳ **Objective:** Verify final summary display, including individual totals, grand total (Phase 0 Priority). Ensure correct data is pulled from `WorkflowState` and accurately reflects prior steps.
     *   **(⏳ To be detailed, focusing on data accuracy)**
 
 ### 1.4 Integration Test Planning (Core Workflow)
 
-*   **Objective:** Ensure the main user flow through the `WorkflowModal` functions end-to-end.
+*   **Objective:** Ensure the main user flow through the `WorkflowModal` functions end-to-end, validating that all core components, including new caching mechanisms, work together.
 *   **Key User Flows:**
     *   Full `WorkflowModal` lifecycle (new, resume, complete).
         *   [ ] Plan detailed test scenarios for this flow (Phase 0 Priority). Scenarios should verify data persistence (drafts), state progression, and final output, being as resilient to UI changes as possible by focusing on high-level interactions and results.
 
 ## Priority Group 2: Supporting Workflow Components & Interactions
 
-These tests cover components that are part of the workflow or common interactions but might be more susceptible to UI changes or are slightly less critical for the initial caching/redesign stability compared to Group 1.
+**Rationale:** These tests cover components that are part of the workflow or common interactions. While important for a fully functional and polished user experience, they are often more susceptible to UI changes or address risks that are secondary to the fundamental data/logic integrity covered in Group 1. They become particularly crucial for validating UI changes and deeper caching integrations once the Group 1 foundation is stable.
 
 ### 2.1 Other Workflow Step Widget Tests & Core UI Logic
 
@@ -117,7 +117,7 @@ These tests cover components that are part of the workflow or common interaction
 
 ### 2.2 Dialog Widget Tests
 
-*   **Objective:** Verify dialogs appear, display correct content, buttons can be interacted with, and return expected values on button presses. (Phase 0 Priority for these dialogs).
+*   **Objective:** Verify dialogs appear, display correct content, buttons can be interacted with, and return expected values on button presses. (Phase 0 Priority for these dialogs). These are key for user interaction consistency, especially during/after UI redesign.
 *   **Dialog Helpers (`lib/utils/dialog_helpers.dart`) based Dialogs:**
     *   **Test Cases (`showRestaurantNameDialog`):**
         *   ⏳ Dialog appears when called.
