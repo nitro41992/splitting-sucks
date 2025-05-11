@@ -41,6 +41,20 @@ class FirestoreService {
     );
   }
   
+  /// Factory constructor for testing purposes
+  @visibleForTesting
+  factory FirestoreService.test({
+    required FirebaseFirestore db,
+    required FirebaseStorage storage,
+    required FirebaseAuth auth,
+  }) {
+    return FirestoreService._(
+      db: db,
+      storage: storage,
+      auth: auth,
+    );
+  }
+  
   /// Gets the current user ID.
   String get _userId {
     final user = _auth.currentUser;
