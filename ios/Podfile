@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-platform :ios, '16.0'
+platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -38,17 +38,12 @@ target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 
   # Use pre-compiled Firestore frameworks to avoid building BoringSSL-GRPC
-  pod 'FirebaseFirestore', :git => 'https://github.com/invertase/firestore-ios-sdk-frameworks.git', :tag => $FirebaseSDKVersion
+  pod 'FirebaseFirestore', :git => 'https://github.com/invertase/firestore-ios-sdk-frameworks.git', :tag => '10.29.0'
 end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    # Fix for non-modular headers
-    target.build_configurations.each do |config|
-      config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-    end
-
-    # Fix for BoringSSL-GRPC compiler flags - removes problematic '-G' flag
+    # Fix for BoringSSL-GRPC compiler flag issue in Xcode 16+
     if target.name == 'BoringSSL-GRPC'
       target.source_build_phase.files.each do |file|
         if file.settings && file.settings['COMPILER_FLAGS']
@@ -59,22 +54,12 @@ post_install do |installer|
       end
     end
     
-    # Fix for M1 Mac architecture issues
+    # Flutter-specific: keep these
     flutter_additional_ios_build_settings(target)
     
-    # Exclude arm64 architecture for simulator builds on Apple Silicon
+    # Set minimum iOS deployment target to 16.0 for Firebase compatibility
     target.build_configurations.each do |config|
-      if config.name == 'Debug' && config.build_settings['ARCHS'] == nil
-        config.build_settings['ARCHS'] = '${ARCHS_STANDARD_64_BIT}'
-      end
-      
-      # Set the deployment target to match the Flutter project
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
-      
-      # Set iOS architectures
-      if config.build_settings['SDKROOT'] == 'iphoneos' && target.platform_name == :ios
-        config.build_settings['ONLY_ACTIVE_ARCH'] = 'NO'
-      end
     end
   end
 end

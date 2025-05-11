@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -20,9 +22,38 @@
 	<string>1.0.0</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.700235738899-0i2bo7u0airk3vqsme7e2cgl2h101ggi</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>GoogleSignIn</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.37981972803-14bo0e6ajnjocsjdg9tgkoq5rnvoosjg</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to take pictures of receipts</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access to record voice for item assignments</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to select receipts from your gallery</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -41,30 +72,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	<!-- Camera and Photo Library Permissions -->
-	<key>NSCameraUsageDescription</key>
-	<string>This app needs camera access to take pictures of receipts</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs photo library access to select receipts from your gallery</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>This app needs microphone access to record voice for item assignments</string>
-	<!-- Google Sign-in Section -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<!-- Reversed client ID from GoogleService-Info.plist -->
-				<string>com.googleusercontent.apps.700235738899-0i2bo7u0airk3vqsme7e2cgl2h101ggi</string>
-			</array>
-		</dict>
-	</array>
-	<!-- End of Google Sign-in Section -->
+	<key>GIDClientID</key>
+	<string>37981972803-14bo0e6ajnjocsjdg9tgkoq5rnvoosjg.apps.googleusercontent.com</string>
 </dict>
 </plist>

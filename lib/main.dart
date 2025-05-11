@@ -2,22 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_functions/cloud_functions.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'models/split_manager.dart';
 import 'screens/main_navigation.dart';
-import 'services/mock_data_service.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
 import 'theme/app_theme.dart';
 import 'routes.dart';
 import 'firebase_options.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
+// import 'package:firebase_app_check/firebase_app_check.dart';
 
 // Flag to track if Firebase initialized successfully
 bool firebaseInitialized = false;
@@ -69,6 +64,8 @@ Future<void> main() async {
     // Activate Firebase App Check
     // TODO: Ensure your App Check providers (Play Integrity/Device Check/App Attest) are configured
     // in your Firebase project console.
+    // This is commented out for now - uncomment when properly configured with your keys
+    /*
     try {
       await FirebaseAppCheck.instance.activate(
         // You must provide a webRecaptchaSiteKey for web builds.
@@ -82,6 +79,7 @@ Future<void> main() async {
     } catch (e) {
       debugPrint("Error activating Firebase App Check: $e. Ensure providers are configured and keys are correct.");
     }
+    */
     
     firebaseInitialized = true;
   } catch (e) {
@@ -301,14 +299,12 @@ class AppWithProviders extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    const useMockData = false; // Keep this if needed for testing
+    // Always use the SplitManager directly since mock data isn't being used
     
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => useMockData 
-              ? MockDataService.createMockSplitManager() 
-              : SplitManager(),
+          create: (_) => SplitManager(),
         ),
         Provider<AuthService>(
           create: (_) => AuthService(),

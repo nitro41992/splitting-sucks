@@ -1,13 +1,41 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' show Platform, File;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import '../utils/toast_helper.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+
+// Custom handler for Android (if needed)
+class GoogleSignInHandler {
+  Future<UserCredential?> signInWithGoogle(FirebaseAuth auth) async {
+    try {
+      // Since we're not using the GoogleSignIn plugin anymore,
+      // use Firebase Auth provider directly for all platforms
+      final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+      googleProvider.addScope('email');
+      googleProvider.addScope('profile');
+      
+      if (Platform.isAndroid) {
+        // Android-specific implementation
+        return await auth.signInWithProvider(googleProvider);
+      } else {
+        // Default implementation for other platforms
+        return await auth.signInWithProvider(googleProvider);
+      }
+    } catch (e) {
+      debugPrint('Error in GoogleSignInHandler: $e');
+      return null;
+    }
+  }
+
+  Future<void> signOutFromGoogle() async {
+    // Nothing special to do here, signOut happens in auth service
+    debugPrint('GoogleSignInHandler.signOutFromGoogle called');
+  }
+}
 
 class AuthService {
   late FirebaseAuth _auth;
@@ -33,7 +61,8 @@ class AuthService {
   static const String _lastLoginAttemptTimeKey = 'last_login_attempt_time';
   static const String _loginLockedUntilKey = 'login_locked_until';
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // Use the conditionally imported handler
+  final GoogleSignInHandler _googleSignInHandler = GoogleSignInHandler();
 
   // Constructor
   AuthService() {
@@ -142,12 +171,17 @@ class AuthService {
         }
       });
       
-      // Set verification settings for Android to bypass the reCAPTCHA requirement
-      if (Platform.isAndroid) {
+      // Conditional platform check for setSettings
+      if (!kIsWeb) { // Check if NOT on web first
+        // Now it's safe to use Platform from dart:io
         try {
-          // This is for testing only and should be removed in production
-          await _auth.setSettings(appVerificationDisabledForTesting: true);
-          debugPrint('Disabled app verification for testing on Android');
+          // We only need to set verification settings for Android
+          if (Platform.isAndroid) {
+            await _auth.setSettings(appVerificationDisabledForTesting: true);
+            debugPrint('Disabled app verification for testing on Android');
+          } else if (Platform.isIOS) {
+            debugPrint('On iOS platform - no need to disable app verification');
+          }
         } catch (e) {
           debugPrint('Error setting auth settings: $e');
         }
@@ -332,16 +366,48 @@ class AuthService {
     
     try {
       // Add verification settings for Android to bypass reCAPTCHA verification
-      if (Platform.isAndroid) {
-        debugPrint('Attempting email/password sign in on Android...');
-        
-        // Disable reCAPTCHA verification
-        await _auth.setSettings(
-          appVerificationDisabledForTesting: true,
-        );
-        
-        // Try standard sign in first
-        try {
+      if (!kIsWeb) {
+        if (Platform.isAndroid) {
+          debugPrint('Attempting email/password sign in on Android...');
+          
+          // Disable reCAPTCHA verification
+          await _auth.setSettings(
+            appVerificationDisabledForTesting: true,
+          );
+          
+          // Try standard sign in first
+          try {
+            final result = await _auth.signInWithEmailAndPassword(
+              email: email,
+              password: password,
+            );
+            
+            // Reset attempts counter on successful login
+            await _resetLoginAttempts(email);
+            
+            // Track sign-in method
+            _lastSignInMethod = 'email';
+            
+            // Trigger success toast
+            _showSuccessMessage('Welcome back!');
+            
+            return result;
+          } catch (e) {
+            debugPrint('Standard sign in failed, error: $e');
+            
+            // For testing purposes only - in production, use a more secure approach
+            if (e.toString().contains('reCAPTCHA') || 
+                e.toString().contains('credential is incorrect')) {
+              // Try with email link if standard fails
+              debugPrint('Attempting alternative auth method...');
+              throw 'Email/password sign in failed. Please try Google Sign-In instead.';
+            }
+            
+            throw e;
+          }
+        } else if (Platform.isIOS) {
+          debugPrint('Attempting email/password sign in on iOS...');
+          // Standard sign-in for iOS
           final result = await _auth.signInWithEmailAndPassword(
             email: email,
             password: password,
@@ -354,40 +420,28 @@ class AuthService {
           _lastSignInMethod = 'email';
           
           // Trigger success toast
-          _showSuccessMessage('Welcome back!');
+          _showSuccessMessage('Welcome back to iOS!');
           
           return result;
-        } catch (e) {
-          debugPrint('Standard sign in failed, error: $e');
-          
-          // For testing purposes only - in production, use a more secure approach
-          if (e.toString().contains('reCAPTCHA') || 
-              e.toString().contains('credential is incorrect')) {
-            // Try with email link if standard fails
-            debugPrint('Attempting alternative auth method...');
-            throw 'Email/password sign in failed. Please try Google Sign-In instead.';
-          }
-          
-          throw e;
         }
-      } else {
-        // iOS and other platforms
-        final result = await _auth.signInWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-        
-        // Reset attempts counter on successful login
-        await _resetLoginAttempts(email);
-        
-        // Track sign-in method
-        _lastSignInMethod = 'email';
-        
-        // Trigger success toast
-        _showSuccessMessage('Welcome back!');
-        
-        return result;
       }
+      
+      // Web and other platforms
+      final result = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      // Reset attempts counter on successful login
+      await _resetLoginAttempts(email);
+      
+      // Track sign-in method
+      _lastSignInMethod = 'email';
+      
+      // Trigger success toast
+      _showSuccessMessage('Welcome back!');
+      
+      return result;
     } on FirebaseAuthException catch (e) {
       // Record failed attempt
       await _recordFailedLoginAttempt(email);
@@ -399,53 +453,38 @@ class AuthService {
     }
   }
 
-  // Sign in with Google (Emulator-Aware and Production Ready)
+  // Google Sign-In method that works cross-platform
   Future<UserCredential?> signInWithGoogle() async {
     await _ensureInitialized();
-    debugPrint('Attempting Google sign in with google_sign_in plugin...');
-    _lastSignInMethod = 'google'; // For success toast
-
+    _lastSignInMethod = 'google';
+    
     try {
-      // 1. Trigger the Google Authentication flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-
-      if (googleUser == null) {
-        // User cancelled the sign-in
-        debugPrint('Google sign in cancelled by user.');
-        return null;
+      if (kIsWeb) {
+        // Web implementation
+        GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        final userCredential = await _auth.signInWithPopup(googleProvider);
+        if (userCredential?.user != null) {
+          _showSuccessMessage('Signed in with Google successfully');
+        }
+        return userCredential;
+      } else {
+        // Native platforms (iOS, Android) implementation using Firebase Auth directly
+        // This avoids the GoogleUtilities version conflicts
+        debugPrint('Using Firebase Auth provider for Google Sign-In on ${Platform.isIOS ? 'iOS' : 'Android'}');
+        
+        // Use the GoogleSignInHandler which now uses signInWithProvider internally
+        final userCredential = await _googleSignInHandler.signInWithGoogle(_auth);
+        
+        if (userCredential?.user != null) {
+          _showSuccessMessage('Signed in with Google successfully');
+        }
+        
+        return userCredential;
       }
-
-      // 2. Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      // 3. Create a new credential for Firebase
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      debugPrint('Received Google credential, now signing into Firebase Auth...');
-      // 4. Sign in to Firebase with the credential
-      // This call WILL be directed to the Auth emulator if configured, or production if not.
-      UserCredential userCredential = await _auth.signInWithCredential(credential);
-      debugPrint('Successfully signed in to Firebase with Google credential. User: ${userCredential.user?.uid}');
-      _showSuccessMessage('Signed in with Google!');
-      return userCredential;
-
     } catch (e) {
-      debugPrint('Error during Google sign in: $e');
-      // Handle specific errors like PlatformException for network errors, etc.
-      // You might want to show a toast or a dialog to the user here.
-      /* ToastHelper.showToast(
-        // We need a BuildContext to show a toast.
-        // This service layer doesn't have one directly.
-        // Consider returning an error code/message or using a global error handler.
-        // For now, just printing to debug console.
-        // TODO: Implement better error feedback for UI from AuthService
-        null, // Placeholder for context
-        'Google Sign-In failed: ${e.toString()}',
-        isSuccess: false
-      ); */
+      debugPrint('Error during signInWithGoogle in AuthService: $e');
+      // Show the error to help with debugging
+      debugPrint('Google Sign-In Error Details: $e');
       return null;
     }
   }
@@ -495,19 +534,28 @@ class AuthService {
     String verificationId = '';
     
     // Ensure app verification is disabled for testing on Android
-    if (Platform.isAndroid) {
-      debugPrint('Setting appVerificationDisabledForTesting = true for phone auth on Android');
-      await _auth.setSettings(appVerificationDisabledForTesting: true);
+    if (!kIsWeb) {
+      if (Platform.isAndroid) {
+        debugPrint('Setting appVerificationDisabledForTesting = true for phone auth on Android');
+        await _auth.setSettings(appVerificationDisabledForTesting: true);
+      } else if (Platform.isIOS) {
+        debugPrint('Phone auth on iOS - no need to disable app verification');
+      }
     }
     
     try {
       debugPrint('Sending verification code to $phoneNumber');
       
       // For Android testing, handle the phone number format
-      if (Platform.isAndroid && phoneNumber.startsWith('+1') && 
+      if (!kIsWeb && Platform.isAndroid && phoneNumber.startsWith('+1') && 
           (phoneNumber.contains('555') || phoneNumber == '+16565551234')) {
         // Use a test phone number for Firebase Auth testing
         debugPrint('Using a test phone number format for Android');
+      }
+
+      // For iOS specific phone handling if needed
+      if (!kIsWeb && Platform.isIOS) {
+        debugPrint('Processing phone verification for iOS');
       }
       
       await _auth.verifyPhoneNumber(
@@ -585,7 +633,7 @@ class AuthService {
       debugPrint('Verifying code...');
       
       // For Android bypass scenario (development only)
-      if (verificationId == 'android_test_bypass' && Platform.isAndroid) {
+      if (verificationId == 'android_test_bypass' && !kIsWeb && Platform.isAndroid) {
         debugPrint('Using test verification for Android');
         
         try {
@@ -621,6 +669,17 @@ class AuthService {
           }
           rethrow;
         }
+      }
+      
+      // For iOS, allow a testing bypass similar to Android
+      if (verificationId == 'ios_test_bypass' && !kIsWeb && Platform.isIOS) {
+        debugPrint('Using test verification for iOS');
+        // For development only - try Google sign-in as a fallback
+        final googleCredential = await signInWithGoogle();
+        if (googleCredential != null) {
+          return googleCredential;
+        }
+        throw 'iOS testing bypass failed. Please use regular verification.';
       }
       
       // Create credential
@@ -661,16 +720,20 @@ class AuthService {
   // Sign Out
   Future<void> signOut() async {
     await _ensureInitialized();
-    
     try {
-      // Sign out from Firebase without clearing app state
-      await _auth.signOut();
-      debugPrint('Firebase sign out successful.');
+      // Sign out from the GoogleSignIn package if it was used (primarily for Android)
+      // The stub for iOS/web will do nothing or a relevant Firebase-only action if needed.
+      await _googleSignInHandler.signOutFromGoogle(); 
       
-      // No need for a toast here as it's handled in the UI
+      // Then, sign out from Firebase
+      await _auth.signOut();
+      debugPrint('User signed out from Firebase and potentially GoogleSignIn package.');
+       _userStreamController.add(null); // Ensure user state is updated immediately
+      _lastSignInMethod = null; // Clear last sign-in method
     } catch (e) {
-       debugPrint('Error during Firebase sign out: $e');
-       throw 'Failed to sign out: $e'; // Re-throw Firebase errors
+      debugPrint('Error signing out: $e');
+      // Handle error appropriately
+      rethrow;
     }
   }
   

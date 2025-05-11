@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../widgets/receipt_upload/full_image_viewer.dart'; // Import the new viewer
+import '../widgets/receipt_upload/full_image_viewer.dart'; // Import the full image viewer
 import '../services/file_helper.dart'; // Import FileHelper
 import '../theme/app_colors.dart';
 import '../utils/toast_helper.dart'; // Import the toast helper
-import 'package:cached_network_image/cached_network_image.dart'; // Needed for network image
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
@@ -127,7 +127,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
      if (widget.imageFile != null) {
        showFullImageDialog(context, imageFile: widget.imageFile!);
      } else if (widget.imageUrl != null) {
-       showFullImageDialog(context, imageFile: null, imageUrl: widget.imageUrl!);
+       showFullImageDialog(context, imageUrl: widget.imageUrl!);
      }
    }
 
@@ -267,9 +267,9 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                                               if (hasLocalImage) {
                                                 _showFullImage();
                                               } else if (hasNetworkImage) {
-                                                showFullImageDialog(context, imageFile: null, imageUrl: widget.imageUrl);
+                                                showFullImageDialog(context, imageUrl: widget.imageUrl);
                                               } else if (hasNetworkThumbnail) {
-                                                showFullImageDialog(context, imageFile: null, imageUrl: widget.loadedThumbnailUrl);
+                                                showFullImageDialog(context, imageUrl: widget.loadedThumbnailUrl);
                                               }
                                             },
                                             child: imagePreviewWidget,
