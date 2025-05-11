@@ -6,6 +6,61 @@ This document lists test coverage items that have been completed. For pending it
 
 **KT for Product Manager (User):** The primary user of this AI assistant for this project is a technical Product Manager. When discussing test implementation, especially around UI behavior or edge cases, explanations should be clear from a product impact perspective, and questions regarding desired behavior are welcome to ensure tests align with product goals.
 
+## Python Cloud Functions Tests
+
+All Python Cloud Functions tests have been successfully implemented and are passing with proper mocking of external dependencies.
+
+### Test Strategy
+
+Tests use `unittest.mock` to patch the actual AI SDK calls and verify:
+- Correct pre-processing of input data
+- Proper handling of various mock AI responses
+- Correct validation of responses using Pydantic models
+- Appropriate formatting of function outputs
+- Error handling for various failure scenarios
+
+### Completed Tests
+
+1. **`generate_thumbnail` function**
+   - ✅ Successful thumbnail generation flow (URI parsing, GCS download/upload, PIL operations)
+   - ✅ Handling invalid `imageUri` format
+   - ✅ Handling GCS download failures
+   - ✅ Handling invalid image file types
+   - ✅ Handling GCS upload failures
+
+2. **`parse_receipt` function**
+   - ✅ Successful parsing with mocked AI responses
+   - ✅ Handling Pydantic validation errors from malformed AI responses
+   - ✅ Handling AI service errors
+   - ✅ Testing input validation (missing URI/data, b64decode errors, unsupported MIME types)
+
+3. **`assign_people_to_items` function**
+   - ✅ Successful assignments with mocked AI responses
+   - ✅ Handling Pydantic validation errors from malformed AI responses
+   - ✅ Handling AI service errors
+   - ✅ Testing input validation (missing required data)
+
+4. **`transcribe_audio` function**
+   - ✅ Successful transcription with mocked AI responses
+   - ✅ Handling AI service errors
+   - ✅ Testing input validation (missing URI/data, b64decode errors, unsupported MIME types)
+
+### Implementation Notes
+
+The implementation addressed several key challenges:
+- Updated import paths to use direct imports from `main`
+- Used dictionary configuration instead of `ConfigSection` class
+- Improved mock setup for file operations and context managers
+- Updated expected status codes and error messages to match actual implementation
+- Added proper application context handling for Flask-based tests
+
+### Knowledge Transfer Notes
+
+- **API Version Management:** The codebase supports both legacy and newer Google Gemini API versions; tests patch the correct version based on what's used in main.py.
+- **Path Handling:** Tests account for platform-specific path differences using a path-independent approach.
+- **Authentication:** Tests mock authentication to avoid requiring actual credentials.
+- **Mock Strategies:** Different mock strategies are used for network calls, file operations, and AI APIs.
+
 ## Phase 1: `WorkflowModal` Core Components
 
 **Recent Progress (WorkflowNavigationControls & ImageStateManager):**

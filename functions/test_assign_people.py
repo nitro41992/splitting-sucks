@@ -23,31 +23,35 @@ class TestAssignPeopleToItems(unittest.TestCase):
         }
 
     @patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_test_api_key'})
-    @patch('main.genai_legacy.GenerativeModel')  # Fix: patch the alias used in main.py
+    @patch('main.genai_legacy.Client')  # Fix: patch the correct class from the legacy library
     @patch('main.get_dynamic_config')
     def test_assign_people_to_items_success(self, mock_get_dynamic_config, 
-                                           mock_genai_model_constructor):
+                                           mock_genai_client_constructor):
         mock_get_dynamic_config.return_value = self.valid_assign_config_dict
         
         mock_request = MagicMock(spec=https_fn.Request)
         mock_request.method = "POST"
+        receipt_items = [{"name": "Pizza", "quantity": 1, "price": 20.00}]
         input_data = {
-            "parsed_receipt_items": [{"name": "Pizza", "quantity": 1, "price": 20.00}],
-            "people_names": ["Alice"],
-            "user_prompt_customizations": "Alice had all the pizza."
+            "transcription": "Alice had all the pizza.",
+            "receipt_items": receipt_items
         }
         mock_request.get_json.return_value = {"data": input_data}
 
-        # Create mock generative model response
-        mock_ai_model_instance = mock_genai_model_constructor.return_value
-        mock_ai_response = MagicMock()
+        # Create mock client and models
+        mock_client = mock_genai_client_constructor.return_value
+        mock_models = MagicMock()
+        mock_client.models = mock_models
+        
+        # Set up the mock response with text property
+        mock_response = MagicMock()
         successful_ai_text_output = json.dumps({
             "assignments": [{"person_name": "Alice", "items": [{"name": "Pizza", "quantity": 1, "price": 20.00}]}],
             "shared_items": [],
             "unassigned_items": []
         })
-        mock_ai_response.text = successful_ai_text_output
-        mock_ai_model_instance.generate_content.return_value = mock_ai_response
+        mock_response.text = successful_ai_text_output
+        mock_models.generate_content.return_value = mock_response
 
         expected_assignment_data = AssignPeopleToItems(
             assignments=[PersonItemAssignment(person_name="Alice", items=[ItemDetail(name="Pizza", quantity=1, price=20.00)])],
@@ -60,8 +64,8 @@ class TestAssignPeopleToItems(unittest.TestCase):
 
         mock_request.get_json.assert_called_once_with(silent=True)
         mock_get_dynamic_config.assert_called_once_with('assign_people_to_items')
-        mock_genai_model_constructor.assert_called_once_with(self.valid_assign_config_dict['model'])
-        mock_ai_model_instance.generate_content.assert_called_once()
+        mock_genai_client_constructor.assert_called_once_with(api_key='fake_test_api_key')
+        mock_models.generate_content.assert_called_once()
         # Add more detailed prompt assertion if needed here
 
         self.assertEqual(response.status_code, 200)
@@ -69,28 +73,32 @@ class TestAssignPeopleToItems(unittest.TestCase):
         self.assertEqual(response_data_dict, expected_assignment_data.model_dump())
 
     @patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_test_api_key'})
-    @patch('main.genai_legacy.GenerativeModel')  # Fix: patch the alias used in main.py
+    @patch('main.genai_legacy.Client')  # Fix: patch the correct class from the legacy library
     @patch('main.get_dynamic_config')
     def test_assign_people_to_items_pydantic_validation_error(self, mock_get_dynamic_config, 
-                                                          mock_genai_model_constructor):
+                                                          mock_genai_client_constructor):
         mock_get_dynamic_config.return_value = self.valid_assign_config_dict
         
         mock_request = MagicMock(spec=https_fn.Request)
         mock_request.method = "POST"
+        receipt_items = [{"name": "Cookie", "quantity": 1, "price": 2.00}]
         input_data = {
-            "parsed_receipt_items": [{"name": "Cookie", "quantity": 1, "price": 2.00}],
-            "people_names": ["Bob"],
-            "user_prompt_customizations": "Bob had the cookie."
+            "transcription": "Bob had the cookie.",
+            "receipt_items": receipt_items
         }
         mock_request.get_json.return_value = {"data": input_data}
 
-        # Create mock generative model response
-        mock_ai_model_instance = mock_genai_model_constructor.return_value
-        mock_ai_response = MagicMock()
+        # Create mock client and models
+        mock_client = mock_genai_client_constructor.return_value
+        mock_models = MagicMock()
+        mock_client.models = mock_models
+        
+        # Set up the mock response with text property
+        mock_response = MagicMock()
         # AI returns data that will fail Pydantic validation (e.g. quantity as string)
         invalid_ai_text_output = json.dumps({"assignments": [{"person_name": "Bob", "items": [{"name": "Cookie", "quantity": "one", "price": 2.00}]}]})
-        mock_ai_response.text = invalid_ai_text_output
-        mock_ai_model_instance.generate_content.return_value = mock_ai_response
+        mock_response.text = invalid_ai_text_output
+        mock_models.generate_content.return_value = mock_response
 
         with self.app.test_request_context('/'):
             response = assign_people_to_items(mock_request)
@@ -98,29 +106,34 @@ class TestAssignPeopleToItems(unittest.TestCase):
         self.assertEqual(response.status_code, 400) # Expect 400 if main.py handles Pydantic's ValueError
         response_data = json.loads(response.get_data(as_text=True))
         self.assertIn("error", response_data)
-        # The exact message depends on how main.py formats Pydantic validation errors
-        self.assertIn("Output validation failed", response_data.get("error", {}).get("message", str(response_data.get("error"))))
+        # The error message contains "Failed to parse Gemini response" and mentions validation error
+        error_message = response_data.get("error", {}).get("message", str(response_data.get("error")))
+        self.assertIn("Failed to parse Gemini response", error_message)
+        self.assertIn("validation error", error_message)
 
     @patch.dict(os.environ, {'GOOGLE_API_KEY': 'fake_test_api_key'})
-    @patch('main.genai_legacy.GenerativeModel')  # Fix: patch the alias used in main.py
+    @patch('main.genai_legacy.Client')  # Fix: patch the correct class from the legacy library
     @patch('main.get_dynamic_config')
     def test_assign_people_to_items_ai_service_error(self, mock_get_dynamic_config, 
-                                                  mock_genai_model_constructor):
+                                                  mock_genai_client_constructor):
         mock_get_dynamic_config.return_value = self.valid_assign_config_dict
 
         mock_request = MagicMock(spec=https_fn.Request)
         mock_request.method = "POST"
+        receipt_items = [{"name": "Drink", "quantity": 1, "price": 3.00}]
         input_data = {
-            "parsed_receipt_items": [{"name": "Drink", "quantity": 1, "price": 3.00}],
-            "people_names": ["Charlie"],
-            "user_prompt_customizations": "Charlie had the drink."
+            "transcription": "Charlie had the drink.",
+            "receipt_items": receipt_items
         }
         mock_request.get_json.return_value = {"data": input_data}
 
-        # Create mock generative model with error
-        mock_ai_model_instance = mock_genai_model_constructor.return_value
+        # Create mock client and models with error
+        mock_client = mock_genai_client_constructor.return_value
+        mock_models = MagicMock()
+        mock_client.models = mock_models
+        
         ai_error_message = "Simulated AI Service Error for assignments"
-        mock_ai_model_instance.generate_content.side_effect = Exception(ai_error_message)
+        mock_models.generate_content.side_effect = Exception(ai_error_message)
 
         with self.app.test_request_context('/'):
             response = assign_people_to_items(mock_request)
@@ -138,10 +151,9 @@ class TestAssignPeopleToItems(unittest.TestCase):
         # Test case 1: missing parsed_receipt_items
         mock_request = MagicMock(spec=https_fn.Request)
         mock_request.method = "POST"
-        # Missing parsed_receipt_items
+        # Missing receipt_items
         input_data = {
-            "people_names": ["David"],
-            "user_prompt_customizations": "David had something."
+            "transcription": "David had something."
         }
         mock_request.get_json.return_value = {"data": input_data}
         
@@ -156,10 +168,9 @@ class TestAssignPeopleToItems(unittest.TestCase):
         # Test case 2: missing people_names
         mock_request = MagicMock(spec=https_fn.Request)
         mock_request.method = "POST"
-        # Missing people_names
+        # Missing transcription
         input_data = {
-            "parsed_receipt_items": [{"name": "Salad", "quantity": 1, "price": 5.00}],
-            "user_prompt_customizations": "Someone had the salad."
+            "receipt_items": [{"name": "Salad", "quantity": 1, "price": 5.00}]
         }
         mock_request.get_json.return_value = {"data": input_data}
         

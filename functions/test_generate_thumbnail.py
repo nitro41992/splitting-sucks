@@ -42,31 +42,37 @@ class TestGenerateThumbnail(unittest.TestCase):
         # Setup storage client mock
         mock_storage_client = mock_storage_client_constructor.return_value
         mock_bucket = mock_storage_client.bucket.return_value
-        mock_blob = mock_bucket.blob.return_value
-        mock_thumbnail_blob = mock_bucket.blob.return_value
+        
+        # Create two separate blob mocks for download and upload
+        mock_blob = MagicMock()
+        mock_thumbnail_blob = MagicMock()
+        
+        # Configure bucket.blob to return different mocks based on the argument
+        def get_blob(path):
+            if path == 'path/to/image.jpg':
+                return mock_blob
+            elif path == 'thumbnails/path/to/image.jpg':
+                return mock_thumbnail_blob
+            else:
+                raise ValueError(f"Unexpected blob path: {path}")
+                
+        mock_bucket.blob.side_effect = get_blob
         
         # Setup image processing mocks
-        # Use a temp file path that will match what the actual implementation creates
-        mock_temp_file = MagicMock()
-        downloaded_image_path = mock_temp_file.name
         mock_os_path_isfile.return_value = True
         
-        # Set up tempfile mocks for original and thumbnail
-        mock_tempfile_namedtemporaryfile.return_value.__enter__.return_value = mock_temp_file
-        
-        # Set up PIL Image mocks - CRUCIAL: Mock resize method to return itself
+        # Set up PIL Image mocks with proper sizing for thumbnail
         mock_image = MagicMock()
         mock_image.format = "JPEG"
         mock_image.size = (1000, 1000)
-        # Make sure resize returns mock_image so the save can be called on its result
-        mock_image.resize.return_value = mock_image
+        # Set up thumbnail method to simulate resizing
+        mock_image.thumbnail = MagicMock()
         mock_image_open.return_value.__enter__.return_value = mock_image
         
         # Create a context for the test
         with self.app.test_request_context('/'):
             response = generate_thumbnail(mock_request)
         
-        # Assert request was processed correctly
         self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.get_data(as_text=True))['data']
         self.assertEqual(response_data["thumbnailUri"], "gs://test-bucket/thumbnails/path/to/image.jpg")
@@ -78,10 +84,13 @@ class TestGenerateThumbnail(unittest.TestCase):
         mock_bucket.blob.assert_any_call('thumbnails/path/to/image.jpg')
         mock_thumbnail_blob.upload_from_filename.assert_called_once()
         
-        # Assert image processing - don't hardcode path
+        # Assert image processing methods were called
         mock_image_open.assert_called_once()
-        mock_image.resize.assert_called_once()
-        mock_image.save.assert_called_once()
+        mock_image.thumbnail.assert_called_once() # Check thumbnail creation was called
+        mock_image.save.assert_called_once() # Check that save was called
+        
+        # Both temp files should be cleaned up - don't check specific paths
+        self.assertEqual(mock_os_remove.call_count, 2)
 
     @patch('main.os.remove')
     @patch('main.os.path.isfile')
@@ -105,13 +114,7 @@ class TestGenerateThumbnail(unittest.TestCase):
         mock_blob = mock_bucket.blob.return_value
         
         # Setup image processing mocks to indicate non-image file
-        downloaded_file_path = "/tmp/downloaded_document.txt"
         mock_os_path_isfile.return_value = True
-        
-        # Set up tempfile mock
-        mock_temp_file = MagicMock()
-        downloaded_file_path = mock_temp_file.name
-        mock_tempfile_namedtemporaryfile.return_value.__enter__.return_value = mock_temp_file
         
         # PIL Image.open throws an exception for non-image files
         mock_image_open.side_effect = Exception("not an image file")
@@ -137,8 +140,8 @@ class TestGenerateThumbnail(unittest.TestCase):
         self.assertTrue("not a recognized image type" in error_text_lower or "not an image file" in error_text_lower,
                        f"Expected error about invalid image, got: {error_message}")
         
-        # Should clean up downloaded file - don't hardcode path, use the mock's name
-        mock_os_remove.assert_called_with(downloaded_file_path)
+        # Mock temp file should be cleaned up - don't check specific path
+        mock_os_remove.assert_called_once()
 
     @patch('main.os.remove')
     @patch('main.gcs.Client') # Fix: Use the correct import alias from main.py

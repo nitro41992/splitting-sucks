@@ -1,346 +1,219 @@
 # Test Coverage Plan for Billfie App
 
-**Note: Completed test items have been moved to [docs/test_coverage_completed.md](docs/test_coverage_completed.md) to keep this document focused on pending and in-progress work.**
+**Note: Completed test items are moved to [docs/test_coverage_completed.md](test_coverage_completed.md) to maintain this document as a focused task list.**
 
-This document outlines the strategy and specific areas for implementing unit and widget tests. The sections below are **prioritized** based on the upcoming goals of implementing **local caching and a significant UI redesign**. The highest priority items (Group 1) are those essential for ensuring core logic, data integrity, and key user flows remain stable during these foundational architectural and visual changes. Subsequent groups cover important supporting components and broader app coverage.
+## Test Status Overview
 
-**Note on Default Widget Test (`test/widget_test.dart.disabled`):** The default Flutter widget test file (originally `test/widget_test.dart`) has been renamed to `test/widget_test.dart.disabled` to temporarily exclude it from test runs. It was causing failures due to UI setup issues (e.g., missing Directionality) unrelated to the current `WorkflowModal` testing effort. Fixing this default test and implementing broader UI smoke tests for the main application is considered out of scope for the initial focused testing phases but is a recommended activity for later to ensure overall application UI integrity.
+### Completed ✅
+- **Python Cloud Functions:** All tests for `generate_thumbnail`, `parse_receipt`, `assign_people_to_items`, and `transcribe_audio` functions
+- **Model Unit Tests:** All tests for `Receipt`, `ReceiptItem`, `Person`, and `SplitManager` models
+- **Dialog Widget Tests:** Tests for `AddItemDialog`
+- **Widget Tests:** `WorkflowStepIndicator`, `UploadStepWidget`/`ReceiptUploadScreen`, `ReceiptReviewScreen`/`ReviewStepWidget`
+- **Provider Tests:** `WorkflowState` and `ImageStateManager`
 
-**KT for Product Manager (User):** The primary user of this AI assistant for this project is a technical Product Manager. When discussing test implementation, especially around UI behavior or edge cases, explanations should be clear from a product impact perspective, and questions regarding desired behavior are welcome to ensure tests align with product goals.
+### High Priority Pending ⏳
+- **Flutter Services:** Tests for `FirestoreService` methods including receipt CRUD operations
+- **Core Workflow Logic:** Tests for workflow steps, assignment logic, and split calculations
+- **Dialog Widget Tests:** Tests for `EditItemDialog`, `showRestaurantNameDialog`, and `showConfirmationDialog`
 
-## Testing Strategy Overview
+## Priority Framework
 
-We will prioritize:
+Tests are prioritized to support two upcoming major architectural changes:
+1. **Local caching implementation**
+2. **Significant UI redesign**
 
-1.  **Unit Tests** for business logic and data models.
-2.  **Widget Tests** for UI components, focusing on behavior and data flow over pixel-perfect rendering where UI is expected to change significantly.
-3.  **Integration Tests** for end-to-end user flows.
+The priority groups below reflect this focus, with Group 1 containing tests critical for ensuring core logic, data integrity, and key workflows remain stable during these changes.
 
-**KT for AI Devs:** Mocking (e.g., using `mockito`) will be essential. When mock definitions in `test/mocks.dart` are updated, the AI assistant should propose running `dart run build_runner build --delete-conflicting-outputs`.
+## Priority Group 1: Foundational Logic & Data Integrity (Essential)
 
-## Priority Group 1: Foundational Logic & Data Integrity (Essential for Caching & Redesign Stability)
+These tests are critical for ensuring the application's core business logic and data handling remain robust during significant architectural changes.
 
-**Rationale:** This group contains tests critical for ensuring the application's core "engine" – its business logic, data handling, and key workflow mechanics – is robust. These tests are paramount before and after implementing local caching (which relies on data integrity and correct model behavior) and UI redesigns (which need a stable logical foundation). Without these, there's a high risk of systemic failures, data corruption, or breaking fundamental user tasks during major architectural or visual changes.
+### 1.1 Critical Service Logic Unit Tests
 
-### 1.1 Model Unit Tests (`lib/models/`)
-
-*   **Objective:** Ensure data models are robust, handle serialization/deserialization correctly (critical for caching), and any internal logic is sound.
-*   **Classes to Test:**
-    *   **`Receipt` (`lib/models/receipt.dart`)**
-        *   **Unit Test Cases:**
-            *   ✅ `fromDocumentSnapshot()` / `fromJson()`: Correctly parses Firestore data (including all fields, nested objects, and handling of nulls/defaults).
-            *   ✅ `toMap()` / `toJson()`: Correctly serializes data for Firestore (including all fields).
-            *   ✅ Computed properties (e.g., `formattedDate`, `formattedAmount`, `isDraft`, `isCompleted`, `numberOfPeople`): Verify correct calculations/logic.
-            *   ✅ `copyWith()` method if implemented.
-            *   ✅ `createDraft()`
-            *   ✅ `markAsCompleted()`
-    *   **`ReceiptItem` (`lib/models/receipt_item.dart`)**
-        *   **Unit Test Cases:**
-            *   ✅ `fromJson()` / `toMap()` (or equivalent for parsing/serialization).
-            *   ✅ Constructor logic and field initialization (Factory, `clone`).
-            *   ✅ Helper methods (`isSameItem`, `copyWithQuantity`, `updateName`, `updatePrice`, `updateQuantity`, `resetQuantity`, `copyWith`, `total` getter, `ChangeNotifier` notifications, `==` and `hashCode`).
-    *   **`Person` (`lib/models/person.dart`)**
-        *   **Unit Test Cases:**
-            *   ✅ `fromJson()` / `toMap()` (or equivalent).
-            *   ✅ Constructor logic (default constructor, item list handling, unmodifiable list getters).
-            *   ✅ Helper methods (`updateName`, `addAssignedItem`, `removeAssignedItem`, `addSharedItem`, `removeSharedItem`, `totalAssignedAmount`, `totalSharedAmount`, `totalAmount`, `ChangeNotifier` notifications).
-    *   **`SplitManager` (`lib/models/split_manager.dart`)**
-        *   **Unit Test Cases:** This class is critical for calculations.
-            *   ✅ Initialization with various inputs (items, people, shared items, tip, tax, `originalReviewTotal`). Includes getters for lists (unmodifiable) and setters for percentages with `notifyListeners`. Also covers `reset()`.
-            *   ✅ `addPerson()`, `removePerson()`, `updatePersonName()`.
-            *   ✅ `assignItemToPerson()`, `unassignItemFromPerson()`.
-            *   ✅ `addSharedItem()`, `removeSharedItem()`, `addItemToShared()`, `removeItemFromShared()`, `addPersonToSharedItem()`, `removePersonFromSharedItem()`
-            *   ✅ Tip and tax calculation and application (percentage, fixed, per person if applicable). Edge cases (zero, null, negative, large percentages) are covered.
-            *   ✅ `calculateTotals`: Verification of individual totals, grand total, subtotal. (Fully covered by totalAmount getter and new detailed tests for subtotal, individual, and grand total logic.)
-            *   ✅ Edge cases: No items, no people, zero tip/tax, etc.
-            *   ✅ Unassigned item management (`addUnassignedItem`, `removeUnassignedItem`)
-            *   ✅ Original quantity methods (`setOriginalQuantity`, `getOriginalQuantity`, `getTotalUsedQuantity`) (edge cases covered)
-
-### 1.2 Critical Service Logic Unit Tests
-
-*   **`Critical Service Logic Unit Tests (Phase 0 Priority)`**
-    *   **Objective:** Verify critical data transformations or specific logic within services (e.g., `FirestoreService`, `ReceiptParserService`, etc.) as prioritized in the initial "Phase 0" plan, independent of UI or full service integration. This is important as caching may alter how services are interacted with, and this logic must remain correct. **Testing will rely on mocking external dependencies (AI APIs, Firestore SDK) to ensure tests are fast, isolated, and do not incur external service costs.**
-    *   **Python Cloud Functions (AI-related - in `functions/main.py` or similar):
-        *   General Mocking Strategy: Use `unittest.mock` (with `pytest-mock` if using `pytest`) to patch the actual AI SDK calls. Tests will verify:
-            *   Correct pre-processing of input data before it would be sent to the AI.
-            *   Correct handling of various mocked AI responses (success, specific data scenarios, errors).
-            *   Correct parsing and validation of mocked AI responses into Pydantic models (where applicable).
-            *   Correct formatting of the final output of the function.
-        *   **`generate_thumbnail` function (Image Manipulation & GCS):
-            *   Mocking: GCS client (`google.cloud.storage`), `tempfile`, `PIL.Image`.
-            *   ✅ Test successful thumbnail generation flow (URI parsing, GCS download/upload calls, PIL calls, output URI).
-            *   ✅ Test with invalid `imageUri` format.
-            *   ✅ Test when GCS download fails (mocked).
-            *   ✅ Test when the downloaded file is not a valid image type.
-            *   ✅ Test when GCS upload fails (mocked).
-            *   (💡 Potential Improvement) Consider returning 400 for specific ValueErrors (e.g., invalid URI, invalid MIME) instead of generic 500.
-        *   **`parse_receipt` function (AI - OpenAI/Google Gemini):
-            *   ✅ Test with mocked successful AI response (various valid receipt structures - covered imageUri & imageData).
-            *   ✅ Test with mocked AI response that would lead to Pydantic validation errors.
-            *   ✅ Test handling of potential AI service error (e.g., mocked API error response).
-            *   ✅ Test input validation (missing URI/data, b64decode error, unsupported MIME type).
-        *   **`assign_people_to_items` function (AI - OpenAI/Google Gemini):
-            *   ✅ Test with mocked successful AI response (various valid assignment structures).
-            *   ✅ Test with mocked AI response leading to Pydantic validation errors.
-            *   ✅ Test handling of potential AI service error.
-            *   ✅ Test pre-processing of input (e.g., missing item lists, people data).
-        *   **`transcribe_audio` function (AI - Google Gemini):
-            *   ✅ Test with mocked successful transcription response (sample text outputs - covered audioUri & audioData).
-            *   ✅ Test handling of potential transcription service error.
-            *   ✅ Test input validation (missing URI/data, b64decode error, unsupported MIME type).
-        *   **Update:** Fixed Python Cloud Functions tests by:
-            *   Updating import paths to use direct imports from `main` instead of `functions.main`
-            *   Removing dependency on `ConfigSection` class and using dictionary configuration instead
-            *   Fixing mock setup for file operations and context managers
-            *   Updating expected status codes and error messages to match actual implementation
-            *   Improved application context handling for Flask-based tests
-        *   **KT Notes for Future Developers:**
-            *   **Test Status:** All Python test files have been properly structured, with imports corrected and mocks aligned with the actual implementation. While some tests may still fail with 500 errors in certain GCS/authentication scenarios, this is expected when running in a non-emulator environment and does not indicate core logic issues.
-            *   **Error/Status Code Handling:** The cloud functions generally return 400 for invalid input (client errors) and 500 for service/backend errors. From a product perspective, these status codes correctly indicate where the failure occurred (client vs. server).
-            *   **Mock Configuration:** When updating AI provider configurations (changing from OpenAI to Google Gemini or vice versa), ensure you update the corresponding mocks in the test files. The test structure allows easy swapping between providers.
-            *   **Running Tests:** Run tests from the `functions/` directory with `python -m unittest discover` to ensure proper import paths.
-            *   **Common Failures (Safe to Ignore):** 
-                *   GCS authentication errors in non-development environments are expected and not critical for unit testing, as we're primarily testing code paths rather than external service integration.
-                *   Small variations in error message formats are acceptable as long as the status codes are correct and appropriate error information is returned.
-                *   Multiple `os.remove()` calls on cleanup may appear as "already removed" warnings and can be safely ignored.
-            *   **Known Environment-Specific Test Issues:**
-                *   **Google Gemini API version mismatches:** The test_assign_people.py tests may fail with `AttributeError: 'module' object has no attribute 'GenerativeModel'` if your installed Google Generative AI library version differs from the version used in production. This is an expected library version discrepancy.
-                *   **Path differences:** Tests expecting UNIX paths (`/tmp/file.txt`) will fail on Windows systems using Windows paths (`C:\Users\...\Temp\file.txt`). This can be safely ignored as the tests verify the core logic, not the exact paths.
-                *   **Image processing specifics:** Some tests for the generate_thumbnail function may require additional mocking of PIL.Image objects due to platform-specific implementation details.
-        *   **(No other Python Cloud Functions identified in `main.py` based on `@https_fn.on_request` decorators. If others exist in different files, please specify.)**
-    *   **Flutter Services (e.g., `FirestoreService` - in `lib/services/`):
-        *   General Mocking Strategy: Use `mockito` to create mock instances of Firestore (e.g., `MockFirebaseFirestore`, `MockCollectionReference`, `MockDocumentReference`, `MockQuerySnapshot`, `MockDocumentSnapshot`). Tests will verify:
-            *   Correct construction of Firestore queries/paths.
-            *   Correct data formatting before sending to Firestore (e.g., `toMap()` calls).
-            *   Correct parsing of data from Firestore (e.g., `fromSnapshot()` or `fromJson()` calls).
-            *   Handling of non-existent documents or empty query results.
-        *   **`FirestoreService` methods:
-            *   `Future<String> saveReceipt({String? receiptId, required Map<String, dynamic> data})`
-                *   (⏳) Test new receipt creation (`receiptId` is null, `add()` called, `created_at`/`updated_at` set).
-                *   (⏳) Test existing receipt update (`receiptId` provided, doc exists, `set()` with merge called, `updated_at` set, `created_at` preserved).
-                *   (⏳) Test new receipt creation with client-provided ID (`receiptId` provided, doc doesn't exist, `set()` called, `created_at`/`updated_at` set).
-                *   (⏳) Test correct Firestore path and data mapping.
-            *   `Future<String> saveDraft({String? receiptId, required Map<String, dynamic> data})`
-                *   (⏳) Verify `data['metadata']['status']` is set to 'draft'.
-                *   (⏳) Verify it calls `saveReceipt` with correct parameters (mock `saveReceipt` or test integrated behavior carefully).
-            *   `Future<String> completeReceipt({required String receiptId, required Map<String, dynamic> data})`
-                *   (⏳) Verify `data['metadata']['status']` is set to 'completed'.
-                *   (⏳) Verify `data['metadata']['updated_at']` is set.
-                *   (⏳) Verify `_receiptsCollection.doc(receiptId).update(data)` is called with correct path and data.
-            *   `Stream<QuerySnapshot> getReceiptsStream()`
-                *   (⏳) Verify correct query construction (`orderBy`).
-                *   (⏳) Mock `snapshots()` stream and verify service passes it through.
-            *   `Future<QuerySnapshot> getReceipts({String? status})`
-                *   (⏳) Test query with no status filter.
-                *   (⏳) Test query with status filter.
-                *   (⏳) Mock `get()` call and verify result.
-            *   `Future<DocumentSnapshot> getReceipt(String receiptId)`
-                *   (⏳) Verify correct document path.
-                *   (⏳) Mock `get()` call for existing doc and verify result.
-                *   (⏳) Test for non-existent document (e.g., mock `snapshot.exists` as false).
-            *   `Future<void> deleteReceipt(String receiptId)`
-                *   (⏳) Verify `delete()` is called on the correct document reference.
-            *   `Future<String> uploadReceiptImage(File imageFile)` (Interacts with Firebase Storage)
-                *   (⏳) Mock `FirebaseStorage`, `Reference`, `UploadTask`, `TaskSnapshot`.
-                *   (⏳) Verify correct GCS path generation (includes user ID, timestamp).
-                *   (⏳) Verify `putFile()` is called with correct `File` and `SettableMetadata`.
-                *   (⏳) Verify correct `gs://` URI is constructed and returned from mocked `TaskSnapshot`.
-            *   **(Consider if `_userId` getter needs specific tests, especially around emulator/prod logic if complex, though it's more internal state management).**
-        *   **(Placeholder for other Flutter Services with external dependencies - please identify)**
-            *   (⏳)
-
-### 1.3 Core Workflow Logic & Data Flow Widget Tests
-
-*   **`_WorkflowModalBodyState` (selected parts, `lib/widgets/workflow_modal.dart`)**
-    *   **Objective:** Test critical UI interaction paths and complex logic remaining in `_WorkflowModalBodyState` (Phase 0 Priority), such as the `GestureDetector` for the step indicator (which also covers `WorkflowStepIndicator` tap logic) and `WillPopScope` logic (especially draft saving). These ensure core navigation and state progression within the modal remain intact.
+*   **`FirestoreService` methods:**
+    *   **Objective:** Verify correct data transformation logic within services that will be affected by caching.
     *   **Test Cases:**
-        *   ⏳ `Step Indicator Tap Logic`:
-            *   Tapping a previous step calls `workflowState.goToStep()` with the correct `tappedStep`.
-            *   Tapping a future step (that's allowed by data prerequisites) calls `workflowState.goToStep()`.
-            *   Tapping a future step (blocked by data prerequisites) shows a `showAppToast` and does NOT call `goToStep()`.
-        *   ⏳ `_onWillPop` behavior (this is harder to test purely as a widget test due to navigation, but can test parts):
-            *   If no data, returns true.
-            *   If data exists, verify `_saveDraft` is called (mocked).
-            *   If `_saveDraft` (mocked) throws, verify `showConfirmationDialog` is called.
+        *   `Future<String> saveReceipt({String? receiptId, required Map<String, dynamic> data})`
+            *   (⏳) Test new receipt creation (`receiptId` is null, `add()` called, `created_at`/`updated_at` set).
+            *   (⏳) Test existing receipt update (`receiptId` provided, doc exists, `set()` with merge called, `updated_at` set, `created_at` preserved).
+            *   (⏳) Test new receipt creation with client-provided ID (`receiptId` provided, doc doesn't exist, `set()` called, `created_at`/`updated_at` set).
+            *   (⏳) Test correct Firestore path and data mapping.
+        *   `Future<String> saveDraft({String? receiptId, required Map<String, dynamic> data})`
+            *   (⏳) Verify `data['metadata']['status']` is set to 'draft'.
+            *   (⏳) Verify it calls `saveReceipt` with correct parameters (mock `saveReceipt` or test integrated behavior carefully).
+        *   `Future<String> completeReceipt({required String receiptId, required Map<String, dynamic> data})`
+            *   (⏳) Verify `data['metadata']['status']` is set to 'completed'.
+            *   (⏳) Verify `data['metadata']['updated_at']` is set.
+            *   (⏳) Verify `_receiptsCollection.doc(receiptId).update(data)` is called with correct path and data.
+        *   `Stream<QuerySnapshot> getReceiptsStream()`
+            *   (⏳) Verify correct query construction (`orderBy`).
+            *   (⏳) Mock `snapshots()` stream and verify service passes it through.
+        *   `Future<QuerySnapshot> getReceipts({String? status})`
+            *   (⏳) Test query with no status filter.
+            *   (⏳) Test query with status filter.
+            *   (⏳) Mock `get()` call and verify result.
+        *   `Future<DocumentSnapshot> getReceipt(String receiptId)`
+            *   (⏳) Verify correct document path.
+            *   (⏳) Mock `get()` call for existing doc and verify result.
+            *   (⏳) Test for non-existent document (e.g., mock `snapshot.exists` as false).
+        *   `Future<void> deleteReceipt(String receiptId)`
+            *   (⏳) Verify `delete()` is called on the correct document reference.
+        *   `Future<String> uploadReceiptImage(File imageFile)` (Interacts with Firebase Storage)
+            *   (⏳) Mock `FirebaseStorage`, `Reference`, `UploadTask`, `TaskSnapshot`.
+            *   (⏳) Verify correct GCS path generation (includes user ID, timestamp).
+            *   (⏳) Verify `putFile()` is called with correct `File` and `SettableMetadata`.
+            *   (⏳) Verify correct `gs://` URI is constructed and returned from mocked `TaskSnapshot`.
+        *   **(Consider if `_userId` getter needs specific tests, especially around emulator/prod logic if complex, though it's more internal state management).**
+    *   **Placeholder for other Flutter Services with external dependencies that will need testing:**
+        *   (⏳) Identify and test any other services that will be affected by caching implementation.
 
-*   **`AssignPeopleScreen` / `AssignStepWidget` (`lib/widgets/workflow_steps/assign_step_widget.dart` or `lib/screens/assign_people_screen.dart`)**
-    *   **Covered By:** `test/screens/assign_people_screen_test.dart` (To be created)
-    *   **Objective:** Verify the UI for assigning people to items, managing shared items, adding/removing people, and ensuring correct data propagation for the next step (Phase 0 Priority). Focus on data flow and `WorkflowState` interaction to ensure underlying assignment logic is sound regardless of UI changes.
-    *   **Setup:**
-        *   Mock `WorkflowState` to provide items, people, and manage assignments.
-        *   Provide callbacks: `onAssignmentsUpdated` (or similar, to reflect changes to `WorkflowState`).
-        *   Use `FakeReceiptItem` and `FakePerson` data.
-    *   **Test Cases (focus on logic, state changes, and callbacks):**
-        *   [ ] **Initial Display:** Correct data from `WorkflowState` is displayed.
-        *   [ ] **Adding a Person:** `WorkflowState` is updated correctly.
-        *   [ ] **Assigning an Item to a Person:** `WorkflowState` is updated correctly.
-        *   [ ] **Unassigning an Item:** `WorkflowState` is updated correctly.
-        *   [ ] **Marking an Item as Shared:** `WorkflowState` is updated correctly.
-        *   [ ] **"Next" / "Confirm Assignments" Button Logic:** Callback is triggered with correct data; button enabled/disabled based on assignment completion reflected in `WorkflowState`.
-    *   **KT for Devs:** Interactions like drag-and-drop can be complex; initial tests might focus on simpler assignment mechanisms if available, or mock these interactions heavily.
+### 1.2 Core Workflow Logic & Data Flow Widget Tests
+
+*   **`WorkflowModalBody` / `_WorkflowModalBodyState` (`lib/widgets/workflow_modal.dart`)**
+    *   **Objective:** Test critical UI interaction paths and state transitions that need to remain intact during redesign.
+    *   **Test Cases:**
+        *   ⏳ **Step Indicator Tap Logic:** 
+            *   Tapping a previous step calls `workflowState.goToStep()` with the correct `tappedStep`.
+            *   Tapping a future step (allowed by data) calls `workflowState.goToStep()`.
+            *   Tapping a future step (blocked by data prerequisites) shows a toast and does NOT call `goToStep()`.
+        *   ⏳ **`_onWillPop` behavior:** 
+            *   With no data: Returns true (allows navigation)
+            *   With data: Calls `_saveDraft` (verify mock called)
+            *   With `_saveDraft` error: Shows confirmation dialog
+
+*   **`AssignPeopleScreen` / `AssignStepWidget` (`lib/widgets/workflow_steps/assign_step_widget.dart`)**
+    *   **Objective:** Verify the critical UI for assigning people to items, focusing on data flow that must be preserved.
+    *   **Test Cases:**
+        *   ⏳ **Initial Display:** Verify correct rendering of items, people, and assignment UI from `WorkflowState`.
+        *   ⏳ **Person Management:** Test adding, removing, renaming people with correct `WorkflowState` updates.
+        *   ⏳ **Item Assignment:** Test assigning and unassigning items to people, shared item marking.
+        *   ⏳ **Button Logic:** Verify Next/Confirm is conditionally enabled based on assignments.
 
 *   **`SplitStepWidget` (`lib/widgets/workflow_steps/split_step_widget.dart`)**
-    *   ⏳ **Objective:** Verify UI for displaying split amounts per person, handling adjustments, and confirming the split (Phase 0 Priority). Focus on data from `WorkflowState` and updates back to it, ensuring calculation logic tied to this step is validated.
-    *   **(⏳ To be detailed, focusing on data flow and state)**
+    *   **Objective:** Verify UI for displaying split amounts and handling adjustments (critical for caching/redesign).
+    *   **Test Cases:**
+        *   ⏳ **Initial Display:** Verify correct loading of people, items, and amounts from `WorkflowState`.
+        *   ⏳ **Tip/Tax Entry:** Test entry of tip and tax amounts with proper `WorkflowState` updates.
+        *   ⏳ **Split Calculations:** Verify correct calculation and display of individual and total amounts.
+        *   ⏳ **Button Logic:** Verify Next/Confirm is properly enabled/disabled.
 
 *   **`SummaryStepWidget` (`lib/widgets/workflow_steps/summary_step_widget.dart`)**
-    *   ⏳ **Objective:** Verify final summary display, including individual totals, grand total (Phase 0 Priority). Ensure correct data is pulled from `WorkflowState` and accurately reflects prior steps.
-    *   **(⏳ To be detailed, focusing on data accuracy)**
+    *   **Objective:** Verify final summary display logic that needs to be preserved during redesign.
+    *   **Test Cases:**
+        *   ⏳ **Display Accuracy:** Verify person amounts, items, and totals match `WorkflowState` data.
+        *   ⏳ **Complete Button:** Verify it's enabled under correct conditions and triggers proper state changes.
 
-### 1.4 Integration Test Planning (Core Workflow)
+### 1.3 Integration Test Planning (Core Workflow)
 
-*   **Objective:** Ensure the main user flow through the `WorkflowModal` functions end-to-end, validating that all core components, including new caching mechanisms, work together.
+*   **Objective:** Ensure the main user flow through the `WorkflowModal` functions end-to-end.
 *   **Key User Flows:**
-    *   Full `WorkflowModal` lifecycle (new, resume, complete).
-        *   [ ] Plan detailed test scenarios for this flow (Phase 0 Priority). Scenarios should verify data persistence (drafts), state progression, and final output, being as resilient to UI changes as possible by focusing on high-level interactions and results.
+    *   ⏳ **Full `WorkflowModal` Lifecycle:** Test creation, data entry, saving/loading drafts, and completion.
+    *   ⏳ **Error Handling:** Test recovery from errors in each step (parse, transcribe, assign, etc.).
+    *   ⏳ **Draft Management:** Test draft save/load with proper state restoration.
 
 ## Priority Group 2: Supporting Workflow Components & Interactions
 
-**Rationale:** These tests cover components that are part of the workflow or common interactions. While important for a fully functional and polished user experience, they are often more susceptible to UI changes or address risks that are secondary to the fundamental data/logic integrity covered in Group 1. They become particularly crucial for validating UI changes and deeper caching integrations once the Group 1 foundation is stable.
+These tests cover components that are important for a functional user experience but are secondary to core data/logic integrity.
 
 ### 2.1 Other Workflow Step Widget Tests & Core UI Logic
 
-*   **`WorkflowStepIndicator` (`lib/widgets/workflow_steps/workflow_step_indicator.dart`)**
-    *   **Objective:** Verify correct rendering based on `currentStep` and `stepTitles`. (Tap logic covered by `_WorkflowModalBodyState` tests in Group 1).
-    *   **Test Cases (Completed for rendering - see `test_coverage_completed.md`)**
-
 *   **`SplitViewWidget` (`lib/widgets/split_view.dart`)**
-    *   **(⏳ To be tested)** **Objective:** Verify the overall split view renders correctly, including person assignment, item allocation, and summary calculations. This is a potentially complex widget that might be used within `SplitStepWidget` or other places. (Consider its priority based on how much logic it contains vs. `SplitStepWidget` itself).
+    *   ⏳ **Objective:** Verify the split view rendering for person assignments and calculations.
+    *   ⏳ **Test Cases:** Layout rendering, person display, calculations, interaction with parent widgets.
 
 ### 2.2 Dialog Widget Tests
 
-*   **Objective:** Verify dialogs appear, display correct content, buttons can be interacted with, and return expected values on button presses. (Phase 0 Priority for these dialogs). These are key for user interaction consistency, especially during/after UI redesign.
-*   **Dialog Helpers (`lib/utils/dialog_helpers.dart`) based Dialogs:**
+*   **Dialog Helpers (`lib/utils/dialog_helpers.dart`):**
     *   **Test Cases (`showRestaurantNameDialog`):**
-        *   ⏳ Dialog appears when called.
-        *   ⏳ Displays title "Restaurant Name".
-        *   ⏳ `TextField` is present, accepts input, shows `initialName`.
-        *   ⏳ "CANCEL" button returns `null`.
-        *   ⏳ "CONFIRM" button returns entered text (or `initialName` if unchanged).
-        *   ⏳ Handles empty input on confirm (should it be allowed or show error/disable button?).
+        *   ⏳ Dialog appears when called with correct title and fields.
+        *   ⏳ TextField accepts input and displays initialName.
+        *   ⏳ Cancel button returns null, Confirm button returns entered text.
+        *   ⏳ Empty input handling matches product requirements (show error or allow).
     *   **Test Cases (`showConfirmationDialog`):**
-        *   ⏳ Dialog appears with given `title` and `content`.
-        *   ⏳ "CANCEL" (or negative action) button returns `false`.
-        *   ⏳ "CONFIRM" (or positive action) button returns `true`.
-*   **Custom Dialog Widgets from `lib/widgets/dialogs/`**
-    *   **`AddItemDialog` (`lib/widgets/dialogs/add_item_dialog.dart`)**
-        *   ✅ Verify dialog renders with all required elements.
-        *   ✅ Verify dialog returns null when canceled.
-        *   ✅ Verify quantity controls (increment/decrement) work with proper limits.
-        *   ✅ Verify dialog returns ReceiptItem with correct values when valid input is provided.
-        *   ✅ Verify validation (shows error for empty name, invalid price, negative price).
-    *   **`EditItemDialog` (`lib/widgets/dialogs/edit_item_dialog.dart`)**
-        *   **(⏳ To be tested)** **Objective:** Verify pre-fill with existing item data; field updates; and correct data returned on save.
+        *   ⏳ Dialog appears with correct title and content.
+        *   ⏳ Cancel button returns false, Confirm button returns true.
 
-### 2.3 Utility Function Unit Tests (Internal Logic)
+*   **Custom Dialog Widgets:**
+    *   **`EditItemDialog` (`lib/widgets/dialogs/edit_item_dialog.dart`)**
+        *   ⏳ Verify pre-fill with existing data, field updates, quantity controls, validation.
+        *   ⏳ Verify correct data returned on save, cancellation handling.
+
+### 2.3 Utility Function Unit Tests
 
 *   **`Dialog Helpers` (`lib/utils/dialog_helpers.dart`)**
-    *   **Objective:** Verify any internal logic independent of UI rendering (Phase 0 Priority). Widget tests (Section 2.2) cover UI interaction.
-    *   **(⏳ To be identified and detailed if complex non-UI logic exists)**
+    *   ⏳ **Objective:** Verify any complex formatting or validation logic independent of UI rendering.
 
 *   **`Toast Utils` (`lib/utils/toast_utils.dart`)**
-    *   **Objective:** Verify any complex message formatting or internal logic independent of UI rendering (Phase 0 Priority). Widget tests would cover appearance if needed.
-    *   **(⏳ To be identified and detailed if complex non-UI logic exists)**
+    *   ⏳ **Objective:** Verify message formatting logic, timeout handling, and edge cases.
 
-## Priority Group 3: General UI Components & Broader Application Coverage
+## Priority Group 3: General UI Components & Broader Coverage
 
-These components and areas are important for overall application quality but are either more likely to be significantly changed by a UI redesign or are broader in scope than the immediate needs for caching/core redesign stability.
+These components are important for overall quality but are more likely to change during UI redesign.
 
-### 3.1 Reusable UI Components (Used within Workflow and potentially elsewhere)
+### 3.1 Reusable UI Components
 
-*   **Objective:** Ensure these reusable components function correctly in isolation. Tests here might need significant rework after UI redesign.
 *   **`FullImageViewer` (`lib/widgets/receipt_upload/full_image_viewer.dart`)**
-    *   **(⏳ To be tested)** **Objective:** Verify correct display of local or network images, zoom/pan functionalities if any. (Currently indirectly tested via `ReceiptUploadScreen`)
-*   **`PersonSummaryCard` (`lib/widgets/final_summary/person_summary_card.dart`)**
-    *   **(⏳ To be tested)** **Objective:** Verify correct display of person's name, total amount, and potentially assigned items. (Likely part of `SummaryStepWidget` but consider dedicated tests if complex).
-*   **Cards from `lib/widgets/cards/`**
-    *   `SharedItemCard` (⏳ To be tested)
-    *   `PersonCard` (⏳ To be tested)
-    *   `UnassignedItemCard` (⏳ To be tested)
-    *   **Objective:** Verify correct rendering based on input data and handling of any interactions.
-*   **Shared Utility Widgets from `lib/widgets/shared/`**
-    *   `WaveDividerPainter` (⏳ To be tested - verify no paint errors, visual inspection or specific paint call verification).
-    *   `QuantitySelector` (⏳ To be tested - verify increment/decrement logic, callbacks, min/max constraints).
-    *   `ItemRow` (⏳ To be tested - verify layout, display of item name/price/quantity).
-    *   `EditableText` (⏳ To be tested - verify edit mode, view mode, callbacks on change).
-    *   `EditablePrice` (⏳ To be tested - verify currency formatting, edit mode, callbacks).
+    *   ⏳ **Objective:** Verify display of images, zoom/pan functionality, and navigation.
 
-### 3.2 Other Screens (`lib/screens/`)
+*   **`PersonSummaryCard` (`lib/widgets/final_summary/person_summary_card.dart`)**
+    *   ⏳ **Objective:** Verify display of person's data, assigned items, and amounts.
+
+*   **Cards from `lib/widgets/cards/`**
+    *   ⏳ `SharedItemCard`: Verify rendering, interactions, and data display.
+    *   ⏳ `PersonCard`: Verify rendering, person name display, amount display.
+    *   ⏳ `UnassignedItemCard`: Verify rendering, item display, assignment actions.
+
+*   **Shared Utility Widgets from `lib/widgets/shared/`**
+    *   ⏳ `WaveDividerPainter`: Verify painting without errors, correct size/layout.
+    *   ⏳ `QuantitySelector`: Verify increment/decrement, min/max handling, callback firing.
+    *   ⏳ `ItemRow`: Verify item name/price/quantity display, formatting.
+    *   ⏳ `EditableText`: Verify edit/view modes, text changes, callback firing.
+    *   ⏳ `EditablePrice`: Verify currency formatting, validation, callback firing.
+
+### 3.2 Other Screens
 
 *   **`ReceiptsScreen` (`lib/screens/receipts_screen.dart`)**
-    *   **Objective:** Verify UI rendering, list display, interactions, and basic navigation triggers. These tests will likely need significant updates post-UI redesign.
-    *   **Widget Test Cases:**
-        *   ⏳ Initial state: Displays loading indicator or empty state correctly.
-        *   ⏳ Stream data handling: Renders list of `ReceiptCard` widgets when data arrives from mocked stream.
-        *   ⏳ Error state: Displays error message if stream provides error.
-        *   ⏳ Empty state: Displays "No receipts yet" message correctly.
-        *   ⏳ Search functionality.
-        *   ⏳ `FloatingActionButton` tap triggers `WorkflowModal`.
-        *   ⏳ `ReceiptCard` tap triggers details view.
-        *   ⏳ Details view interactions (Resume, Edit, Delete triggers).
-    *   **Mocks:** `FirestoreService`, `WorkflowModal.show`.
+    *   ⏳ **Test Cases:**
+        *   Initial states: loading, empty, populated list.
+        *   Stream handling: data arrival, error states.
+        *   Search functionality.
+        *   Navigation: FAB to new receipt, tapping cards for details.
+        *   Receipt actions: resume, edit, delete with confirmation.
 
-*   **Other Screens (e.g., `SettingsScreen`, any future screens)**
-    *   **Objective:** Basic UI rendering and interaction tests.
-    *   **Widget Test Cases:** (⏳ To be detailed as screens are developed/reviewed)
+*   **Other Screens (e.g., `SettingsScreen`)**
+    *   ⏳ **Objective:** Basic UI rendering and interaction tests.
 
-### 3.3 Application Setup and Main (`lib/main.dart`)
+### 3.3 Application Setup and Main
 
-*   **Objective:** Verify initial app setup, provider configuration, and root-level navigation based on auth state.
-*   **Widget Test Cases:**
-    *   ⏳ `MyApp` widget (theme, routes, providers).
-    *   ⏳ Auth state changes and navigation.
-    *   **Mocks:** `AuthService`, `Firebase.initializeApp`.
+*   ⏳ **Test Cases:**
+    *   App initialization, theme application, route setup.
+    *   Provider configuration.
+    *   Authentication state monitoring and navigation.
 
-## Future Phases / Full Integration & Service Testing
+## Implementation Notes & Best Practices
 
-This section covers tests that are generally broader or require more setup, such as full service tests with emulators or more comprehensive integration tests beyond initial planning.
+### Testing Environment Considerations
 
-*   **Services (`lib/services/`) - Full Integration/Emulator Tests**
-    *   `FirestoreService`
-    *   `ReceiptParserService`
-    *   `AudioTranscriptionService`
-    *   `AuthService`
-*   **Integration Tests for Key User Flows - Implementation**
-    *   Login/Logout flows.
-    *   (Full `WorkflowModal` lifecycle implementation, building on planning from Group 1)
-*   **Firebase Functions Testing (using Emulator Suite)**
+- **Python Tests:**
+  - API version differences between Google Gemini legacy and new API require careful mocking
+  - Environment-specific issues (paths, authentication) may occur in different environments
+  - Run tests from the `functions/` directory with `python -m unittest discover`
 
----
+- **Flutter Tests:**
+  - Use `ValueKey`s for critical UI elements to ensure reliable test targeting
+  - For `ChangeNotifier` classes, always test `notifyListeners()` behavior
+  - Use `pumpAndSettle()` generally, but `pump()` with duration for HTTP overrides/dialogs
 
-## Test Structure and Setup Considerations
+### Test Maintenance
 
-*   Tests will reside in the `test/` directory, mirroring the `lib/` structure.
-*   `flutter_test` will be the primary testing framework.
-*   `mockito` will be used for creating mock objects for dependencies.
-    *   Generate mocks using `build_runner build`.
-*   Each test file will use `setUp()` for common test arrangements and `tearDown()` for cleanup if necessary.
-*   `group()` will be used to organize related tests.
+- **Build Runner for Mocks:**
+  - When updating mock definitions, run `dart run build_runner build --delete-conflicting-outputs`
 
-### Python Cloud Functions Test Directory Structure (`functions/`)
+- **Python Tests:**
+  - Keep track of AI API versions used in each function
+  - Consider platform-independent path handling
+  - Update Pydantic model validation tests when models change
 
-Unit tests for Python cloud functions located in `functions/main.py` are organized as follows:
-
-- `functions/test_main.py`: Test runner, discovers and executes tests from other `test_*.py` files in the `functions/` directory.
-- `functions/test_main_helpers.py`: Tests for helper functions in `main.py` (e.g., `_download_blob_to_tempfile`).
-- `functions/test_generate_thumbnail.py`: Tests for the `generate_thumbnail` cloud function.
-- `functions/test_parse_receipt.py`: Tests for the `parse_receipt` cloud function.
-- `functions/test_assign_people.py`: Tests for the `assign_people_to_items` cloud function.
-- `functions/test_transcribe_audio.py`: Tests for the `transcribe_audio` cloud function.
-
-To run these Python tests, navigate to the `functions` directory and execute `python -m unittest discover` or simply `python -m unittest` if your `test_main.py` is configured as a runner for files in its own directory.
-
----
-
-## Key Takeaways & Best Practices for Testing
-
-*   **Use `ValueKey`s for Widget Tests:** For critical UI elements.
-*   **Isolate Unit Tests with Mocks:** For focused testing.
-*   **Test `notifyListeners()` Behavior:** For `ChangeNotifier` classes.
-*   **Verify All Paths in Conditional Logic.**
-*   **Use `pumpAndSettle()` generally, `pump()` with duration for `HttpOverrides`/dialogs.**
-
-## Key Unresolved Issues & KT for Next Dev
-
-*   **Build Runner for Mocks:**
-    *   **Reminder:** If any mock definitions (e.g., in `test/mocks.dart` or other files using `@GenerateMocks`) are updated, remember to run `dart run build_runner build --delete-conflicting-outputs` to regenerate the mock implementation files.
+- **Flutter Widget Tests:**
+  - Be prepared to update tests significantly during UI redesign
+  - Focus on testing logic and data flow rather than specific widget structures 
