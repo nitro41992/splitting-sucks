@@ -471,6 +471,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                           width: 90, // Adjusted width
                           height: 40, // Constrain height
                           child: TextField(
+                            key: const ValueKey('tax_field'),
                             controller: _taxController,
                             textAlignVertical: TextAlignVertical.center,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -492,6 +493,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                           width: 80, // Width for the amount
                           child: Text(
                             '\$${tax.toStringAsFixed(2)}',
+                            key: const ValueKey('tax_percentage_text'),
                             style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
                             textAlign: TextAlign.right,
                           ),
@@ -512,6 +514,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                       children: [
                         Text(
                           '${_tipPercentage.toStringAsFixed(1)}%',
+                          key: const ValueKey('tip_percentage_text'),
                           style: textTheme.headlineSmall?.copyWith( // Make percentage stand out
                             color: colorScheme.primary,
                             fontWeight: FontWeight.bold,
@@ -548,6 +551,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
 
                         // Fine-tune slider
                         Slider(
+                          key: const ValueKey('tip_slider'),
                           value: _tipPercentage,
                           min: 0,
                           max: 30, // Max tip percentage
