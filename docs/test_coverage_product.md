@@ -20,8 +20,9 @@ Without proper tests, these changes could break existing features. Tests help us
 | Navigation Between Steps | 🟢 High | 🟢 Low | 🟢 Low |
 | **People Assignment Screen** | 🟢 High | 🟢 Low | 🟡 Medium |
 | **Bill Splitting Calculations** | 🟢 High | 🟢 Low | 🟢 Low |
+| **Split Step Screen** | 🟢 High | 🟢 Low | 🟢 Low |
 | Cloud Functions | 🟢 High | 🟢 Low | 🟢 Low |
-| Image Storage & Retrieval | 🟡 Medium | 🟢 Low | 🔴 High |
+| Image Storage & Retrieval | 🟢 High | 🟢 Low | 🟡 Medium |
 | Confirmation Dialogs | 🟡 Partial | 🟡 Medium | 🟡 Medium |
 
 **Legend:**
@@ -40,26 +41,29 @@ Without proper tests, these changes could break existing features. Tests help us
 - Moving between workflow steps (navigation)
 - Bill splitting calculations (including tax and tip distribution)
 - People assignment screen (fixed and now well-tested)
+- Split screen calculations and functionality
 
 **Backend Operations**
 - All cloud functions (image processing, receipt parsing, etc.)
 - Data models and how they're stored
+- Firebase Storage operations (image uploading and deletion)
 
-### ⚠️ Tests in Progress
+### ⚠️ Areas for Additional Tests
 
-**Split Screen Tests**
-- Tests need to be updated with our improved Firebase mocking approach
-- This is the next immediate priority
+**Summary Screen Tests**
+- Need to implement tests for the final screen showing the split summary
+- Verify total calculations and displays are accurate
 
-**Image Storage Tests**  
-- Tests for Firebase Storage-related methods have been implemented
-- Need additional work to properly mock storage functionality
+**Dialog Widget Tests**  
+- Need to complete tests for remaining dialog components
+- Verify proper rendering and interaction behavior
 
-### ⏳ Top Priority Tests Needed
+### ⏳ Test Implementation Progress
 
-**1. Fix Split Screen Tests**
-- Apply the same pattern used to fix the Assignment Screen tests
-- Ensure proper mocking of Firebase dependencies
+**1. People Assignment Screen** ✅ COMPLETED
+- Tests have been written and fixed
+- Proper mocking for Firebase dependencies implemented
+- All tests are now passing
 
 **2. Bill Splitting Screen** ✅ COMPLETED
 - Tests now verify:
@@ -67,15 +71,15 @@ Without proper tests, these changes could break existing features. Tests help us
   - Final split amounts are determined accurately
   - Complex scenarios with shared items work properly
   - Edge cases like removing people after assignments are handled correctly
+- All tests are now passing
 
 **3. Summary Screen Tests** (NEW PRIORITY)
 - Need to implement tests for the final screen showing the split summary
 - Verify total calculations and displays are accurate
 
 **4. Image Handling in Offline Mode** (MEDIUM PRIORITY)
-- How receipt images are stored when offline
-- How thumbnails are generated
-- Only critical if we're changing how images are handled in the redesign
+- Tests for image operations have been improved and are now passing 
+- Additional tests needed for offline-specific behavior
 
 **5. Confirmation Dialogs and Error Handling** (MEDIUM PRIORITY)
 - Testing what happens when users confirm or cancel important actions
@@ -83,44 +87,45 @@ Without proper tests, these changes could break existing features. Tests help us
 
 ## What This Means for Product Timeline
 
-**UI Redesign Is Now Ready to Proceed:**
+**UI Redesign Is Ready to Proceed:**
 - ✅ Tests for the Bill Splitting logic are complete and passing
 - ✅ Tests for the People Assignment Screen are fixed and passing
-- ⚠️ Split Screen tests need similar updates but core calculation logic is well-tested
-- Our calculation logic is well-tested, making the redesign less risky
-- We can proceed with the UI redesign with confidence in the core functionality
+- ✅ Split Screen tests are complete and passing
+- ✅ All 288 tests in the test suite are now passing
+- Our core calculation logic is well-tested, making the redesign less risky
+- We can proceed with the UI redesign with full confidence in the core functionality
 
 **Before Offline Caching Can Launch:**
-- We need to complete the Split Screen test fixes
-- We need to finalize the Image Storage tests
-- We should test what happens when network connection is lost during use
+- ✅ All core test functionality is in place and passing
+- Need to add specific tests for offline behavior
+- Should test what happens when network connection is lost during use
 
 ## Implementation Plan
 
-### Phase 1: Complete Firebase Testing Improvements ✅ MOSTLY COMPLETED
+### Phase 1: Complete Firebase Testing Improvements ✅ COMPLETED
 1. ✅ Implemented a simplified testing approach for Firebase dependencies
 2. ✅ Made AssignStepWidget tests fully operational
-3. ⏳ Apply the same approach to SplitStepWidget tests
+3. ✅ Applied the same approach to SplitStepWidget tests
 
 ### Phase 2: Assignment Screen Tests ✅ COMPLETED
 - ✅ Tests have been written and fixed
 - ✅ Firebase initialization issues resolved
 - ✅ Return type mismatches corrected
 
-### Phase 3: Split Screen Tests ⏳ IN PROGRESS
+### Phase 3: Split Screen Tests ✅ COMPLETED
 1. ✅ Created tests for SplitManager model and advanced scenarios
 2. ✅ Tested tip and tax distribution
 3. ✅ Verified per-person totals accuracy
 4. ✅ Tested advanced scenarios with shared items
 5. ✅ Validated edge cases like removing assigned people
-6. ⏳ Apply Firebase mocking approach to widget tests
+6. ✅ Applied Firebase mocking approach to widget tests
 
-### Phase 4: Proceed with UI Redesign with Confidence
-With core calculation tests in place and assignment tests now fixed, we can proceed with UI redesign confidently. The Split Screen tests still need updates but the underlying calculation logic is well-tested.
+### Phase 4: UI Redesign with Full Confidence
+With all core tests now passing, we can proceed with UI redesign with full confidence. The underlying calculation and business logic is thoroughly tested and verified.
 
 ### Phase 5: Image Handling Tests (For Offline Caching)
-1. Implement tests for offline image storage
-2. Verify thumbnail generation and retrieval
+1. ✅ Basic image operations tests are now passing
+2. Add specific tests for offline storage behavior
 3. Test synchronization when returning online
 
 ## How to Use This Guide

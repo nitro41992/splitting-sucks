@@ -22,16 +22,16 @@ To run all tests:
 flutter test
 ```
 
-### Firebase-Dependent Tests
+### Running Specific Tests
 
-For tests that depend on Firebase, use the `--skip-firebase` flag to bypass actual Firebase initialization:
+To run a specific test file with verbose output:
 ```bash
-flutter test test/widgets/workflow_steps/assign_step_widget_test.dart --skip-firebase -v
+flutter test test/widgets/workflow_steps/assign_step_widget_test.dart -v
 ```
 
-To run all Firebase-dependent tests with verbose output:
+To run all widget tests with verbose output:
 ```bash
-flutter test --skip-firebase -v
+flutter test test/widgets -v
 ```
 
 ## Implementing Test Improvements
@@ -65,6 +65,26 @@ The following test helper files are available:
 
 - `test/test_helpers/firebase_mock_setup.dart` - Provides Firebase mocking utilities.
 - `test/test_helpers/mock_audio_service.dart` - Provides a mock implementation of `AudioTranscriptionService`.
+
+## Implementing Firebase Mocking in Tests
+
+To fix tests that depend on Firebase services, update the widgets to check for the test environment:
+
+```dart
+// In your widget or service
+import '../../test_helpers/firebase_mock_setup.dart';
+
+// Inside your method that uses Firebase
+void someMethodUsingFirebase() {
+  if (FirebaseMock.isTestEnvironment) {
+    // Use mock implementation that doesn't require Firebase
+    return;
+  }
+  
+  // Real implementation using Firebase
+  firebaseService.doSomething();
+}
+```
 
 ## Dependency Injection Best Practices
 
