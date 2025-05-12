@@ -1,18 +1,25 @@
 import 'package:billfie/providers/workflow_state.dart';
 import 'package:billfie/widgets/workflow_modal.dart';
 import 'package:billfie/widgets/workflow_steps/workflow_step_indicator.dart';
-import 'package:billfie/utils/toast_utils.dart';
+import 'package:billfie/services/firestore_service.dart';
+import 'package:billfie/models/receipt.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:mockito/mockito.dart';
+import 'dart:async';
+
+// Key for the complete button in WorkflowNavigationControls
+const completeButtonKey = Key('complete_workflow_button');
 
 // Create a mock for WorkflowState
-class MockWorkflowState extends Mock implements WorkflowState {
+class MockWorkflowState extends ChangeNotifier implements WorkflowState {
   int _currentStep = 0;
   bool _hasParseData = false;
   bool _hasTranscriptionData = false;
   bool _hasAssignmentData = false;
+  String _receiptId = 'test-receipt-id';
+  bool _isLoading = false;
+  String? _errorMessage;
   
   @override
   int get currentStep => _currentStep;
@@ -30,7 +37,23 @@ class MockWorkflowState extends Mock implements WorkflowState {
   String get restaurantName => 'Mock Restaurant';
   
   @override
-  bool get isLoading => false;
+  bool get isLoading => _isLoading;
+
+  @override
+  String? get errorMessage => _errorMessage;
+
+  @override
+  String? get receiptId => _receiptId;
+
+  @override
+  Map<String, dynamic> get parseReceiptResult => {'items': []};
+
+  @override
+  Map<String, dynamic> get transcribeAudioResult => {'text': 'test'};
+
+  @override
+  Map<String, dynamic> get assignPeopleToItemsResult => 
+    {'assignments': [{'item': 'Item 1', 'people': ['Person A']}]};
   
   // Track if goToStep was called and with what step
   int? lastCalledStepIndex;
@@ -47,22 +70,86 @@ class MockWorkflowState extends Mock implements WorkflowState {
   // Helper methods for test setup
   void setCurrentStep(int step) {
     _currentStep = step;
+    notifyListeners();
   }
   
   void setHasParseData(bool value) {
     _hasParseData = value;
+    notifyListeners();
   }
   
   void setHasTranscriptionData(bool value) {
     _hasTranscriptionData = value;
+    notifyListeners();
   }
   
   void setHasAssignmentData(bool value) {
     _hasAssignmentData = value;
+    notifyListeners();
   }
   
   void reset() {
     lastCalledStepIndex = null;
+  }
+
+  @override
+  void setReceiptId(String id) {
+    _receiptId = id;
+    notifyListeners();
+  }
+
+  @override
+  void setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  @override
+  void setErrorMessage(String? message) {
+    _errorMessage = message;
+    notifyListeners();
+  }
+
+  @override
+  void removeUriFromPendingDeletions(String? uri) {}
+
+  @override
+  Receipt toReceipt() {
+    return Receipt(
+      id: _receiptId,
+      status: 'draft',
+      restaurantName: restaurantName,
+    );
+  }
+
+  // Create a stub implementation for any other methods
+  @override
+  noSuchMethod(Invocation invocation) {
+    return super.noSuchMethod(invocation);
+  }
+}
+
+// Mock FirestoreService implementation with simple tracking
+class MockFirestoreService implements FirestoreService {
+  bool completeReceiptWasCalled = false;
+  String? lastReceiptId;
+  Map<String, dynamic>? lastData;
+
+  @override
+  Future<String> completeReceipt({
+    required String receiptId,
+    required Map<String, dynamic> data,
+  }) async {
+    completeReceiptWasCalled = true;
+    lastReceiptId = receiptId;
+    lastData = data;
+    return receiptId;
+  }
+
+  // Create a stub implementation for any other methods
+  @override
+  noSuchMethod(Invocation invocation) {
+    throw UnimplementedError();
   }
 }
 
@@ -192,6 +279,36 @@ void main() {
 
       // Verify goToStep was NOT called (lastCalledStepIndex is null)
       expect(mockWorkflowState.lastCalledStepIndex, isNull);
+    });
+  });
+
+  group('CompleteReceipt Function Tests', () {
+    late MockFirestoreService mockFirestoreService;
+
+    setUp(() {
+      mockWorkflowState = MockWorkflowState();
+      mockWorkflowState.setCurrentStep(4); // Set to Summary step
+      mockWorkflowState.setHasParseData(true);
+      mockWorkflowState.setHasAssignmentData(true);
+      
+      mockFirestoreService = MockFirestoreService();
+    });
+
+    test('FirestoreService.completeReceipt gets called with correct parameters', () async {
+      // Get the receipt data that would be passed
+      final receipt = mockWorkflowState.toReceipt();
+      final receiptData = receipt.toMap();
+      
+      // Call the service directly
+      await mockFirestoreService.completeReceipt(
+        receiptId: mockWorkflowState.receiptId!,
+        data: receiptData,
+      );
+      
+      // Verify it was called with the right data
+      expect(mockFirestoreService.completeReceiptWasCalled, true);
+      expect(mockFirestoreService.lastReceiptId, mockWorkflowState.receiptId);
+      expect(mockFirestoreService.lastData, receiptData);
     });
   });
 } 

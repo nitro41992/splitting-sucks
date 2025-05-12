@@ -581,7 +581,7 @@ void main() {
         expect(snapshot.data()?['metadata']?['updated_at'], isNotNull);
       });
       
-      test('throws error if receipt does not exist', () async {
+      test('creates document if receipt does not exist', () async {
         // Attempt to complete a non-existent receipt
         final completionData = {
           'metadata': {
@@ -589,19 +589,26 @@ void main() {
           }
         };
         
-        // Expect a FirebaseException or similar error due to document not found
-        expect(
-          () => firestoreService.completeReceipt(
-            receiptId: 'non-existent-id',
-            data: completionData,
-          ),
-          throwsA(anyOf(
-            isA<Exception>(), 
-            isA<FirebaseException>(),
-            // For FakeFirestore, may throw a different error type
-            predicate((e) => e.toString().contains('not-found')),
-          )),
+        // Now completeReceipt uses set() with merge option, so it will create the document if it doesn't exist
+        final completedId = await firestoreService.completeReceipt(
+          receiptId: 'non-existent-id',
+          data: completionData,
         );
+        
+        // Verify the document was created
+        expect(completedId, equals('non-existent-id'));
+        
+        // Verify document was created with status 'completed'
+        final snapshot = await fakeFirestoreInstance
+            .collection('users')
+            .doc(testUserId)
+            .collection('receipts')
+            .doc('non-existent-id')
+            .get();
+        
+        expect(snapshot.exists, isTrue);
+        expect(snapshot.data()?['metadata']?['status'], 'completed');
+        expect(snapshot.data()?['metadata']?['restaurant_name'], 'Completed Store');
       });
     });
 

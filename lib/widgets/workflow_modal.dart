@@ -796,33 +796,32 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   Future<void> _completeReceipt() async {
     // Get workflow state ONCE at the beginning.
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    // Capture the navigator and scaffold messenger state BEFORE any awaits
-    // Check mounted before accessing context for these.
+    
+    // Capture the navigator before any awaits
     if (!mounted) return;
     final navigator = Navigator.of(context); 
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
       // --- Start Operation ---
-      // Update state ONLY IF mounted
       if (!mounted) return; 
       workflowState.setLoading(true); 
       workflowState.setErrorMessage(null);
       
+      // Create the receipt object and explicitly set status to 'completed'
       final receipt = workflowState.toReceipt();
+      final Map<String, dynamic> receiptData = receipt.toMap();
+      receiptData['metadata']['status'] = 'completed'; // Ensure status is explicitly set to 'completed'
       
       // --- First Await --- 
-      // Use receipt.id which is guaranteed to be non-null by toReceipt()
       final String definitiveReceiptId = await _firestoreService.completeReceipt( 
         receiptId: receipt.id, 
-        data: receipt.toMap(),
+        data: receiptData,
       );
       
       // --- Check Mounted After First Await --- 
       if (!mounted) return; 
       
       // --- State Updates (No Context Use) --- 
-      // Update the workflowState with the definitive receiptId
       workflowState.setReceiptId(definitiveReceiptId);
       workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
       workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
@@ -833,24 +832,34 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       // --- Check Mounted After Second Await --- 
       if (!mounted) return; 
       
-      // --- Final State Updates & UI Feedback (using captured references) --- 
+      // --- Final State Updates & UI Feedback --- 
       workflowState.setLoading(false); 
       
-      showAppToast(scaffoldMessenger.context, "Receipt completed successfully", AppToastType.success);
+      // Show toast before navigation if context is still valid
+      if (mounted) {
+        showAppToast(context, "Receipt completed successfully", AppToastType.success);
+      }
+      
+      // Short delay to allow toast to be shown before navigation
+      await Future.delayed(const Duration(milliseconds: 300));
       
       // --- Navigate LAST --- 
-      // Instead of just popping, navigate back to the main screen
-      navigator.popUntil((route) => route.isFirst);
+      // Final check before navigation
+      if (mounted) {
+        // Pop with result value true to indicate successful completion
+        navigator.pop(true);
+      }
       
     } catch (e) {
       // --- Check Mounted in Catch Block --- 
       if (!mounted) return; 
       
-      // --- State Updates & UI Feedback (using captured references) --- 
+      // --- State Updates & UI Feedback --- 
       workflowState.setLoading(false); 
       workflowState.setErrorMessage('Failed to complete receipt: $e');
       
-      showAppToast(scaffoldMessenger.context, "Failed to complete receipt: $e", AppToastType.error);
+      // Show error toast with current context
+      showAppToast(context, "Failed to complete receipt: $e", AppToastType.error);
       // Do NOT pop here on error, let the user decide or stay in modal
     }
   }

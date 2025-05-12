@@ -237,7 +237,8 @@ class FirestoreService {
     // Update the document using the provided data map
     try {
       final docRef = _receiptsCollection.doc(receiptId);
-      await docRef.update(dataToSave); // Update with the map which includes metadata
+      // Use set with merge option instead of update to ensure all fields are properly updated
+      await docRef.set(dataToSave, SetOptions(merge: true));
       return docRef.id;
     } catch (e) {
       debugPrint('Error completing receipt: $e');
