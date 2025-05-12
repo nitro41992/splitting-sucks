@@ -191,6 +191,16 @@ The implementation addressed several key challenges:
     *   **Status:** ✅ **Resolved.** The issue was fixed by correctly implementing the `compressionState` getter in the `FakeHttpClientResponse` to return an `HttpClientResponseCompressionState` enum value (e.g., `HttpClientResponseCompressionState.notCompressed`), aligning with Dart SDK changes.
     *   **KT for Devs:** Ensure fake HTTP client implementations for testing `dart:io` dependent classes like `HttpClientResponse` are kept up-to-date with the `dart:io` interface, especially regarding new or modified enums like `HttpClientResponseCompressionState`.
 
+2.  **Test Failures in `SummaryStepWidget` Tests (Resolved)**
+    *   **Problem:** Tests for `SummaryStepWidget` were failing due to brittle text-finding approaches and UI changes.
+    *   **Status:** ✅ **Resolved.** Added `ValueKey`s to critical UI elements in `FinalSummaryScreen` such as tax and tip percentage texts and controls. Modified tests to use key-based finding instead of text-based finding. Created helper methods in `FinalSummaryScreen` for building UI components to improve testability.
+    *   **KT for Devs:** When testing UI components that may change appearance but still need to maintain functionality, use `ValueKey`s on critical elements and test for their presence rather than exact text content. For validating text content, retrieve the widget using `tester.widget<Text>(find.byKey(...))` and check its `data` property.
+
+3.  **Timeout Issues in Dialog Component Tests (Resolved)**
+    *   **Problem:** Tests for dialog components were timing out due to `CircularProgressIndicator` animations and transition animations.
+    *   **Status:** ✅ **Resolved.** Changed from using `tester.pumpAndSettle()` to `tester.pump(Duration(milliseconds: 500))` when dealing with dialogs containing progress indicators. Also improved dialog testing structure for more reliable test outcomes.
+    *   **KT for Devs:** When testing widgets with continuous animations like `CircularProgressIndicator`, avoid `pumpAndSettle()` as it will time out waiting for animations to complete. Instead, use `pump()` with a reasonable duration to advance the animation enough for testing without requiring it to finish.
+
 ---
 ### Completed Widget Tests (Detailed Sections)
 

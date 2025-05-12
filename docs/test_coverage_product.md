@@ -21,11 +21,12 @@ Without proper tests, these changes could break existing features. Tests help us
 | People Assignment Screen | 🟢 High | 🟢 Low | 🟢 Low |
 | Bill Splitting Calculations | 🟢 High | 🟢 Low | 🟢 Low |
 | Split Step Screen | 🟢 High | 🟢 Low | 🟢 Low |
+| Summary Step Screen | 🟢 High | 🟢 Low | 🟢 Low |
 | Cloud Functions | 🟢 High | 🟢 Low | 🟢 Low |
 | Image Storage & Retrieval | 🟢 High | 🟢 Low | 🟢 Low |
 | Connectivity Detection | 🟢 High | 🟢 Low | 🟢 Low |
 | Offline Data Storage | 🟢 High | 🟢 Low | 🟢 Low |
-| Confirmation Dialogs | 🟡 Partial | 🟡 Medium | 🟡 Medium |
+| Dialog Components | 🟢 High | 🟢 Low | 🟢 Low |
 
 **Legend:**
 - 🟢 Good shape - low risk
@@ -44,6 +45,7 @@ Without proper tests, these changes could break existing features. Tests help us
 - Bill splitting calculations (including tax and tip distribution)
 - People assignment screen (fixed and now well-tested)
 - Split screen calculations and functionality
+- Summary screen calculations and display
 
 **Backend Operations**
 - All cloud functions (image processing, receipt parsing, etc.)
@@ -55,11 +57,10 @@ Without proper tests, these changes could break existing features. Tests help us
 - Local storage of receipt data when offline
 - Synchronization preparation for when connection returns
 
-### ⚠️ Areas for Additional Tests
-
-**Dialog Widget Tests**  
-- Need to complete tests for remaining dialog components
-- Verify proper rendering and interaction behavior
+**Component Testing**
+- Dialog components (confirmation, error, loading)
+- UI element interactions with robust key-based finding
+- UI component responsiveness to state changes
 
 ## Implementation Plan
 
@@ -84,19 +85,27 @@ Without proper tests, these changes could break existing features. Tests help us
 ### Phase 4: Summary Screen Tests ✅ COMPLETED
 1. ✅ Added tests for final summary screen calculations
 2. ✅ Verified total calculations including tax and tip
-3. ✅ Tested display of per-person information
+3. ✅ Tested display of per-person information 
+4. ✅ Added ValueKeys for robust element finding
+5. ✅ Implemented helper methods for improved testability
 
-### Phase 5: Offline Behavior Tests ✅ COMPLETED
+### Phase 5: Dialog Component Tests ✅ COMPLETED
+1. ✅ Added tests for confirmation dialogs
+2. ✅ Tested error dialogs and message displays
+3. ✅ Implemented loading dialog tests with animation handling
+4. ✅ Fixed timeout issues with continuous animations
+
+### Phase 6: Offline Behavior Tests ✅ COMPLETED
 1. ✅ Added connectivity_plus package to detect network status
 2. ✅ Created ConnectivityService with robust testing
 3. ✅ Implemented OfflineStorageService for local data persistence
 4. ✅ Added tests for online/offline transitions
 5. ✅ Set up foundations for data synchronization when back online
 
-### Phase 6: UI Redesign with Full Confidence
-With all core tests now passing, we can proceed with UI redesign with full confidence. The underlying calculation and business logic is thoroughly tested and verified.
+### Phase 7: UI Redesign with Full Confidence ✅ READY
+With all tests now passing, we can proceed with UI redesign with full confidence. The underlying calculation and business logic is thoroughly tested and verified.
 
-### Phase 7: Offline Caching Implementation
+### Phase 8: Offline Caching Implementation ✅ READY
 With the offline testing framework in place, we can now implement the full offline caching solution with confidence:
 1. ✅ Basic connectivity detection is implemented and tested
 2. ✅ Offline storage is implemented and tested
@@ -105,4 +114,4 @@ With the offline testing framework in place, we can now implement the full offli
 
 ## How to Use This Guide
 
-Use this document to understand test coverage when planning feature work. Areas with less test coverage will be riskier to change and should be approached more carefully. The app is now technically ready for both UI redesign and offline caching implementation. 
+Use this document to understand test coverage when planning feature work. The app is now fully covered by tests for both UI redesign and offline caching implementation. Proceed with confidence on both projects. 

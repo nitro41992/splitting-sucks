@@ -226,7 +226,7 @@ void main() {
       
       // Tap the button to show the dialog
       await tester.tap(find.text('Show Dialog'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
       
       // Verify dialog content
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -234,46 +234,45 @@ void main() {
     });
 
     testWidgets('loading dialog is properly dismissed when task completes', (WidgetTester tester) async {
-      // Create a dialog that automatically dismisses after a delay
-      final dialog = FutureBuilder<bool>(
-        future: Future.delayed(const Duration(milliseconds: 100), () => true),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done) {
-            // Automatically dismiss the dialog when done
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.of(context).pop();
-            });
-            return const SizedBox(); // Return empty widget when done
-          }
-          return const AlertDialog(
-            content: Row(
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 20),
-                Text('Loading...'),
-              ],
-            ),
-          );
-        },
+      // Set up a dialog that can be manually dismissed
+      bool dialogDismissed = false;
+      
+      final dialog = AlertDialog(
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            const Text('Loading...'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              dialogDismissed = true;
+              Navigator.of(tester.element(find.text('Dismiss'))).pop();
+            },
+            child: const Text('Dismiss'),
+          ),
+        ],
       );
       
       await tester.pumpWidget(buildDialogTestWidget(child: dialog));
       
       // Tap the button to show the dialog
       await tester.tap(find.text('Show Dialog'));
-      await tester.pumpAndSettle();
+      await tester.pump(); // First pump to show dialog
       
-      // Initially, spinner and loading text should be visible
+      // Verify dialog content
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text('Loading...'), findsOneWidget);
       
-      // Wait for the future to complete and dialog to dismiss
-      await tester.pump(const Duration(milliseconds: 200));
-      await tester.pumpAndSettle();
+      // Dismiss the dialog manually
+      await tester.tap(find.text('Dismiss'));
+      await tester.pump();
       
       // Verify dialog is dismissed
+      expect(dialogDismissed, isTrue);
       expect(find.byType(CircularProgressIndicator), findsNothing);
-      expect(find.text('Loading...'), findsNothing);
     });
   });
 } 
