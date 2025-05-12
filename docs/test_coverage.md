@@ -12,9 +12,13 @@
 - **Provider Tests:** `WorkflowState` and `ImageStateManager`
 - **Shared Utility Widgets:** `QuantitySelector`
 - **Flutter Services:** Tests for `FirestoreService` methods including receipt CRUD operations (saveReceipt, saveDraft, completeReceipt, getReceiptsStream, getReceipts, getReceipt, deleteReceipt)
-- **Core Workflow Logic:** 
+
+### Critical Tests with Implementation Issues ⚠️
+- **Core Workflow Logic:** Tests for the following have been written but require fixes for Firebase initialization:
   - `AssignPeopleScreen`/`AssignStepWidget` UI and assignment logic
   - `SplitStepWidget` UI and split calculation logic
+
+> **Note:** Widget tests for AssignStepWidget and SplitStepWidget have been written but are failing due to Firebase initialization issues. Only the SplitManager advanced tests are running successfully. These tests need to be updated with proper Firebase mocking to run correctly.
 
 ### High Priority Pending ⏳
 - **Flutter Services:** Tests for Firebase Storage methods in `FirestoreService`:
@@ -35,28 +39,32 @@
 
 Based on architectural priorities (supporting local caching and UI redesign), we've made significant progress on our high-priority test coverage:
 
-✅ **AssignStepWidget Tests Completed**
-- Tests verify it loads and displays assignments data correctly
-- Tests validate handling of item assignments and navigation behavior
+✅ **SplitManager Advanced Tests Completed**
+- Verifies complex bill splitting scenarios with mixed assignments and shares
+- Confirms handling of floating point precision in calculations
+- Tests edge cases like person removal after assignments
+- Validates tax and tip distribution logic
 
-✅ **SplitStepWidget Tests Completed**
-- Tests verify proper handling of tip/tax entry and validation
-- Tests confirm split calculation logic accuracy
-- Tests ensure navigation between workflow steps works correctly
-- Tests validate final calculations accuracy
+⚠️ **AssignStepWidget and SplitStepWidget Test Implementation**
+- Tests have been written but need fixes for Firebase initialization issues
+- Need to update tests with proper mocking for Firebase services
 
 The next areas to focus on:
 
-1. **Complete tests for `_WorkflowModalBody` `_onWillPop` behavior**
+1. **Fix Firebase Initialization in Widget Tests**
+   - Update test environment to properly initialize or mock Firebase services
+   - Set up test bootstrapping to handle Firebase dependencies
+
+2. **Complete tests for `_WorkflowModalBody` `_onWillPop` behavior**
    - Ensure proper data saving when app is closed
    - Verify appropriate dialog display and response to user actions
    
-2. **Implement tests for `SummaryStepWidget`**
+3. **Implement tests for `SummaryStepWidget`**
    - Verify final summary display is accurate
    - Confirm total calculations are correct
    - Validate data consistency with previous workflow steps
 
-3. **Implement dialog widget tests**
+4. **Implement dialog widget tests**
    - Verify proper functioning of `EditItemDialog` with existing items
    - Test confirmation and input dialogs for proper rendering and response
 
@@ -222,84 +230,4 @@ These components and areas are important for overall application quality but are
     *   `WaveDividerPainter` (⏳ To be tested - verify no paint errors, visual inspection or specific paint call verification).
     *   `QuantitySelector` (⏳ To be tested - verify increment/decrement logic, callbacks, min/max constraints).
     *   `ItemRow` (⏳ To be tested - verify layout, display of item name/price/quantity).
-    *   `EditableText` (⏳ To be tested - verify edit mode, view mode, callbacks on change).
-    *   `EditablePrice` (⏳ To be tested - verify currency formatting, edit mode, callbacks).
-
-### 3.2 Other Screens (`lib/screens/`)
-
-*   **`ReceiptsScreen` (`lib/screens/receipts_screen.dart`)**
-    *   **Objective:** Verify UI rendering, list display, interactions, and basic navigation triggers. These tests will likely need significant updates post-UI redesign.
-    *   **Widget Test Cases:**
-        *   ⏳ Initial state: Displays loading indicator or empty state correctly.
-        *   ⏳ Stream data handling: Renders list of `ReceiptCard` widgets when data arrives from mocked stream.
-        *   ⏳ Error state: Displays error message if stream provides error.
-        *   ⏳ Empty state: Displays "No receipts yet" message correctly.
-        *   ⏳ Search functionality.
-        *   ⏳ `FloatingActionButton` tap triggers `WorkflowModal`.
-        *   ⏳ `ReceiptCard` tap triggers details view.
-        *   ⏳ Details view interactions (Resume, Edit, Delete triggers).
-    *   **Mocks:** `FirestoreService`, `WorkflowModal.show`.
-
-*   **Other Screens (e.g., `SettingsScreen`, any future screens)**
-    *   **Objective:** Basic UI rendering and interaction tests.
-    *   **Widget Test Cases:** (⏳ To be detailed as screens are developed/reviewed)
-
-### 3.3 Application Setup and Main (`lib/main.dart`)
-
-*   **Objective:** Verify initial app setup, provider configuration, and root-level navigation based on auth state.
-*   **Widget Test Cases:**
-    *   ⏳ `MyApp` widget (theme, routes, providers).
-    *   ⏳ Auth state changes and navigation.
-    *   **Mocks:** `AuthService`, `Firebase.initializeApp`.
-
-## Future Phases / Full Integration & Service Testing
-
-This section covers tests that are generally broader or require more setup, such as full service tests with emulators or more comprehensive integration tests beyond initial planning.
-
-*   **Services (`lib/services/`) - Full Integration/Emulator Tests**
-    *   `FirestoreService`
-    *   `ReceiptParserService`
-    *   `AudioTranscriptionService`
-    *   `AuthService`
-*   **Integration Tests for Key User Flows - Implementation**
-    *   Login/Logout flows.
-    *   (Full `WorkflowModal` lifecycle implementation, building on planning from Group 1)
-*   **Firebase Functions Testing (using Emulator Suite)**
-
----
-
-## Test Structure and Setup Considerations
-
-*   Tests will reside in the `test/` directory, mirroring the `lib/` structure.
-*   `flutter_test` will be the primary testing framework.
-*   `mockito` will be used for creating mock objects for dependencies.
-    *   Generate mocks using `build_runner build`.
-*   Each test file will use `setUp()` for common test arrangements and `tearDown()` for cleanup if necessary.
-*   `group()` will be used to organize related tests.
-
-### Python Cloud Functions Test Directory Structure (`functions/`)
-
-Unit tests for Python cloud functions located in `functions/main.py` are organized as follows:
-
-- `functions/test_main.py`: Test runner, discovers and executes tests from other `test_*.py` files in the `functions/` directory.
-- `functions/test_main_helpers.py`: Tests for helper functions in `main.py` (e.g., `_download_blob_to_tempfile`).
-- `functions/test_generate_thumbnail.py`: Tests for the `generate_thumbnail` cloud function.
-- `functions/test_parse_receipt.py`: Tests for the `parse_receipt` cloud function.
-- `functions/test_assign_people.py`: Tests for the `assign_people_to_items` cloud function.
-- `functions/test_transcribe_audio.py`: Tests for the `transcribe_audio` cloud function.
-
-To run these Python tests, navigate to the `functions` directory and execute `python -m unittest discover` or simply `python -m unittest` if your `test_main.py` is configured as a runner for files in its own directory.
-
----
-
-## Key Takeaways & Best Practices for Testing
-
-*   **Use `ValueKey`s for Widget Tests:** For critical UI elements.
-*   **Isolate Unit Tests with Mocks:** For focused testing.
-*   **Test `notifyListeners()` Behavior:** For `ChangeNotifier` classes.
-*   **Verify All Paths in Conditional Logic.**
-*   **Use `pumpAndSettle()` generally, `pump()` with duration for `HttpOverrides`/dialogs.**
-
-## Key Unresolved Issues & KT for Next Dev
-
-*   **Build Runner for Mocks:**
+    *   `

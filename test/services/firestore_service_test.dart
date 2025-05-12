@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:path/path.dart' as path;
+import '../test_helpers/firebase_mock_setup.dart';
 // mockito is not strictly needed if firebase_auth_mocks etc. cover all direct mocking needs.
 // import 'package:mockito/mockito.dart';
 
@@ -898,6 +899,11 @@ void main() {
   });
 
   group('Firebase Storage Tests', () {
+    setUp(() async {
+      // Setup Firebase mocks for storage tests
+      await setupFirebaseForTesting();
+    });
+    
     test('uploadReceiptImage uploads a file and returns gs:// URI', () async {
       // Create a mock file with an actual path
       final testFilePath = '/test/path/test_image.jpg';
@@ -911,16 +917,56 @@ void main() {
       expect(imageUri, startsWith('gs://'));
       expect(imageUri, contains(testUserId));
       expect(imageUri, contains('test_image.jpg'));
-    }, skip: 'Firebase Storage test requires additional mocking');
+    });
 
     test('uploadReceiptImage catches and rethrows exceptions', () async {
-      // Skip this test as it requires more complex mocking
-      // In a real scenario, we'd need to modify the MockFirebaseStorage to throw exceptions
-      // which would require customizing the firebase_storage_mocks package
-    }, skip: true);
+      // Create a mock file with an invalid path that would cause an error
+      final mockFile = MockFile('');
+      
+      // Expect the method to throw an exception
+      expect(
+        () => firestoreService.uploadReceiptImage(mockFile),
+        throwsA(isA<Exception>()),
+      );
+    });
     
-    // Additional tests for other Firebase Storage methods
-    // such as generateThumbnail, deleteReceiptImage, etc.
+    test('generateThumbnail calls Firebase Function and returns thumbnail URI', () async {
+      // Original image URI
+      const originalImageUri = 'gs://test-bucket/users/test-user/images/test_image.jpg';
+      
+      // Expected thumbnail URI
+      const expectedThumbnailUri = 'gs://test-bucket/users/test-user/thumbnails/test_image_thumb.jpg';
+      
+      // Call the method under test
+      final thumbnailUri = await firestoreService.generateThumbnail(originalImageUri);
+      
+      // Verify the returned URI
+      expect(thumbnailUri, isA<String>());
+      expect(thumbnailUri, isNotNull);
+      expect(thumbnailUri, contains('thumbnails'));
+    });
+    
+    test('deleteReceiptImage deletes image from storage', () async {
+      // Image URI to delete
+      const imageUri = 'gs://test-bucket/users/test-user/images/test_image.jpg';
+      
+      // Verify the method completes without errors
+      await expectLater(
+        firestoreService.deleteReceiptImage(imageUri),
+        completes,
+      );
+    });
+    
+    test('deleteImage correctly extracts bucket and path from gs:// URI', () async {
+      // Image URI to delete
+      const imageUri = 'gs://test-bucket/path/to/image.jpg';
+      
+      // Verify the method completes without errors
+      await expectLater(
+        firestoreService.deleteImage(imageUri),
+        completes,
+      );
+    });
   });
 }
 

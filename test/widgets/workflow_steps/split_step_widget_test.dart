@@ -5,6 +5,7 @@ import 'package:billfie/widgets/workflow_steps/split_step_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import '../../test_helpers/firebase_mock_setup.dart';
 
 // Mock class for the NavigateToPageNotification
 class NavigateToPageNotification extends Notification {
@@ -13,6 +14,11 @@ class NavigateToPageNotification extends Notification {
 }
 
 void main() {
+  // Setup Firebase mocks before any tests run
+  setUpAll(() async {
+    await setupFirebaseForTesting();
+  });
+  
   group('SplitStepWidget Tests', () {
     // Mock callback functions
     late Function(double?) mockOnTipChanged;
@@ -92,20 +98,21 @@ void main() {
       };
     });
     
-    testWidgets('initializes SplitManager with correct data from parseResult and assignResult', (WidgetTester tester) async {
-      // Keep track of the SplitManager that gets created
-      SplitManager? capturedManager;
-      
-      // Build the widget
+    // Helper function to pump the widget with proper setup
+    Future<void> pumpSplitStepWidget(WidgetTester tester, {
+      double? currentTip,
+      double? currentTax,
+      int initialTabIndex = 0,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: SplitStepWidget(
               parseResult: mockParseResult,
               assignResultMap: mockAssignResultMap,
-              currentTip: null, // Use from parseResult
-              currentTax: null, // Use from parseResult
-              initialSplitViewTabIndex: 0,
+              currentTip: currentTip,
+              currentTax: currentTax,
+              initialSplitViewTabIndex: initialTabIndex,
               onTipChanged: mockOnTipChanged,
               onTaxChanged: mockOnTaxChanged,
               onAssignmentsUpdatedBySplit: mockOnAssignmentsUpdatedBySplit,
@@ -114,6 +121,17 @@ void main() {
           ),
         ),
       );
+      
+      // Allow widget to fully initialize
+      await tester.pumpAndSettle();
+    }
+    
+    testWidgets('initializes SplitManager with correct data from parseResult and assignResult', (WidgetTester tester) async {
+      // Keep track of the SplitManager that gets created
+      SplitManager? capturedManager;
+      
+      // Build the widget using the helper
+      await pumpSplitStepWidget(tester);
       
       // Find the provider and get the SplitManager instance
       final context = tester.element(find.byType(SplitView));
@@ -172,23 +190,11 @@ void main() {
     });
     
     testWidgets('uses currentTip and currentTax over parseResult values when provided', (WidgetTester tester) async {
-      // Build the widget with explicit current values
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SplitStepWidget(
-              parseResult: mockParseResult,
-              assignResultMap: mockAssignResultMap,
-              currentTip: 0.12, // Override parseResult tip (12%)
-              currentTax: 0.075,  // Override parseResult tax (7.5%)
-              initialSplitViewTabIndex: 0,
-              onTipChanged: mockOnTipChanged,
-              onTaxChanged: mockOnTaxChanged,
-              onAssignmentsUpdatedBySplit: mockOnAssignmentsUpdatedBySplit,
-              onNavigateToPage: mockOnNavigateToPage,
-            ),
-          ),
-        ),
+      // Build the widget with explicit current values using helper
+      await pumpSplitStepWidget(
+        tester,
+        currentTip: 0.12, // Override parseResult tip (12%)
+        currentTax: 0.075,  // Override parseResult tax (7.5%)
       );
       
       // Get the SplitManager instance
@@ -210,22 +216,8 @@ void main() {
       mockOnTaxChanged = (value) => capturedTax = value;
       mockOnAssignmentsUpdatedBySplit = (value) => capturedAssignments = value;
       
-      // Build the widget
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SplitStepWidget(
-              parseResult: mockParseResult,
-              assignResultMap: mockAssignResultMap,
-              initialSplitViewTabIndex: 0,
-              onTipChanged: mockOnTipChanged,
-              onTaxChanged: mockOnTaxChanged,
-              onAssignmentsUpdatedBySplit: mockOnAssignmentsUpdatedBySplit,
-              onNavigateToPage: mockOnNavigateToPage,
-            ),
-          ),
-        ),
-      );
+      // Build the widget using the helper
+      await pumpSplitStepWidget(tester);
       
       // Get the SplitManager instance
       final context = tester.element(find.byType(SplitView));
