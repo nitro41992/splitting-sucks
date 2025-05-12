@@ -317,4 +317,240 @@ The implementation addressed several key challenges:
     *   Receipt data is stored with its ID, data payload, and timestamp for sync prioritization.
     *   JSON parsing is wrapped in try/catch to handle malformed data gracefully.
     *   The service requires both `SharedPreferences` and `ConnectivityService` via dependency injection.
-    *   The implementation includes methods to access specific receipts by ID and count pending receipts. 
+    *   The implementation includes methods to access specific receipts by ID and count pending receipts.
+
+# Test Coverage Analysis
+
+## Overview
+
+This document cross-references our test coverage plans with existing tests to identify what's already covered and what gaps remain to be addressed. The analysis is based on examining the current test structure and comparing it with the recommendations in our test plans.
+
+## Existing Test Coverage
+
+### Widget Tests
+
+#### Card Components
+- ✅ `person_card_test.dart` - Tests that blue total pill shows only assigned items
+- ❌ Missing receipt card tests
+- ❌ Missing item card tests
+- ❌ Missing person summary card tests
+
+#### Workflow Steps
+- ✅ `summary_step_widget_test.dart` - Extensive tests for the summary step
+- ✅ `assign_step_widget_test.dart` - Tests for assignment of items to people
+- ✅ `split_step_widget_test.dart` - Tests for splitting items
+- ✅ `workflow_navigation_controls_test.dart` - Tests for navigation control buttons
+- ✅ `workflow_step_indicator_test.dart` - Tests for workflow step indicators
+- ✅ `workflow_navigation_test.dart` - Tests for complete button action callback
+- ❌ Missing image capture step tests
+- ❌ Missing receipt parsing step tests
+
+#### Modal and Dialog Components
+- ✅ `workflow_modal_test.dart` - Tests for the workflow modal component
+- ✅ `dialog_component_test.dart` - Tests for dialog components
+- ✅ `image_state_manager_test.dart` - Tests for image state management
+
+### Model Tests
+
+- ✅ `person_test.dart` - Tests for Person model
+- ✅ `receipt_item_test.dart` - Tests for ReceiptItem model
+- ✅ `receipt_test.dart` - Tests for Receipt model
+- ✅ `split_manager_test.dart` - Basic tests for SplitManager
+- ✅ `split_manager_advanced_test.dart` - Advanced tests for SplitManager
+
+### Provider Tests
+
+- ✅ `workflow_state_test.dart` - Extensive tests for WorkflowState provider
+- ❌ Missing AuthState tests
+
+### Screen Tests
+
+- ✅ `receipt_upload_screen_test.dart` - Tests for receipt upload screen
+- ✅ `receipt_review_screen_test.dart` - Tests for receipt review screen
+- ❌ Missing home/receipts screen tests
+- ❌ Missing people screen tests
+- ❌ Missing settings screen tests
+- ❌ Missing final summary screen tests
+
+### Service Tests
+
+- ✅ `firestore_service_test.dart` - Extensive tests for Firestore interactions
+- ✅ `connectivity_service_test.dart` - Tests for connectivity management
+- ✅ `offline_storage_service_test.dart` - Tests for offline storage
+- ❌ Missing authentication service tests
+- ❌ Missing image processing service tests
+
+## Key Gaps Identified
+
+### Critical Functional Tests Missing
+
+1. **Home/Receipts Screen**
+   - No tests verifying receipt list display
+   - No tests for add receipt button functionality
+   - No tests for receipt card interaction
+   - No tests for navigation to receipt detail
+
+2. **People Screen**
+   - No tests for people list display
+   - No tests for person detail view
+   - No tests for payment status updates
+   - No tests for cross-receipt people management
+
+3. **Navigation Flows**
+   - While we have component tests for workflow navigation controls, we lack comprehensive tests for:
+     - Bottom navigation bar functionality
+     - Back navigation behavior
+     - Navigation between screens (not just steps within workflow)
+   - The `workflow_navigation_test.dart` only tests the complete button callback, not the actual navigation
+
+4. **Error States**
+   - Limited testing of error recovery scenarios
+   - No tests for network failure handling
+   - No tests for image processing failure handling
+   - No tests for form validation error displays
+
+### Widget Coverage Gaps
+
+1. **Receipt Cards**
+   - Need tests to verify all required information is displayed
+   - Need tests for interaction behavior
+
+2. **Item Cards/List**
+   - Need tests for item display in various contexts
+   - Need tests for item editing functionality
+
+3. **Person Summary Cards**
+   - Need tests to verify correct display of assigned items
+   - Need tests to verify correct display of shared items
+   - Need tests to verify correct total calculations
+
+### Integration Test Gaps
+
+1. **Complete Receipt Workflow**
+   - Need end-to-end test of the entire receipt creation flow
+   - Need tests for complex receipt scenarios (many items, many people)
+
+2. **Receipt Editing**
+   - Need tests for editing existing receipts
+   - Need tests for receipt draft management
+
+3. **Multi-Receipt Management**
+   - Need tests for handling multiple receipts
+   - Need tests for cross-receipt people management
+
+## Recently Addressed Issues
+
+1. ✅ **Person Card Total Exclusion** - Fixed and tested to ensure the blue total pill excludes shared items
+
+2. ✅ **Workflow Completion Navigation** - Added test to verify the complete action callback is called, though we still need to test the actual navigation
+
+## Priority Implementation Plan
+
+Based on the existing coverage and the gaps identified, here are the highest priority tests to implement:
+
+### Phase 1: Critical View Tests (High Priority)
+
+1. **Receipt Card Tests**
+   ```dart
+   // test/widgets/cards/receipt_card_test.dart
+   testWidgets('Receipt card displays all required information', ...);
+   testWidgets('Tapping receipt card navigates to detail view', ...);
+   ```
+
+2. **Home Screen Tests**
+   ```dart
+   // test/screens/home_screen_test.dart
+   testWidgets('Home screen shows receipt list', ...);
+   testWidgets('Add button triggers workflow modal', ...);
+   testWidgets('Navigation bar allows switching to People view', ...);
+   ```
+
+3. **People Screen Tests**
+   ```dart
+   // test/screens/people_screen_test.dart
+   testWidgets('People screen shows people list', ...);
+   testWidgets('Person card shows correct data', ...);
+   testWidgets('Person detail view displays correct items and totals', ...);
+   ```
+
+4. **Person Summary Card Tests**
+   ```dart
+   // test/widgets/final_summary/person_summary_card_test.dart
+   testWidgets('Person summary card displays assigned items', ...);
+   testWidgets('Person summary card displays shared items', ...);
+   testWidgets('Person summary card shows correct total amount', ...);
+   ```
+
+### Phase 2: Error Handling Tests
+
+1. **Network Error Tests**
+   ```dart
+   // test/services/error_handling_test.dart
+   testWidgets('Shows error message on network failure', ...);
+   testWidgets('Provides retry option on save failure', ...);
+   ```
+
+2. **Image Processing Error Tests**
+   ```dart
+   // test/widgets/workflow_steps/image_capture_error_test.dart
+   testWidgets('Shows fallback options when image processing fails', ...);
+   ```
+
+3. **Form Validation Tests**
+   ```dart
+   // test/widgets/forms/form_validation_test.dart
+   testWidgets('Displays error message for invalid item price', ...);
+   testWidgets('Prevents submission with empty required fields', ...);
+   ```
+
+### Phase 3: Integration Tests
+
+1. **Complete Workflow Tests**
+   ```dart
+   // test/integration/receipt_workflow_test.dart
+   testWidgets('Creates and completes a receipt with multiple people', ...);
+   ```
+
+2. **Edit Receipt Tests**
+   ```dart
+   // test/integration/receipt_edit_test.dart
+   testWidgets('Edits existing receipt and saves changes', ...);
+   ```
+
+### Phase 4: Navigation Tests
+
+1. **App Navigation Tests**
+   ```dart
+   // test/navigation/app_navigation_test.dart
+   testWidgets('Bottom navigation bar switches between main views', ...);
+   testWidgets('Back button returns to previous screen', ...);
+   testWidgets('Completing a receipt navigates to receipt list', ...);
+   ```
+
+## Required Test Setup Improvements
+
+1. **Test Fixtures**
+   - Create standardized test data fixtures for receipts, items, people
+   - Implement helper functions for common test scenarios
+   - Expand the existing test_helpers directory with more utilities
+
+2. **Mock Services**
+   - Ensure all external services have consistent mock implementations
+   - Create helper functions for setting up provider hierarchies
+   - Standardize approaches to mocking Firebase services
+
+3. **Test Organization**
+   - Align test directory structure with application structure
+   - Ensure naming conventions are consistent
+   - Add integration test directory
+
+## Conclusion
+
+The application has good test coverage in many areas, particularly in model classes, some workflow steps, and key services like Firestore. However, significant gaps remain in screen tests, navigation flows, and error handling. The primary issues appear to be:
+
+1. Missing tests for main screens (home, people)
+2. Insufficient testing of navigation between screens
+3. Limited error state testing
+4. Lack of integration tests for complete user flows
+
+By implementing the missing tests according to the priority implementation plan, we can ensure that the application remains stable through redesigns and that critical functionality continues to work as expected. All tests should focus on functional behavior rather than visual design to ensure they remain valid through UI redesigns. 
