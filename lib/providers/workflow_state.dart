@@ -105,8 +105,9 @@ class WorkflowState extends ChangeNotifier {
     _parseReceiptResult = {};
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
-    _tip = null;
-    _tax = null;
+    // Keep these values preserved across image changes
+    // _tip = null;
+    // _tax = null;
     _people = [];
     notifyListeners();
   }
@@ -116,8 +117,9 @@ class WorkflowState extends ChangeNotifier {
     _parseReceiptResult = {};
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
-    _tip = null;
-    _tax = null;
+    // Keep these values preserved across image changes
+    // _tip = null;
+    // _tax = null;
     _people = [];
     notifyListeners();
   }
@@ -139,8 +141,9 @@ class WorkflowState extends ChangeNotifier {
   void setAssignPeopleToItemsResult(Map<String, dynamic>? result) {
     _assignPeopleToItemsResult = result ?? {};
     debugPrint('[WorkflowState] setAssignPeopleToItemsResult set to: ${_assignPeopleToItemsResult}');
-    _tip = null;
-    _tax = null;
+    // Preserve tip and tax values when setting assignment data
+    // _tip = null;
+    // _tax = null;
     _people = _extractPeopleFromAssignments();
     notifyListeners();
   }
@@ -270,8 +273,9 @@ class WorkflowState extends ChangeNotifier {
     _parseReceiptResult = {};
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
-    _tip = null; 
-    _tax = null;
+    // Preserve tip and tax values
+    // _tip = null; 
+    // _tax = null;
     _people = [];
     notifyListeners();
   }
@@ -279,16 +283,18 @@ class WorkflowState extends ChangeNotifier {
   void clearTranscriptionAndSubsequentData() {
     _transcribeAudioResult = {};
     _assignPeopleToItemsResult = {};
-    _tip = null;
-    _tax = null;
+    // Preserve tip and tax values when clearing transcription data
+    // _tip = null;
+    // _tax = null;
     _people = [];
     notifyListeners();
   }
 
   void clearAssignmentAndSubsequentData() {
     _assignPeopleToItemsResult = {};
-    _tip = null; // Keep tip/tax if desired, or clear them too.
-    _tax = null;
+    // Preserve tip and tax values when clearing assignment data
+    // _tip = null;
+    // _tax = null;
     _people = [];
     notifyListeners();
   }

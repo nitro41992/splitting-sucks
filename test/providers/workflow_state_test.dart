@@ -159,7 +159,7 @@ void main() {
       listenerCalled = false; // Reset for this specific group's action
     });
 
-    test('delegates to imageStateManager.setNewImageFile, clears subsequent data, and calls notifyListeners', () {
+    test('delegates to imageStateManager.setNewImageFile, clears data except tip/tax, and calls notifyListeners', () {
       workflowState.setImageFile(mockFile);
 
       // Verify delegation
@@ -169,8 +169,10 @@ void main() {
       expect(workflowState.parseReceiptResult, isEmpty);
       expect(workflowState.transcribeAudioResult, isEmpty);
       expect(workflowState.assignPeopleToItemsResult, isEmpty);
-      expect(workflowState.tip, isNull);
-      expect(workflowState.tax, isNull);
+      expect(workflowState.tip, isNotNull, reason: 'Tip should be preserved');
+      expect(workflowState.tip, equals(10.0), reason: 'Tip value should remain unchanged');
+      expect(workflowState.tax, isNotNull, reason: 'Tax should be preserved');
+      expect(workflowState.tax, equals(5.0), reason: 'Tax value should remain unchanged');
       expect(workflowState.people, isEmpty);
 
       // Verify notification
@@ -194,7 +196,7 @@ void main() {
       listenerCalled = false; // Reset for this specific group's action
     });
 
-    test('delegates to imageStateManager.resetImageFile, clears subsequent data, and calls notifyListeners', () {
+    test('delegates to imageStateManager.resetImageFile, clears data except tip/tax, and calls notifyListeners', () {
       workflowState.resetImageFile();
 
       // Verify delegation
@@ -204,8 +206,10 @@ void main() {
       expect(workflowState.parseReceiptResult, isEmpty);
       expect(workflowState.transcribeAudioResult, isEmpty);
       expect(workflowState.assignPeopleToItemsResult, isEmpty);
-      expect(workflowState.tip, isNull);
-      expect(workflowState.tax, isNull);
+      expect(workflowState.tip, isNotNull, reason: 'Tip should be preserved');
+      expect(workflowState.tip, equals(10.0), reason: 'Tip value should remain unchanged');
+      expect(workflowState.tax, isNotNull, reason: 'Tax should be preserved');
+      expect(workflowState.tax, equals(5.0), reason: 'Tax value should remain unchanged');
       expect(workflowState.people, isEmpty);
 
       // Verify notification
@@ -261,13 +265,13 @@ void main() {
 
   group('setAssignPeopleToItemsResult', () {
     setUp((){
-      // Set initial tip and tax to verify they are cleared
+      // Set initial tip and tax to verify they are preserved
       workflowState.setTip(5.0);
       workflowState.setTax(2.5);
       listenerCalled = false; // Reset listener flag for this group
     });
 
-    test('updates result, clears tip/tax, derives people, and calls notifyListeners with valid data', () {
+    test('updates result, preserves tip/tax, derives people, and calls notifyListeners with valid data', () {
       final mockResult = <String, dynamic>{
         'assignments': [
           {'item': 'Burger', 'people': ['Alice', 'Bob']},
@@ -281,13 +285,13 @@ void main() {
       workflowState.setAssignPeopleToItemsResult(mockResult);
 
       expect(workflowState.assignPeopleToItemsResult, mockResult);
-      expect(workflowState.tip, isNull);
-      expect(workflowState.tax, isNull);
+      expect(workflowState.tip, equals(5.0), reason: 'Tip should be preserved');
+      expect(workflowState.tax, equals(2.5), reason: 'Tax should be preserved');
       expect(workflowState.people, unorderedEquals(expectedPeople)); // Use unorderedEquals for lists from sets
       expect(listenerCalled, isTrue);
     });
 
-    test('updates result to empty map, clears tip/tax, derives empty people, and calls notifyListeners if null is passed', () {
+    test('updates result to empty map, preserves tip/tax, derives empty people, and calls notifyListeners if null is passed', () {
       // Set some initial people to ensure it gets cleared
       workflowState.setAssignPeopleToItemsResult(<String, dynamic>{
         'assignments': [
@@ -301,8 +305,8 @@ void main() {
       workflowState.setAssignPeopleToItemsResult(null);
 
       expect(workflowState.assignPeopleToItemsResult, isEmpty);
-      expect(workflowState.tip, isNull);
-      expect(workflowState.tax, isNull);
+      expect(workflowState.tip, equals(1.0), reason: 'Tip should be preserved');
+      expect(workflowState.tax, equals(0.5), reason: 'Tax should be preserved');
       expect(workflowState.people, isEmpty);
       expect(listenerCalled, isTrue);
     });
@@ -624,7 +628,7 @@ void main() {
       listenerCalled = false; // Reset after setup for the actual test action
     }
 
-    test('clearParseAndSubsequentData clears relevant fields and notifies', () {
+    test('clearParseAndSubsequentData clears relevant fields and preserves tax/tip values', () {
       resetWorkflowStateWithData(); // Sets up data and resets listenerCalled
       
       workflowState.clearParseAndSubsequentData();
@@ -632,13 +636,15 @@ void main() {
       expect(workflowState.parseReceiptResult, isEmpty, reason: 'Parse result should be empty');
       expect(workflowState.transcribeAudioResult, isEmpty, reason: 'Transcribe result should be empty');
       expect(workflowState.assignPeopleToItemsResult, isEmpty, reason: 'Assign result should be empty');
-      expect(workflowState.tip, isNull, reason: 'Tip should be null');
-      expect(workflowState.tax, isNull, reason: 'Tax should be null');
+      expect(workflowState.tip, isNotNull, reason: 'Tip should be preserved');
+      expect(workflowState.tip, equals(1.0), reason: 'Tip value should remain unchanged');
+      expect(workflowState.tax, isNotNull, reason: 'Tax should be preserved');
+      expect(workflowState.tax, equals(0.5), reason: 'Tax value should remain unchanged');
       expect(workflowState.people, isEmpty, reason: 'People list should be empty');
       expect(listenerCalled, isTrue, reason: 'Notify listeners should have been called');
     });
 
-    test('clearTranscriptionAndSubsequentData clears relevant fields and notifies', () {
+    test('clearTranscriptionAndSubsequentData clears relevant fields and preserves tax/tip values', () {
       resetWorkflowStateWithData();
       // Specific setup for this test if parse data should remain
       // The global workflowState is used, resetWorkflowStateWithData already populates parseReceiptResult
@@ -649,13 +655,15 @@ void main() {
       expect(workflowState.parseReceiptResult, isNotEmpty, reason: 'Parse result should NOT be cleared');
       expect(workflowState.transcribeAudioResult, isEmpty, reason: 'Transcribe result should be empty');
       expect(workflowState.assignPeopleToItemsResult, isEmpty, reason: 'Assign result should be empty');
-      expect(workflowState.tip, isNull, reason: 'Tip should be null');
-      expect(workflowState.tax, isNull, reason: 'Tax should be null');
+      expect(workflowState.tip, isNotNull, reason: 'Tip should be preserved');
+      expect(workflowState.tip, equals(1.0), reason: 'Tip value should remain unchanged');
+      expect(workflowState.tax, isNotNull, reason: 'Tax should be preserved');
+      expect(workflowState.tax, equals(0.5), reason: 'Tax value should remain unchanged');
       expect(workflowState.people, isEmpty, reason: 'People list should be empty');
       expect(listenerCalled, isTrue, reason: 'Notify listeners should have been called');
     });
 
-    test('clearAssignmentAndSubsequentData clears relevant fields and notifies', () {
+    test('clearAssignmentAndSubsequentData clears relevant fields and preserves tax/tip values', () {
       resetWorkflowStateWithData();
       // Specific setup: parse and transcribe data should remain
       // resetWorkflowStateWithData already populates them.
@@ -666,8 +674,10 @@ void main() {
       expect(workflowState.parseReceiptResult, isNotEmpty, reason: 'Parse result should NOT be cleared');
       expect(workflowState.transcribeAudioResult, isNotEmpty, reason: 'Transcribe result should NOT be cleared');
       expect(workflowState.assignPeopleToItemsResult, isEmpty, reason: 'Assign result should be empty');
-      expect(workflowState.tip, isNull, reason: 'Tip should be null (as per current implementation)');
-      expect(workflowState.tax, isNull, reason: 'Tax should be null (as per current implementation)');
+      expect(workflowState.tip, isNotNull, reason: 'Tip should be preserved');
+      expect(workflowState.tip, equals(1.0), reason: 'Tip value should remain unchanged');
+      expect(workflowState.tax, isNotNull, reason: 'Tax should be preserved');
+      expect(workflowState.tax, equals(0.5), reason: 'Tax value should remain unchanged');
       expect(workflowState.people, isEmpty, reason: 'People list should be empty');
       expect(listenerCalled, isTrue, reason: 'Notify listeners should have been called');
     });

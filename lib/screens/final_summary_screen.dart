@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 
 import '../models/split_manager.dart';
 import '../models/receipt_item.dart'; // Ensure ReceiptItem is available if needed for calculations/display
@@ -24,19 +25,25 @@ class FinalSummaryScreen extends StatefulWidget {
   State<FinalSummaryScreen> createState() => _FinalSummaryScreenState();
 }
 
-class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
+class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBindingObserver {
   static const double DEFAULT_TAX_RATE = 8.875; // Default NYC tax rate
 
   double _tipPercentage = 20.0;
   double _taxPercentage = DEFAULT_TAX_RATE;
   late TextEditingController _taxController;
-
+  
   @override
   void initState() {
     super.initState();
-    // Initialize tax percentage potentially from SplitManager if needed, otherwise use default
-    // Example: _taxPercentage = context.read<SplitManager>().initialTaxRate ?? DEFAULT_TAX_RATE;
-    // For now, just use the default or last known value.
+    
+    // Register for app lifecycle changes to cache values when app is backgrounded
+    WidgetsBinding.instance.addObserver(this);
+    
+    // --- Initialize tax/tip from WorkflowState if available --- 
+    final workflowState = context.read<WorkflowState>();
+    _tipPercentage = workflowState.tip ?? 20.0;
+    _taxPercentage = workflowState.tax ?? DEFAULT_TAX_RATE;
+    
     _taxController = TextEditingController(text: _taxPercentage.toStringAsFixed(3));
 
     _taxController.addListener(() {
@@ -45,15 +52,16 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
         if (_taxPercentage != newTax) {
            setState(() {
              _taxPercentage = newTax;
-             // Optionally update SplitManager if tax is global
-             // context.read<SplitManager>().updateTaxRate(newTax);
+             // Update WorkflowState cache only (no DB persistence)
+             context.read<WorkflowState>().setTax(_taxPercentage);
            });
         }
       } else if (_taxController.text.isEmpty) {
         if (_taxPercentage != 0.0) { // Avoid rebuild if already 0
           setState(() {
             _taxPercentage = 0.0; // Set tax to 0 if input is cleared
-            // context.read<SplitManager>().updateTaxRate(0.0);
+            // Update WorkflowState cache only (no DB persistence)
+            context.read<WorkflowState>().setTax(_taxPercentage);
           });
         }
       }
@@ -63,8 +71,33 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
 
   @override
   void dispose() {
+    // Unregister from app lifecycle changes
+    WidgetsBinding.instance.removeObserver(this);
     _taxController.dispose();
     super.dispose();
+  }
+
+  // Handle app lifecycle changes to ensure values are cached when app is backgrounded
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // Cache the current tax and tip percentages to WorkflowState
+      final workflowState = Provider.of<WorkflowState>(context, listen: false);
+      workflowState.setTax(_taxPercentage);
+      workflowState.setTip(_tipPercentage);
+      debugPrint("[FinalSummaryScreen] App backgrounded, caching tax: $_taxPercentage, tip: $_tipPercentage");
+    }
+  }
+
+  // Cache current state when navigating away from this screen
+  @override
+  void deactivate() {
+    // This is called when navigating away from the screen
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    workflowState.setTax(_taxPercentage);
+    workflowState.setTip(_tipPercentage);
+    debugPrint("[FinalSummaryScreen] Screen deactivated, caching tax: $_taxPercentage, tip: $_tipPercentage");
+    super.deactivate();
   }
 
   Future<void> _launchBuyMeACoffee(BuildContext context) async {
@@ -498,7 +531,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                             bool isSelected = (_tipPercentage - percentage).abs() < 0.01;
                             return ElevatedButton(
                               onPressed: () {
-                                setState(() { _tipPercentage = percentage; });
+                                _setTipPercentage(percentage);
                               },
                               style: ElevatedButton.styleFrom(
                                 elevation: isSelected ? 2 : 0,
@@ -520,10 +553,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
                           max: 30, // Max tip percentage
                           divisions: 60, // Allows 0.5% increments
                           label: '${_tipPercentage.toStringAsFixed(1)}%',
-                          onChanged: (value) {
-                             // Round to one decimal place
-                            setState(() { _tipPercentage = (value * 10).round() / 10.0; });
-                          },
+                          onChanged: _onTipSliderChanged,
                         ),
                       ],
                     ),
@@ -858,9 +888,30 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> {
       ],
     );
   }
+
+  // Update these UI methods to cache to WorkflowState without persisting to DB
+  
+  // Quick select tip buttons onPressed
+  void _setTipPercentage(double percentage) {
+    setState(() { 
+      _tipPercentage = percentage;
+      // Update WorkflowState cache only (no DB persistence)
+      context.read<WorkflowState>().setTip(_tipPercentage);
+    });
+  }
+
+  // Tip slider onChanged
+  void _onTipSliderChanged(double value) {
+    // Round to one decimal place
+    setState(() { 
+      _tipPercentage = (value * 10).round() / 10.0;
+      // Update WorkflowState cache only (no DB persistence)
+      context.read<WorkflowState>().setTip(_tipPercentage);
+    });
+  }
 }
 
-// Helper Notification class (can be moved to a shared location)
+// Helper Notification classes 
 class NavigateToPageNotification extends Notification {
   final int pageIndex;
   NavigateToPageNotification(this.pageIndex);
