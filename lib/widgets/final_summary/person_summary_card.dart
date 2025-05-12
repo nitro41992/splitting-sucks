@@ -25,14 +25,21 @@ class PersonSummaryCard extends StatelessWidget {
     final double taxRate = taxPercentage / 100.0;
     final double tipRate = tipPercentage / 100.0;
 
-    final double personSubtotal = person.totalAssignedAmount +
-        splitManager.sharedItems.where((item) => person.sharedItems.contains(item)).fold(
-            0.0,
-            (sum, item) {
-              final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
-              return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
-            },
-          );
+    // Calculate individual items total
+    final double individualItemsTotal = person.totalAssignedAmount;
+    
+    // Calculate shared items total
+    final double sharedItemsTotal = person.sharedItems.fold(
+      0.0,
+      (sum, item) {
+        final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
+        return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
+      },
+    );
+    
+    // Calculate complete subtotal (individual + shared)
+    final double personSubtotal = individualItemsTotal + sharedItemsTotal;
+    
     final double personTax = personSubtotal * taxRate;
     final double personTip = personSubtotal * tipRate;
     final double personTotal = personSubtotal + personTax + personTip;
@@ -45,9 +52,12 @@ class PersonSummaryCard extends StatelessWidget {
         side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.5)),
       ),
       child: ExpansionTile(
+        iconColor: colorScheme.primary,
+        collapsedIconColor: colorScheme.onSurfaceVariant,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // Match card shape
         collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // Match card shape
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -85,7 +95,16 @@ class PersonSummaryCard extends StatelessWidget {
                     child: Text('No items assigned or shared.', style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
                   ),
                 const Divider(),
-                _buildCostDetailRow(context, 'Subtotal:', '\$${personSubtotal.toStringAsFixed(2)}'),
+                
+                // Show individual and shared subtotals if both exist
+                if (individualItemsTotal > 0 && sharedItemsTotal > 0) ...[
+                  _buildCostDetailRow(context, 'Individual Items:', '\$${individualItemsTotal.toStringAsFixed(2)}'),
+                  _buildCostDetailRow(context, 'Shared Items:', '\$${sharedItemsTotal.toStringAsFixed(2)}'),
+                  _buildCostDetailRow(context, 'Subtotal:', '\$${personSubtotal.toStringAsFixed(2)}', isBold: true),
+                ] else 
+                  // Just show total subtotal if only one type exists
+                  _buildCostDetailRow(context, 'Subtotal:', '\$${personSubtotal.toStringAsFixed(2)}'),
+                
                 _buildCostDetailRow(context, '+ Tax (${taxPercentage.toStringAsFixed(1)}%):', '\$${personTax.toStringAsFixed(2)}'),
                 _buildCostDetailRow(context, '+ Tip (${tipPercentage.toStringAsFixed(1)}%):', '\$${personTip.toStringAsFixed(2)}'),
                 const Divider(),
@@ -131,7 +150,7 @@ class PersonSummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _buildCostDetailRow(BuildContext context, String label, String value, {bool isTotal = false}) {
+  Widget _buildCostDetailRow(BuildContext context, String label, String value, {bool isTotal = false, bool isBold = false}) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
@@ -143,7 +162,7 @@ class PersonSummaryCard extends StatelessWidget {
             label,
             style: textTheme.bodyMedium?.copyWith(
               color: colorScheme.onSurfaceVariant,
-              fontWeight: isTotal ? FontWeight.bold : null,
+              fontWeight: isTotal || isBold ? FontWeight.bold : null,
             ),
           ),
           Text(
