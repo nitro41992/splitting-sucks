@@ -839,7 +839,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       showAppToast(scaffoldMessenger.context, "Receipt completed successfully", AppToastType.success);
       
       // --- Navigate LAST --- 
-      navigator.pop(true); 
+      // Instead of just popping, navigate back to the main screen
+      navigator.popUntil((route) => route.isFirst);
       
     } catch (e) {
       // --- Check Mounted in Catch Block --- 

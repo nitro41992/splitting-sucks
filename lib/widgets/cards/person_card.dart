@@ -146,13 +146,15 @@ class PersonCard extends StatelessWidget {
             top: 8,
             right: 8,
             child: Container(
+              key: const ValueKey('person_card_total_pill'),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                '\$${(person.totalAssignedAmount + calculatedSharedAmount).toStringAsFixed(2)}',
+                '\$${person.totalAssignedAmount.toStringAsFixed(2)}',
+                key: const ValueKey('person_card_total_amount'),
                 style: textTheme.labelLarge?.copyWith(
                   color: colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.bold,
