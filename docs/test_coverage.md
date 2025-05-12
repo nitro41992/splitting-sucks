@@ -6,12 +6,15 @@
 
 ### Completed ✅
 - **Python Cloud Functions:** All tests for `generate_thumbnail`, `parse_receipt`, `assign_people_to_items`, and `transcribe_audio` functions
-- **Model Unit Tests:** All tests for `Receipt`, `ReceiptItem`, `Person`, and `SplitManager` models
+- **Model Unit Tests:** All tests for `Receipt`, `ReceiptItem`, `Person`, and `SplitManager` models (including advanced bill splitting scenarios)
 - **Dialog Widget Tests:** Tests for `AddItemDialog`
 - **Widget Tests:** `WorkflowStepIndicator` (including tap interaction), `UploadStepWidget`/`ReceiptUploadScreen`, `ReceiptReviewScreen`/`ReviewStepWidget`, `WorkflowNavigationControls`
 - **Provider Tests:** `WorkflowState` and `ImageStateManager`
 - **Shared Utility Widgets:** `QuantitySelector`
 - **Flutter Services:** Tests for `FirestoreService` methods including receipt CRUD operations (saveReceipt, saveDraft, completeReceipt, getReceiptsStream, getReceipts, getReceipt, deleteReceipt)
+- **Core Workflow Logic:** 
+  - `AssignPeopleScreen`/`AssignStepWidget` UI and assignment logic
+  - `SplitStepWidget` UI and split calculation logic
 
 ### High Priority Pending ⏳
 - **Flutter Services:** Tests for Firebase Storage methods in `FirestoreService`:
@@ -22,30 +25,42 @@
   
   > **Note:** Test scaffolding for Firebase Storage tests has been added. Complete implementation requires advanced mocking of Firebase Storage and Functions, possibly using a more sophisticated mocking approach than currently available in the test environment.
   
-- **Core Workflow Logic:** Tests for workflow steps, assignment logic, and split calculations
+- **Core Workflow Logic:** Tests for workflow steps and saving behaviors
   - `_WorkflowModalBody` `_onWillPop` behavior (to ensure data saving when app is closed)
-  - `AssignPeopleScreen`/`AssignStepWidget` UI and assignment logic
-  - `SplitStepWidget` UI and split calculation logic
+  - `SummaryStepWidget` final display and calculations
 
 - **Dialog Widget Tests:** Tests for `EditItemDialog`, `showRestaurantNameDialog`, and `showConfirmationDialog`
 
 ## Next Steps for Test Implementation
 
-Based on architectural priorities (supporting local caching and UI redesign), the following tests should be implemented next:
+Based on architectural priorities (supporting local caching and UI redesign), we've made significant progress on our high-priority test coverage:
 
-1. **Create tests for `AssignStepWidget`**
-   - Focus on how it loads and displays assignments data
-   - Test how it handles person management (adding, removing, renaming)
-   - Test assignment of items to people
-   - Verify it correctly passes data back to WorkflowState
+✅ **AssignStepWidget Tests Completed**
+- Tests verify it loads and displays assignments data correctly
+- Tests validate handling of item assignments and navigation behavior
 
-2. **Create tests for `SplitStepWidget`**
-   - Test tip/tax entry and validation
-   - Test split calculation logic
-   - Verify navigation between calculate/split/summary tabs
-   - Test how final calculations are performed
+✅ **SplitStepWidget Tests Completed**
+- Tests verify proper handling of tip/tax entry and validation
+- Tests confirm split calculation logic accuracy
+- Tests ensure navigation between workflow steps works correctly
+- Tests validate final calculations accuracy
 
-These tests will provide critical coverage for the most complex parts of the workflow where data transformation happens, which is important for both the planned caching implementation and UI redesign.
+The next areas to focus on:
+
+1. **Complete tests for `_WorkflowModalBody` `_onWillPop` behavior**
+   - Ensure proper data saving when app is closed
+   - Verify appropriate dialog display and response to user actions
+   
+2. **Implement tests for `SummaryStepWidget`**
+   - Verify final summary display is accurate
+   - Confirm total calculations are correct
+   - Validate data consistency with previous workflow steps
+
+3. **Implement dialog widget tests**
+   - Verify proper functioning of `EditItemDialog` with existing items
+   - Test confirmation and input dialogs for proper rendering and response
+
+These remaining tests will complete our coverage of the core workflow logic, ensuring a solid foundation for both the caching implementation and UI redesign.
 
 ## Priority Framework
 
@@ -103,23 +118,34 @@ These tests are critical for ensuring the application's core business logic and 
 
 *   **`AssignPeopleScreen` / `AssignStepWidget` (`lib/widgets/workflow_steps/assign_step_widget.dart`)**
     *   **Objective:** Verify the critical UI for assigning people to items, focusing on data flow that must be preserved.
-    *   **Test Cases:**
-        *   ⏳ **Initial Display:** Verify correct rendering of items, people, and assignment UI from `WorkflowState`.
-        *   ⏳ **Person Management:** Test adding, removing, renaming people with correct `WorkflowState` updates.
-        *   ⏳ **Item Assignment:** Test assigning and unassigning items to people, shared item marking.
-        *   ⏳ **Button Logic:** Verify Next/Confirm is conditionally enabled based on assignments.
+    *   ✅ **Test Cases:**
+        *   **Initial Display:** Verified correct rendering of items, people, and assignment UI from `WorkflowState`.
+        *   **Person Management:** Tested adding, removing, renaming people with correct `WorkflowState` updates.
+        *   **Item Assignment:** Tested assigning and unassigning items to people, shared item marking.
+        *   **Button Logic:** Verified Next/Confirm is conditionally enabled based on assignments.
 
 *   **`SplitStepWidget` (`lib/widgets/workflow_steps/split_step_widget.dart`)**
     *   **Objective:** Verify UI for displaying split amounts and handling adjustments (critical for caching/redesign).
-    *   **Test Cases:**
-        *   ⏳ **Initial Display:** Verify correct loading of people, items, and amounts from `WorkflowState`.
-        *   ⏳ **Tip/Tax Entry:** Test entry of tip and tax amounts with proper `WorkflowState` updates.
-        *   ⏳ **Split Calculations:** Verify correct calculation and display of individual and total amounts.
-        *   ⏳ **Button Logic:** Verify Next/Confirm is properly enabled/disabled.
+    *   ✅ **Test Cases:**
+        *   **Initial Display:** Verified correct loading of people, items, and amounts from `WorkflowState`.
+        *   **Tip/Tax Entry:** Tested entry of tip and tax amounts with proper `WorkflowState` updates.
+        *   **Split Calculations:** Verified correct calculation and display of individual and total amounts.
+        *   **Button Logic:** Verified Next/Confirm is properly enabled/disabled.
 
 *   **`SummaryStepWidget` (`lib/widgets/workflow_steps/summary_step_widget.dart`)**
     *   ⏳ **Objective:** Verify final summary display, including individual totals, grand total (Phase 0 Priority). Ensure correct data is pulled from `WorkflowState` and accurately reflects prior steps.
     *   **(⏳ To be detailed, focusing on data accuracy)**
+
+### 1.3 Advanced Model Tests
+
+*   **`SplitManager` Advanced Tests**
+    *   ✅ **Objective:** Verify complex bill-splitting scenarios and edge cases.
+    *   **Test Cases:**
+        *   **Complex Scenarios:** Tested mixed assignments with multiple people sharing items.
+        *   **Floating Point Precision:** Verified accurate handling of decimal values in calculations.
+        *   **Person Removal:** Tested correct behavior when removing a person after assignments.
+        *   **Tax and Tip Distribution:** Verified proper distribution of tax and tip among assigned and unassigned items.
+        *   **State Preservation:** Confirmed state is correctly maintained during transfer operations.
 
 ### 1.4 Integration Test Planning (Core Workflow)
 
