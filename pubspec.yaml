@@ -57,6 +57,7 @@ dependencies:
 
   # Fixed iOS authentication with Firebase Auth only, no Google Sign-In plugin needed
   cached_network_image: ^3.2.3
+  connectivity_plus: ^6.1.4
 
 dev_dependencies:
   flutter_test:
@@ -68,8 +69,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^3.0.2
-  mockito: ^5.4.4
-  build_runner: ^2.4.8
+  mockito: ^5.4.6
+  build_runner: ^2.4.14
   json_serializable: ^6.7.1
   fake_cloud_firestore: ^2.5.2
   firebase_auth_mocks: ^0.13.0

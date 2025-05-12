@@ -12,6 +12,7 @@
 - **Provider Tests:** `WorkflowState` and `ImageStateManager`
 - **Shared Utility Widgets:** `QuantitySelector`
 - **Flutter Services:** Tests for `FirestoreService` methods including receipt CRUD operations (saveReceipt, saveDraft, completeReceipt, getReceiptsStream, getReceipts, getReceipt, deleteReceipt)
+- **Connectivity & Offline:** Tests for `ConnectivityService` and `OfflineStorageService` for handling offline mode and local data persistence
 
 ### Critical Tests with Implementation Issues ⚠️
 - **Core Workflow Logic:** Tests for the following have been written but require fixes for Firebase initialization:
@@ -45,26 +46,23 @@ Based on architectural priorities (supporting local caching and UI redesign), we
 - Tests edge cases like person removal after assignments
 - Validates tax and tip distribution logic
 
-⚠️ **AssignStepWidget and SplitStepWidget Test Implementation**
-- Tests have been written but need fixes for Firebase initialization issues
-- Need to update tests with proper mocking for Firebase services
+✅ **AssignStepWidget and SplitStepWidget Tests Fixed**
+- Tests have been fixed and are now passing
+- Proper mocking for Firebase services implemented
+- The tests verify correct assignment and splitting behavior
+
+✅ **Connectivity and Offline Storage Tests Implemented**
+- Tests for detecting network status changes
+- Tests for local data storage and retrieval
+- Tests for proper handling of online/offline transitions
 
 The next areas to focus on:
 
-1. **Fix Firebase Initialization in Widget Tests**
-   - Update test environment to properly initialize or mock Firebase services
-   - Set up test bootstrapping to handle Firebase dependencies
-
-2. **Complete tests for `_WorkflowModalBody` `_onWillPop` behavior**
+1. **Complete tests for `_WorkflowModalBody` `_onWillPop` behavior**
    - Ensure proper data saving when app is closed
    - Verify appropriate dialog display and response to user actions
    
-3. **Implement tests for `SummaryStepWidget`**
-   - Verify final summary display is accurate
-   - Confirm total calculations are correct
-   - Validate data consistency with previous workflow steps
-
-4. **Implement dialog widget tests**
+2. **Implement dialog widget tests**
    - Verify proper functioning of `EditItemDialog` with existing items
    - Test confirmation and input dialogs for proper rendering and response
 
@@ -94,21 +92,23 @@ These tests are critical for ensuring the application's core business logic and 
         *   ✅ `Future<QuerySnapshot> getReceipts({String? status})`
         *   ✅ `Future<DocumentSnapshot> getReceipt(String receiptId)`
         *   ✅ `Future<void> deleteReceipt(String receiptId)`
-        *   `Future<String> uploadReceiptImage(File imageFile)` (Interacts with Firebase Storage)
-            *   (⏳) Mock `FirebaseStorage`, `Reference`, `UploadTask`, `TaskSnapshot`.
-            *   (⏳) Verify correct GCS path generation (includes user ID, timestamp).
-            *   (⏳) Verify `putFile()` is called with correct `File` and `SettableMetadata`.
-            *   (⏳) Verify correct `gs://` URI is constructed and returned from mocked `TaskSnapshot`.
-        *   `Future<String?> generateThumbnail(String originalImageUri)` (Interacts with Firebase Functions)
-            *   (⏳) Mock `FirebaseFunctions` and `HttpsCallable`.
-            *   (⏳) Verify correct call parameters.
-            *   (⏳) Test error handling paths.
-        *   `Future<void> deleteReceiptImage(String imageUri)` and `Future<void> deleteImage(String gsUri)`
-            *   (⏳) Verify correct reference extraction from gs:// URI.
-            *   (⏳) Test error handling for invalid URIs and Firebase exceptions.
-        *   **(Consider if `_userId` getter needs specific tests, especially around emulator/prod logic if complex, though it's more internal state management).**
-    *   **Placeholder for other Flutter Services with external dependencies that will need testing:**
-        *   (⏳) Identify and test any other services that will be affected by caching implementation.
+        *   ✅ `Future<String> uploadReceiptImage(File imageFile)` (Interacts with Firebase Storage)
+        *   ✅ `Future<String?> generateThumbnail(String originalImageUri)` (Interacts with Firebase Functions)
+        *   ✅ `Future<void> deleteReceiptImage(String imageUri)` and `Future<void> deleteImage(String gsUri)`
+
+*   **`ConnectivityService` methods:**
+    *   ✅ `Future<bool> isConnected()` - Checks current connectivity status
+    *   ✅ `Stream<bool> get onConnectivityChanged` - Streams connectivity changes 
+    *   ✅ `bool get currentStatus` - Synchronously gets last known connectivity
+
+*   **`OfflineStorageService` methods:**
+    *   ✅ `Future<bool> saveReceiptOffline(String receiptId, Map<String, dynamic> data)` - Saves data locally
+    *   ✅ `List<Map<String, dynamic>> getPendingReceipts()` - Gets all stored receipts
+    *   ✅ `Future<bool> removePendingReceipt(String receiptId)` - Removes a specific receipt
+    *   ✅ `Future<bool> clearPendingReceipts()` - Clears all pending receipts
+    *   ✅ `bool shouldSaveOffline()` - Determines if offline storage should be used
+    *   ✅ `Map<String, dynamic>? getPendingReceiptById(String receiptId)` - Gets specific receipt
+    *   ✅ `int get pendingReceiptCount` - Gets count of pending receipts
 
 ### 1.2 Core Workflow Logic & Data Flow Widget Tests
 
@@ -141,8 +141,11 @@ These tests are critical for ensuring the application's core business logic and 
         *   **Button Logic:** Verified Next/Confirm is properly enabled/disabled.
 
 *   **`SummaryStepWidget` (`lib/widgets/workflow_steps/summary_step_widget.dart`)**
-    *   ⏳ **Objective:** Verify final summary display, including individual totals, grand total (Phase 0 Priority). Ensure correct data is pulled from `WorkflowState` and accurately reflects prior steps.
-    *   **(⏳ To be detailed, focusing on data accuracy)**
+    *   ✅ **Objective:** Verify final summary display, including individual totals, grand total.
+    *   ✅ **Test Cases:**
+        *   **Initial Display:** Verified correct loading and display of final bill summary from `WorkflowState`.
+        *   **Total Calculations:** Tested that per-person totals, tax, tip, and grand total are accurate.
+        *   **Edge Cases:** Verified behavior with no assigned items or only shared items.
 
 ### 1.3 Advanced Model Tests
 
@@ -173,7 +176,7 @@ These tests are critical for ensuring the application's core business logic and 
     *   **Test Cases (Completed for rendering - see `test_coverage_completed.md`)**
 
 *   **`SplitViewWidget` (`lib/widgets/split_view.dart`)**
-    *   **(⏳ To be tested)** **Objective:** Verify the overall split view renders correctly, including person assignment, item allocation, and summary calculations. This is a potentially complex widget that might be used within `SplitStepWidget` or other places. (Consider its priority based on how much logic it contains vs. `SplitStepWidget` itself).
+    *   **Objective:** Verify the overall split view renders correctly, including person assignment, item allocation, and summary calculations. This is a potentially complex widget that might be used within `SplitStepWidget` or other places. (Consider its priority based on how much logic it contains vs. `SplitStepWidget` itself).
 
 ### 2.2 Dialog Widget Tests
 
@@ -230,4 +233,3 @@ These components and areas are important for overall application quality but are
     *   `WaveDividerPainter` (⏳ To be tested - verify no paint errors, visual inspection or specific paint call verification).
     *   `QuantitySelector` (⏳ To be tested - verify increment/decrement logic, callbacks, min/max constraints).
     *   `ItemRow` (⏳ To be tested - verify layout, display of item name/price/quantity).
-    *   `

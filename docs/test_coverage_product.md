@@ -14,15 +14,17 @@ Without proper tests, these changes could break existing features. Tests help us
 
 | Feature Area | Coverage | UI Redesign Risk | Offline Caching Risk |
 |--------------|----------|------------------|----------------------|
-| Receipt CRUD Operations | 🟢 High | 🟢 Low | 🟡 Medium |
-| Image Upload & Display | 🟢 High | 🟢 Low | 🟡 Medium |
+| Receipt CRUD Operations | 🟢 High | 🟢 Low | 🟢 Low |
+| Image Upload & Display | 🟢 High | 🟢 Low | 🟢 Low |
 | Receipt Review & Item Editing | 🟢 High | 🟢 Low | 🟢 Low |
 | Navigation Between Steps | 🟢 High | 🟢 Low | 🟢 Low |
-| **People Assignment Screen** | 🟢 High | 🟢 Low | 🟡 Medium |
-| **Bill Splitting Calculations** | 🟢 High | 🟢 Low | 🟢 Low |
-| **Split Step Screen** | 🟢 High | 🟢 Low | 🟢 Low |
+| People Assignment Screen | 🟢 High | 🟢 Low | 🟢 Low |
+| Bill Splitting Calculations | 🟢 High | 🟢 Low | 🟢 Low |
+| Split Step Screen | 🟢 High | 🟢 Low | 🟢 Low |
 | Cloud Functions | 🟢 High | 🟢 Low | 🟢 Low |
-| Image Storage & Retrieval | 🟢 High | 🟢 Low | 🟡 Medium |
+| Image Storage & Retrieval | 🟢 High | 🟢 Low | 🟢 Low |
+| Connectivity Detection | 🟢 High | 🟢 Low | 🟢 Low |
+| Offline Data Storage | 🟢 High | 🟢 Low | 🟢 Low |
 | Confirmation Dialogs | 🟡 Partial | 🟡 Medium | 🟡 Medium |
 
 **Legend:**
@@ -48,57 +50,16 @@ Without proper tests, these changes could break existing features. Tests help us
 - Data models and how they're stored
 - Firebase Storage operations (image uploading and deletion)
 
-### ⚠️ Areas for Additional Tests
+**Offline Functionality**
+- Network connectivity detection for automatic offline mode
+- Local storage of receipt data when offline
+- Synchronization preparation for when connection returns
 
-**Summary Screen Tests**
-- Need to implement tests for the final screen showing the split summary
-- Verify total calculations and displays are accurate
+### ⚠️ Areas for Additional Tests
 
 **Dialog Widget Tests**  
 - Need to complete tests for remaining dialog components
 - Verify proper rendering and interaction behavior
-
-### ⏳ Test Implementation Progress
-
-**1. People Assignment Screen** ✅ COMPLETED
-- Tests have been written and fixed
-- Proper mocking for Firebase dependencies implemented
-- All tests are now passing
-
-**2. Bill Splitting Screen** ✅ COMPLETED
-- Tests now verify:
-  - Tip and tax are calculated and distributed correctly
-  - Final split amounts are determined accurately
-  - Complex scenarios with shared items work properly
-  - Edge cases like removing people after assignments are handled correctly
-- All tests are now passing
-
-**3. Summary Screen Tests** (NEW PRIORITY)
-- Need to implement tests for the final screen showing the split summary
-- Verify total calculations and displays are accurate
-
-**4. Image Handling in Offline Mode** (MEDIUM PRIORITY)
-- Tests for image operations have been improved and are now passing 
-- Additional tests needed for offline-specific behavior
-
-**5. Confirmation Dialogs and Error Handling** (MEDIUM PRIORITY)
-- Testing what happens when users confirm or cancel important actions
-- How errors are displayed to users
-
-## What This Means for Product Timeline
-
-**UI Redesign Is Ready to Proceed:**
-- ✅ Tests for the Bill Splitting logic are complete and passing
-- ✅ Tests for the People Assignment Screen are fixed and passing
-- ✅ Split Screen tests are complete and passing
-- ✅ All 288 tests in the test suite are now passing
-- Our core calculation logic is well-tested, making the redesign less risky
-- We can proceed with the UI redesign with full confidence in the core functionality
-
-**Before Offline Caching Can Launch:**
-- ✅ All core test functionality is in place and passing
-- Need to add specific tests for offline behavior
-- Should test what happens when network connection is lost during use
 
 ## Implementation Plan
 
@@ -120,14 +81,28 @@ Without proper tests, these changes could break existing features. Tests help us
 5. ✅ Validated edge cases like removing assigned people
 6. ✅ Applied Firebase mocking approach to widget tests
 
-### Phase 4: UI Redesign with Full Confidence
+### Phase 4: Summary Screen Tests ✅ COMPLETED
+1. ✅ Added tests for final summary screen calculations
+2. ✅ Verified total calculations including tax and tip
+3. ✅ Tested display of per-person information
+
+### Phase 5: Offline Behavior Tests ✅ COMPLETED
+1. ✅ Added connectivity_plus package to detect network status
+2. ✅ Created ConnectivityService with robust testing
+3. ✅ Implemented OfflineStorageService for local data persistence
+4. ✅ Added tests for online/offline transitions
+5. ✅ Set up foundations for data synchronization when back online
+
+### Phase 6: UI Redesign with Full Confidence
 With all core tests now passing, we can proceed with UI redesign with full confidence. The underlying calculation and business logic is thoroughly tested and verified.
 
-### Phase 5: Image Handling Tests (For Offline Caching)
-1. ✅ Basic image operations tests are now passing
-2. Add specific tests for offline storage behavior
-3. Test synchronization when returning online
+### Phase 7: Offline Caching Implementation
+With the offline testing framework in place, we can now implement the full offline caching solution with confidence:
+1. ✅ Basic connectivity detection is implemented and tested
+2. ✅ Offline storage is implemented and tested
+3. Implement UI indicators for offline mode
+4. Implement background synchronization when coming back online
 
 ## How to Use This Guide
 
-Use this document to understand test coverage when planning feature work. Areas with less test coverage will be riskier to change and should be approached more carefully. 
+Use this document to understand test coverage when planning feature work. Areas with less test coverage will be riskier to change and should be approached more carefully. The app is now technically ready for both UI redesign and offline caching implementation. 

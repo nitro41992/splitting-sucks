@@ -273,4 +273,38 @@ The implementation addressed several key challenges:
 *   `ItemEditDialog` will need its own set of thorough tests.
 *   When testing interactions with dialogs that modify list items (like `EditItemDialog`), ensure to correctly calculate expected states (e.g., total price) by creating a new representation of the list with the modifications, especially if item models are immutable. Directly modifying iterated items or original list items in the test logic can lead to incorrect assertions if the underlying widget state manages its own copy or creates new instances.
 *   Refactored tests to use `ValueKey`s for more robust finding of elements within `ReceiptItemCard` (e.g., specific price text) and dialogs. Ensured test stability by flushing toast message timers using `tester.pumpAndSettle(Duration)`.
-*   Decide how deleted items are handled by `onItemsUpdated` vs `onReviewComplete` (e.g., immediately removed from UI list vs. kept with a "deleted" visual state until review completion). 
+*   Decide how deleted items are handled by `onItemsUpdated` vs `onReviewComplete` (e.g., immediately removed from UI list vs. kept with a "deleted" visual state until review completion).
+
+## Offline Functionality Tests
+
+### 1. Connectivity Service
+
+*   **Objective:** Verify the correct detection of network connectivity status changes.
+*   **Implementation Approach:** Created a `MockConnectivity` class to simulate connectivity changes without relying on actual network hardware.
+*   **Test Cases:**
+    *   ✅ `isConnected()` returns true when connected to WiFi
+    *   ✅ `isConnected()` returns true when connected to mobile data
+    *   ✅ `isConnected()` returns false when not connected
+    *   ✅ `onConnectivityChanged` correctly streams connectivity status changes
+    *   ✅ `currentStatus` returns the last known status synchronously
+*   **KT for Devs:**
+    *   The `connectivity_plus` package API returns a list of connectivity results, so our mock and service handle multiple connectivity types.
+    *   The service assumes a connected status by default to prevent unnecessary offline mode.
+    *   Stream testing requires careful management of asynchronous events with `Future.delayed(Duration.zero)`.
+
+### 2. Offline Storage Service
+
+*   **Objective:** Verify data can be stored locally when offline and managed appropriately.
+*   **Implementation Approach:** Used `SharedPreferences` for persistent local storage with a mock implementation for testing.
+*   **Test Cases:**
+    *   ✅ Saving receipt data offline stores JSON with correct format
+    *   ✅ Updating existing receipt data replaces the old data
+    *   ✅ Removing a pending receipt removes it from storage
+    *   ✅ Clearing all pending receipts empties the storage
+    *   ✅ `shouldSaveOffline()` returns true when offline (no connectivity)
+    *   ✅ `shouldSaveOffline()` returns false when online
+*   **KT for Devs:**
+    *   Receipt data is stored with its ID, data payload, and timestamp for sync prioritization.
+    *   JSON parsing is wrapped in try/catch to handle malformed data gracefully.
+    *   The service requires both `SharedPreferences` and `ConnectivityService` via dependency injection.
+    *   The implementation includes methods to access specific receipts by ID and count pending receipts. 
