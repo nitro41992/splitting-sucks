@@ -1396,6 +1396,24 @@ class MockSplitManager extends _i1.Mock implements _i12.SplitManager {
       ) as List<String>);
 
   @override
+  double get tipAmount => (super.noSuchMethod(
+        Invocation.getter(#tipAmount),
+        returnValue: 0.0,
+      ) as double);
+
+  @override
+  double get taxAmount => (super.noSuchMethod(
+        Invocation.getter(#taxAmount),
+        returnValue: 0.0,
+      ) as double);
+
+  @override
+  double get finalTotal => (super.noSuchMethod(
+        Invocation.getter(#finalTotal),
+        returnValue: 0.0,
+      ) as double);
+
+  @override
   set initialSplitViewTabIndex(int? _initialSplitViewTabIndex) =>
       super.noSuchMethod(
         Invocation.setter(

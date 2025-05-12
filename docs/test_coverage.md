@@ -8,7 +8,7 @@
 - **Python Cloud Functions:** All tests for `generate_thumbnail`, `parse_receipt`, `assign_people_to_items`, and `transcribe_audio` functions
 - **Model Unit Tests:** All tests for `Receipt`, `ReceiptItem`, `Person`, and `SplitManager` models
 - **Dialog Widget Tests:** Tests for `AddItemDialog`
-- **Widget Tests:** `WorkflowStepIndicator`, `UploadStepWidget`/`ReceiptUploadScreen`, `ReceiptReviewScreen`/`ReviewStepWidget`, `WorkflowNavigationControls`
+- **Widget Tests:** `WorkflowStepIndicator` (including tap interaction), `UploadStepWidget`/`ReceiptUploadScreen`, `ReceiptReviewScreen`/`ReviewStepWidget`, `WorkflowNavigationControls`
 - **Provider Tests:** `WorkflowState` and `ImageStateManager`
 - **Shared Utility Widgets:** `QuantitySelector`
 - **Flutter Services:** Tests for `FirestoreService` methods including receipt CRUD operations (saveReceipt, saveDraft, completeReceipt, getReceiptsStream, getReceipts, getReceipt, deleteReceipt)
@@ -23,7 +23,29 @@
   > **Note:** Test scaffolding for Firebase Storage tests has been added. Complete implementation requires advanced mocking of Firebase Storage and Functions, possibly using a more sophisticated mocking approach than currently available in the test environment.
   
 - **Core Workflow Logic:** Tests for workflow steps, assignment logic, and split calculations
+  - `_WorkflowModalBody` `_onWillPop` behavior (to ensure data saving when app is closed)
+  - `AssignPeopleScreen`/`AssignStepWidget` UI and assignment logic
+  - `SplitStepWidget` UI and split calculation logic
+
 - **Dialog Widget Tests:** Tests for `EditItemDialog`, `showRestaurantNameDialog`, and `showConfirmationDialog`
+
+## Next Steps for Test Implementation
+
+Based on architectural priorities (supporting local caching and UI redesign), the following tests should be implemented next:
+
+1. **Create tests for `AssignStepWidget`**
+   - Focus on how it loads and displays assignments data
+   - Test how it handles person management (adding, removing, renaming)
+   - Test assignment of items to people
+   - Verify it correctly passes data back to WorkflowState
+
+2. **Create tests for `SplitStepWidget`**
+   - Test tip/tax entry and validation
+   - Test split calculation logic
+   - Verify navigation between calculate/split/summary tabs
+   - Test how final calculations are performed
+
+These tests will provide critical coverage for the most complex parts of the workflow where data transformation happens, which is important for both the planned caching implementation and UI redesign.
 
 ## Priority Framework
 
@@ -70,7 +92,7 @@ These tests are critical for ensuring the application's core business logic and 
 *   **`WorkflowModalBody` / `_WorkflowModalBodyState` (`lib/widgets/workflow_modal.dart`)**
     *   **Objective:** Test critical UI interaction paths and state transitions that need to remain intact during redesign.
     *   **Test Cases:**
-        *   ⏳ **Step Indicator Tap Logic:** 
+        *   ✅ **Step Indicator Tap Logic:** 
             *   Tapping a previous step calls `workflowState.goToStep()` with the correct `tappedStep`.
             *   Tapping a future step (allowed by data) calls `workflowState.goToStep()`.
             *   Tapping a future step (blocked by data prerequisites) shows a toast and does NOT call `goToStep()`.
