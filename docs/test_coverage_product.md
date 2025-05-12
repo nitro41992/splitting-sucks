@@ -50,6 +50,13 @@ Without proper tests, these changes could break existing features. Tests help us
 - How items get assigned to different people
 - This is critical because UI redesign will change how this screen looks, and offline caching will change how assignment data is saved
 
+**Detailed Assignment Screen Features Needing Tests:**
+- **Voice recording and transcription** - ensuring audio can be recorded and properly transcribed
+- **Manual transcription editing** - verifying users can edit transcribed text
+- **Processing assignments from transcription** - confirming the right people are matched to the right items
+- **UI for reviewing and adjusting assignments** - testing that assignments can be manually corrected
+- **Data persistence** - making sure assignments are saved correctly in WorkflowState and can be restored
+
 **2. Bill Splitting Screen** (HIGH PRIORITY)
 - How tip and tax are calculated and distributed
 - How the final split amounts are determined
@@ -75,11 +82,22 @@ Without proper tests, these changes could break existing features. Tests help us
 - We need thorough tests for data flows across all screens
 - We should test what happens when network connection is lost during use
 
-## Next Steps
+## Implementation Plan
 
-1. Create tests for the People Assignment screen (highest impact)
-2. Create tests for the Bill Splitting calculations (next highest impact)
-3. Then proceed with UI redesign work with confidence
+### Phase 1: Assignment Screen Tests (2-3 days)
+1. Create test for AssignStepWidget rendering and VoiceAssignmentScreen
+2. Test voice recording and transcription process
+3. Test manual assignment of people to items
+4. Test data flow to WorkflowState
+
+### Phase 2: Split Screen Tests (2-3 days)
+1. Create tests for SplitStepWidget UI and calculations
+2. Test tip and tax distribution
+3. Test per-person totals accuracy
+4. Test data flow between screens
+
+### Phase 3: Proceed with UI Redesign with Confidence
+Once these tests are in place, UI redesign can proceed with much lower risk
 
 ## How to Use This Guide
 
