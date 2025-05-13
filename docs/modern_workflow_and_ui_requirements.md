@@ -33,10 +33,10 @@
 - **Minimal, Clear Layouts**: Prioritize whitespace, clear typography, and intuitive grouping of actions. Avoid clutter.
 - **Edit Buttons**: Place pencil icons (using a white pencil inside a puce pill-shaped background with a label, e.g., 'Edit') inline with the relevant section headers (Receipt Summary in Assign, Split Summary in Summary) for editing. These icons are the only way to access Review and Split screens. The icons must be visually discoverable, accessible, and follow Material You guidelines.
 - **Edit Overlays**: When an edit overlay (Review or Split) is opened, it must use a standard Material full-screen dialog transition (slide up/fade in), fully cover the modal workflow (including navigation controls), and lock navigation until the overlay is dismissed. Overlays can be dismissed via the FAB, swipe-down gesture, or system back (Android), all returning the user to the correct workflow step. The FAB should remain in the Material default (bottom-right) and must not be redundant with any other button. Overlay background should be solid (surface color or white) for now. Accessibility for overlays is out of scope for now, but overlays should be built to allow easy future extension.
-- **IN PROGRESS:** All edit overlays (Review, Split) must use a bottom app bar for actions (Add Person, Add Item, Done). No floating action buttons (FABs) should remain in these overlays. All overlays must use a Material surface color or white for the background (never black).
-- **IN PROGRESS:** All action buttons (Add Person, Add Item, Done) must work as before, with immediate UI and cache updates.
-- **Assign edit view (VoiceAssignmentScreen) must use a bottom app bar for primary actions, matching the summary edit view for UI consistency. Remove redundant floating action buttons.**
-- **Assign edit view background color must use a Material surface color or white, not black.**
+- [x] All edit overlays (Review, Split) are now implemented as full-screen routes (not dialogs), use a bottom app bar for actions (Add Person, Add Item, Done), and use a Material surface color or white for the background (never black). No floating action buttons (FABs) remain in these overlays.
+- [x] All action buttons (Add Person, Add Item, Done) work as before, with immediate UI and cache updates.
+- [ ] Assign edit view (VoiceAssignmentScreen) must use a bottom app bar for primary actions, matching the summary edit view for UI consistency. Remove redundant floating action buttons.
+- [ ] Assign edit view background color must use a Material surface color or white, not black.
 - **Confirmation Dialogs**: When editing, warn users if changes will discard downstream data (e.g., editing items will reset assignments). (No additional confirmations needed for pencil icon navigation.)
 - **Platform Conformity**: Ensure all UI/UX works and looks native on both Android and iOS.
 - **Accessibility**: Use sufficient contrast, large tap targets, and support for screen readers. Pencil icons should be clearly visible and accessible.
@@ -61,12 +61,13 @@
 - **Documentation**: Update README and docs/ as needed to reflect new workflow and UI.
 
 ## Knowledge Transfer (KT) for Future AI/Devs
+- **Overlay Implementation:** Always use full-screen routes (e.g., MaterialPageRoute) for edit overlays (Review, Split) instead of showDialog. This avoids modal barrier stacking, black screens, and navigation issues. See [Flutter Issue #27725](https://github.com/flutter/flutter/issues/27725) and [Flutter Issue #74801](https://github.com/flutter/flutter/issues/74801) for context.
 - **Design:** All edit overlays (Review, Split) use a bottom app bar for actions. No floating action buttons (FABs) should remain in these overlays. Use Material You surface colors for backgrounds.
-- **Navigation:** Only one pop/navigation event should occur when closing overlays (see double pop bug in SplitStepWidget). Use `Navigator.canPop()` and guard callbacks.
-- **State Management:** All add/remove actions (person/item) must update the `SplitManager` and notify listeners. UI must rebuild immediately after changes.
-- **Testing:** Widget tests must open dialogs, wait for animations, and use robust finders (by key/label, not just text). Test all action buttons for correct UI updates and navigation.
+- **Navigation:** Only one pop/navigation event should occur when closing overlays. Use Navigator.canPop() and guard callbacks.
+- **State Management:** All add/remove actions (person/item) must update the SplitManager and notify listeners. UI must rebuild immediately after changes.
+- **Testing:** Widget tests must open overlays as routes, wait for animations, and use robust finders (by key/label, not just text). Test all action buttons for correct UI updates and navigation.
 - **Pitfalls:** Watch for context disposal after pop, and for test failures due to widget tree changes. Always update tests after major UI refactors.
-- **Where to look:** Main UI logic for overlays is in `split_step_widget.dart`, `split_view.dart`, and related dialog widgets. Test logic is in `test/widgets/workflow_steps/`.
+- **Where to look:** Main UI logic for overlays is in split_step_widget.dart, split_view.dart, and related dialog widgets. Test logic is in test/widgets/workflow_steps/.
 
 ---
 

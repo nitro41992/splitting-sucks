@@ -22,17 +22,17 @@ This plan outlines the implementation tasks for the modern workflow and UI redes
 - [x] Update Summary step to display only assignments (individual, shared, unassigned), with an inline pencil icon for editing assignments.
 - [x] Style pencil icons in a modern, discoverable way (Material You principles, using `AppColors.puce`).
 - [x] Ensure all layouts are minimal, clear, and use Material You components/colors.
-- [ ] **IN PROGRESS:** Fix add person/item logic so that UI and cache update immediately in all edit overlays.
+- [x] Fix add person/item logic so that UI and cache update immediately in all edit overlays.
 - [ ] **IN PROGRESS:** Update all tests to match new UI structure and logic.
 - [x] Add/adjust confirmation dialogs for editing actions that discard downstream data (only where required).
 - [x] Ensure all UI/UX is accessible and conforms to platform guidelines.
 - [x] Run all tests and fix any failures after completing this section.
 
 ## 4. Navigation & Routing
-- [ ] Refactor navigation so that editing screens (Review, Split) are independent, full-screen overlays with no stepper.
-- [ ] Ensure user can jump directly to editing from Assign or Summary via pencil icons, and return to the workflow after editing using FABs.
-- [ ] Remove stepper/step indicator from edit screens.
-- [ ] Edit overlays (Review and Split) must fully cover the workflow modal, including navigation controls (Back, Exit, Next), so only the overlay's FAB is visible and interactive. The underlying workflow UI and navigation must not be visible or accessible while in an edit overlay. The overlay should feel like a full-screen dialog/modal, not a partial overlay. FAB actions must always perform the main navigation (e.g., 'Looks Good' returns to Assign, 'Go to Summary' returns to Summary), and must not overlap with any underlying controls.
+- [x] Refactor navigation so that editing screens (Review, Split) are independent, full-screen overlays with no stepper. Overlays are now implemented as full-screen routes (MaterialPageRoute), not dialogs, to avoid modal barrier/black screen issues.
+- [x] Ensure user can jump directly to editing from Assign or Summary via pencil icons, and return to the workflow after editing using FABs.
+- [x] Remove stepper/step indicator from edit screens.
+- [x] Edit overlays (Review and Split) now fully cover the workflow modal, including navigation controls (Back, Exit, Next), so only the overlay's FAB is visible and interactive. The underlying workflow UI and navigation are not visible or accessible while in an edit overlay. The overlay is a true full-screen route, not a dialog, and FAB actions perform the main navigation (e.g., 'Looks Good' returns to Assign, 'Go to Summary' returns to Summary), and do not overlap with any underlying controls.
 - [ ] The pencil icon for editing must be a white pencil inside a puce pill-shaped background, following Material You guidelines for discoverability and accessibility.
 - [ ] The FAB in edit overlays must always perform the main navigation action and not overlap with any underlying controls.
 - [ ] All widget/integration tests must verify that overlays block workflow navigation and that the correct navigation occurs when the FAB is pressed.
@@ -72,11 +72,12 @@ This plan outlines the implementation tasks for the modern workflow and UI redes
 
 ## Knowledge Transfer (KT) for Future AI/Devs
 - **Design:** All edit overlays (Review, Split) use a bottom app bar for actions. No floating action buttons (FABs) should remain in these overlays. Use Material You surface colors for backgrounds.
-- **Navigation:** Only one pop/navigation event should occur when closing overlays (see double pop bug in SplitStepWidget). Use `Navigator.canPop()` and guard callbacks.
-- **State Management:** All add/remove actions (person/item) must update the `SplitManager` and notify listeners. UI must rebuild immediately after changes.
-- **Testing:** Widget tests must open dialogs, wait for animations, and use robust finders (by key/label, not just text). Test all action buttons for correct UI updates and navigation.
+- **Navigation:** Only one pop/navigation event should occur when closing overlays. Use Navigator.canPop() and guard callbacks.
+- **State Management:** All add/remove actions (person/item) must update the SplitManager and notify listeners. UI must rebuild immediately after changes.
+- **Testing:** Widget tests must open overlays as routes, wait for animations, and use robust finders (by key/label, not just text). Test all action buttons for correct UI updates and navigation.
 - **Pitfalls:** Watch for context disposal after pop, and for test failures due to widget tree changes. Always update tests after major UI refactors.
-- **Where to look:** Main UI logic for overlays is in `split_step_widget.dart`, `split_view.dart`, and related dialog widgets. Test logic is in `test/widgets/workflow_steps/`.
+- **Where to look:** Main UI logic for overlays is in split_step_widget.dart, split_view.dart, and related dialog widgets. Test logic is in test/widgets/workflow_steps/.
+- **Overlay Implementation:** Always use full-screen routes (e.g., MaterialPageRoute) for edit overlays (Review, Split) instead of showDialog. This avoids modal barrier stacking, black screens, and navigation issues. See [Flutter Issue #27725](https://github.com/flutter/flutter/issues/27725) and [Flutter Issue #74801](https://github.com/flutter/flutter/issues/74801) for context.
 
 ---
 
