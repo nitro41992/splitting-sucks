@@ -261,190 +261,193 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
           )
         : const SizedBox.shrink();
 
-    return Stack(
-      children: [
-        CustomScrollView(
-          controller: _itemsScrollController,
-          slivers: [
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: SubtotalHeaderDelegate( // Use the extracted delegate
-                minHeight: 60,
-                maxHeight: 120,
-                isCollapsed: _isSubtotalCollapsed,
-                subtotal: _calculateSubtotal(),
-                colorScheme: colorScheme,
-                textTheme: textTheme,
-              ),
-            ),
-
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              sliver: SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
-                  child: Text(
-                    'Items (${_editableItems.length})',
-                    style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
-                  ),
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _itemsScrollController,
+            slivers: [
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: SubtotalHeaderDelegate( // Use the extracted delegate
+                  minHeight: 60,
+                  maxHeight: 120,
+                  isCollapsed: _isSubtotalCollapsed,
+                  subtotal: _calculateSubtotal(),
+                  colorScheme: colorScheme,
+                  textTheme: textTheme,
                 ),
               ),
-            ),
 
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final item = _editableItems[index];
-                  return Padding(
-                    padding: PlatformConfig.getListItemPadding(),
-                    child: ReceiptItemCard(
-                      key: ValueKey(item.hashCode), // Use a unique key for animations
-                      item: item,
-                      index: index,
-                      onEdit: _editItem,
-                      onDelete: _removeItem,
-                      onQuantityChanged: _updateItemQuantity, // Pass the new handler
-                    ),
-                  );
-                },
-                childCount: _editableItems.length,
-              ),
-            ),
-
-            if (_deletedItems.isNotEmpty) ...[
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 sliver: SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 24.0, bottom: 8.0),
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_sweep_outlined, color: colorScheme.error, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Deleted Items (${_deletedItems.length})',
-                          style: textTheme.titleMedium?.copyWith(color: colorScheme.error),
-                        ),
-                      ],
+                    padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+                    child: Text(
+                      'Items (${_editableItems.length})',
+                      style: textTheme.titleMedium?.copyWith(color: colorScheme.primary),
                     ),
                   ),
                 ),
               ),
+
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final item = _deletedItems[index];
-                    return Card(
-                      margin: PlatformConfig.getCardMargin(),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.5)),
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                        title: Text(
-                          item.name,
-                          style: textTheme.titleMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${item.quantity}x \$${item.price.toStringAsFixed(2)} each',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                             decoration: TextDecoration.lineThrough,
-                          ),
-                        ),
-                        trailing: TextButton.icon(
-                          icon: const Icon(Icons.restore_from_trash, size: 18),
-                          label: const Text('Restore'),
-                          onPressed: () => _restoreItem(index),
-                          style: TextButton.styleFrom(
-                            foregroundColor: colorScheme.primary,
-                          ),
-                        ),
+                    final item = _editableItems[index];
+                    return Padding(
+                      padding: PlatformConfig.getListItemPadding(),
+                      child: ReceiptItemCard(
+                        key: ValueKey(item.hashCode), // Use a unique key for animations
+                        item: item,
+                        index: index,
+                        onEdit: _editItem,
+                        onDelete: _removeItem,
+                        onQuantityChanged: _updateItemQuantity, // Pass the new handler
                       ),
                     );
                   },
-                  childCount: _deletedItems.length,
+                  childCount: _editableItems.length,
                 ),
               ),
-            ],
 
-            // Bottom padding to ensure last items are fully visible below buttons
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
-        ),
-        // Bottom buttons
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: 16, // Adjust position if needed
-          child: Row(
-            children: [
-              // FAB for adding items
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 150),
-                opacity: _isFabVisible ? 1.0 : 0.0,
-                child: FloatingActionButton.extended(
-                  key: const ValueKey('addItemFAB'),
-                  onPressed: _addItem,
-                  icon: const Icon(Icons.add_shopping_cart_outlined),
-                  label: Text(
-                    'Add Item',
-                    style: textTheme.titleSmall?.copyWith(
-                      color: colorScheme.onPrimary,
-                      fontWeight: FontWeight.bold,
+              if (_deletedItems.isNotEmpty) ...[
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  sliver: SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 24.0, bottom: 8.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_sweep_outlined, color: colorScheme.error, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Deleted Items (${_deletedItems.length})',
+                            style: textTheme.titleMedium?.copyWith(color: colorScheme.error),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  tooltip: 'Add Item',
                 ),
-              ),
-              const SizedBox(width: 16),
-              // Confirmation button
-              Expanded(
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 150),
-                  opacity: _isContinueButtonVisible ? 1.0 : 0.0,
-                  child: SizedBox(
-                    height: 56.0,
-                    child: ElevatedButton.icon(
-                      key: const ValueKey('confirmReviewButton'),
-                      onPressed: _isContinueButtonVisible && _editableItems.isNotEmpty
-                          ? () => widget.onReviewComplete(_editableItems, _deletedItems)
-                          : null,
-                      icon: Icon(
-                        Icons.check_circle_outline,
-                        size: 20,
-                        color: colorScheme.onPrimary,
-                      ),
-                      label: Text(
-                        'Looks Good',
-                        style: textTheme.titleSmall?.copyWith(
-                          color: colorScheme.onPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final item = _deletedItems[index];
+                      return Card(
+                        margin: PlatformConfig.getCardMargin(),
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.5)),
                         ),
-                        elevation: 1,
-                      ),
-                    ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                          title: Text(
+                            item.name,
+                            style: textTheme.titleMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${item.quantity}x \$${item.price.toStringAsFixed(2)} each',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                               decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                          trailing: TextButton.icon(
+                            icon: const Icon(Icons.restore_from_trash, size: 18),
+                            label: const Text('Restore'),
+                            onPressed: () => _restoreItem(index),
+                            style: TextButton.styleFrom(
+                              foregroundColor: colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    childCount: _deletedItems.length,
                   ),
                 ),
-              ),
+              ],
+
+              // Bottom padding to ensure last items are fully visible below buttons
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
-        ),
-        closeFab,
-      ],
+          // Bottom buttons
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16, // Adjust position if needed
+            child: Row(
+              children: [
+                // FAB for adding items
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 150),
+                  opacity: _isFabVisible ? 1.0 : 0.0,
+                  child: FloatingActionButton.extended(
+                    key: const ValueKey('addItemFAB'),
+                    onPressed: _addItem,
+                    icon: const Icon(Icons.add_shopping_cart_outlined),
+                    label: Text(
+                      'Add Item',
+                      style: textTheme.titleSmall?.copyWith(
+                        color: colorScheme.onPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    tooltip: 'Add Item',
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Confirmation button
+                Expanded(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 150),
+                    opacity: _isContinueButtonVisible ? 1.0 : 0.0,
+                    child: SizedBox(
+                      height: 56.0,
+                      child: ElevatedButton.icon(
+                        key: const ValueKey('confirmReviewButton'),
+                        onPressed: _isContinueButtonVisible && _editableItems.isNotEmpty
+                            ? () => widget.onReviewComplete(_editableItems, _deletedItems)
+                            : null,
+                        icon: Icon(
+                          Icons.check_circle_outline,
+                          size: 20,
+                          color: colorScheme.onPrimary,
+                        ),
+                        label: Text(
+                          'Looks Good',
+                          style: textTheme.titleSmall?.copyWith(
+                            color: colorScheme.onPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          closeFab,
+        ],
+      ),
     );
   }
 } 
