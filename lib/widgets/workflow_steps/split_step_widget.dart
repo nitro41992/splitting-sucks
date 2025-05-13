@@ -7,7 +7,7 @@ import '../../widgets/split_view.dart'; // Canonical source for NavigateToPageNo
 import '../../theme/app_colors.dart';
 import 'package:flutter/services.dart';
 
-class SplitStepWidget extends StatelessWidget {
+class SplitStepWidget extends StatefulWidget {
   // Data from WorkflowState needed to initialize SplitManager
   final Map<String, dynamic> parseResult; // Contains original items, subtotal, (optional initial tip/tax)
   final Map<String, dynamic> assignResultMap; // Contains assignments, shared_items, unassigned_items from voice
@@ -35,6 +35,41 @@ class SplitStepWidget extends StatelessWidget {
     required this.onNavigateToPage,
     this.onClose,
   }) : super(key: key);
+
+  @override
+  State<SplitStepWidget> createState() => _SplitStepWidgetState();
+}
+
+class _SplitStepWidgetState extends State<SplitStepWidget> {
+  late SplitManager splitManager;
+
+  @override
+  void initState() {
+    super.initState();
+    splitManager = SplitManager(
+      people: _extractPeopleFromAssignResult(widget.assignResultMap),
+      sharedItems: _extractSharedItemsFromAssignResult(widget.assignResultMap),
+      unassignedItems: _extractUnassignedItemsFromAssignResult(widget.assignResultMap),
+      tipPercentage: widget.currentTip ?? (widget.parseResult['tip'] as num?)?.toDouble(),
+      taxPercentage: widget.currentTax ?? (widget.parseResult['tax'] as num?)?.toDouble(),
+      originalReviewTotal: (widget.parseResult['subtotal'] as num?)?.toDouble(),
+    );
+    splitManager.initialSplitViewTabIndex = widget.initialSplitViewTabIndex;
+    splitManager.addListener(_onSplitManagerChanged);
+  }
+
+  @override
+  void dispose() {
+    splitManager.removeListener(_onSplitManagerChanged);
+    splitManager.dispose();
+    super.dispose();
+  }
+
+  void _onSplitManagerChanged() {
+    widget.onTipChanged(splitManager.tipPercentage);
+    widget.onTaxChanged(splitManager.taxPercentage);
+    widget.onAssignmentsUpdatedBySplit(splitManager.generateAssignmentMap());
+  }
 
   List<Person> _extractPeopleFromAssignResult(Map<String, dynamic> assignResult) {
     final List<Map<String, dynamic>> assignments = (assignResult['assignments'] as List<dynamic>?)
@@ -296,14 +331,14 @@ class SplitStepWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<Person> people = _extractPeopleFromAssignResult(assignResultMap);
-    final List<ReceiptItem> sharedItems = _extractSharedItemsFromAssignResult(assignResultMap);
-    final List<ReceiptItem> unassignedItems = _extractUnassignedItemsFromAssignResult(assignResultMap);
-    final List<ReceiptItem> initialItemsFromParse = _extractInitialItemsFromParseResult(parseResult);
+    final List<Person> people = _extractPeopleFromAssignResult(widget.assignResultMap);
+    final List<ReceiptItem> sharedItems = _extractSharedItemsFromAssignResult(widget.assignResultMap);
+    final List<ReceiptItem> unassignedItems = _extractUnassignedItemsFromAssignResult(widget.assignResultMap);
+    final List<ReceiptItem> initialItemsFromParse = _extractInitialItemsFromParseResult(widget.parseResult);
 
     // --- BEGIN DEBUG LOGS ---
     debugPrint('[SplitStepWidget] Initializing SplitManager.');
-    debugPrint('[SplitStepWidget] parseResult subtotal for originalReviewTotal: ${parseResult['subtotal']}');
+    debugPrint('[SplitStepWidget] parseResult subtotal for originalReviewTotal: ${widget.parseResult['subtotal']}');
     double calculatedSumForDebug = 0;
     debugPrint('[SplitStepWidget] People (${people.length}):');
     for (var p in people) {
@@ -328,7 +363,7 @@ class SplitStepWidget extends StatelessWidget {
 
     // Link shared items to people (based on logic previously in _WorkflowModalBodyState)
     // This might need refinement if assignResultMap['shared_items'] contains 'people' lists directly
-    final List<Map<String, dynamic>> sharedItemsDataFromAssign = (assignResultMap['shared_items'] as List<dynamic>?)
+    final List<Map<String, dynamic>> sharedItemsDataFromAssign = (widget.assignResultMap['shared_items'] as List<dynamic>?)
             ?.map((e) => e as Map<String, dynamic>)
             .toList() ?? [];
 
@@ -353,15 +388,6 @@ class SplitStepWidget extends StatelessWidget {
         }
     }
 
-    final splitManager = SplitManager(
-      people: people,
-      sharedItems: sharedItems,
-      unassignedItems: unassignedItems,
-      tipPercentage: currentTip ?? (parseResult['tip'] as num?)?.toDouble(),
-      taxPercentage: currentTax ?? (parseResult['tax'] as num?)?.toDouble(),
-      originalReviewTotal: (parseResult['subtotal'] as num?)?.toDouble(),
-    );
-
     for (var item in initialItemsFromParse) {
       splitManager.setOriginalQuantity(item, item.quantity);
     }
@@ -375,134 +401,27 @@ class SplitStepWidget extends StatelessWidget {
             splitManager.setOriginalQuantity(item, item.quantity);
         }
     }
-    splitManager.initialSplitViewTabIndex = initialSplitViewTabIndex;
 
-    // Add listener to SplitManager to propagate changes back to WorkflowState
-    // IMPORTANT: This listener should be added carefully to avoid issues if SplitStepWidget rebuilds.
-    // Consider if this listener should be managed by a StatefulWidget wrapper if SplitManager persists across rebuilds,
-    // or ensure SplitManager is recreated on each build and listener re-added.
-    // For simplicity now, assuming SplitManager is recreated with each build of SplitStepWidget.
-    splitManager.addListener(() {
-      // Check mounted if this widget were a StatefulWidget, but it's StatelessWidget.
-      // Callbacks will handle context.
-      final newTip = splitManager.tipPercentage;
-      final newTax = splitManager.taxPercentage;
-      final newAssignments = splitManager.generateAssignmentMap();
-
-      onTipChanged(newTip);
-      onTaxChanged(newTax);
-      onAssignmentsUpdatedBySplit(newAssignments);
-    });
-
-    // Use showDialog for a true full-screen overlay
-    Future<void> _showFullScreenSplitDialog() async {
-      await showDialog(
-        context: context,
-        barrierDismissible: true,
-        builder: (context) {
-          return WillPopScope(
-            onWillPop: () async {
-              if (onClose != null) onClose!();
-              return true;
-            },
-            child: ChangeNotifierProvider.value(
-              value: splitManager,
-              child: Scaffold(
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                body: Stack(
-                  children: [
-                    NotificationListener<Notification>(
-                      onNotification: (notification) {
-                        if (notification is NavigateToPageNotification) {
-                          onNavigateToPage(notification.pageIndex);
-                          Navigator.of(context).pop();
-                          return true;
-                        }
-                        return false;
-                      },
-                      child: const SplitView(),
-                    ),
-                    // Persistent action row at the bottom
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: Material(
-                        elevation: 8,
-                        color: Theme.of(context).colorScheme.surfaceVariant,
-                        child: SafeArea(
-                          top: false,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Row(
-                              children: [
-                                // Add Person (icon only)
-                                Tooltip(
-                                  message: 'Add Person',
-                                  child: IconButton(
-                                    icon: const Icon(Icons.person_add),
-                                    onPressed: () => _showAddPersonDialog(context, Provider.of<SplitManager>(context, listen: false)),
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                // Add Item (icon only)
-                                Tooltip(
-                                  message: 'Add Item',
-                                  child: IconButton(
-                                    icon: const Icon(Icons.add_shopping_cart),
-                                    onPressed: () => _showAddItemDialog(context, Provider.of<SplitManager>(context, listen: false)),
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                const Spacer(),
-                                // Done (confirm)
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      // Prevent double pop: only call onClose if not already popped
-                                      if (Navigator.of(context).canPop()) {
-                                        Navigator.of(context).pop();
-                                        // Only call onClose if it does not itself pop
-                                        // (Assume onClose is idempotent or a no-op if already closed)
-                                        if (onClose != null) onClose!();
-                                      } else if (onClose != null) {
-                                        onClose!();
-                                      }
-                                    },
-                                    icon: const Icon(Icons.check),
-                                    label: const Text('Done'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Theme.of(context).colorScheme.primary,
-                                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+    return ChangeNotifierProvider.value(
+      value: splitManager,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: Stack(
+          children: [
+            NotificationListener<Notification>(
+              onNotification: (notification) {
+                if (notification is NavigateToPageNotification) {
+                  widget.onNavigateToPage(notification.pageIndex);
+                  Navigator.of(context).pop();
+                  return true;
+                }
+                return false;
+              },
+              child: const SplitView(),
             ),
-          );
-        },
-      );
-      if (onClose != null) onClose!();
-    }
-
-    // Call the dialog when this widget is built
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showFullScreenSplitDialog();
-    });
-
-    return const SizedBox.shrink();
+          ],
+        ),
+      ),
+    );
   }
 } 

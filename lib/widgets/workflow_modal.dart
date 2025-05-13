@@ -1235,7 +1235,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
           onTaxChanged: _handleTaxChangedForSplitStep,
           onAssignmentsUpdatedBySplit: _handleAssignmentsUpdatedBySplitStep,
           onNavigateToPage: _handleNavigateToPageForSplitStep,
-          onClose: () => Navigator.of(context).maybePop(),
         ),
       ),
     );

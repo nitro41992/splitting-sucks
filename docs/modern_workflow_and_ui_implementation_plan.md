@@ -22,7 +22,6 @@ This plan outlines the implementation tasks for the modern workflow and UI redes
 - [x] Update Summary step to display only assignments (individual, shared, unassigned), with an inline pencil icon for editing assignments.
 - [x] Style pencil icons in a modern, discoverable way (Material You principles, using `AppColors.puce`).
 - [x] Ensure all layouts are minimal, clear, and use Material You components/colors.
-- [ ] **IN PROGRESS:** Refactor all edit overlays (Review, Split) to use a bottom app bar for actions (Add Person, Add Item, Done), matching the summary edit view. Remove all legacy FABs from these overlays.
 - [ ] **IN PROGRESS:** Fix add person/item logic so that UI and cache update immediately in all edit overlays.
 - [ ] **IN PROGRESS:** Update all tests to match new UI structure and logic.
 - [x] Add/adjust confirmation dialogs for editing actions that discard downstream data (only where required).

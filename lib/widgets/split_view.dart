@@ -220,275 +220,319 @@ class _SplitViewState extends State<SplitView> {
           );
         }
         
-        return Scaffold(
-          body: Column(
-            children: [
-              // Collapsible totals header at the top
-              NotificationListener<ScrollNotification>(
-                onNotification: (notification) {
-                  // We're no longer auto-collapsing based on scroll
-                  return false;
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  height: _isSubtotalCollapsed ? 60 : 220,
-                  decoration: BoxDecoration(
-                    color: _isSubtotalCollapsed ? colorScheme.surface.withOpacity(0.9) : Colors.transparent,
-                    boxShadow: _isSubtotalCollapsed 
-                      ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))]
-                      : null,
-                  ),
-                  child: _isSubtotalCollapsed 
-                    // Collapsed view - just the subtotal
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Subtotal: ',
-                                  style: textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
+        return Stack(
+          children: [
+            Column(
+              children: [
+                // Collapsible totals header at the top
+                NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    // We're no longer auto-collapsing based on scroll
+                    return false;
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: _isSubtotalCollapsed ? 60 : 220,
+                    decoration: BoxDecoration(
+                      color: _isSubtotalCollapsed ? colorScheme.surface.withOpacity(0.9) : Colors.transparent,
+                      boxShadow: _isSubtotalCollapsed 
+                        ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))]
+                        : null,
+                    ),
+                    child: _isSubtotalCollapsed 
+                      // Collapsed view - just the subtotal
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Subtotal: ',
+                                    style: textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  '\$${subtotal.toStringAsFixed(2)}',
-                                  style: textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.primary,
+                                  Text(
+                                    '\$${subtotal.toStringAsFixed(2)}',
+                                    style: textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: colorScheme.primary,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            // Toggle button
-                            IconButton(
-                              icon: Icon(Icons.expand_more, color: colorScheme.primary),
-                              onPressed: () => setState(() => _isSubtotalCollapsed = false),
-                              tooltip: 'Show details',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              splashRadius: 24,
-                            ),
-                          ],
-                        ),
-                      )
-                    // Expanded view - full totals breakdown
-                    : GestureDetector(
-                        onVerticalDragEnd: (details) {
-                          // If drag ends with upward motion, collapse the totals
-                          if (details.primaryVelocity != null && details.primaryVelocity! < 0) {
-                            setState(() => _isSubtotalCollapsed = true);
-                          }
-                        },
-                        child: SingleChildScrollView(
-                          physics: const NeverScrollableScrollPhysics(),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Header with collapse button
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(Icons.expand_less, color: colorScheme.primary),
-                                      onPressed: () => setState(() => _isSubtotalCollapsed = true),
-                                      tooltip: 'Hide details',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      splashRadius: 24,
-                                    ),
-                                  ],
-                                ),
-                                // Individual Items Total
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Individual Items: ',
-                                      style: textTheme.titleMedium,
-                                    ),
-                                    Text(
-                                      '\$${individualTotal.toStringAsFixed(2)}',
-                                      style: textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.primary,
+                                ],
+                              ),
+                              // Toggle button
+                              IconButton(
+                                icon: Icon(Icons.expand_more, color: colorScheme.primary),
+                                onPressed: () => setState(() => _isSubtotalCollapsed = false),
+                                tooltip: 'Show details',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                splashRadius: 24,
+                              ),
+                            ],
+                          ),
+                        )
+                      // Expanded view - full totals breakdown
+                      : GestureDetector(
+                          onVerticalDragEnd: (details) {
+                            // If drag ends with upward motion, collapse the totals
+                            if (details.primaryVelocity != null && details.primaryVelocity! < 0) {
+                              setState(() => _isSubtotalCollapsed = true);
+                            }
+                          },
+                          child: SingleChildScrollView(
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Header with collapse button
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(Icons.expand_less, color: colorScheme.primary),
+                                        onPressed: () => setState(() => _isSubtotalCollapsed = true),
+                                        tooltip: 'Hide details',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        splashRadius: 24,
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                // Shared Items Total
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Shared Items: ',
-                                      style: textTheme.titleMedium,
-                                    ),
-                                    Text(
-                                      '\$${sharedTotal.toStringAsFixed(2)}',
-                                      style: textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.primary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                // Combined Assigned Total
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Assigned Total: ',
-                                      style: textTheme.titleMedium,
-                                    ),
-                                    Text(
-                                      '\$${assignedTotal.toStringAsFixed(2)}',
-                                      style: textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.primary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Unassigned: ',
-                                      style: textTheme.titleMedium?.copyWith(
-                                        color: colorScheme.error,
-                                      ),
-                                    ),
-                                    Text(
-                                      '\$${unassignedTotal.toStringAsFixed(2)}',
-                                      style: textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.error,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                // Subtotal row - always visible and more prominent
-                                Divider(height: 1, thickness: 1),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                  child: Row(
+                                    ],
+                                  ),
+                                  // Individual Items Total
+                                  Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        'Subtotal: ',
-                                        style: textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
+                                        'Individual Items: ',
+                                        style: textTheme.titleMedium,
                                       ),
                                       Text(
-                                        '\$${subtotal.toStringAsFixed(2)}',
+                                        '\$${individualTotal.toStringAsFixed(2)}',
                                         style: textTheme.titleMedium?.copyWith(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 16,
                                           color: colorScheme.primary,
                                         ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  // Shared Items Total
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Shared Items: ',
+                                        style: textTheme.titleMedium,
+                                      ),
+                                      Text(
+                                        '\$${sharedTotal.toStringAsFixed(2)}',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Combined Assigned Total
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Assigned Total: ',
+                                        style: textTheme.titleMedium,
+                                      ),
+                                      Text(
+                                        '\$${assignedTotal.toStringAsFixed(2)}',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Unassigned: ',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          color: colorScheme.error,
+                                        ),
+                                      ),
+                                      Text(
+                                        '\$${unassignedTotal.toStringAsFixed(2)}',
+                                        style: textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.error,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  // Subtotal row - always visible and more prominent
+                                  Divider(height: 1, thickness: 1),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Subtotal: ',
+                                          style: textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        Text(
+                                          '\$${subtotal.toStringAsFixed(2)}',
+                                          style: textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: colorScheme.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                ),
-              ),
-              
-              // --- INSERT WARNING BELOW SUBTOTAL ---
-              if (warningWidget != null) warningWidget,
-              
-              // Custom tab selector
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Container(
-                  width: double.infinity,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceVariant.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
+                ),
+                
+                // --- INSERT WARNING BELOW SUBTOTAL ---
+                if (warningWidget != null) warningWidget,
+                
+                // Custom tab selector
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Container(
+                    width: double.infinity,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceVariant.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        // People Tab
+                        Expanded(
+                          child: _buildTabItem(
+                            context: context,
+                            colorScheme: colorScheme,
+                            textTheme: textTheme,
+                            index: 0,
+                            label: 'People',
+                          ),
+                        ),
+                        
+                        // Shared Tab
+                        Expanded(
+                          child: _buildTabItem(
+                            context: context,
+                            colorScheme: colorScheme,
+                            textTheme: textTheme,
+                            index: 1,
+                            label: 'Shared',
+                          ),
+                        ),
+                        
+                        // Unassigned Tab
+                        Expanded(
+                          child: _buildTabItem(
+                            context: context,
+                            colorScheme: colorScheme,
+                            textTheme: textTheme,
+                            index: 2,
+                            label: 'Unassigned',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // Content area without totals header
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
                     children: [
-                      // People Tab
-                      Expanded(
-                        child: _buildTabItem(
-                          context: context,
-                          colorScheme: colorScheme,
-                          textTheme: textTheme,
-                          index: 0,
-                          label: 'People',
-                        ),
+                      // People list
+                      _buildList(
+                        scrollController: _peopleScrollController,
+                        builder: (context) => _buildPeopleList(context, splitManager),
                       ),
                       
-                      // Shared Tab
-                      Expanded(
-                        child: _buildTabItem(
-                          context: context,
-                          colorScheme: colorScheme,
-                          textTheme: textTheme,
-                          index: 1,
-                          label: 'Shared',
-                        ),
+                      // Shared items list
+                      _buildList(
+                        scrollController: _sharedScrollController,
+                        builder: (context) => _buildSharedItemsList(context, splitManager),
                       ),
                       
-                      // Unassigned Tab
-                      Expanded(
-                        child: _buildTabItem(
-                          context: context,
-                          colorScheme: colorScheme,
-                          textTheme: textTheme,
-                          index: 2,
-                          label: 'Unassigned',
-                        ),
+                      // Unassigned items list
+                      _buildList(
+                        scrollController: _unassignedScrollController,
+                        builder: (context) => _buildUnassignedItemsList(context, splitManager),
                       ),
                     ],
                   ),
                 ),
-              ),
-              
-              // Content area without totals header
-              Expanded(
-                child: IndexedStack(
-                  index: _selectedIndex,
+              ],
+            ),
+            // Floating Action Buttons (FABs) for Add Person, Add Item, and Done
+            // Only show when _isFabVisible is true
+            if (_isFabVisible)
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // People list
-                    _buildList(
-                      scrollController: _peopleScrollController,
-                      builder: (context) => _buildPeopleList(context, splitManager),
+                    FloatingActionButton(
+                      heroTag: 'fab_add_person',
+                      onPressed: () => _showAddPersonDialog(context, splitManager),
+                      tooltip: 'Add Person',
+                      child: const Icon(Icons.person_add),
                     ),
-                    
-                    // Shared items list
-                    _buildList(
-                      scrollController: _sharedScrollController,
-                      builder: (context) => _buildSharedItemsList(context, splitManager),
+                    const SizedBox(width: 16),
+                    FloatingActionButton(
+                      heroTag: 'fab_add_item',
+                      onPressed: () => _showAddItemDialog(context, splitManager),
+                      tooltip: 'Add Item',
+                      child: const Icon(Icons.add_shopping_cart),
                     ),
-                    
-                    // Unassigned items list
-                    _buildList(
-                      scrollController: _unassignedScrollController,
-                      builder: (context) => _buildUnassignedItemsList(context, splitManager),
+                    const SizedBox(width: 16),
+                    FloatingActionButton(
+                      heroTag: 'fab_done',
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          debugPrint('[SplitView] Done FAB: canPop is true, popping overlay.');
+                          Navigator.of(context).pop();
+                          debugPrint('[SplitView] Done FAB: pop called.');
+                        } else {
+                          debugPrint('[SplitView] Done FAB: canPop is false, not popping.');
+                        }
+                      },
+                      tooltip: 'Done',
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      child: const Icon(Icons.check),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          // No floatingActionButton when overlay is open
+          ],
         );
       },
     );
