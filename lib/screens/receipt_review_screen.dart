@@ -247,20 +247,6 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
-    // Add a FAB for closing the overlay if onClose is provided
-    Widget closeFab = (widget.onClose != null)
-        ? Positioned(
-            bottom: 24,
-            right: 24,
-            child: FloatingActionButton.extended(
-              onPressed: widget.onClose,
-              icon: const Icon(Icons.check),
-              label: const Text('Looks Good'),
-              heroTag: 'review-close-fab',
-            ),
-          )
-        : const SizedBox.shrink();
-
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: Stack(
@@ -445,7 +431,6 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
               ],
             ),
           ),
-          closeFab,
         ],
       ),
     );

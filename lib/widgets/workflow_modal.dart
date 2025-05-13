@@ -1200,7 +1200,16 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
           child: ReviewStepWidget(
             key: const ValueKey('ReviewStepWidget'),
             initialItems: _convertToReceiptItems(workflowState.parseReceiptResult),
-            onReviewComplete: _handleReviewCompleteForReviewStep,
+            onReviewComplete: (updatedItems, deletedItems) {
+              final newParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
+              newParseResult['items'] = updatedItems.map((item) =>
+                {'name': item.name, 'price': item.price, 'quantity': item.quantity}
+              ).toList();
+              workflowState.setParseReceiptResult(newParseResult);
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            },
             onItemsUpdated: _handleItemsUpdatedForReviewStep,
             registerCurrentItemsGetter: _handleRegisterCurrentItemsGetterForReviewStep,
             onClose: () => Navigator.of(context).maybePop(),
