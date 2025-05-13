@@ -159,9 +159,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   final FirestoreService _firestoreService = FirestoreService();
   final List<String> _stepTitles = [
     'Upload',
-    'Review',
     'Assign',
-    'Split',
     'Summary',
   ];
   int _initialSplitViewTabIndex = 0;
@@ -338,11 +336,11 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       // Determine target step
       int targetStep = 0; // Default to Upload (Step 0)
       if (workflowState.hasAssignmentData) {
-        targetStep = 4; // Go to Summary (Step 4) if assignment data exists
+        targetStep = 2; // Go to Summary (Step 2) if assignment data exists
       } else if (workflowState.hasTranscriptionData) {
-        targetStep = 2; // Go to Assign (Step 2) if transcription data exists (and no assignment)
+        targetStep = 1; // Go to Assign (Step 1) if transcription data exists (and no assignment)
       } else if (workflowState.hasParseData) {
-        targetStep = 1; // Go to Review (Step 1) if only parse data exists
+        targetStep = 0; // Go to Upload (Step 0) if only parse data exists
       }
       // Else, targetStep remains 0 (Upload) if no other data exists.
       
@@ -501,7 +499,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       workflowState.setErrorMessage(null);
 
       // --- Get latest items from ReviewScreen if currently on that step --- 
-      if (workflowState.currentStep == 1 && _getCurrentReviewItemsCallback != null) {
+      if (workflowState.currentStep == 0 && _getCurrentReviewItemsCallback != null) {
         try {
           final currentReviewItems = _getCurrentReviewItemsCallback!(); 
           final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
@@ -591,16 +589,12 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // Build the content for the current step
   Widget _buildStepContent(int currentStep) {
     final workflowState = Provider.of<WorkflowState>(context); // Keep for general access
-    
     switch (currentStep) {
       case 0: // Upload
         return Consumer<WorkflowState>(
           builder: (context, consumedState, child) {
             final bool isSuccessfullyParsed = consumedState.parseReceiptResult.containsKey('items') &&
                                               (consumedState.parseReceiptResult['items'] as List?)?.isNotEmpty == true;
-
-            // debugPrint('[_buildStepContent Consumer for Upload] consumedState.loadedImageUrl: ${consumedState.loadedImageUrl}, consumedState.loadedThumbnailUrl: ${consumedState.loadedThumbnailUrl}');
-                
             return UploadStepWidget(
               imageFile: consumedState.imageFile,
               imageUrl: consumedState.loadedImageUrl,
@@ -613,33 +607,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
             ) as Widget; // Explicit cast
           },
         );
-        
-      case 1: // Review
-        // --- EDIT: Check for parse data before building ---
-        if (!workflowState.hasParseData) {
-          return _buildPlaceholder('Please upload and parse a receipt first.') as Widget; // Explicit cast
-        }
-        // --- END EDIT ---
-        final List<ReceiptItem> items = _convertToReceiptItems(workflowState.parseReceiptResult);
-        
-        // debugPrint('[_buildStepContent Consumer for Review] Building ReceiptReviewScreen with ${items.length} items.');
-
-        return ReviewStepWidget(
-          key: const ValueKey('ReviewStepWidget'), 
-          initialItems: items,
-          onReviewComplete: _handleReviewCompleteForReviewStep,
-          onItemsUpdated: _handleItemsUpdatedForReviewStep,
-          registerCurrentItemsGetter: _handleRegisterCurrentItemsGetterForReviewStep,
-        );
-        
-      case 2: // Assign people to items (Voice Assignment)
+      case 1: // Assign (shows parsed items and assignments, with pencil icon for Review)
         return Consumer<WorkflowState>(
           builder: (context, workflowState, child) {
             final List<ReceiptItem> itemsToAssign = _convertToReceiptItems(workflowState.parseReceiptResult);
-
-            if (itemsToAssign.isEmpty) {
-               return _buildPlaceholder('Please complete the review step first. No items to assign.');
-            }
             return AssignStepWidget(
               key: ValueKey('AssignStepWidget_${itemsToAssign.length}_${(workflowState.transcribeAudioResult['text'] as String?)?.hashCode ?? 0}'),
               itemsToAssign: itemsToAssign, 
@@ -648,49 +619,23 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
               onTranscriptionChanged: _handleTranscriptionChangedForAssignStep,
               onReTranscribeRequested: _handleReTranscribeRequestedForAssignStep,
               onConfirmProcessAssignments: _handleConfirmProcessAssignmentsForAssignStep,
+              onEditItems: _showReviewOverlay, // New: pencil icon triggers this
             );
           },
         );
-        
-      case 3: // Split
+      case 2: // Summary (shows assignments, with pencil icon for Split)
         return Consumer<WorkflowState>(
           builder: (context, workflowState, child) {
-            if (!workflowState.hasAssignmentData) {
-              return _buildPlaceholder('Please complete the voice assignment first, or ensure people/items were assigned.');
-            }
-            return SplitStepWidget(
-              key: const ValueKey('SplitStepWidget'),
-              parseResult: workflowState.parseReceiptResult,
-              assignResultMap: workflowState.assignPeopleToItemsResult,
-              currentTip: workflowState.tip,
-              currentTax: workflowState.tax,
-              initialSplitViewTabIndex: _initialSplitViewTabIndex, 
-              onTipChanged: _handleTipChangedForSplitStep,
-              onTaxChanged: _handleTaxChangedForSplitStep,
-              onAssignmentsUpdatedBySplit: _handleAssignmentsUpdatedBySplitStep,
-              onNavigateToPage: _handleNavigateToPageForSplitStep, 
-            );
-          }
-        );
-        
-      case 4: // Summary
-        return Consumer<WorkflowState>(
-          builder: (context, workflowState, child) {
-        if (!workflowState.hasAssignmentData) {
-           return _buildPlaceholder('Please complete the Split step first, ensuring items are assigned.');
-        }
-            // All data preparation for FinalSummaryScreen's SplitManager is now within SummaryStepWidget.
             return SummaryStepWidget(
-              key: const ValueKey('SummaryStepWidget'), // Add a key
+              key: const ValueKey('SummaryStepWidget'),
               parseResult: workflowState.parseReceiptResult,
               assignResultMap: workflowState.assignPeopleToItemsResult,
               currentTip: workflowState.tip,
               currentTax: workflowState.tax,
-              // onNavigateToPage: _handleNavigateToPageForSummaryStep, // If summary needs to navigate
+              onEditAssignments: _showSplitOverlay, // New: pencil icon triggers this
             );
-          }
+          },
         );
-        
       default:
         return const Center(child: Text('Unknown Step'));
     }
@@ -762,10 +707,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 if (currentStep == 0 && !localWorkflowState.hasParseData) {
                    isNextEnabled = false;
                 }
-                else if (currentStep == 2 && !localWorkflowState.hasAssignmentData) {
-                   isNextEnabled = false;
-                }
-                else if (currentStep == 3 && !localWorkflowState.hasAssignmentData) {
+                else if (currentStep == 1 && !localWorkflowState.hasAssignmentData) {
                    isNextEnabled = false;
                 }
 
@@ -897,22 +839,15 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   Widget build(BuildContext context) {
     final workflowState = Provider.of<WorkflowState>(context);
     final colorScheme = Theme.of(context).colorScheme;
-
-    // Show loading indicator if draft is being loaded initially, 
-    // or if workflowState itself indicates loading for a receiptId (e.g. during _loadReceiptData).
     if (_isDraftLoading || (workflowState.receiptId != null && workflowState.isLoading && workflowState.currentStep == 0)) {
-        // The condition `workflowState.currentStep == 0` helps ensure this full-screen loader 
-        // only shows during the very initial load before any step navigation has occurred via _loadReceiptData.
-        // Once _loadReceiptData completes, `isLoading` will be false, or `currentStep` will be non-zero.
       return Scaffold(
         appBar: AppBar(
           title: Text(workflowState.receiptId != null ? 'Loading Draft...' : 'New Receipt'),
-          automaticallyImplyLeading: false, // No back button during this loading phase
+          automaticallyImplyLeading: false,
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
@@ -922,75 +857,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         ),
         body: Column(
           children: [
-            // Allow tapping on step indicators with confirmation
-            GestureDetector(
-              onTapUp: (details) async {
-                final RenderBox box = context.findRenderObject() as RenderBox;
-                final localOffset = box.globalToLocal(details.globalPosition);
-                final screenWidth = MediaQuery.of(context).size.width;
-                // Ensure _stepTitles is not empty to prevent division by zero if titles are somehow not ready
-                final stepWidth = _stepTitles.isNotEmpty ? screenWidth / _stepTitles.length : screenWidth;
-                final tappedStep = stepWidth > 0 ? (localOffset.dx / stepWidth).floor() : 0;
-                final currentStep = workflowState.currentStep;
-
-                if (tappedStep >= 0 && tappedStep < _stepTitles.length && tappedStep != currentStep) {
-                  bool canNavigate = true;
-                  String blockingReason = 'Please complete previous steps first.'; // Default message
-
-                  if (tappedStep > currentStep) { // Navigating forward
-                    // Check data prerequisites for all steps from currentStep up to tappedStep - 1
-                    for (int stepToValidate = currentStep; stepToValidate < tappedStep; stepToValidate++) {
-                      if (stepToValidate == 0 && !workflowState.hasParseData) {
-                        canNavigate = false;
-                        blockingReason = 'Receipt must be parsed before proceeding from Upload step.';
-                        debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: missing parse data for step 1.');
-                        break;
-                      }
-                      // No specific data check for leaving Review (step 1) to Assign (step 2) if parse data exists
-                      if (stepToValidate == 1 && !workflowState.hasParseData) { // Should also check if review step *itself* is valid if it has specific outputs beyond parseData
-                        canNavigate = false;
-                        blockingReason = 'Please ensure receipt review is complete.';
-                        debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: review step data incomplete for step 2.');
-                        break;
-                      }
-                      if (stepToValidate == 2 && !workflowState.hasAssignmentData) {
-                        canNavigate = false;
-                        blockingReason = 'Items must be assigned before proceeding from Assign step.';
-                        debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: missing assignment data for step 3.');
-                        break;
-                      }
-                      if (stepToValidate == 3 && !workflowState.hasAssignmentData) {
-                        // This covers navigating from Split to Summary. The prerequisite is having assignment data.
-                        canNavigate = false;
-                        blockingReason = 'Splitting process must be based on assigned items before proceeding to Summary.';
-                        debugPrint('[WorkflowModal] StepIndicator: Blocked tap from $currentStep to $tappedStep. Reason: missing assignment data for step 4.');
-                        break;
-                      }
-                    }
-                  } else { // Navigating backwards (tappedStep < currentStep)
-                    // No confirmation needed for navigating backwards via step indicator.
-                    // Data clearing is handled by explicit user actions (e.g., re-parse, re-assign).
-                    canNavigate = true; 
-                    debugPrint('[WorkflowModal] StepIndicator: Navigating backwards from $currentStep to $tappedStep directly.');
-                  }
-
-                  if (canNavigate) {
-                    workflowState.goToStep(tappedStep);
-                  } else {
-                    // This 'else' block is now only for forward navigation failures.
-                    if (mounted) {
-                      showAppToast(context, blockingReason, AppToastType.warning);
-                    }
-                  }
-                }
-              },
-              child: WorkflowStepIndicator(currentStep: workflowState.currentStep, stepTitles: _stepTitles),
-            ),
-            
+            WorkflowStepIndicator(currentStep: workflowState.currentStep, stepTitles: _stepTitles),
             Expanded(
               child: _buildStepContent(workflowState.currentStep),
             ),
-            
             WorkflowNavigationControls(
               onExitAction: _handleNavigationExitAction,
               onSaveDraftAction: _handleNavigationSaveDraftAction,
@@ -1306,7 +1176,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   void _handleNavigateToPageForSplitStep(int pageIndex) {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     if (pageIndex >= 0 && pageIndex < _stepTitles.length) {
-      if (pageIndex == 4) { // Tapped "Go to Summary" (index 4) from Split (index 3)
+      if (pageIndex == 2) { // Tapped "Go to Summary" (index 2) from Split (index 1)
         if (!workflowState.hasAssignmentData) {
           if (mounted) {
             showAppToast(context, "Cannot proceed to Summary: Assignment data is missing.", AppToastType.error);
@@ -1318,4 +1188,47 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     }
   }
   // --- END OF NEW HELPER METHODS FOR SPLIT STEP ---
+
+  // Overlay state and handlers
+  Future<void> _showReviewOverlay() async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => ChangeNotifierProvider<WorkflowState>.value(
+          value: workflowState,
+          child: ReviewStepWidget(
+            key: const ValueKey('ReviewStepWidget'),
+            initialItems: _convertToReceiptItems(workflowState.parseReceiptResult),
+            onReviewComplete: _handleReviewCompleteForReviewStep,
+            onItemsUpdated: _handleItemsUpdatedForReviewStep,
+            registerCurrentItemsGetter: _handleRegisterCurrentItemsGetterForReviewStep,
+            onClose: () => Navigator.of(context).maybePop(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSplitOverlay() async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => SplitStepWidget(
+          key: const ValueKey('SplitStepWidget'),
+          parseResult: workflowState.parseReceiptResult,
+          assignResultMap: workflowState.assignPeopleToItemsResult,
+          currentTip: workflowState.tip,
+          currentTax: workflowState.tax,
+          initialSplitViewTabIndex: _initialSplitViewTabIndex,
+          onTipChanged: _handleTipChangedForSplitStep,
+          onTaxChanged: _handleTaxChangedForSplitStep,
+          onAssignmentsUpdatedBySplit: _handleAssignmentsUpdatedBySplitStep,
+          onNavigateToPage: _handleNavigateToPageForSplitStep,
+          onClose: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+    );
+  }
 }

@@ -328,5 +328,47 @@ void main() {
       expect(capturedManager.getOriginalQuantity(burgerItem), 2); // Original burger qty is 2
       expect(capturedManager.getOriginalQuantity(friesItem), 4); // Original fries qty is 4
     });
+    
+    testWidgets('pressing Done button only pops dialog once and does not crash', (WidgetTester tester) async {
+      bool onCloseCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => SplitStepWidget(
+                    parseResult: mockParseResult,
+                    assignResultMap: mockAssignResultMap,
+                    onTipChanged: mockOnTipChanged,
+                    onTaxChanged: mockOnTaxChanged,
+                    onAssignmentsUpdatedBySplit: mockOnAssignmentsUpdatedBySplit,
+                    onNavigateToPage: mockOnNavigateToPage,
+                    onClose: () {
+                      onCloseCalled = true;
+                    },
+                  ),
+                );
+              },
+              child: const Text('Open SplitStepWidget'),
+            ),
+          ),
+        ),
+      );
+      // Open the dialog
+      await tester.tap(find.text('Open SplitStepWidget'));
+      await tester.pumpAndSettle();
+      // Tap the Done button
+      final doneButton = find.widgetWithText(ElevatedButton, 'Done');
+      expect(doneButton, findsOneWidget);
+      await tester.tap(doneButton);
+      await tester.pumpAndSettle();
+      // Dialog should be closed
+      expect(find.byType(SplitStepWidget), findsNothing);
+      // onClose should have been called
+      expect(onCloseCalled, isTrue);
+      // No exceptions should be thrown (test will fail if any uncaught exceptions)
+    });
   });
 } 

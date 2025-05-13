@@ -31,7 +31,12 @@
 - **Material You Design**: Use Material You components, color schemes, and motion where appropriate. Ensure the design is cohesive and reuses components where possible.
 - **Step Navigation**: Show only the 3 active steps (Upload, Assign, Summary) in the step indicator by default. If the user enters an edit mode (Review or Split), show the edit view full screen, with the stepper completely hidden. Optionally, a subtle label may indicate the parent view.
 - **Minimal, Clear Layouts**: Prioritize whitespace, clear typography, and intuitive grouping of actions. Avoid clutter.
-- **Edit Buttons**: Place pencil icons (using `AppColors.puce`) inline with the relevant section headers (Receipt Summary in Assign, Split Summary in Summary) for editing. These icons are the only way to access Review and Split screens.
+- **Edit Buttons**: Place pencil icons (using a white pencil inside a puce pill-shaped background with a label, e.g., 'Edit') inline with the relevant section headers (Receipt Summary in Assign, Split Summary in Summary) for editing. These icons are the only way to access Review and Split screens. The icons must be visually discoverable, accessible, and follow Material You guidelines.
+- **Edit Overlays**: When an edit overlay (Review or Split) is opened, it must use a standard Material full-screen dialog transition (slide up/fade in), fully cover the modal workflow (including navigation controls), and lock navigation until the overlay is dismissed. Overlays can be dismissed via the FAB, swipe-down gesture, or system back (Android), all returning the user to the correct workflow step. The FAB should remain in the Material default (bottom-right) and must not be redundant with any other button. Overlay background should be solid (surface color or white) for now. Accessibility for overlays is out of scope for now, but overlays should be built to allow easy future extension.
+- **IN PROGRESS:** All edit overlays (Review, Split) must use a bottom app bar for actions (Add Person, Add Item, Done). No floating action buttons (FABs) should remain in these overlays. All overlays must use a Material surface color or white for the background (never black).
+- **IN PROGRESS:** All action buttons (Add Person, Add Item, Done) must work as before, with immediate UI and cache updates.
+- **Assign edit view (VoiceAssignmentScreen) must use a bottom app bar for primary actions, matching the summary edit view for UI consistency. Remove redundant floating action buttons.**
+- **Assign edit view background color must use a Material surface color or white, not black.**
 - **Confirmation Dialogs**: When editing, warn users if changes will discard downstream data (e.g., editing items will reset assignments). (No additional confirmations needed for pencil icon navigation.)
 - **Platform Conformity**: Ensure all UI/UX works and looks native on both Android and iOS.
 - **Accessibility**: Use sufficient contrast, large tap targets, and support for screen readers. Pencil icons should be clearly visible and accessible.
@@ -41,9 +46,9 @@
 ## 4. Editing and Data Flow
 
 - **AI as Default**: Assume AI-generated results are correct; only show editing screens if the user requests (via pencil icons).
-- **Data Consistency**: When editing, ensure that changes to items or assignments properly update downstream data and UI.
+- **Data Consistency**: When editing, ensure that changes to items or assignments properly update downstream data and UI. **Adding people or items in the assign edit view must update the list in cache and show new entries immediately (and same for summary edit view).**
 - **Drafts**: Continue to support draft saving/resuming, with the new workflow logic. Saving a draft from an edit view returns to the receipts list.
-- **Testability**: All new UI elements and flows must be covered by widget/integration tests. Use ValueKeys for all interactive elements. Tests must verify the presence and correct navigation of pencil icons, and that the modal workflow is limited to three steps.
+- **Testability**: All new UI elements and flows must be covered by widget/integration tests. Use ValueKeys for all interactive elements. Tests must verify the presence and correct navigation of pencil icons, that overlays block workflow navigation, and that the modal workflow is limited to three steps. **QA must verify that adding people/items in both edit views updates the UI and cache immediately, and that the bottom app bar is consistent across both views.**
 - **Batch Editing**: The modal workflow only supports one receipt at a time; batch editing is not supported.
 
 ## 5. Technical/Code Requirements
@@ -54,6 +59,14 @@
 - **Platform Support**: All changes must work on both Android and iOS.
 - **.gitignore**: Add any new generated or platform-specific files to .gitignore as needed.
 - **Documentation**: Update README and docs/ as needed to reflect new workflow and UI.
+
+## Knowledge Transfer (KT) for Future AI/Devs
+- **Design:** All edit overlays (Review, Split) use a bottom app bar for actions. No floating action buttons (FABs) should remain in these overlays. Use Material You surface colors for backgrounds.
+- **Navigation:** Only one pop/navigation event should occur when closing overlays (see double pop bug in SplitStepWidget). Use `Navigator.canPop()` and guard callbacks.
+- **State Management:** All add/remove actions (person/item) must update the `SplitManager` and notify listeners. UI must rebuild immediately after changes.
+- **Testing:** Widget tests must open dialogs, wait for animations, and use robust finders (by key/label, not just text). Test all action buttons for correct UI updates and navigation.
+- **Pitfalls:** Watch for context disposal after pop, and for test failures due to widget tree changes. Always update tests after major UI refactors.
+- **Where to look:** Main UI logic for overlays is in `split_step_widget.dart`, `split_view.dart`, and related dialog widgets. Test logic is in `test/widgets/workflow_steps/`.
 
 ---
 

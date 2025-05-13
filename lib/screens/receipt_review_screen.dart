@@ -14,6 +14,7 @@ class ReceiptReviewScreen extends StatefulWidget {
   // Callback for immediate updates when items change
   final Function(List<ReceiptItem> currentItems)? onItemsUpdated;
   final Function(GetCurrentItemsCallback)? registerCurrentItemsGetter;
+  final VoidCallback? onClose;
 
   const ReceiptReviewScreen({
     super.key,
@@ -21,6 +22,7 @@ class ReceiptReviewScreen extends StatefulWidget {
     required this.onReviewComplete,
     this.onItemsUpdated,
     this.registerCurrentItemsGetter,
+    this.onClose,
   });
 
   @override
@@ -245,6 +247,20 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
     final TextTheme textTheme = Theme.of(context).textTheme;
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
+    // Add a FAB for closing the overlay if onClose is provided
+    Widget closeFab = (widget.onClose != null)
+        ? Positioned(
+            bottom: 24,
+            right: 24,
+            child: FloatingActionButton.extended(
+              onPressed: widget.onClose,
+              icon: const Icon(Icons.check),
+              label: const Text('Looks Good'),
+              heroTag: 'review-close-fab',
+            ),
+          )
+        : const SizedBox.shrink();
+
     return Stack(
       children: [
         CustomScrollView(
@@ -427,6 +443,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
             ],
           ),
         ),
+        closeFab,
       ],
     );
   }

@@ -5,6 +5,7 @@ import '../../models/receipt_item.dart';
 import '../../models/person.dart';
 import '../../models/split_manager.dart';
 import '../../screens/final_summary_screen.dart';
+import '../../theme/app_colors.dart';
 // import '../../widgets/workflow_modal.dart'; // For NavigateToPageNotification if needed
 
 class SummaryStepWidget extends StatelessWidget {
@@ -12,6 +13,7 @@ class SummaryStepWidget extends StatelessWidget {
   final Map<String, dynamic> assignResultMap;
   final double? currentTip;
   final double? currentTax;
+  final VoidCallback? onEditAssignments;
   // Add any callbacks if the summary screen can trigger actions, e.g., navigation
   // final Function(int pageIndex) onNavigateToPage; 
 
@@ -21,6 +23,7 @@ class SummaryStepWidget extends StatelessWidget {
     required this.assignResultMap,
     this.currentTip,
     this.currentTax,
+    this.onEditAssignments,
     // required this.onNavigateToPage,
   }) : super(key: key);
 
@@ -156,12 +159,71 @@ class SummaryStepWidget extends StatelessWidget {
       originalReviewTotal: (parseResult['subtotal'] as num?)?.toDouble(),
     );
 
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
     // The FinalSummaryScreen is wrapped with a ChangeNotifierProvider for the summaryManager.
     // If FinalSummaryScreen itself could trigger navigation that workflow_modal needs to handle,
     // a NotificationListener would be added here, similar to SplitStepWidget.
     return ChangeNotifierProvider.value(
       value: summaryManager,
-      child: const FinalSummaryScreen(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              children: [
+                Icon(Icons.summarize, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Split Summary',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (onEditAssignments != null)
+                  GestureDetector(
+                    onTap: onEditAssignments,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.puce,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.puce.withOpacity(0.15),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, color: Colors.white, size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Edit Split',
+                            style: textTheme.labelLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: FinalSummaryScreen(),
+          ),
+        ],
+      ),
     );
   }
 } 

@@ -21,6 +21,7 @@ class VoiceAssignmentScreen extends StatefulWidget {
   final Function(String? transcription)? onTranscriptionChanged;
   final Future<bool> Function()? onReTranscribeRequested; // MODIFIED to return Future<bool>
   final Future<bool> Function()? onConfirmProcessAssignments; // ADDED new callback
+  final VoidCallback? onEditItems;
 
   const VoiceAssignmentScreen({
     super.key,
@@ -30,6 +31,7 @@ class VoiceAssignmentScreen extends StatefulWidget {
     this.onTranscriptionChanged,
     this.onReTranscribeRequested,
     this.onConfirmProcessAssignments, // ADDED to constructor
+    this.onEditItems,
   });
 
   @override
@@ -578,6 +580,38 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                   color: colorScheme.primary,
                                 ),
                               ),
+                              const SizedBox(width: 8),
+                              if (widget.onEditItems != null)
+                                GestureDetector(
+                                  onTap: widget.onEditItems,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.puce,
+                                      borderRadius: BorderRadius.circular(24),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.puce.withOpacity(0.15),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit, color: Colors.white, size: 18),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Edit Items',
+                                          style: textTheme.labelLarge?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                           const SizedBox(height: 16),

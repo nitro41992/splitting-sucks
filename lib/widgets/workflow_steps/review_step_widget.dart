@@ -8,6 +8,7 @@ class ReviewStepWidget extends StatelessWidget {
   final Function(List<ReceiptItem> updatedItems, List<ReceiptItem> deletedItems) onReviewComplete;
   final Function(List<ReceiptItem> currentItems) onItemsUpdated;
   final Function(GetCurrentItemsCallback getter) registerCurrentItemsGetter;
+  final VoidCallback? onClose;
 
   const ReviewStepWidget({
     Key? key,
@@ -15,6 +16,7 @@ class ReviewStepWidget extends StatelessWidget {
     required this.onReviewComplete,
     required this.onItemsUpdated,
     required this.registerCurrentItemsGetter,
+    this.onClose,
   }) : super(key: key);
 
   @override
@@ -25,6 +27,7 @@ class ReviewStepWidget extends StatelessWidget {
       onReviewComplete: onReviewComplete,
       onItemsUpdated: onItemsUpdated,
       registerCurrentItemsGetter: registerCurrentItemsGetter,
+      onClose: onClose,
     );
   }
 } 

@@ -488,52 +488,7 @@ class _SplitViewState extends State<SplitView> {
               ),
             ],
           ),
-          floatingActionButton: AnimatedSlide(
-            duration: const Duration(milliseconds: 200),
-            offset: _isFabVisible ? Offset.zero : const Offset(0, 2),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _isFabVisible ? 1.0 : 0.0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // Add Person button
-                  FloatingActionButton(
-                    onPressed: () => _showAddPersonDialog(context, splitManager),
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    heroTag: 'addPersonBtn',
-                    child: const Icon(Icons.person_add),
-                  ),
-                  const SizedBox(width: 16),
-                  // Add Item button 
-                  FloatingActionButton(
-                    onPressed: () => _showAddItemDialog(context, splitManager),
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    heroTag: 'addItemBtn',
-                    child: const Icon(Icons.add_shopping_cart),
-                  ),
-                  // Only show Go to Summary button if all items are assigned
-                  if (splitManager.unassignedItems.isEmpty) ...[
-                    const SizedBox(width: 16),
-                    // Go to Summary button
-                    FloatingActionButton.extended(
-                      onPressed: () {
-                        // Use notification pattern to request navigation to summary page
-                        NavigateToPageNotification(4).dispatch(context);
-                      },
-                      backgroundColor: colorScheme.secondaryContainer,
-                      foregroundColor: colorScheme.onSecondaryContainer,
-                      heroTag: 'goToSummaryBtn',
-                      label: const Text('Go to Summary'),
-                      icon: const Icon(Icons.summarize),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
+          // No floatingActionButton when overlay is open
         );
       },
     );

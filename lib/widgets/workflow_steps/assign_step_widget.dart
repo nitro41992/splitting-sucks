@@ -8,7 +8,8 @@ class AssignStepWidget extends StatelessWidget {
   final Function(Map<String, dynamic> assignmentsData) onAssignmentProcessed;
   final Function(String? newTranscription) onTranscriptionChanged;
   final Future<bool> Function() onReTranscribeRequested;
-  final Future<bool> Function() onConfirmProcessAssignments; 
+  final Future<bool> Function() onConfirmProcessAssignments;
+  final VoidCallback? onEditItems;
 
   const AssignStepWidget({
     Key? key,
@@ -18,6 +19,7 @@ class AssignStepWidget extends StatelessWidget {
     required this.onTranscriptionChanged,
     required this.onReTranscribeRequested,
     required this.onConfirmProcessAssignments,
+    this.onEditItems,
   }) : super(key: key);
 
   @override
@@ -30,6 +32,7 @@ class AssignStepWidget extends StatelessWidget {
       onTranscriptionChanged: onTranscriptionChanged,
       onReTranscribeRequested: onReTranscribeRequested,
       onConfirmProcessAssignments: onConfirmProcessAssignments,
+      onEditItems: onEditItems,
     );
   }
 } 
