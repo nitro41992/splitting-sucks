@@ -21,7 +21,10 @@ class PersonCard extends StatelessWidget {
     for (final item in person.sharedItems) {
       final peopleSharing = splitManager.getPeopleForSharedItem(item);
       if (peopleSharing.isNotEmpty) {
-        calculatedSharedAmount += (item.price * item.quantity) / peopleSharing.length;
+        final double shareAmount = (item.price * item.quantity) / peopleSharing.length;
+        // Round to 2 decimal places for consistency with other calculations
+        final double roundedShare = double.parse(shareAmount.toStringAsFixed(2));
+        calculatedSharedAmount += roundedShare;
       }
     }
 

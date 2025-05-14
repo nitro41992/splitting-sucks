@@ -363,11 +363,21 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     double sumOfIndividualSubtotals = 0.0;
     for (var person in people) {
       // Get person's total subtotal (individual + shared items)
-      final double personSubtotal = person.totalAssignedAmount +
-          person.sharedItems.fold(0.0, (sum, item) {
-            final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
-            return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
-          });
+      double personSubtotal = person.totalAssignedAmount;
+      
+      // Calculate shared items with the same rounding approach as in SplitManager.getPersonTotal
+      for (var item in person.sharedItems) {
+        final sharingCount = splitManager.people
+            .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
+            .length;
+            
+        if (sharingCount > 0) {
+          // Use the same rounding approach to ensure consistency
+          final double shareAmount = (item.price * item.quantity) / sharingCount;
+          final double roundedShare = double.parse(shareAmount.toStringAsFixed(2));
+          personSubtotal += roundedShare;
+        }
+      }
       
       sumOfIndividualSubtotals += personSubtotal;
     }
@@ -377,8 +387,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
       sumOfIndividualSubtotals += splitManager.unassignedItemsTotal;
     }
     
-    // Allow for small floating point inaccuracies
-    final bool subtotalsMatch = (subtotal - sumOfIndividualSubtotals).abs() < 0.01;
+    // Allow for small floating point inaccuracies (increase threshold slightly)
+    final bool subtotalsMatch = (subtotal - sumOfIndividualSubtotals).abs() < 0.02;
 
     return Stack(
       children: [

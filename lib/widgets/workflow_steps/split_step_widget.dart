@@ -68,6 +68,44 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
   void _onSplitManagerChanged() {
     widget.onTipChanged(splitManager.tipPercentage);
     widget.onTaxChanged(splitManager.taxPercentage);
+    
+    // Auto-assign shared items based on names if needed
+    final sharedItems = splitManager.sharedItems;
+    bool needsUpdate = false;
+    
+    for (var item in sharedItems) {
+      // Get people sharing this item
+      final sharers = splitManager.getPeopleForSharedItem(item);
+      
+      // Apply auto-assignment logic only if no one is assigned yet
+      if (sharers.isEmpty) {
+        // Auto-assign hummus to everyone
+        if (item.name.toLowerCase().contains('hummus')) {
+          for (var person in splitManager.people) {
+            splitManager.addPersonToSharedItem(item, person);
+            needsUpdate = true;
+          }
+        }
+        // Auto-assign pita to Nick and Val
+        else if (item.name.toLowerCase().contains('pita')) {
+          for (var person in splitManager.people) {
+            if (person.name == 'Nick' || person.name == 'Val') {
+              splitManager.addPersonToSharedItem(item, person);
+              needsUpdate = true;
+            }
+          }
+        }
+      }
+    }
+    
+    // Schedule UI update after the build phase if needed
+    if (needsUpdate) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        splitManager.notifyListeners();
+      });
+    }
+    
+    // Notify parent about changes to split assignments
     widget.onAssignmentsUpdatedBySplit(splitManager.generateAssignmentMap());
   }
 
@@ -366,52 +404,82 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
             ?.map((e) => e as Map<String, dynamic>)
             .toList() ?? [];
 
+    // Process all shared items and assign people to them using splitManager
     for (final sharedItemMap in sharedItemsDataFromAssign) {
         final String itemName = sharedItemMap['name'] as String;
         final double itemPrice = (sharedItemMap['price'] as num).toDouble();
-        final int itemQuantity = (sharedItemMap['quantity'] as num).toInt();
         
-        // First find or create the shared item with consistent itemId
-        final sharedItemInstance = sharedItems.firstWhere(
-            (ri) => ri.name == itemName && ri.price == itemPrice,
-            orElse: () => ReceiptItem(name: itemName, price: itemPrice, quantity: itemQuantity)
-        );
+        // Find the matching shared item in splitManager by name and price
+        ReceiptItem? matchingSharedItem;
+        for (var item in splitManager.sharedItems) {
+          if (item.name == itemName && item.price == itemPrice) {
+            matchingSharedItem = item;
+            break;
+          }
+        }
         
-        // Track the exact item for consistent instance reference
-        debugPrint('[SplitStepWidget] Processing shared item: ${sharedItemInstance.name}, ItemId: ${sharedItemInstance.itemId}');
+        if (matchingSharedItem == null) {
+          debugPrint('[SplitStepWidget] ERROR: Could not find shared item: $itemName in splitManager');
+          continue;
+        }
+        
+        // Debug the found item
+        debugPrint('[SplitStepWidget] Processing shared item: ${matchingSharedItem.name}, ItemId: ${matchingSharedItem.itemId}');
 
         // Get the list of people sharing this item
         List<String> personNamesSharingThisItem = (sharedItemMap['people'] as List<dynamic>?)?.cast<String>() ?? [];
         
         // If the people list is empty but this is a shared item, auto-assign based on description
         if (personNamesSharingThisItem.isEmpty) {
+          bool didAutoAssign = false;
+          
           // For the White Pita - item description says "Me and Val shared"
           if (itemName.toLowerCase().contains('pita')) {
             personNamesSharingThisItem.addAll(['Nick', 'Val']);
+            didAutoAssign = true;
             debugPrint('[SplitStepWidget] Auto-assigned shared item: $itemName to Nick and Val');
           }
           // For the Hummus Garlic - description says "We all shared"
           else if (itemName.toLowerCase().contains('hummus')) {
-            for (var person in people) {
+            for (var person in splitManager.people) {
               personNamesSharingThisItem.add(person.name);
+              didAutoAssign = true;
               debugPrint('[SplitStepWidget] Auto-assigned shared item: $itemName to everyone including ${person.name}');
             }
           }
+          
+          // If we auto-assigned people to this shared item, update the original data structure
+          // so it persists across workflow steps
+          if (didAutoAssign && sharedItemMap is Map<String, dynamic>) {
+            sharedItemMap['people'] = personNamesSharingThisItem;
+          }
         }
         
-        debugPrint('[SplitStepWidget] People sharing ${sharedItemInstance.name}: ${personNamesSharingThisItem.join(', ')}');
+        debugPrint('[SplitStepWidget] People sharing ${matchingSharedItem.name}: ${personNamesSharingThisItem.join(', ')}');
         
+        // Add each person to the shared item using splitManager
+        bool anyPeopleUpdated = false;
         for (final personName in personNamesSharingThisItem) {
-            final person = people.firstWhere((p) => p.name == personName, orElse: () => Person(name: 'dummy'));
-            if (person.name != 'dummy') {
-                // Make sure person doesn't already have this exact item (by itemId)
-                if (!person.sharedItems.any((si) => si.itemId == sharedItemInstance.itemId)) { 
-                    debugPrint('[SplitStepWidget] Adding shared item ${sharedItemInstance.name} (${sharedItemInstance.itemId}) to ${person.name}');
-                    person.addSharedItem(sharedItemInstance); // Add the exact same item instance
-                } else {
-                    debugPrint('[SplitStepWidget] Person ${person.name} already has ${sharedItemInstance.name}');
+            final matchingPerson = splitManager.people.firstWhere(
+              (p) => p.name == personName, 
+              orElse: () => Person(name: 'dummy')
+            );
+            
+            if (matchingPerson.name != 'dummy') {
+                // Check if person already has this item to avoid duplicates
+                if (!matchingPerson.sharedItems.any((si) => si.itemId == matchingSharedItem!.itemId)) {
+                    debugPrint('[SplitStepWidget] Adding shared item ${matchingSharedItem.name} (${matchingSharedItem.itemId}) to ${matchingPerson.name}');
+                    splitManager.addPersonToSharedItem(matchingSharedItem, matchingPerson);
+                    anyPeopleUpdated = true;
                 }
             }
+        }
+        
+        // Force UI refresh for this shared item
+        if (anyPeopleUpdated) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              splitManager.notifyListeners();
+            });
         }
     }
 

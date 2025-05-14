@@ -225,30 +225,45 @@ class SplitManager extends ChangeNotifier {
   // New method to add a single person to an existing shared item
   void addPersonToSharedItem(ReceiptItem item, Person person) {
     // Ensure the item is in the main shared list first (should usually be true)
-    if (!_sharedItems.contains(item)) {
+    // Check if the item already exists in _sharedItems by itemId
+    bool itemExists = _sharedItems.any((si) => si.itemId == item.itemId);
+    if (!itemExists) {
       _sharedItems.add(item);
     }
-    // Add item to the specific person's shared list
-    if (!person.sharedItems.contains(item)) {
+    
+    // Add item to the specific person's shared list if they don't already have it
+    // Check by itemId to avoid duplicate references
+    if (!person.sharedItems.any((si) => si.itemId == item.itemId)) {
       person.addSharedItem(item); // This should call notifyListeners in Person
     }
+    
     debugPrint('[SplitManager] addPersonToSharedItem: ${person.name} now sharing ${item.name}.');
+    // Log the people sharing this item using itemId comparison
     debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
-      + _people.where((p) => p.sharedItems.contains(item)).map((p) => p.name).join(', '));
+      + _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).map((p) => p.name).join(', '));
     debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
-    debugPrint('[SplitManager] Subtotal after add: [38;5;2m$totalAmount[0m');
+    debugPrint('[SplitManager] Subtotal after add: $totalAmount');
     notifyListeners(); // Notify SplitManager listeners
   }
 
   // New method to remove a single person from a shared item
   void removePersonFromSharedItem(ReceiptItem item, Person person) {
-    // Remove item from the specific person's shared list
-    if (person.sharedItems.contains(item)) {
-      person.removeSharedItem(item); // This should call notifyListeners in Person
+    // Find the matching shared item in the person's list by itemId
+    ReceiptItem? sharedItemInPerson;
+    try {
+      sharedItemInPerson = person.sharedItems.firstWhere(
+        (si) => si.itemId == item.itemId
+      );
+      
+      // Remove item from the specific person's shared list if found
+      person.removeSharedItem(sharedItemInPerson); // This should call notifyListeners in Person
+    } catch (e) {
+      debugPrint('[SplitManager] Warning: Could not find shared item ${item.name} (${item.itemId}) in ${person.name}\'s shared items');
     }
+    
     debugPrint('[SplitManager] removePersonFromSharedItem: ${person.name} no longer sharing ${item.name}.');
     debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
-      + _people.where((p) => p.sharedItems.contains(item)).map((p) => p.name).join(', '));
+      + _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).map((p) => p.name).join(', '));
     debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
     debugPrint('[SplitManager] Subtotal after remove: [38;5;1m$totalAmount[0m');
     notifyListeners(); // Notify SplitManager listeners
@@ -408,7 +423,10 @@ class SplitManager extends ChangeNotifier {
 
   // Get people who are sharing a specific item
   List<Person> getPeopleForSharedItem(ReceiptItem item) {
-    return _people.where((person) => person.sharedItems.contains(item)).toList();
+    // Use itemId for comparison instead of direct reference equality
+    return _people.where((person) => 
+      person.sharedItems.any((sharedItem) => sharedItem.itemId == item.itemId)
+    ).toList();
   }
 
   // --- EDIT: Add method to store the original subtotal ---
@@ -560,9 +578,12 @@ class SplitManager extends ChangeNotifier {
       
       if (sharerCount > 0) {
         // Calculate and add this person's fraction of the shared item
-        final double individualShare = sharedItem.total / sharerCount;
-        debugPrint('[SplitManager] ${person.name}\'s share of ${sharedItem.name}: ${individualShare.toStringAsFixed(1)} (${sharedItem.total} ÷ $sharerCount people)');
-        total += individualShare;
+        // Use double division and round to 2 decimal places to prevent floating point errors
+        final double individualShare = (sharedItem.total / sharerCount);
+        final double roundedShare = double.parse(individualShare.toStringAsFixed(2));
+        
+        debugPrint('[SplitManager] ${person.name}\'s share of ${sharedItem.name}: ${roundedShare.toStringAsFixed(2)} (${sharedItem.total} ÷ $sharerCount people)');
+        total += roundedShare;
       }
     }
     

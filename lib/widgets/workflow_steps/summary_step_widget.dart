@@ -69,21 +69,21 @@ class SummaryStepWidget extends StatelessWidget {
           
           if (peopleNames.isEmpty) {
             // If people list is empty in the data but this is supposed to be a shared item,
-            // we'll add everyone to share it as a fallback (based on the description)
+            // we'll add people based on item name (as a fallback based on the description)
             final String itemName = sharedItemData['name'] as String? ?? '';
             
             // For the White Pita - item description says "Me and Val shared"
             if (itemName.toLowerCase().contains('pita')) {
               peopleNames.addAll(['Nick', 'Val']);
+              debugPrint('[SummaryStepWidget] Auto-assigned shared item: $itemName to people: Nick, Val');
             }
             // For the Hummus Garlic - description says "We all shared"
             else if (itemName.toLowerCase().contains('hummus')) {
-              peopleForManager.forEach((person) {
+              for (var person in peopleForManager) {
                 peopleNames.add(person.name);
-              });
+              }
+              debugPrint('[SummaryStepWidget] Auto-assigned shared item: $itemName to people: ${peopleNames.join(', ')}');
             }
-            
-            debugPrint('[SummaryStepWidget] Auto-assigned shared item: $itemName to people: ${peopleNames.join(', ')}');
           }
           
           // Only proceed if there are people to share with

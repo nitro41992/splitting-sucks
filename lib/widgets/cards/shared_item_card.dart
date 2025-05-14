@@ -105,27 +105,35 @@ class SharedItemCard extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 4,
                     children: people.map((person) {
-                      final isSelected = person.sharedItems.contains(item);
+                      // ALWAYS use itemId for comparison to ensure consistent selection state
+                      final isSelected = person.sharedItems.any((si) => si.itemId == item.itemId);
+                      
+                      // Debug print for diagnosing shared item selection
+                      debugPrint('[SharedItemCard] Person: ${person.name}, has sharedItems: ${person.sharedItems.length}');
+                      for (var si in person.sharedItems) {
+                        debugPrint('[SharedItemCard] - SharedItem: ${si.name}, ID: ${si.itemId}');
+                      }
+                      debugPrint('[SharedItemCard] Current item: ${item.name}, ID: ${item.itemId}, Selected: $isSelected');
+                      
                       return FilterChip(
                         label: Text(person.name, overflow: TextOverflow.ellipsis),
                         selected: isSelected,
                         onSelected: (selected) {
+                          debugPrint('[SharedItemCard] Changing selection for ${person.name} to $selected');
                           if (selected) {
                             splitManager.addPersonToSharedItem(item, person);
-                            splitManager.notifyListeners();
                           } else {
                             splitManager.removePersonFromSharedItem(item, person);
-                            final remainingSharers = splitManager.people
-                                .where((p) => p.sharedItems.contains(item))
-                                .toList();
+                            final remainingSharers = splitManager.getPeopleForSharedItem(item);
                             if (remainingSharers.isEmpty) {
                               splitManager.removeItemFromShared(item);
                               splitManager.addUnassignedItem(item);
                             }
-                            splitManager.notifyListeners();
                           }
+                          // Force UI refresh after the build phase is complete
+                          Future.microtask(() => splitManager.notifyListeners());
                         },
-                        selectedColor: colorScheme.primary,
+                        selectedColor: colorScheme.primary.withOpacity(0.9),
                         backgroundColor: isSelected
                             ? colorScheme.primary.withOpacity(0.90)
                             : colorScheme.surfaceVariant,

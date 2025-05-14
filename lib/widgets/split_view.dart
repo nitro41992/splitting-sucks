@@ -164,9 +164,11 @@ class _SplitViewState extends State<SplitView> {
         Widget? warningWidget;
         final originalTotal = splitManager.originalReviewTotal;
         final currentTotal = subtotal; // Current total in split view
+        
+        // Use higher precision comparison (0.01 instead of 0.001) to account for rounding differences
         final bool totalsMatch = originalTotal == null 
             ? currentTotal < 0.01 // Only consider a match if current is effectively zero
-            : (currentTotal - originalTotal).abs() < 0.001;
+            : (currentTotal - originalTotal).abs() < 0.01; // Increased precision threshold
 
         // --- EDIT: Add debug print for values being compared ---
         print('DEBUG (SplitView): Checking for total mismatch... Original Review Total: $originalTotal, Current Split Total: $currentTotal, Match: $totalsMatch');
@@ -176,6 +178,10 @@ class _SplitViewState extends State<SplitView> {
         if (!totalsMatch) { 
           // Define puce color (reddish-purple brown)
           final Color puceColor = Color(0xCC8B5A69); // Semi-transparent puce
+          
+          // Format values to match exactly what's shown in the UI
+          final String currentTotalFormatted = currentTotal.toStringAsFixed(2);
+          final String originalTotalFormatted = originalTotal?.toStringAsFixed(2) ?? 'N/A';
           
           warningWidget = Padding(
             padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0), 
@@ -206,7 +212,7 @@ class _SplitViewState extends State<SplitView> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        'Warning: Current item sum in split (\$${currentTotal.toStringAsFixed(2)}) doesn\'t match reviewed subtotal (\$${originalTotal?.toStringAsFixed(2) ?? 'N/A'}). This might be due to rounding or changes made during splitting.',
+                        'Warning: Current item sum in split (\$$currentTotalFormatted) doesn\'t match reviewed subtotal (\$$originalTotalFormatted). This might be due to rounding or changes made during splitting.',
                         style: textTheme.bodyMedium?.copyWith(
                           color: puceColor,
                           fontWeight: FontWeight.w500,
