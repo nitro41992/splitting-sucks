@@ -49,4 +49,18 @@ This document tracks known bugs and their status for the splitting_sucks project
   - Updated the warning message to be more specific about the cause of discrepancies
 - **References:** Split view, Final summary screen, SplitManager calculations
 
+---
+
+## Known Issues
+
+### 1. setState() or markNeedsBuild() called during build
+- **Status:** New
+- **Notes:** Logs show "setState() or markNeedsBuild() called during build" errors, often after `[_WorkflowModalBodyState._handleAssignmentsUpdatedBySplitStep]` or other state update notifications from `SplitManager` or `WorkflowState`. This indicates state is being updated synchronously during a widget build cycle, potentially due to `notifyListeners()` or `setState()` calls within or immediately following build-triggered logic. Needs investigation to ensure state updates are scheduled appropriately (e.g., using `WidgetsBinding.instance.addPostFrameCallback`).
+- **References:** Flutter build lifecycle, `ChangeNotifier`, `setState`, logs.
+
+### 2. Shared Items Not Considered in Final Summary / Incorrect Subtotal Warning
+- **Status:** Fixed
+- **Notes:** When loading a receipt with an older data structure (where `assignResultMap.shared_items` lacked `itemId`s), `SummaryStepWidget` would fail to correctly associate shared items with people. This resulted in shared costs being $0 in `PersonSummaryCard` and a large discrepancy in the subtotal warning message. Fixed by making `SummaryStepWidget` robustly handle `assignResultMap` data lacking `itemId` for shared items. It now correctly identifies or generates canonical `ReceiptItem` instances (with `itemId`s) for all shared items and links them to the appropriate people by matching on `itemId` if present in the source map, or by name/price as a fallback. This ensures accurate shared cost calculation in the summary.
+- **References:** `SummaryStepWidget`, `final_summary_screen.dart`, `PersonSummaryCard`, logs (flutter_06.png, flutter_07.png)
+
 --- 

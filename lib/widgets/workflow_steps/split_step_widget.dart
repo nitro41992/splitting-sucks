@@ -119,6 +119,7 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
       final itemsForPerson = (assignment['items'] as List<dynamic>).map((itemMap) {
         final itemDetail = itemMap as Map<String, dynamic>;
         return ReceiptItem(
+          itemId: itemDetail['itemId'] as String?,
           name: itemDetail['name'] as String,
           quantity: (itemDetail['quantity'] as num).toInt(),
           price: (itemDetail['price'] as num).toDouble(),
@@ -135,6 +136,7 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
         [];
     return sharedItemsFromAssign.map((itemMap) {
       return ReceiptItem(
+        itemId: itemMap['itemId'] as String?,
         name: itemMap['name'] as String,
         quantity: (itemMap['quantity'] as num).toInt(),
         price: (itemMap['price'] as num).toDouble(),
@@ -149,6 +151,7 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
         [];
     return unassignedItemsFromAssign.map((itemMap) {
       return ReceiptItem(
+        itemId: itemMap['itemId'] as String?,
         name: itemMap['name'] as String,
         quantity: (itemMap['quantity'] as num).toInt(),
         price: (itemMap['price'] as num).toDouble(),
@@ -406,20 +409,26 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
 
     // Process all shared items and assign people to them using splitManager
     for (final sharedItemMap in sharedItemsDataFromAssign) {
-        final String itemName = sharedItemMap['name'] as String;
-        final double itemPrice = (sharedItemMap['price'] as num).toDouble();
-        
-        // Find the matching shared item in splitManager by name and price
-        ReceiptItem? matchingSharedItem;
-        for (var item in splitManager.sharedItems) {
-          if (item.name == itemName && item.price == itemPrice) {
-            matchingSharedItem = item;
-            break;
-          }
+        final String itemName = sharedItemMap['name'] as String; // Keep for debug or remove if not needed
+        // final double itemPrice = (sharedItemMap['price'] as num).toDouble(); // No longer needed for matching
+        final String? mapItemId = sharedItemMap['itemId'] as String?; // Get itemId from map
+
+        if (mapItemId == null) {
+          debugPrint('[SplitStepWidget] ERROR: Shared item map missing itemId: ${sharedItemMap['name']}');
+          continue;
         }
         
-        if (matchingSharedItem == null) {
-          debugPrint('[SplitStepWidget] ERROR: Could not find shared item: $itemName in splitManager');
+        // Find the matching shared item in splitManager by itemId
+        ReceiptItem? matchingSharedItem;
+        try {
+          matchingSharedItem = splitManager.sharedItems.firstWhere((item) => item.itemId == mapItemId);
+        } catch (e) {
+          debugPrint('[SplitStepWidget] ERROR: Could not find shared item with itemId: $mapItemId in splitManager.sharedItems (Name: ${sharedItemMap['name']})');
+          continue;
+        }
+        
+        if (matchingSharedItem == null) { // Should be caught by the try-catch, but as a safeguard.
+          debugPrint('[SplitStepWidget] ERROR: Could not find shared item: ${sharedItemMap['name']} (itemId: $mapItemId) in splitManager (after try-catch)');
           continue;
         }
         

@@ -8,6 +8,14 @@ import '../../screens/final_summary_screen.dart';
 import '../../theme/app_colors.dart';
 // import '../../widgets/workflow_modal.dart'; // For NavigateToPageNotification if needed
 
+// Helper record for the return type
+class ExtractedSharedItemsResult {
+  final List<ReceiptItem> itemsMappedToOriginalOrder; // Corresponds 1-to-1 with input items
+  final List<ReceiptItem> uniqueCanonicalItems;       // De-duplicated list of items for SplitManager
+
+  ExtractedSharedItemsResult(this.itemsMappedToOriginalOrder, this.uniqueCanonicalItems);
+}
+
 class SummaryStepWidget extends StatelessWidget {
   final Map<String, dynamic> parseResult;
   final Map<String, dynamic> assignResultMap;
@@ -27,108 +35,93 @@ class SummaryStepWidget extends StatelessWidget {
     // required this.onNavigateToPage,
   }) : super(key: key);
 
-  // Helper to reconstruct Person list with assigned and shared items for SplitManager
-  List<Person> _preparePeopleForSummaryManager(Map<String, dynamic> assignMap) {
-    final List<Person> peopleForManager = [];
-    final List<ReceiptItem> allSharedItemsForManager = [];
+  ExtractedSharedItemsResult _extractSharedItemsHelper(Map<String, dynamic> assignResultMap) {
+    final List<ReceiptItem> mappedItems = [];
+    // Use a Map to ensure unique items by their final itemId for the SplitManager
+    final Map<String, ReceiptItem> uniqueItemsByFinalId = {}; 
 
-    // First, create all shared item instances (with itemId)
-    if (assignMap.containsKey('shared_items') && assignMap['shared_items'] is List) {
-      for (var itemData in (assignMap['shared_items'] as List)) {
-        if (itemData is Map<String, dynamic>) {
-          allSharedItemsForManager.add(ReceiptItem.fromJson(itemData));
-        }
-      }
-    }
+    // This map tracks canonical items created for sourceItemIds found in assignResultMap
+    final Map<String, ReceiptItem> canonicalItemsBySourceId = {}; 
 
-    // Then, create people with their assigned items
-    if (assignMap.containsKey('assignments') && assignMap['assignments'] is List) {
-      for (var personData in (assignMap['assignments'] as List)) {
-        if (personData is Map<String, dynamic>) {
-          final personName = personData['person_name'] as String? ?? 'Unknown Person';
-          final List<ReceiptItem> personAssignedItems = [];
-          if (personData['items'] is List) {
-            for (var itemData in (personData['items'] as List)) {
-              if (itemData is Map<String, dynamic>) {
-                personAssignedItems.add(ReceiptItem.fromJson(itemData));
-              }
-            }
+    if (assignResultMap.containsKey('shared_items') && assignResultMap['shared_items'] is List) {
+      for (var sharedItemDataUntyped in (assignResultMap['shared_items'] as List)) {
+        // Ensure we're working with a mutable copy for fromJson if it modifies its input, though it shouldn't.
+        final sharedItemMap = Map<String, dynamic>.from(sharedItemDataUntyped as Map<String, dynamic>);
+        final String? sourceItemId = sharedItemMap['itemId'] as String?;
+        ReceiptItem currentCanonicalItem;
+
+        if (sourceItemId != null) {
+          // This entry from assignResultMap has a specific itemId.
+          if (canonicalItemsBySourceId.containsKey(sourceItemId)) {
+            // We've already created/designated a canonical ReceiptItem for this sourceItemId. Use it.
+            currentCanonicalItem = canonicalItemsBySourceId[sourceItemId]!;
+          } else {
+            // First time seeing this sourceItemId. Create a ReceiptItem (fromJson will use sourceItemId).
+            // This becomes the canonical instance for this sourceItemId.
+            currentCanonicalItem = ReceiptItem.fromJson(sharedItemMap);
+            canonicalItemsBySourceId[sourceItemId] = currentCanonicalItem;
           }
-          peopleForManager.add(Person(name: personName, assignedItems: personAssignedItems));
+        } else {
+          // No sourceItemId in this assignResultMap entry (e.g., old data).
+          // This entry represents a distinct shared item.
+          // ReceiptItem.fromJson will generate a new, unique itemId for it.
+          currentCanonicalItem = ReceiptItem.fromJson(sharedItemMap);
         }
+        // Add the (potentially shared, potentially new) canonical item to the list that mirrors original order.
+        mappedItems.add(currentCanonicalItem);
+        // Also, ensure this item (identified by its final, possibly generated, itemId) is in the unique list.
+        uniqueItemsByFinalId[currentCanonicalItem.itemId] = currentCanonicalItem;
       }
     }
-    
-    // Now link shared items to people based on their names from the shared_items people lists
-    if (assignMap.containsKey('shared_items') && assignMap['shared_items'] is List) {
-      for (var sharedItemData in (assignMap['shared_items'] as List)) {
-        if (sharedItemData is Map<String, dynamic>) {
-          // Create the shared item
-          final ReceiptItem sharedItem = ReceiptItem.fromJson(sharedItemData);
-          
-          // Add to shared items for the manager
-          allSharedItemsForManager.add(sharedItem);
-          
-          // Find all people that share this item
-          final List<String> peopleNames = 
-              (sharedItemData['people'] as List<dynamic>?)?.cast<String>() ?? [];
-          
-          if (peopleNames.isEmpty) {
-            // If people list is empty in the data but this is supposed to be a shared item,
-            // we'll add people based on item name (as a fallback based on the description)
-            final String itemName = sharedItemData['name'] as String? ?? '';
-            
-            // For the White Pita - item description says "Me and Val shared"
-            if (itemName.toLowerCase().contains('pita')) {
-              peopleNames.addAll(['Nick', 'Val']);
-              debugPrint('[SummaryStepWidget] Auto-assigned shared item: $itemName to people: Nick, Val');
-            }
-            // For the Hummus Garlic - description says "We all shared"
-            else if (itemName.toLowerCase().contains('hummus')) {
-              for (var person in peopleForManager) {
-                peopleNames.add(person.name);
-              }
-              debugPrint('[SummaryStepWidget] Auto-assigned shared item: $itemName to people: ${peopleNames.join(', ')}');
-            }
-          }
-          
-          // Only proceed if there are people to share with
-          if (peopleNames.isNotEmpty) {
-            // Link this shared item to each person in the list
-            for (var personName in peopleNames) {
-              final matchingPersons = peopleForManager.where((p) => p.name == personName).toList();
-              if (matchingPersons.isNotEmpty) {
-                final person = matchingPersons.first;
-                
-                // Check if person already has this shared item by comparing itemId
-                bool personHasItem = person.sharedItems.any((si) => 
-                  si.name == sharedItem.name && si.price == sharedItem.price);
-                  
-                if (!personHasItem) {
-                  // Use the same shared item reference to avoid duplication
-                  debugPrint('[SummaryStepWidget] Adding shared item ${sharedItem.name} to ${person.name}');
-                  person.addSharedItem(sharedItem);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    
-    return peopleForManager;
+    return ExtractedSharedItemsResult(mappedItems, uniqueItemsByFinalId.values.toList());
   }
 
-  List<ReceiptItem> _extractSharedItemsForSummaryManager(Map<String, dynamic> assignMap) {
-    final List<ReceiptItem> sharedItems = [];
-     if (assignMap.containsKey('shared_items') && assignMap['shared_items'] is List) {
-      for (var itemData in (assignMap['shared_items'] as List)) {
-        if (itemData is Map<String, dynamic>) {
-          sharedItems.add(ReceiptItem.fromJson(itemData));
+  List<Person> _preparePeopleForSummaryManager(
+    Map<String, dynamic> assignMap,
+    List<ReceiptItem> itemsMappedToOriginalShared // This is from ExtractedSharedItemsResult.itemsMappedToOriginalOrder
+  ) {
+    final List<Person> peopleForManager = _extractPeopleFromAssignResult(assignMap);
+
+    if (assignMap.containsKey('shared_items') && assignMap['shared_items'] is List) {
+      final List<dynamic> sharedEntriesFromMap = assignMap['shared_items'] as List<dynamic>;
+
+      if (sharedEntriesFromMap.length != itemsMappedToOriginalShared.length) {
+        String msg = "[SummaryStepWidget._preparePeople] Error: Mismatch in length between shared item entries from assignMap (";
+        msg += "${sharedEntriesFromMap.length}) and the mapped canonical items (${itemsMappedToOriginalShared.length}). ";
+        msg += "Aborting shared item processing for people.";
+        debugPrint(msg);
+        return peopleForManager; 
+      }
+
+      for (int i = 0; i < sharedEntriesFromMap.length; i++) {
+        final sharedEntryMap = sharedEntriesFromMap[i] as Map<String, dynamic>;
+        // This is the specific canonical ReceiptItem instance corresponding to the i-th entry 
+        // in assignMap['shared_items']. It will have a unique itemId.
+        final ReceiptItem canonicalItemForThisEntry = itemsMappedToOriginalShared[i]; 
+
+        final List<dynamic> peopleNamesInvolved = sharedEntryMap['people'] as List<dynamic>? ?? [];
+        for (final personNameDynamic in peopleNamesInvolved) {
+          final String personName = personNameDynamic as String;
+          final int personIndex = peopleForManager.indexWhere((p) => p.name == personName);
+
+          if (personIndex != -1) {
+            final Person currentPerson = peopleForManager[personIndex];
+            // Add the canonical item to the person's shared list if not already there (by its unique itemId).
+            // A person can share multiple distinct items.
+            // If multiple entries in assignMap['shared_items'] resolved to the *same* canonicalItemForThisEntry
+            // (because they shared a sourceItemId), this addSharedItem will only add it once.
+            if (!currentPerson.sharedItems.any((si) => si.itemId == canonicalItemForThisEntry.itemId)) {
+              currentPerson.addSharedItem(canonicalItemForThisEntry);
+               // debugPrint('[SummaryStepWidget._preparePeople] Added shared item ${canonicalItemForThisEntry.name} (ID: ${canonicalItemForThisEntry.itemId}) to ${currentPerson.name}');
+            }
+          } else {
+            // Corrected debugPrint statement for person not found
+            debugPrint('[SummaryStepWidget._preparePeople] Warning: Person $personName listed in shared item \'${sharedEntryMap['name']}\' (entry $i) not found in peopleForManager list.');
+          }
         }
       }
     }
-    return sharedItems;
+    return peopleForManager;
   }
 
   List<ReceiptItem> _extractUnassignedItemsForSummaryManager(Map<String, dynamic> assignMap) {
@@ -141,6 +134,27 @@ class SummaryStepWidget extends StatelessWidget {
       }
     }
     return unassignedItems;
+  }
+
+  List<Person> _extractPeopleFromAssignResult(Map<String, dynamic> assignResult) {
+    final List<Person> people = [];
+    if (assignResult.containsKey('assignments') && assignResult['assignments'] is List) {
+      for (var personData in (assignResult['assignments'] as List)) {
+        if (personData is Map<String, dynamic>) {
+          final String personName = personData['person_name'] as String? ?? 'Unknown Person';
+          final List<ReceiptItem> assignedItems = [];
+          if (personData['items'] is List) {
+            for (var itemMapUntyped in (personData['items'] as List)) {
+              final itemMap = itemMapUntyped as Map<String, dynamic>;
+              // Ensure assigned items also get their itemIds correctly (fromJson should handle this)
+              assignedItems.add(ReceiptItem.fromJson(itemMap));
+            }
+          }
+          people.add(Person(name: personName, assignedItems: assignedItems));
+        }
+      }
+    }
+    return people;
   }
 
   @override
@@ -181,13 +195,22 @@ class SummaryStepWidget extends StatelessWidget {
     debugPrint('[SummaryStepWidget] Calculated item sum from received assignResultMap: ${assignMapItemsSum.toStringAsFixed(2)}');
     // --- END DEBUG LOGS ---
 
-    final List<Person> people = _preparePeopleForSummaryManager(assignResultMap);
-    final List<ReceiptItem> sharedItems = _extractSharedItemsForSummaryManager(assignResultMap);
+    // Order of operations:
+    // 1. Extract shared items: get a list mapped to original input order AND a unique list for the manager.
+    final ExtractedSharedItemsResult sharedExtractionResult = _extractSharedItemsHelper(assignResultMap);
+    final List<ReceiptItem> itemsToLinkToPeople = sharedExtractionResult.itemsMappedToOriginalOrder;
+    final List<ReceiptItem> uniqueSharedItemsForManager = sharedExtractionResult.uniqueCanonicalItems;
+    
+    // 2. Prepare people: extract their assigned items and then link them to the canonical shared items 
+    //    using the mapped list that preserves original shared item entry context.
+    final List<Person> people = _preparePeopleForSummaryManager(assignResultMap, itemsToLinkToPeople);
+    
+    // 3. Extract unassigned items.
     final List<ReceiptItem> unassignedItems = _extractUnassignedItemsForSummaryManager(assignResultMap);
 
     final summaryManager = SplitManager(
       people: people,
-      sharedItems: sharedItems, 
+      sharedItems: uniqueSharedItemsForManager, // Use the de-duplicated unique list for the manager
       unassignedItems: unassignedItems,
       tipPercentage: currentTip,
       taxPercentage: currentTax,

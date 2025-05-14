@@ -135,7 +135,7 @@ class SplitManager extends ChangeNotifier {
   void assignItemToPerson(ReceiptItem item, Person person) {
     // Check if the person already has this item
     for (int i = 0; i < person.assignedItems.length; i++) {
-      if (person.assignedItems[i].isSameItem(item)) {
+      if (person.assignedItems[i].itemId == item.itemId) {
         // Person already has this item, update the quantity
         int newQuantity = person.assignedItems[i].quantity + item.quantity;
         person.assignedItems[i].updateQuantity(newQuantity);
@@ -511,6 +511,7 @@ class SplitManager extends ChangeNotifier {
         'person_name': person.name,
         'items': person.assignedItems.map((item) {
           return {
+            'itemId': item.itemId,
             'name': item.name,
             'quantity': item.quantity,
             'price': item.price,
@@ -526,6 +527,7 @@ class SplitManager extends ChangeNotifier {
           .map((p) => p.name)
           .toList();
       return {
+        'itemId': item.itemId,
         'name': item.name,
         'quantity': item.quantity,
         'price': item.price,
@@ -535,6 +537,7 @@ class SplitManager extends ChangeNotifier {
 
     final List<Map<String, dynamic>> unassignedItemsMap = _unassignedItems.map((item) {
       return {
+        'itemId': item.itemId,
         'name': item.name,
         'quantity': item.quantity,
         'price': item.price,
