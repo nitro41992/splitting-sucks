@@ -110,3 +110,29 @@ No advanced AI-driven UI, dark mode, or AI-generated avatars are planned at this
 - [x] Each section above should be checked off as completed
 - [x] PRs should reference checklist items
 - [x] Product can review this doc to track implementation status 
+
+---
+
+## Recent Improvements (2025-06-12)
+
+The following additional improvements have been completed:
+
+1. **Fixed People Display Issue:**
+   - Corrected implementation of `peopleFromAssignments` in the Receipt model to properly extract people names from assignment data
+   - Updated extraction logic to look for `person_name` field in assignments
+   - Ensured people are correctly displayed in both the receipt list and receipt details popup
+
+2. **Improved Auto-Complete Draft Logic:**
+   - Enhanced `_autoCompleteDraftIfDataExists` method to properly handle draft receipts with meaningful data
+   - Fixed detection of people from assignments when checking if a draft should be completed
+   - Added startup scan functionality in ReceiptsScreen to detect and fix any existing drafts with completed data
+
+3. **Navigation Improvements:**
+   - Restored Back button in workflow navigation for the summary step to allow users to navigate to previous steps
+   - Maintained Exit button for convenient workflow completion
+
+4. **Performance Optimization:**
+   - Added required Firestore composite index for better query performance
+   - Fixed query structure to ensure efficient data retrieval
+
+These improvements ensure a smoother user experience with proper data display and intuitive navigation throughout the app. 

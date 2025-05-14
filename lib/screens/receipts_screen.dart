@@ -947,69 +947,107 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
   // Scan for drafts with assignment data and auto-complete them
   Future<void> _checkAndFixDraftReceipts() async {
     try {
-      final draftReceipts = await _firestoreService.getDraftReceipts();
+      final draftReceiptDocs = await _firestoreService.getDraftReceipts(); // Assuming this returns List<Receipt>
       int fixedCount = 0;
       
-      for (final receipt in draftReceipts) {
+      for (final receipt in draftReceiptDocs) {
+        // Use peopleFromAssignments to get the authoritative list of people
+        final List<String> actualPeople = receipt.peopleFromAssignments;
+        bool hasMeaningfulData = false;
+
         // Check if this receipt has assignment data that should make it completed
-        if (receipt.assignPeopleToItems != null && 
-            receipt.people.isNotEmpty &&
-            receipt.assignPeopleToItems!.containsKey('assignments')) {
-          
-          final assignments = receipt.assignPeopleToItems!['assignments'];
-          bool hasMeaningfulData = false;
-          
-          if (assignments is List && assignments.isNotEmpty) {
-            // Check if any assignments have items
-            for (var assignment in assignments) {
-              if (assignment is Map<String, dynamic> && 
-                  assignment.containsKey('items') &&
-                  assignment['items'] is List &&
-                  (assignment['items'] as List).isNotEmpty) {
-                hasMeaningfulData = true;
-                break;
+        if (receipt.assignPeopleToItems != null) {
+          final assignmentsData = receipt.assignPeopleToItems!;
+
+          // Check for assignments with items assigned to people
+          bool hasAssignments = false;
+          if (assignmentsData.containsKey('assignments')) {
+            final assignmentsList = assignmentsData['assignments'];
+            if (assignmentsList is List && assignmentsList.isNotEmpty) {
+              for (var assignmentEntry in assignmentsList) {
+                if (assignmentEntry is Map<String, dynamic> && 
+                    assignmentEntry.containsKey('items') &&
+                    assignmentEntry['items'] is List &&
+                    (assignmentEntry['items'] as List).isNotEmpty) {
+                  hasAssignments = true;
+                  break;
+                }
               }
-            }
-            
-            // Also check for shared items
-            if (!hasMeaningfulData && 
-                receipt.assignPeopleToItems!.containsKey('shared_items')) {
-              final sharedItems = receipt.assignPeopleToItems!['shared_items'];
-              if (sharedItems is List && sharedItems.isNotEmpty) {
-                hasMeaningfulData = true;
-              }
-            }
-            
-            // If it has meaningful data, complete it
-            if (hasMeaningfulData) {
-              debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Completing draft with ID: ${receipt.id}');
-              
-              // Convert receipt to map and set status to completed
-              final Map<String, dynamic> receiptData = receipt.toMap();
-              receiptData['metadata']['status'] = 'completed';
-              
-              // Save the receipt as completed using completeReceipt
-              await _firestoreService.completeReceipt(
-                receiptId: receipt.id,
-                data: receiptData,
-              );
-              
-              fixedCount++;
             }
           }
+          
+          // Also check for shared items - if any exist, it's a valid split
+          bool hasSharedItems = false;
+          if (assignmentsData.containsKey('shared_items')) {
+            final sharedItems = assignmentsData['shared_items'];
+            if (sharedItems is List && sharedItems.isNotEmpty) {
+              hasSharedItems = true;
+            }
+          }
+          
+          hasMeaningfulData = hasAssignments || hasSharedItems;
+        }
+            
+        // If it has meaningful data and actual people, complete it
+        if (hasMeaningfulData && actualPeople.isNotEmpty) {
+          debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Completing draft with ID: ${receipt.id} as it has ${actualPeople.length} people and assignment data.');
+          
+          // Create a new Receipt object with the correct people list and completed status
+          Receipt receiptToSave = receipt.copyWith(
+            people: actualPeople, // Ensure the 'people' field is updated with the list from assignments
+            status: 'completed',  // Explicitly set status to completed
+          );
+          
+          // Convert to map for Firestore. toMap() should use the updated people and status.
+          final Map<String, dynamic> receiptData = receiptToSave.toMap();
+          
+          // Save the receipt as completed using completeReceipt
+          await _firestoreService.completeReceipt(
+            receiptId: receipt.id,
+            data: receiptData,
+          );
+          
+          fixedCount++;
+        } 
+        // Even if not completing, update the people list if it's different
+        else if (actualPeople.isNotEmpty && !_areListsEqual(receipt.people, actualPeople)) {
+          debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Updating people list for draft ID: ${receipt.id} from ${receipt.people.length} to ${actualPeople.length} people.');
+          
+          // Create new receipt with updated people list but same status
+          Receipt receiptToUpdate = receipt.copyWith(
+            people: actualPeople, // Update people list without changing status
+          );
+          
+          // Save the updated receipt
+          await _firestoreService.saveReceipt(
+            receiptId: receipt.id,
+            data: receiptToUpdate.toMap(),
+          );
+          
+          fixedCount++;
         }
       }
       
       if (fixedCount > 0) {
-        debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Fixed $fixedCount draft receipts');
+        debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Fixed and completed $fixedCount draft receipts.');
         if (mounted) {
-          showAppToast(context, "$fixedCount receipt(s) were automatically completed", AppToastType.success);
+          showAppToast(context, "$fixedCount receipt(s) were automatically updated.", AppToastType.success);
         }
       }
     } catch (e) {
       debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Error fixing drafts: $e');
       // Don't show error to user as this is a background task
     }
+  }
+  
+  // Helper method to compare two lists
+  bool _areListsEqual(List<String> list1, List<String> list2) {
+    if (list1.length != list2.length) return false;
+    
+    // Convert to sets and compare for content equality (ignoring order)
+    final set1 = Set<String>.from(list1);
+    final set2 = Set<String>.from(list2);
+    return set1.difference(set2).isEmpty;
   }
 }
 

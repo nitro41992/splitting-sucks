@@ -225,4 +225,63 @@ class Receipt {
     int count = people.length;
     return count == 0 ? '—' : '$count ${count == 1 ? 'person' : 'people'}';
   }
+
+  /// Get a list of people names directly from the 'assignPeopleToItems' data.
+  /// This is useful if the 'people' field (from metadata) might be stale.
+  List<String> get peopleFromAssignments {
+    if (assignPeopleToItems == null || !assignPeopleToItems!.containsKey('assignments')) {
+      return [];
+    }
+    final dynamic assignmentsDynamic = assignPeopleToItems!['assignments'];
+    if (assignmentsDynamic is! List) {
+      debugPrint('[Receipt.peopleFromAssignments] \'assignments\' is not a List. Found: ${assignmentsDynamic.runtimeType}');
+      return [];
+    }
+    final List<dynamic> assignmentsList = assignmentsDynamic;
+    final Set<String> peopleNames = {}; // Use a Set to avoid duplicates
+
+    for (var assignment in assignmentsList) {
+      if (assignment is! Map) {
+        continue; // Skip non-map assignments
+      }
+
+      final Map<dynamic, dynamic> assignmentMap = assignment;
+      
+      // Check for person_name in individual assignment (primary structure)
+      if (assignmentMap.containsKey('person_name') && assignmentMap['person_name'] != null) {
+        peopleNames.add(assignmentMap['person_name'].toString());
+        continue;
+      }
+
+      // Fallback check for people array (alternative structure, though not typically used)
+      final dynamic peopleListDynamic = assignmentMap['people'];
+      if (peopleListDynamic is List) {
+        for (var person in peopleListDynamic) {
+          if (person != null) {
+            peopleNames.add(person.toString());
+          }
+        }
+      }
+    }
+    
+    // Also check shared_items for people
+    if (assignPeopleToItems!.containsKey('shared_items')) {
+      final dynamic sharedItemsDynamic = assignPeopleToItems!['shared_items'];
+      if (sharedItemsDynamic is List) {
+        for (var sharedItem in sharedItemsDynamic) {
+          if (sharedItem is Map && sharedItem.containsKey('people') && sharedItem['people'] is List) {
+            final List<dynamic> sharedPeople = sharedItem['people'] as List;
+            for (var person in sharedPeople) {
+              if (person != null) {
+                peopleNames.add(person.toString());
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    debugPrint('[Receipt.peopleFromAssignments] Extracted ${peopleNames.length} unique people: ${peopleNames.toList()}');
+    return peopleNames.toList();
+  }
 } 

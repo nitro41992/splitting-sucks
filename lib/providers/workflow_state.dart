@@ -368,6 +368,14 @@ class WorkflowState extends ChangeNotifier {
       }
 
       final Map<dynamic, dynamic> assignmentMap = assignment;
+      
+      // Check for person_name in individual assignment (primary structure)
+      if (assignmentMap.containsKey('person_name') && assignmentMap['person_name'] != null) {
+        peopleNames.add(assignmentMap['person_name'].toString());
+        continue;
+      }
+      
+      // Fallback check for people array (alternative structure)
       final dynamic peopleListDynamic = assignmentMap['people'];
       if (peopleListDynamic is! List) {
         if (peopleListDynamic != null) {
@@ -384,7 +392,25 @@ class WorkflowState extends ChangeNotifier {
         }
       }
     }
+    
+    // Also check shared_items for people
+    if (assignments.containsKey('shared_items')) {
+      final dynamic sharedItemsDynamic = assignments['shared_items'];
+      if (sharedItemsDynamic is List) {
+        for (var sharedItem in sharedItemsDynamic) {
+          if (sharedItem is Map && sharedItem.containsKey('people') && sharedItem['people'] is List) {
+            final List<dynamic> sharedPeople = sharedItem['people'] as List;
+            for (var person in sharedPeople) {
+              if (person != null) {
+                peopleNames.add(person.toString());
+              }
+            }
+          }
+        }
+      }
+    }
 
+    debugPrint('[WorkflowState _extractPeopleFromAssignmentsMap] Extracted ${peopleNames.length} unique people: ${peopleNames.toList()}');
     return peopleNames.toList();
   }
 

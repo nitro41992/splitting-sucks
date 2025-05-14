@@ -70,20 +70,25 @@ class WorkflowNavigationControls extends StatelessWidget {
                 label: const Text('Back'),
               ),
 
-              // Middle button - Exit for steps 0-3, Save Draft for step 4 (Summary)
-              currentStep < 4 // Use local currentStep
-                  ? OutlinedButton(
-                      key: exitButtonKey,
-                      onPressed: onExitAction,
-                      child: const Text('Exit'),
-                    )
-                  : OutlinedButton(
-                      key: saveDraftButtonKey,
-                      onPressed: onSaveDraftAction,
-                      child: const Text('Save Draft'),
-                    ),
+              // Middle button - conditionally rendered
+              // Removed for summary step to avoid redundancy with the right-most Exit button.
+              if (!isSummaryStep) ...[
+                if (currentStep < 4) ...[ // Assuming original logic for steps other than summary
+                  OutlinedButton(
+                    key: exitButtonKey,
+                    onPressed: onExitAction,
+                    child: const Text('Exit'),
+                  )
+                ] else ...[ // Assuming original logic for step 4 (if it existed in a different flow)
+                  OutlinedButton(
+                    key: saveDraftButtonKey,
+                    onPressed: onSaveDraftAction,
+                    child: const Text('Save Draft'),
+                  ),
+                ]
+              ],
 
-              // Next/Complete button - Show Complete button on Summary step (2), Next button otherwise
+              // Next/Complete/Exit button
               if (!isSummaryStep) ...[
                 FilledButton.icon(
                   key: nextButtonKey,
@@ -95,7 +100,7 @@ class WorkflowNavigationControls extends StatelessWidget {
                 ),
               ] else ...[
                 FilledButton.icon(
-                  key: completeButtonKey,
+                  key: completeButtonKey, // Consider renaming key if it's always Exit now
                   onPressed: onExitAction,
                   label: const Text('Exit'),
                   icon: const Icon(Icons.exit_to_app),

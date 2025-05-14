@@ -696,7 +696,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // Build the navigation buttons
   Widget _buildNavigation(int currentStep) {
     final workflowState = Provider.of<WorkflowState>(context);
-    final isLastStep = currentStep == _stepTitles.length - 1;
+    final bool isSummaryStep = currentStep == _stepTitles.length - 1;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -711,54 +711,38 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: isSummaryStep ? MainAxisAlignment.end : MainAxisAlignment.spaceBetween,
         children: [
-          // Back button (hidden on first step)
-          TextButton.icon(
-            onPressed: currentStep > 0
-                ? () async {
-                    if (currentStep == 1) {
-                      debugPrint('[WorkflowModal] Flushing transcription before navigating back from Assign step.');
-                      await _flushTranscriptionToWorkflowState();
-                    }
-                    workflowState.previousStep();
-                  }
-                : null,
-            icon: const Icon(Icons.arrow_back),
-            label: const Text('Back'),
-          ),
+          // Back button (hidden on first step AND on summary step)
+          if (!isSummaryStep && currentStep > 0)
+            TextButton.icon(
+              onPressed: () async {
+                if (currentStep == 1) {
+                  debugPrint('[WorkflowModal] Flushing transcription before navigating back from Assign step.');
+                  await _flushTranscriptionToWorkflowState();
+                }
+                workflowState.previousStep();
+              },
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Back'),
+            )
+          else if (!isSummaryStep) // Placeholder if Back is hidden but not summary step (to balance spaceBetween)
+             const SizedBox(width: 88), // Adjust width to match typical back button space
           
-          // Middle button - Exit for steps 0-3, Save Draft for step 4
-          currentStep < 4 
-              ? OutlinedButton(
-                  onPressed: () async {
-                    final bool canPop = await _onWillPop(); 
-                    if (canPop && mounted) {
-                      Navigator.of(context).pop(true);
-                    }
-                  },
-                  child: const Text('Exit'),
-                )
-              : OutlinedButton(
-                  onPressed: () async {
-                    bool saveSuccess = false;
-                    try {
-                      await _saveDraft();
-                      saveSuccess = true;
-                    } catch (e) {
-                      // _saveDraft already handles logging and showing a SnackBar
-                      // for the error.
-                      saveSuccess = false;
-                    }
-                    if (saveSuccess && mounted) {
-                      Navigator.of(context).pop(true);
-                    }
-                  },
-                  child: const Text('Save Draft'),
-                ),
+          // Middle button - Exit (only shown if NOT on summary step)
+          if (!isSummaryStep)
+            OutlinedButton(
+              onPressed: () async {
+                final bool canPop = await _onWillPop(); 
+                if (canPop && mounted) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+              child: const Text('Exit'),
+            ),
           
-          // Next/Complete button - Show Complete button on Summary step (2), Next button otherwise
-          if (!isLastStep) ...[
+          // Next/FilledExit button
+          if (!isSummaryStep) ...[
             Builder(
               builder: (context) {
                 final localWorkflowState = Provider.of<WorkflowState>(context);
@@ -773,7 +757,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 return FilledButton.icon(
                   onPressed: isNextEnabled 
                     ? () async {
-                        // --- Always flush transcription on navigation from Assign step ---
                         if (currentStep == 1) {
                           debugPrint('[WorkflowModal] Flushing transcription before navigating away from Assign step.');
                           await _flushTranscriptionToWorkflowState();
@@ -786,11 +769,11 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 );
               }
             ),
-          ] else ...[ // Only show Exit button on last step (auto-completion is handled)
+          ] else ...[ // This IS the Summary Step
              FilledButton.icon(
-                  onPressed: () => _handleNavigationExitAction(),
+                  onPressed: () => _handleNavigationExitAction(), // This calls _onWillPop
                   label: const Text('Exit'),
-                  icon: const Icon(Icons.arrow_back),
+                  icon: const Icon(Icons.exit_to_app), // Ensure correct icon
                 ),
           ],
         ],
@@ -1333,6 +1316,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         workflowState.assignPeopleToItemsResult != null) {
       
       // Check for assignments data (people with items)
+      bool hasAssignments = false;
       if (workflowState.assignPeopleToItemsResult!.containsKey('assignments')) {
         final assignments = workflowState.assignPeopleToItemsResult!['assignments'];
         
@@ -1343,7 +1327,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 assignment.containsKey('items') &&
                 assignment['items'] is List &&
                 (assignment['items'] as List).isNotEmpty) {
-              shouldAutoComplete = true;
+              hasAssignments = true;
               break;
             }
           }
@@ -1351,20 +1335,29 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       }
       
       // Also check for shared items - if any exist, it's a valid split
-      if (!shouldAutoComplete && 
-          workflowState.assignPeopleToItemsResult!.containsKey('shared_items')) {
+      bool hasSharedItems = false;
+      if (workflowState.assignPeopleToItemsResult!.containsKey('shared_items')) {
         final sharedItems = workflowState.assignPeopleToItemsResult!['shared_items'];
         if (sharedItems is List && sharedItems.isNotEmpty) {
-          shouldAutoComplete = true;
+          hasSharedItems = true;
         }
       }
       
-      // Check for people data
-      if (shouldAutoComplete && workflowState.people.isNotEmpty) {
-        debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Auto-completing draft - Contains ${workflowState.people.length} people and meaningful assignment data');
+      shouldAutoComplete = hasAssignments || hasSharedItems;
+      
+      // Get people from assignments
+      Receipt receipt = workflowState.toReceipt();
+      final List<String> actualPeople = receipt.peopleFromAssignments;
+      
+      // Only complete if we have people and assignments/shared-items
+      if (shouldAutoComplete && actualPeople.isNotEmpty) {
+        debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Auto-completing draft - Contains ${actualPeople.length} people and meaningful assignment data');
         
         try {
-          final receipt = workflowState.toReceipt();
+          // Update people field in the receipt with the actual people from assignments
+          // First update the assignPeopleToItems map to ensure people are extracted correctly
+          Map<String, dynamic> updatedAssignments = Map<String, dynamic>.from(workflowState.assignPeopleToItemsResult!);
+          receipt = receipt.copyWith(people: actualPeople);
           final Map<String, dynamic> receiptData = receipt.toMap();
           
           // Set the status explicitly to completed
@@ -1380,12 +1373,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
           if (mounted) {
             workflowState.setReceiptId(definitiveReceiptId);
             
-            // Update the model
-            // Instead of using setStatus, directly update the parseReceipt model to reflect completion
-            final updatedReceiptData = Map<String, dynamic>.from(receiptData);
-            if (workflowState.parseReceiptResult.isNotEmpty) {
-              workflowState.setParseReceiptResult(updatedReceiptData['parse_receipt'] as Map<String, dynamic>? ?? {});
-            }
+            // Update assignment data to trigger extraction of people
+            // This will update workflowState._people internally
+            workflowState.setAssignPeopleToItemsResult(updatedAssignments);
             
             workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
             workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
