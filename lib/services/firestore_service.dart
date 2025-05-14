@@ -221,6 +221,8 @@ class FirestoreService {
     required String receiptId,
     required Map<String, dynamic> data,
   }) async {
+    debugPrint('[FirestoreService.completeReceipt] Starting completion for receipt $receiptId');
+    
     // Ensure metadata exists (already handled by Receipt.toMap, but safe check)
     if (!data.containsKey('metadata')) {
       data['metadata'] = {};
@@ -236,6 +238,7 @@ class FirestoreService {
     
     // Set status to completed
     dataToSave['metadata']['status'] = 'completed';
+    debugPrint('[FirestoreService.completeReceipt] Explicitly setting status to completed');
     
     // Ensure updated_at is set (Receipt.toMap handles this)
     dataToSave['metadata']['updated_at'] = FieldValue.serverTimestamp();
@@ -243,11 +246,33 @@ class FirestoreService {
     // Update the document using the provided data map
     try {
       final docRef = receiptsCollection.doc(receiptId);
+      
+      // Verify the document exists before updating
+      final docSnapshot = await docRef.get();
+      if (!docSnapshot.exists) {
+        debugPrint('[FirestoreService.completeReceipt] Warning: Document $receiptId does not exist, will be created');
+      } else {
+        debugPrint('[FirestoreService.completeReceipt] Document $receiptId exists, will update status to completed');
+      }
+      
       // Use set with merge option instead of update to ensure all fields are properly updated
       await docRef.set(dataToSave, SetOptions(merge: true));
+      
+      // Verify the update took effect by reading back the document
+      final updatedSnapshot = await docRef.get();
+      final updatedData = updatedSnapshot.data() as Map<String, dynamic>?;
+      
+      if (updatedData != null && 
+          updatedData['metadata'] is Map<String, dynamic> && 
+          updatedData['metadata']['status'] == 'completed') {
+        debugPrint('[FirestoreService.completeReceipt] Successfully verified receipt status is now completed');
+      } else {
+        debugPrint('[FirestoreService.completeReceipt] Warning: Receipt may not be properly marked as completed');
+      }
+      
       return docRef.id;
     } catch (e) {
-      debugPrint('Error completing receipt: $e');
+      debugPrint('[FirestoreService.completeReceipt] Error completing receipt: $e');
       rethrow;
     }
   }

@@ -15,6 +15,7 @@ import '../utils/toast_helper.dart'; // Import toast helper
 import '../widgets/workflow_modal.dart'; // Import WorkflowState
 import '../providers/workflow_state.dart'; // Added import
 import '../models/receipt.dart';
+import '../services/firestore_service.dart';
 
 class FinalSummaryScreen extends StatefulWidget {
   const FinalSummaryScreen({
@@ -93,8 +94,65 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     workflowState.setTax(_taxPercentage);
     workflowState.setTip(_tipPercentage);
+    
+    // Complete the receipt in the database when leaving this screen
+    // This fixes the issue where receipts weren't being marked as completed
+    _completeReceiptInDatabase();
+    
     debugPrint("[FinalSummaryScreen] Screen deactivated, caching tax: $_taxPercentage, tip: $_tipPercentage");
     super.deactivate();
+  }
+
+  // Complete the receipt in the database to ensure it's marked as completed
+  Future<void> _completeReceiptInDatabase() async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
+    // Skip if there's no receipt ID (should never happen)
+    if (workflowState.receiptId == null) {
+      debugPrint("[FinalSummaryScreen] Cannot complete receipt: No receipt ID found");
+      return;
+    }
+    
+    try {
+      // Create receipt object and update people from assignments data
+      Receipt receipt = workflowState.toReceipt();
+      final List<String> actualPeople = receipt.peopleFromAssignments;
+      
+      if (actualPeople.isNotEmpty) {
+        receipt = receipt.copyWith(people: actualPeople);
+      }
+      
+      // Update all split data from the SplitManager
+      final splitManager = Provider.of<SplitManager>(context, listen: false);
+      
+      // Generate map of assignments to add to receipt
+      final assignmentMap = splitManager.generateAssignmentMap();
+      if (workflowState.assignPeopleToItemsResult == null || 
+          workflowState.assignPeopleToItemsResult!.isEmpty) {
+        // Update the WorkflowState with the current split data if needed
+        workflowState.setAssignPeopleToItemsResult(assignmentMap);
+      }
+      
+      // Update tax and tip in WorkflowState
+      workflowState.setTip(_tipPercentage);
+      workflowState.setTax(_taxPercentage);
+      
+      // Create receipt data map for database
+      final Map<String, dynamic> receiptData = receipt.toMap();
+      receiptData['metadata']['status'] = 'completed'; // Explicitly set status to completed
+      
+      // Update firestore with 'completed' status
+      final firestoreService = FirestoreService();
+      await firestoreService.completeReceipt(
+        receiptId: receipt.id,
+        data: receiptData,
+      );
+      
+      debugPrint("[FinalSummaryScreen] Successfully completed receipt ${receipt.id} in database");
+    } catch (e) {
+      debugPrint("[FinalSummaryScreen] Error completing receipt: $e");
+      // Don't show error toast since this happens during deactivation
+    }
   }
 
   Future<void> _launchBuyMeACoffee(BuildContext context) async {
@@ -742,6 +800,32 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
           child: Row( // Use Row for side-by-side buttons
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              // Add a Done button to explicitly complete and return to receipts list
+              FloatingActionButton.extended(
+                heroTag: 'doneButton_final',
+                onPressed: () async {
+                  // Complete receipt and show feedback
+                  await _completeReceiptInDatabase();
+                  if (!mounted) return;
+
+                  // Show success toast
+                  ToastHelper.showToast(
+                    context, 
+                    'Receipt completed successfully!',
+                    isSuccess: true
+                  );
+                  
+                  // Pop back to receipts list
+                  Navigator.of(context).pop(true);
+                },
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Done'),
+                tooltip: 'Complete receipt and return to receipts list',
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                elevation: 2,
+              ),
+              const SizedBox(width: 12), // Space between buttons
               FloatingActionButton.extended(
                 heroTag: 'buyMeACoffeeButton_final', // Ensure unique heroTag
                 onPressed: () => _launchBuyMeACoffee(context),
@@ -750,7 +834,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                 tooltip: 'Buy me a coffee (optional)', // Tooltip
                 backgroundColor: AppColors.secondary.withOpacity(0.9), // Use AppColor, add slight transparency
                 foregroundColor: Colors.white, // Ensure text is readable
-                 elevation: 2,
+                elevation: 2,
               ),
               const SizedBox(width: 12), // Space between buttons
               FloatingActionButton.extended(

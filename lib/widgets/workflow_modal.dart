@@ -415,7 +415,22 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       return true;
     }
     
-    // Check if receipt should be auto-completed instead of saved as draft
+    // Check if we are on the final step (Summary) and ensure it's completed
+    bool isOnFinalStep = workflowState.currentStep == 2; // Summary step
+    
+    // If on final step, prioritize completion over saving as draft
+    if (isOnFinalStep) {
+      try {
+        debugPrint('[_onWillPop] On final step, completing receipt...');
+        await _completeReceiptWithoutNavigation();
+        return true; // Allow pop after completion
+      } catch (e) {
+        debugPrint('[_onWillPop] Error completing receipt from final step: $e');
+        // Fall through to regular check if completion fails
+      }
+    }
+    
+    // Regular check if receipt should be auto-completed
     bool shouldAutoComplete = false;
     try {
       shouldAutoComplete = await _checkIfReceiptShouldBeCompleted();
@@ -930,8 +945,32 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
 
   // --- START: New handlers for WorkflowNavigationControls callbacks ---
   Future<void> _handleNavigationExitAction() async {
-    // Check if the receipt should be auto-completed before exiting
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    final bool isOnFinalStep = workflowState.currentStep == 2; // Summary step
+    
+    // If on final step, always prioritize completion
+    if (isOnFinalStep) {
+      try {
+        debugPrint('[_handleNavigationExitAction] On final step, prioritizing completion...');
+        await _completeReceiptWithoutNavigation();
+        
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(true); // Exit after completion
+        }
+        return;
+      } catch (e) {
+        debugPrint('[_handleNavigationExitAction] Error completing receipt from final step: $e');
+        // Fall through to regular flow if completion fails
+      }
+    }
+    
+    // Regular check for auto-completion for other steps
     bool shouldAutoComplete = await _checkIfReceiptShouldBeCompleted();
+    
+    // Either auto-complete from checks OR manually complete if on Summary step
+    // This is a backup in case the earlier direct completion failed
+    shouldAutoComplete = shouldAutoComplete || isOnFinalStep;
+    
     if (!mounted) return; // Check mounted after async operation
     
     // Store navigation reference before any async operations
@@ -965,11 +1004,19 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     // Get workflow state ONCE at the beginning.
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     
+    debugPrint('[_completeReceiptWithoutNavigation] Starting to complete receipt: ${workflowState.receiptId}');
+    
     try {
       // --- Start Operation ---
       if (!mounted) return; 
       workflowState.setLoading(true); 
       workflowState.setErrorMessage(null);
+      
+      // Skip if there's no receipt ID
+      if (workflowState.receiptId == null) {
+        debugPrint('[_completeReceiptWithoutNavigation] Cannot complete: No receipt ID found');
+        throw Exception('No receipt ID found');
+      }
       
       // Create the receipt object and explicitly set status to 'completed'
       Receipt receipt = workflowState.toReceipt();
@@ -986,13 +1033,15 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       final Map<String, dynamic> receiptData = receipt.toMap();
       receiptData['metadata']['status'] = 'completed'; // Ensure status is explicitly set to 'completed'
       
-      debugPrint('[_completeReceiptWithoutNavigation] Completing receipt with ID: ${receipt.id}');
+      debugPrint('[_completeReceiptWithoutNavigation] Calling FirestoreService to complete receipt: ${receipt.id}');
       
       // --- First Await --- 
       final String definitiveReceiptId = await _firestoreService.completeReceipt( 
         receiptId: receipt.id, 
         data: receiptData,
       );
+      
+      debugPrint('[_completeReceiptWithoutNavigation] Successfully completed receipt in Firestore: $definitiveReceiptId');
       
       // --- Check Mounted After First Await --- 
       if (!mounted) return; 
@@ -1017,6 +1066,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       }
       
     } catch (e) {
+      debugPrint('[_completeReceiptWithoutNavigation] Error completing receipt: $e');
+      
       // --- Check Mounted in Catch Block --- 
       if (!mounted) return; 
       
