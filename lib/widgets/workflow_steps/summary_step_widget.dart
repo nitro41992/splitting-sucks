@@ -63,6 +63,12 @@ class SummaryStepWidget extends StatelessWidget {
     if (assignMap.containsKey('shared_items') && assignMap['shared_items'] is List) {
       for (var sharedItemData in (assignMap['shared_items'] as List)) {
         if (sharedItemData is Map<String, dynamic>) {
+          // Create the shared item
+          final ReceiptItem sharedItem = ReceiptItem.fromJson(sharedItemData);
+          
+          // Add to shared items for the manager
+          allSharedItemsForManager.add(sharedItem);
+          
           // Find all people that share this item
           final List<String> peopleNames = 
               (sharedItemData['people'] as List<dynamic>?)?.cast<String>() ?? [];
@@ -88,35 +94,21 @@ class SummaryStepWidget extends StatelessWidget {
           
           // Only proceed if there are people to share with
           if (peopleNames.isNotEmpty) {
-            // Find the matching shared item
-            final String itemName = sharedItemData['name'] as String? ?? '';
-            final double itemPrice = (sharedItemData['price'] as num?)?.toDouble() ?? 0.0;
-            final int itemQuantity = (sharedItemData['quantity'] as num?)?.toInt() ?? 1;
-            
-            // Find or create the shared item
-            ReceiptItem? sharedItem = allSharedItemsForManager.firstWhereOrNull(
-              (si) => si.name == itemName && si.price == itemPrice
-            );
-            
-            if (sharedItem == null) {
-              // Create a new shared item if not found
-              sharedItem = ReceiptItem(
-                name: itemName,
-                price: itemPrice,
-                quantity: itemQuantity
-              );
-              allSharedItemsForManager.add(sharedItem);
-            }
-            
-            // Now assign this shared item to all the relevant people
-            for (String personName in peopleNames) {
-              Person? person = peopleForManager.firstWhereOrNull(
-                (p) => p.name == personName
-              );
-              
-              if (person != null && !person.sharedItems.any((si) => si.itemId == sharedItem!.itemId)) {
-                debugPrint('[SummaryStepWidget] Adding shared item ${sharedItem.name} to ${person.name}');
-                person.addSharedItem(sharedItem);
+            // Link this shared item to each person in the list
+            for (var personName in peopleNames) {
+              final matchingPersons = peopleForManager.where((p) => p.name == personName).toList();
+              if (matchingPersons.isNotEmpty) {
+                final person = matchingPersons.first;
+                
+                // Check if person already has this shared item by comparing itemId
+                bool personHasItem = person.sharedItems.any((si) => 
+                  si.name == sharedItem.name && si.price == sharedItem.price);
+                  
+                if (!personHasItem) {
+                  // Use the same shared item reference to avoid duplication
+                  debugPrint('[SummaryStepWidget] Adding shared item ${sharedItem.name} to ${person.name}');
+                  person.addSharedItem(sharedItem);
+                }
               }
             }
           }

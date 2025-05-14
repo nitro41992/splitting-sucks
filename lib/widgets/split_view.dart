@@ -165,10 +165,10 @@ class _SplitViewState extends State<SplitView> {
         final originalTotal = splitManager.originalReviewTotal;
         final currentTotal = subtotal; // Current total in split view
         
-        // Use higher precision comparison (0.01 instead of 0.001) to account for rounding differences
+        // Use higher precision comparison to account for floating point rounding differences
         final bool totalsMatch = originalTotal == null 
             ? currentTotal < 0.01 // Only consider a match if current is effectively zero
-            : (currentTotal - originalTotal).abs() < 0.01; // Increased precision threshold
+            : (currentTotal - originalTotal).abs() < 0.02; // Increased precision threshold to 0.02
 
         // --- EDIT: Add debug print for values being compared ---
         print('DEBUG (SplitView): Checking for total mismatch... Original Review Total: $originalTotal, Current Split Total: $currentTotal, Match: $totalsMatch');

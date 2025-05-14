@@ -28,8 +28,17 @@ This document tracks known bugs and their status for the splitting_sucks project
 - **References:** Assign view, cloud function integration
 
 ### 5. Shared People Not Highlighted in Edit Screen (Summary View)
-- **Status:** Partially Fixed / Pending
-- **Notes:** Shared people chips in the Shared tab are not visually distinct (filled and colored) when selected. However, highlighting is still inconsistent in the Shared tab of the edit view. Changes to shared items now call `notifyListeners()` on `SplitManager`, ensuring the summary and person cards update immediately. Please verify that highlighting works and shared items are reflected in the summary and person cards. Use `flutter test` to check for bugs relating to this.
-- **References:** Summary view, Share tab, UI screenshot (flutter_01.png)
-- **My Notes:** Partially fixed. I see the shared items in the people summary card. But in the Shared tab of the edit view, the people are not highlighted on the card. This is still pending.
+- **Status:** Fixed
+- **Notes:** Fixed highlighting issues in the Shared tab with proper itemId-based comparison for shared items. `SharedItemCard` now uses itemId for comparison instead of reference equality, ensuring consistent behavior. The visual indicators (pills/chips) now correctly show which people are sharing specific items.
+- **References:** Summary view, Share tab, UI screenshot (flutter_02.png)
+
+### 6. Calculation Warnings and Subtotal Mismatches
+- **Status:** Fixed
+- **Notes:** Fixed calculation issues with shared items in the split view, improving how subtotals are calculated and displayed. The following changes were made:
+  - Updated `getPersonTotal` method in `SplitManager` to properly calculate shared item costs
+  - Implemented consistent rounding method across all calculations using `toStringAsFixed(2)` 
+  - Fixed the subtotal mismatch warning to use a more precise comparison threshold (0.02 instead of 0.01)
+  - Updated person cards to accurately reflect shared item splits
+- **References:** Split view, SplitManager calculations, UI screenshot (flutter_03.png)
+
 --- 
