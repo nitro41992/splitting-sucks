@@ -691,7 +691,8 @@ def transcribe_audio(req: https_fn.Request) -> https_fn.Response:
                     # Use the V1 audio transcriptions endpoint
                     transcript = openai_client.audio.transcriptions.create(
                         model=model_name, # Should be 'whisper-1'
-                        file=audio_file
+                        file=audio_file,
+                        language='en'
                     )
                 print("Received response from OpenAI Whisper API.")
                 transcribed_text = transcript.text

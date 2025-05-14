@@ -223,23 +223,37 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Status pill with consistent style
+                      // Status pill with modern design
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: receipt.isDraft 
-                              ? Colors.amber.shade100 
-                              : Colors.green.shade100,
+                              ? const Color(0xFFF5F5F7).withOpacity(0.8) // Light grey for draft
+                              : const Color(0xFF34C759), // Apple's system green for completed
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Text(
-                          receipt.isDraft ? 'Draft' : 'Completed',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: receipt.isDraft 
-                                ? Colors.amber.shade800 
-                                : Colors.green.shade800,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              receipt.isDraft ? Icons.edit_note_outlined : Icons.check_circle,
+                              size: 14,
+                              color: receipt.isDraft 
+                                  ? const Color(0xFF8A8A8E) // Medium grey for draft
+                                  : Colors.white,
+                            ),
+                            const SizedBox(width: 6), // Spacing between icon and text
+                            Text(
+                              receipt.isDraft ? 'Draft' : 'Completed',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: receipt.isDraft 
+                                    ? const Color(0xFF8A8A8E) // Medium grey for draft
+                                    : Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       
@@ -359,9 +373,6 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                   // Simplified Receipt details - only show useful information
                   _buildDetailRow('Date', receipt.formattedDate),
                   
-                  if (receipt.formattedAmount.isNotEmpty)
-                    _buildDetailRow('Total', receipt.formattedAmount),
-                    
                   // People detail with custom formatting to always show attendees
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -386,32 +397,62 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                             child: Align(
                               alignment: Alignment.centerRight,
                               child: Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
+                                spacing: 12,
+                                runSpacing: 12,
                                 alignment: WrapAlignment.end,
                                 children: receipt.people.map((person) => 
-                                  Chip(
-                                    avatar: CircleAvatar(
-                                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                                      radius: 12,
-                                      child: Text(
-                                        person.isNotEmpty ? person[0].toUpperCase() : '?',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                        ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.8),
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.2),
+                                        width: 1,
                                       ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.05),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
                                     ),
-                                    label: Text(person),
-                                    labelStyle: TextStyle(
-                                      fontSize: 12,
-                                      color: Theme.of(context).colorScheme.onSurface,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 28,
+                                          height: 28,
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Colors.white,
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              person.isNotEmpty ? person[0].toUpperCase() : '?',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          person,
+                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                            color: Theme.of(context).colorScheme.onSurface,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
-                                    backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
                                   )
                                 ).toList(),
                               ),
@@ -597,167 +638,279 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
     
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: InkWell(
-        onTap: () => _viewReceiptDetails(receipt),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left side: Thumbnail
-              Container(
-                width: 60,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(8),
+      color: Colors.white, // Pure white #FFFFFF
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            // Bottom-right shadow (darker)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              offset: const Offset(4, 4),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+            // Top-left highlight (lighter)
+            BoxShadow(
+              color: Colors.white.withOpacity(0.8),
+              offset: const Offset(-4, -4),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: InkWell(
+          onTap: () => _viewReceiptDetails(receipt),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Left side: Thumbnail
+                Container(
+                  width: 65,
+                  height: 85,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFFE0E0E0), // Light grey border
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: receipt.thumbnailUrlForDisplay != null 
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: CachedNetworkImage(
+                            imageUrl: receipt.thumbnailUrlForDisplay!,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                            errorWidget: (context, url, error) => const Icon(
+                              Icons.receipt_long, 
+                              size: 32, 
+                              color: Colors.grey,
+                            ),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.receipt_long, 
+                          size: 32, 
+                          color: Colors.grey,
+                        ),
                 ),
-                child: receipt.thumbnailUrlForDisplay != null 
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CachedNetworkImage(
-                          imageUrl: receipt.thumbnailUrlForDisplay!,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
-                          errorWidget: (context, url, error) => const Icon(
-                            Icons.receipt_long, 
-                            size: 32, 
-                            color: Colors.grey,
+                const SizedBox(width: 16),
+                
+                // Middle: Receipt info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Restaurant name (bold, clear, minimal)
+                      Text(
+                        receipt.restaurantName ?? 'Unnamed Receipt',
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1D1D1F), // Primary Text - Dark Grey
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      // Date in mm/dd/yyyy format with improved styling
+                      Text(
+                        receipt.formattedDate,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.normal,
+                          color: Color(0xFF8A8A8E), // Secondary Text - Medium Grey
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Stacked avatars for participants
+                      if (hasPeople) 
+                        GestureDetector(
+                          onTap: () {
+                            // Show modal with all participants
+                            showModalBottomSheet(
+                              context: context,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                              ),
+                              builder: (context) {
+                                return Container(
+                                  padding: const EdgeInsets.all(20),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Participants',
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF1D1D1F),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      ...receipt.people.map((person) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 36,
+                                              height: 36,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFF5D737E), // Slate Blue
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  person.isNotEmpty ? person[0].toUpperCase() : '?',
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              person,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                color: Color(0xFF1D1D1F),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )).toList(),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          child: SizedBox(
+                            height: 36,
+                            child: Stack(
+                              children: [
+                                for (int i = 0; i < min(3, receipt.people.length); i++)
+                                  Positioned(
+                                    left: i * 20.0, // Overlap by 8px
+                                    child: Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF5D737E), // Slate Blue
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          receipt.people[i].isNotEmpty ? receipt.people[i][0].toUpperCase() : '?',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                // Show "+N" indicator if more than 3 people
+                                if (receipt.people.length > 3)
+                                  Positioned(
+                                    left: 60.0, // Position after the 3rd avatar
+                                    child: Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF5D737E), // Slate Blue
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          "+${receipt.people.length - 3}",
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        Text(
+                          "No people assigned",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontStyle: FontStyle.italic,
+                            color: Color(0xFF8A8A8E), // Secondary Text - Medium Grey
                           ),
                         ),
-                      )
-                    : const Icon(
-                        Icons.receipt_long, 
-                        size: 32, 
-                        color: Colors.grey,
-                      ),
-              ),
-              const SizedBox(width: 16),
-              
-              // Middle: Receipt info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Restaurant name (bold, clear, minimal)
-                    Text(
-                      receipt.restaurantName ?? 'Unnamed Receipt',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    
-                    // Date in mm/dd/yyyy format
-                    Text(
-                      receipt.formattedDate,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    
-                    const SizedBox(height: 8),
-                    
-                    // Attendees row - always show them if they exist in data
-                    // Or display a placeholder if no people are assigned
-                    if (hasPeople) 
-                      SizedBox(
-                        height: 32,
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Status pill with modern design
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: receipt.isDraft 
+                              ? const Color(0xFFF5F5F7).withOpacity(0.8) // Light grey for draft
+                              : const Color(0xFF34C759), // Apple's system green for completed
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Show max 3 avatars + overflow indicator
-                            for (int i = 0; i < min(3, receipt.people.length); i++)
-                              Padding(
-                                padding: EdgeInsets.only(right: i < min(3, receipt.people.length) - 1 ? 4 : 0),
-                                child: CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                                  child: Text(
-                                    receipt.people[i].isNotEmpty ? receipt.people[i][0].toUpperCase() : '?',
-                                    style: TextStyle(
-                                      fontSize: 12, 
-                                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
+                            Icon(
+                              receipt.isDraft ? Icons.edit_note_outlined : Icons.check_circle,
+                              size: 14,
+                              color: receipt.isDraft 
+                                  ? const Color(0xFF8A8A8E) // Medium grey for draft
+                                  : Colors.white,
+                            ),
+                            const SizedBox(width: 6), // Spacing between icon and text
+                            Text(
+                              receipt.isDraft ? 'Draft' : 'Completed',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: receipt.isDraft 
+                                    ? const Color(0xFF8A8A8E) // Medium grey for draft
+                                    : Colors.white,
                               ),
-                            
-                            // Show overflow indicator if more than 3 people
-                            if (receipt.people.length > 3)
-                              Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.surfaceVariant,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '+${receipt.people.length - 3}',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            ),
                           ],
                         ),
-                      )
-                    else
-                      Text(
-                        "No people assigned",
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey[600],
-                        ),
                       ),
-                    
-                    const SizedBox(height: 8),
-                    
-                    // Status pill with consistent style
-                    Container(
-                      margin: const EdgeInsets.only(top: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: receipt.isDraft 
-                            ? Colors.amber.shade100 
-                            : Colors.green.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        receipt.isDraft ? 'Draft' : 'Completed',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: receipt.isDraft 
-                              ? Colors.amber.shade800 
-                              : Colors.green.shade800,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Right side: Amount (only if meaningful)
-              if (receipt.formattedAmount.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8.0, top: 4.0),
-                  child: Text(
-                    receipt.formattedAmount,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    ],
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -769,6 +922,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
     super.build(context);
     debugPrint('[_ReceiptsScreenState] build() called.');
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F7), // Very light grey background
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
@@ -787,14 +941,14 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
             const Text(
               'Billfie',
               style: TextStyle(
-                color: Colors.black87,
+                color: Color(0xFF1D1D1F), // Primary text color
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               'Smarter bill splitting',
               style: TextStyle(
-                color: Colors.black54,
+                color: const Color(0xFF8A8A8E), // Secondary text color
                 fontSize: 14,
                 fontWeight: FontWeight.normal,
               ),
@@ -939,7 +1093,16 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
       floatingActionButton: FloatingActionButton(
         onPressed: _addNewReceipt,
         tooltip: 'Add Receipt',
-        child: const Icon(Icons.add),
+        backgroundColor: const Color(0xFF5D737E), // Slate Blue
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(
+          Icons.add_rounded, // Rounded plus icon
+          color: Colors.white,
+          size: 26,
+        ),
       ),
     );
   }

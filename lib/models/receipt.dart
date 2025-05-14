@@ -202,7 +202,7 @@ class Receipt {
   String get formattedDate {
     if (updatedAt == null) return 'Unknown date';
     final date = updatedAt!.toDate();
-    return '${date.day}/${date.month}/${date.year}';
+    return '${date.month}/${date.day}/${date.year}';
   }
   
   /// Get a formatted string of the total amount for display

@@ -38,19 +38,60 @@ class _MainNavigationState extends State<MainNavigation> {
           SettingsScreen(), // Instantiate here
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.receipt_long),
-            label: 'Receipts',
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x20000000),
+              blurRadius: 10,
+              offset: Offset(0, -1),
+            ),
+          ],
+          border: Border(
+            top: BorderSide(
+              color: Color(0xFFE0E0E0),
+              width: 1,
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
+        ),
+        child: BottomNavigationBar(
+          items: const <BottomNavigationBarItem>[
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long_rounded), // Modern filled icon
+              activeIcon: Icon(
+                Icons.receipt_long_rounded,
+                size: 26, // Slightly larger when active
+              ),
+              label: 'Receipts',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_rounded), // Modern filled icon
+              activeIcon: Icon(
+                Icons.settings_rounded,
+                size: 26, // Slightly larger when active
+              ),
+              label: 'Settings',
+            ),
+          ],
+          currentIndex: _selectedIndex,
+          selectedItemColor: const Color(0xFF5D737E), // Slate blue for text
+          unselectedItemColor: const Color(0xFF8A8A8E), // Secondary text color
+          backgroundColor: Colors.white,
+          elevation: 8,
+          selectedFontSize: 10,
+          unselectedFontSize: 10,
+          type: BottomNavigationBarType.fixed,
+          selectedIconTheme: const IconThemeData(
+            color: Color(0xFF5D737E), // Ensure slate blue for active icon
+            size: 26, 
           ),
-        ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+          unselectedIconTheme: const IconThemeData(
+            color: Color(0xFF8A8A8E), // Secondary color for inactive icons
+            size: 24,
+          ),
+          onTap: _onItemTapped,
+        ),
       ),
     );
   }
@@ -81,14 +122,14 @@ class SettingsScreen extends StatelessWidget {
             const Text(
               'Billfie',
               style: TextStyle(
-                color: Colors.black87,
+                color: Color(0xFF1D1D1F), // Primary text color
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               'Smarter bill splitting',
               style: TextStyle(
-                color: Colors.black54,
+                color: const Color(0xFF8A8A8E), // Secondary text color
                 fontSize: 14,
                 fontWeight: FontWeight.normal,
               ),
@@ -148,6 +189,7 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
+      backgroundColor: const Color(0xFFF5F5F7), // Very light grey background
     );
   }
 } 
