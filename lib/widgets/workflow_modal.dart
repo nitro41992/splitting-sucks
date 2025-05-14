@@ -573,10 +573,18 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       
       // **** ADD DEBUG PRINT HERE ****
       debugPrint('[_saveDraft] Saving draft. workflowState.parseReceiptResult: ${workflowState.parseReceiptResult}');
+      debugPrint('[_saveDraft] Receipt ID before saving: ${receipt.id}');
       // ***************************
 
+      // If the receipt ID is empty or a temporary ID, pass null to allow Firestore to generate a new ID
+      String? receiptIdToSave = workflowState.receiptId;
+      if (receiptIdToSave == null || receiptIdToSave.isEmpty || receiptIdToSave.startsWith('temp_')) {
+        receiptIdToSave = null;
+        debugPrint('[_saveDraft] Using null receiptId to allow Firestore to generate a new ID');
+      }
+
       final String definitiveReceiptId = await _firestoreService.saveDraft(
-        receiptId: receipt.id, 
+        receiptId: receiptIdToSave, 
         data: receipt.toMap(), // toMap() places URIs in metadata
       );
 
@@ -1151,14 +1159,22 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // Signature: Future<bool> Function() // async
   Future<bool> _handleReTranscribeRequestedForAssignStep() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    final confirm = await showConfirmationDialog(
-        context,
-        "Confirm Re-transcribe",
-        "This will clear your current transcription and any subsequent assignments, tip, and tax. Are you sure you want to re-transcribe?");
-    if (confirm) {
-      workflowState.clearTranscriptionAndSubsequentData();
+    
+    // Only show confirmation dialog if there's existing transcription data
+    // This fixes the bug where the confirmation dialog appears on first transcription
+    if (workflowState.hasTranscriptionData) {
+      final confirm = await showConfirmationDialog(
+          context,
+          "Confirm Re-transcribe",
+          "This will clear your current transcription and any subsequent assignments, tip, and tax. Are you sure you want to re-transcribe?");
+      if (confirm) {
+        workflowState.clearTranscriptionAndSubsequentData();
+      }
+      return confirm;
+    } else {
+      // First-time transcription, no need for confirmation
+      return true;
     }
-    return confirm;
   }
 
   // Corrected Signature: Future<bool> Function() // async
@@ -1166,21 +1182,20 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // It does NOT process the data itself; that's done by _handleAssignmentProcessedForAssignStep.
   Future<bool> _handleConfirmProcessAssignmentsForAssignStep() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    // final transcription = workflowState.transcribeAudioResult['text'] as String? ?? '';
     
-    // Always confirm before processing assignments, as it's a significant step.
-    // The previous logic to bypass confirmation for empty transcription/assignments might be too implicit.
-    // VoiceAssignmentScreen will provide the actual assignment map to _handleAssignmentProcessedForAssignStep.
-
-    final confirmed = await showConfirmationDialog(
-      context, 
-      'Process Assignments', 
-      'Are you sure you want to process these assignments? This will overwrite any previous assignments.'
-    );
-
-    // This handler's role is only to return the confirmation status.
-    // The actual data processing happens in _handleAssignmentProcessedForAssignStep.
-    return confirmed;
+    // Only show confirmation dialog if there's existing assignment data
+    // This fixes the bug where the confirmation dialog appears on first-time processing
+    if (workflowState.hasAssignmentData) {
+      final confirmed = await showConfirmationDialog(
+        context, 
+        'Process Assignments', 
+        'Are you sure you want to process these assignments? This will overwrite any previous assignments.'
+      );
+      return confirmed;
+    } else {
+      // First-time processing, no need for confirmation
+      return true;
+    }
   }
   // --- END OF NEW HELPER METHODS FOR ASSIGN STEP ---
 

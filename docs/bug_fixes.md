@@ -74,6 +74,24 @@ This document tracks known bugs and their status for the splitting_sucks project
 - **Testing:** A widget test was added to `test/widgets/workflow_steps/summary_step_widget_test.dart`. This test verifies that if `WorkflowState.tax` (and by extension, `.tip`) is updated programmatically (simulating an external change), the `FinalSummaryScreen` UI correctly reflects this new state. Specifically, it checks that the displayed tax value in the input field and the calculated totals in `PersonSummaryCard`s update according to the new `WorkflowState` values.
 - **References:** Tax input widget, `_handleTaxInput` method, logs (flutter_08.png)
 
+### 11. Error Saving Draft due to Empty Document Path
+- **Status:** Fixed
+- **Notes:** Fixed a bug that caused "Failed assertion: line 116 pos 14: 'path.isNotEmpty': a document path must be a non-empty string" error when trying to save a draft. The issue was in the `toReceipt()` method of `WorkflowState` which was setting an empty string for the receipt ID when it was null. The fix ensures we generate a temporary ID when none exists, and properly handle it in the `_saveDraft` method in `WorkflowModal` by passing null to Firestore when detecting a temporary ID.
+- **Testing:** Unit test added to verify that `WorkflowState.toReceipt()` never creates a Receipt with an empty ID, and that temporary IDs are properly handled during saving.
+- **References:** `WorkflowState.toReceipt()`, `_saveDraft` in `workflow_modal.dart`
+
+### 12. Confirm Re-transcribe Dialog Appears on First-time Transcription
+- **Status:** Fixed
+- **Notes:** Fixed a bug where the "Confirm Re-transcribe" dialog would appear when trying to record a transcription for the first time. This dialog should only appear when there is existing transcription data that would be cleared. The issue was in the `_handleReTranscribeRequestedForAssignStep` method in `WorkflowModal` which was showing the confirmation dialog regardless of whether there was existing transcription data. The fix adds a check for `workflowState.hasTranscriptionData` before showing the dialog, and immediately returns `true` for first-time transcriptions.
+- **Testing:** Updated the implementation to only show the confirmation dialog when `workflowState.hasTranscriptionData` is true, otherwise it returns true without showing a dialog. A test case was added to verify this behavior.
+- **References:** `_handleReTranscribeRequestedForAssignStep` in `workflow_modal.dart`, `VoiceAssignmentScreen._toggleRecording()`
+
+### 13. Process Assignments Dialog Appears on First-time Processing
+- **Status:** Fixed
+- **Notes:** Fixed a bug where the "Process Assignments" confirmation dialog would appear when processing assignments for the first time. Like the re-transcribe dialog issue, this dialog should only appear when there is existing assignment data that would be overwritten. The fix modifies the `_handleConfirmProcessAssignmentsForAssignStep` method in `WorkflowModal` to check for `workflowState.hasAssignmentData` before showing the dialog, and immediately returns `true` for first-time processing.
+- **Testing:** Updated the implementation to only show the confirmation dialog when `workflowState.hasAssignmentData` is true, otherwise it returns true without showing a dialog. Added unit tests in `test/widgets/workflow_modal_test.dart` to verify both behaviors: showing the dialog when assignment data exists and skipping the dialog for first-time processing.
+- **References:** `_handleConfirmProcessAssignmentsForAssignStep` in `workflow_modal.dart`, `VoiceAssignmentScreen._processTranscription()`
+
 ---
 
 ## Known Issues

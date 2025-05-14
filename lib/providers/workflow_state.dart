@@ -263,8 +263,13 @@ class WorkflowState extends ChangeNotifier {
     // and then potentially refined/assigned in assignPeopleToItemsResult.
     // For constructing a Receipt object, we'll use the current state of these maps.
 
+    // Use existing ID or generate a temporary ID. 
+    // This temporary ID won't matter since Firestore will generate a new one
+    // when receiptId parameter is null in saveDraft/saveReceipt.
+    final String receiptId = _receiptId ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
+    
     return Receipt(
-      id: _receiptId ?? '', // Ensure ID is present
+      id: receiptId, // Use temporary ID when _receiptId is null
       restaurantName: _restaurantName,
       imageUri: _imageStateManager.actualImageGsUri,
       thumbnailUri: _imageStateManager.actualThumbnailGsUri,

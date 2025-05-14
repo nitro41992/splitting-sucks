@@ -529,6 +529,47 @@ void main() {
         expect(snapshot.data()?['metadata']?['status'], 'draft');
         expect(snapshot.data()?['metadata']?['restaurant_name'], 'New Draft Store');
       });
+
+      test('correctly handles temporary ID in saveDraft method', () async {
+        // Prepare minimal data with a temporary ID
+        final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
+        final receiptData = {
+          'metadata': {
+            'restaurant_name': 'Temporary ID Store'
+          }
+        };
+        
+        // Call saveDraft with the temporary ID - it should treat it like null
+        final generatedId = await firestoreService.saveDraft(
+          receiptId: tempId,
+          data: receiptData,
+        );
+        
+        // Verify an ID was generated and is different from the temp ID
+        expect(generatedId, isNotEmpty);
+        expect(generatedId, isNot(equals(tempId)));
+        
+        // Verify document exists with the generated ID, not the temp ID
+        final snapshotByGenId = await fakeFirestoreInstance
+            .collection('users')
+            .doc(testUserId)
+            .collection('receipts')
+            .doc(generatedId)
+            .get();
+        
+        expect(snapshotByGenId.exists, isTrue);
+        expect(snapshotByGenId.data()?['metadata']?['status'], 'draft');
+        
+        // Verify no document was created with the temp ID
+        final snapshotByTempId = await fakeFirestoreInstance
+            .collection('users')
+            .doc(testUserId)
+            .collection('receipts')
+            .doc(tempId)
+            .get();
+        
+        expect(snapshotByTempId.exists, isFalse);
+      });
     });
     
     group('completeReceipt method', () {

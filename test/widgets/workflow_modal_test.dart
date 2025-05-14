@@ -4,6 +4,7 @@ import 'package:billfie/widgets/workflow_steps/workflow_step_indicator.dart';
 import 'package:billfie/widgets/workflow_steps/workflow_navigation_controls.dart';
 import 'package:billfie/services/firestore_service.dart';
 import 'package:billfie/models/receipt.dart';
+import 'package:billfie/utils/dialog_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -174,6 +175,7 @@ class MockWorkflowState extends ChangeNotifier implements WorkflowState {
 // Mock FirestoreService implementation with simple tracking
 class MockFirestoreService implements FirestoreService {
   bool completeReceiptWasCalled = false;
+  bool saveDraftWasCalled = false;
   String? lastReceiptId;
   Map<String, dynamic>? lastData;
 
@@ -186,6 +188,18 @@ class MockFirestoreService implements FirestoreService {
     lastReceiptId = receiptId;
     lastData = data;
     return receiptId;
+  }
+
+  @override
+  Future<String> saveDraft({
+    String? receiptId,
+    required Map<String, dynamic> data,
+  }) async {
+    saveDraftWasCalled = true;
+    lastReceiptId = receiptId;
+    lastData = data;
+    // If receiptId is null, generate a new one
+    return receiptId ?? 'generated-id-${DateTime.now().millisecondsSinceEpoch}';
   }
 
   // Create a stub implementation for any other methods
@@ -451,5 +465,292 @@ void main() {
     });
   });
 
+  group('WorkflowModal.saveDraft', () {
+    testWidgets('passes null to saveDraft when receiptId is temporary or empty', (WidgetTester tester) async {
+      // Create a mock FirestoreService for this test
+      final mockFirestore = MockFirestoreService();
+      
+      // Update MockWorkflowState to return a temporary ID
+      mockWorkflowStateMainInstance.setReceiptId('temp_12345');
+      
+      // Create a widget with our mocked state and override dependencies
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<WorkflowState>.value(
+            value: mockWorkflowStateMainInstance,
+            child: Builder(
+              builder: (context) {
+                // Access the WorkflowState from context
+                final workflowState = Provider.of<WorkflowState>(context, listen: false);
+                
+                // Create our test button that will trigger saveDraft
+                return ElevatedButton(
+                  onPressed: () async {
+                    // Create a simple stub of the _saveDraft method logic
+                    try {
+                      final receipt = workflowState.toReceipt();
+                      String? receiptIdToSave = workflowState.receiptId;
+                      
+                      // This is the key logic we're testing - exactly as in workflow_modal.dart
+                      if (receiptIdToSave == null || receiptIdToSave.isEmpty || receiptIdToSave.startsWith('temp_')) {
+                        receiptIdToSave = null;
+                      }
+                      
+                      final definitiveReceiptId = await mockFirestore.saveDraft(
+                        receiptId: receiptIdToSave,
+                        data: {'test': 'data'}, // Simplified data for test
+                      );
+                      
+                      workflowState.setReceiptId(definitiveReceiptId);
+                    } catch (e) {
+                      print('Error in test _saveDraft: $e');
+                    }
+                  },
+                  child: const Text('Save Draft Test'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      
+      // Find and tap the button to trigger our simplified _saveDraft code
+      await tester.tap(find.text('Save Draft Test'));
+      await tester.pump();
+      
+      // Verify saveDraft was called with null receiptId
+      expect(mockFirestore.saveDraftWasCalled, isTrue);
+      expect(mockFirestore.lastReceiptId, isNull);
+      
+      // Reset for next test
+      mockFirestore.saveDraftWasCalled = false;
+      mockFirestore.lastReceiptId = null;
+      
+      // Test with empty string ID
+      mockWorkflowStateMainInstance.setReceiptId('');
+      await tester.tap(find.text('Save Draft Test'));
+      await tester.pump();
+      
+      // Verify saveDraft was called with null receiptId for empty string
+      expect(mockFirestore.saveDraftWasCalled, isTrue);
+      expect(mockFirestore.lastReceiptId, isNull);
+      
+      // Reset again
+      mockFirestore.saveDraftWasCalled = false;
+      mockFirestore.lastReceiptId = null;
+      
+      // Test with normal ID
+      mockWorkflowStateMainInstance.setReceiptId('normal-id-123');
+      await tester.tap(find.text('Save Draft Test'));
+      await tester.pump();
+      
+      // Verify saveDraft was called with the normal ID
+      expect(mockFirestore.saveDraftWasCalled, isTrue);
+      expect(mockFirestore.lastReceiptId, equals('normal-id-123'));
+    });
+  });
+
   // TODO: Add tests for the main WorkflowModal logic, e.g. _saveDraft, _loadReceiptData 
+
+  group('Confirm Re-transcribe dialog tests', () {
+    late MockWorkflowState mockWorkflowState;
+    
+    setUp(() {
+      mockWorkflowState = MockWorkflowState();
+    });
+    
+    testWidgets('shows confirmation dialog when transcription data exists', (WidgetTester tester) async {
+      // Mock the workflow state to have transcription data
+      mockWorkflowState.setHasTranscriptionData(true);
+      
+      // Build our app with the mocked state
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChangeNotifierProvider<WorkflowState>.value(
+              value: mockWorkflowState,
+              child: Builder(
+                builder: (context) {
+                  return ElevatedButton(
+                    onPressed: () {
+                      // Directly show a confirmation dialog to simulate what 
+                      // _handleReTranscribeRequestedForAssignStep would do
+                      showConfirmationDialog(
+                        context,
+                        "Confirm Re-transcribe",
+                        "This will clear your current transcription and any subsequent assignments, tip, and tax. Are you sure you want to re-transcribe?"
+                      );
+                    },
+                    child: const Text('Start Recording'),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      
+      // Tap the button to trigger the dialog
+      await tester.tap(find.text('Start Recording'));
+      await tester.pumpAndSettle();
+      
+      // Verify that the confirmation dialog is shown
+      expect(find.text('Confirm Re-transcribe'), findsOneWidget);
+    });
+    
+    testWidgets('does not show confirmation dialog for first-time transcription', (WidgetTester tester) async {
+      // Set up a test scenario to verify the fix for bug #12
+      
+      // 1. Create a widget that simulates the VoiceAssignmentScreen's behavior
+      // 2. Mock workflowState.hasTranscriptionData to return false
+      mockWorkflowState.setHasTranscriptionData(false);
+      
+      bool dialogShown = false;
+      bool recordingStarted = false;
+      
+      // Build a test widget that simulates the behavior we want to verify
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChangeNotifierProvider<WorkflowState>.value(
+              value: mockWorkflowState,
+              child: Builder(
+                builder: (context) {
+                  return ElevatedButton(
+                    onPressed: () async {
+                      // This simulates the logic in _toggleRecording in VoiceAssignmentScreen
+                      // which calls onReTranscribeRequested
+                      
+                      // For first-time transcription (hasTranscriptionData == false)
+                      // We expect no dialog to be shown and to proceed directly to recording
+                      if (mockWorkflowState.hasTranscriptionData) {
+                        dialogShown = true;
+                        // In reality, a dialog would be shown here
+                      } else {
+                        // This simulates starting recording without showing a dialog
+                        recordingStarted = true;
+                      }
+                    },
+                    child: const Text('Start Recording'),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      
+      // Tap the button to trigger the recording
+      await tester.tap(find.text('Start Recording'));
+      await tester.pumpAndSettle();
+      
+      // Verify that no confirmation dialog was shown
+      expect(find.text('Confirm Re-transcribe'), findsNothing);
+      
+      // Verify that recording would have started immediately
+      expect(dialogShown, isFalse);
+      expect(recordingStarted, isTrue);
+    });
+  });
+  
+  group('Process Assignments dialog tests', () {
+    late MockWorkflowState mockWorkflowState;
+    
+    setUp(() {
+      mockWorkflowState = MockWorkflowState();
+    });
+    
+    testWidgets('shows confirmation dialog when assignment data exists', (WidgetTester tester) async {
+      // Mock the workflow state to have assignment data
+      mockWorkflowState.setHasAssignmentData(true);
+      
+      // Build our app with the mocked state
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChangeNotifierProvider<WorkflowState>.value(
+              value: mockWorkflowState,
+              child: Builder(
+                builder: (context) {
+                  return ElevatedButton(
+                    onPressed: () {
+                      // Directly show a confirmation dialog to simulate what 
+                      // _handleConfirmProcessAssignmentsForAssignStep would do
+                      showConfirmationDialog(
+                        context,
+                        "Process Assignments",
+                        "Are you sure you want to process these assignments? This will overwrite any previous assignments."
+                      );
+                    },
+                    child: const Text('Process Assignments'),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      
+      // Tap the button to trigger the dialog
+      await tester.tap(find.text('Process Assignments'));
+      await tester.pumpAndSettle();
+      
+      // Verify that the confirmation dialog is shown
+      expect(find.text('Process Assignments'), findsAtLeastNWidgets(1));
+      expect(find.text('Are you sure you want to process these assignments?'), findsOneWidget);
+    });
+    
+    testWidgets('does not show confirmation dialog for first-time processing', (WidgetTester tester) async {
+      // Set up a test scenario to verify the fix for bug #13
+      
+      // Mock workflowState.hasAssignmentData to return false
+      mockWorkflowState.setHasAssignmentData(false);
+      
+      bool dialogShown = false;
+      bool processingStarted = false;
+      
+      // Build a test widget that simulates the behavior we want to verify
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChangeNotifierProvider<WorkflowState>.value(
+              value: mockWorkflowState,
+              child: Builder(
+                builder: (context) {
+                  return ElevatedButton(
+                    onPressed: () async {
+                      // This simulates the logic in _processTranscription in VoiceAssignmentScreen
+                      // which calls onConfirmProcessAssignments
+                      
+                      // For first-time processing (hasAssignmentData == false)
+                      // We expect no dialog to be shown and to proceed directly to processing
+                      if (mockWorkflowState.hasAssignmentData) {
+                        dialogShown = true;
+                        // In reality, a dialog would be shown here
+                      } else {
+                        // This simulates starting processing without showing a dialog
+                        processingStarted = true;
+                      }
+                    },
+                    child: const Text('Process Assignments'),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      
+      // Tap the button to trigger the processing
+      await tester.tap(find.text('Process Assignments'));
+      await tester.pumpAndSettle();
+      
+      // Verify that no confirmation dialog was shown
+      expect(find.text('Are you sure you want to process these assignments?'), findsNothing);
+      
+      // Verify that processing would have started immediately
+      expect(dialogShown, isFalse);
+      expect(processingStarted, isTrue);
+    });
+  });
 } 

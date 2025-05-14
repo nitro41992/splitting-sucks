@@ -1026,4 +1026,78 @@ void main() {
     });
 
   });
+
+  group('toReceipt', () {
+    test('generates a valid temporary ID when receiptId is null', () {
+      // Create a new WorkflowState without a receiptId
+      final workflowState = WorkflowState(
+        restaurantName: 'Test Restaurant',
+        receiptId: null,
+        imageStateManager: mockImageStateManager,
+      );
+
+      // Get a Receipt from the WorkflowState
+      final receipt = workflowState.toReceipt();
+
+      // Verify the Receipt has a non-empty ID
+      expect(receipt.id, isNotEmpty);
+      // Verify the ID starts with our temporary prefix
+      expect(receipt.id, startsWith('temp_'));
+    });
+
+    test('uses existing receiptId when available', () {
+      // Create a WorkflowState with a receiptId
+      final workflowState = WorkflowState(
+        restaurantName: 'Test Restaurant',
+        receiptId: 'existing-receipt-id',
+        imageStateManager: mockImageStateManager,
+      );
+
+      // Get a Receipt from the WorkflowState
+      final receipt = workflowState.toReceipt();
+
+      // Verify the Receipt uses the existing ID
+      expect(receipt.id, equals('existing-receipt-id'));
+    });
+
+    test('creates Receipt with correct data from WorkflowState', () {
+      // Setup WorkflowState with all relevant data
+      final workflowState = WorkflowState(
+        restaurantName: 'Test Restaurant',
+        receiptId: 'test-receipt-id',
+        imageStateManager: mockImageStateManager,
+      );
+
+      // Mock imageStateManager behavior for URI getters
+      when(mockImageStateManager.actualImageGsUri).thenReturn('gs://image-uri');
+      when(mockImageStateManager.actualThumbnailGsUri).thenReturn('gs://thumbnail-uri');
+
+      // Set other WorkflowState properties
+      workflowState.setParseReceiptResult({'items': [{'name': 'Item', 'price': 10}]});
+      workflowState.setTranscribeAudioResult({'text': 'Sample text'});
+      workflowState.setAssignPeopleToItemsResult({
+        'assignments': [
+          {'item': 'Item', 'people': ['Person1', 'Person2']}
+        ]
+      });
+      workflowState.setTip(5.0);
+      workflowState.setTax(2.0);
+
+      // Get a Receipt from the WorkflowState
+      final receipt = workflowState.toReceipt();
+
+      // Verify Receipt properties match WorkflowState values
+      expect(receipt.id, equals('test-receipt-id'));
+      expect(receipt.restaurantName, equals('Test Restaurant'));
+      expect(receipt.imageUri, equals('gs://image-uri'));
+      expect(receipt.thumbnailUri, equals('gs://thumbnail-uri'));
+      expect(receipt.parseReceipt, isNotEmpty);
+      expect(receipt.transcribeAudio, isNotEmpty);
+      expect(receipt.assignPeopleToItems, isNotEmpty);
+      expect(receipt.status, equals('draft'));
+      expect(receipt.people, isNotEmpty);
+      expect(receipt.tip, equals(5.0));
+      expect(receipt.tax, equals(2.0));
+    });
+  });
 } 
