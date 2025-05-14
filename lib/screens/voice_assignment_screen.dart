@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -56,6 +57,9 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   bool _isLoading = false; // Loading state specific to this screen
   bool _tipsExpanded = false; // Track if tips are expanded or collapsed
   String? _transcription;
+  
+  // Counter to generate unique item IDs
+  int _itemIdCounter = 1;
 
   @override
   void initState() {
@@ -211,42 +215,35 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   }
 
   Future<void> _processTranscription() async {
-    if (_transcriptionController.text.isEmpty) { // Check against controller text
-      ToastHelper.showToast(context, 'Please record or type your assignments first.');
-      return;
-    }
-
-    // --- EDIT: Call onConfirmProcessAssignments and check confirmation ---
+    // Clear focus first to ensure we have the latest value
+    _transcriptionFocusNode.unfocus();
+    
+    // Don't process if already loading or no transcription
+    if (_isLoading || _transcriptionController.text.isEmpty) return;
+    
+    // Check if we should process or not (custom logic via callback)
     if (widget.onConfirmProcessAssignments != null) {
-      final bool confirmed = await widget.onConfirmProcessAssignments!();
-      if (!confirmed) {
-        setState(() => _isLoading = false); // Ensure loading state is reset if aborted
-        return; // User cancelled processing assignments
-      }
+      final bool shouldProcess = await widget.onConfirmProcessAssignments!();
+      if (!shouldProcess) return; // Skip processing if callback returns false
     }
-    // --- END EDIT ---
 
-    setState(() => _isLoading = true); // Show loading indicator while splitting
-    final editedTranscription = _transcriptionController.text;
-    _transcription = editedTranscription;
-    if (widget.onTranscriptionChanged != null) {
-      widget.onTranscriptionChanged!(editedTranscription);
-    }
     try {
-      print('DEBUG: Making API call for item assignment');
-      print('DEBUG: Using transcription: $editedTranscription');
+      // User friendly: indicate something is happening while we process
+      setState(() => _isLoading = true);
       
+      // Capture the current transcription value for processing
+      final editedTranscription = _transcriptionController.text;
+      
+      // Prepare the request with proper typing
       final request = {
         'data': {
           'transcription': editedTranscription,
-          'receipt_items': widget.itemsToAssign.asMap().entries.map((entry) {
-            final index = entry.key;
-            final item = entry.value;
+          'receipt_items': widget.itemsToAssign.map((item) {
             return {
-              'id': index + 1, // 1-based ID for the API
-              'item': item.name,  // Use the current name (which may have been edited)
-              'quantity': item.quantity, // Use the current quantity (which may have been edited)
-              'price': item.price, // Use the current price (which may have been edited)
+              'item': item.name,
+              'quantity': item.quantity,
+              'price': item.price,
+              'id': _itemIdCounter++, // Unique ID for each item
             };
           }).toList(),
         }
@@ -254,23 +251,50 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       
       print('DEBUG: Sending request to assign-people endpoint: ${request.toString()}');
       
-      final result = await _audioService.assignPeopleToItems(
-        editedTranscription,
-        request,
-      );
-      
-      print('DEBUG: Raw result object from _audioService.assignPeopleToItems: ${result?.toString()}');
+      try {
+        final result = await _audioService.assignPeopleToItems(
+          editedTranscription,
+          request,
+        );
+        
+        print('DEBUG: Raw result object from _audioService.assignPeopleToItems: ${result?.toString()}');
 
-      final assignmentsData = result.toJson();
-      print('DEBUG: assignmentsData map AFTER result.toJson(): ${assignmentsData.toString()}');
+        final assignmentsData = result.toJson();
+        print('DEBUG: assignmentsData map AFTER result.toJson(): ${assignmentsData.toString()}');
 
-      print('DEBUG: Received assignment data: ${assignmentsData.toString()}');
-
-      // Pass the raw assignment data back to the parent widget
-      widget.onAssignmentProcessed(assignmentsData);
-      if (!mounted) return;
-      setState(() => _isLoading = false); // Hide spinner after success
-
+        // Pass the raw assignment data back to the parent widget
+        widget.onAssignmentProcessed(assignmentsData);
+        if (!mounted) return;
+        setState(() => _isLoading = false); // Hide spinner after success
+      } catch (e) {
+        // Handle all errors including timeout exceptions
+        print('Error processing assignment in service: $e');
+        setState(() => _isLoading = false);
+        if (!mounted) return;
+        
+        String errorMessage;
+        
+        // Check if it's a timeout error
+        if (e.toString().contains('TimeoutException') || 
+            e.toString().contains('timed out') ||
+            e.toString().contains('DEADLINE_EXCEEDED')) {
+          errorMessage = 'Processing timed out. Try simplifying the transcription or using item numbers instead of full names.';
+        } 
+        // Check if it's a type error
+        else if (e.toString().contains('type') && e.toString().contains('is not a subtype')) {
+          errorMessage = 'There was an issue processing the data. Try using item numbers (e.g., "item #1") when referring to menu items.';
+        }
+        else {
+          // General error message with the actual error for debugging
+          errorMessage = 'Error processing assignment: ${e.toString()}';
+        }
+        
+        ToastHelper.showToast(
+          context,
+          errorMessage,
+          isError: true
+        );
+      }
     } catch (e) {
       print('Error processing assignment in screen: $e');
       setState(() => _isLoading = false);
@@ -462,7 +486,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                           const SizedBox(width: 8),
                                           Expanded(
                                             child: Text(
-                                              'Use the item numbers! Say things like "Emma got #2 and we all shared #5" — super handy when those pasta dishes start sounding the same!',
+                                              'Use the item numbers! Say things like "Emma got #2 and we all shared #5" — super handy when dishes have complex names!',
                                               style: textTheme.bodyMedium?.copyWith(
                                                 color: colorScheme.onSecondaryContainer,
                                               ),
@@ -470,9 +494,40 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                           ),
                                         ],
                                       ),
+                                      
+                                      // Add special tip for complex item names
+                                      const SizedBox(height: 12),
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.tertiaryContainer.withOpacity(0.3),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Icon(
+                                              Icons.lightbulb_outline,
+                                              size: 18,
+                                              color: colorScheme.tertiary,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Pro Tip: Using item numbers (e.g., "Sam got item #1") is more reliable than using full item names, especially for menu items with special characters or long names.',
+                                                style: textTheme.bodyMedium?.copyWith(
+                                                  color: colorScheme.tertiary,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      
                                       const SizedBox(height: 12),
                                       Text(
-                                        'Example: "Hey, Sam here. Alex got the burger. Jamie got the pasta. I had the salad. We all shared the garlic bread."',
+                                        'Example: "Hey, Sam here. Alex got the burger. Jamie got item #3. I had the salad. We all shared item #5."',
                                         style: textTheme.bodySmall?.copyWith(
                                           fontStyle: FontStyle.italic,
                                           color: colorScheme.onSecondaryContainer.withOpacity(0.9),
@@ -850,4 +905,5 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       ),
     );
   }
-} 
+
+  } 

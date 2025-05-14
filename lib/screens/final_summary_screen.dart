@@ -800,32 +800,6 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
           child: Row( // Use Row for side-by-side buttons
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              // Add a Done button to explicitly complete and return to receipts list
-              FloatingActionButton.extended(
-                heroTag: 'doneButton_final',
-                onPressed: () async {
-                  // Complete receipt and show feedback
-                  await _completeReceiptInDatabase();
-                  if (!mounted) return;
-
-                  // Show success toast
-                  ToastHelper.showToast(
-                    context, 
-                    'Receipt completed successfully!',
-                    isSuccess: true
-                  );
-                  
-                  // Pop back to receipts list
-                  Navigator.of(context).pop(true);
-                },
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Done'),
-                tooltip: 'Complete receipt and return to receipts list',
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                elevation: 2,
-              ),
-              const SizedBox(width: 12), // Space between buttons
               FloatingActionButton.extended(
                 heroTag: 'buyMeACoffeeButton_final', // Ensure unique heroTag
                 onPressed: () => _launchBuyMeACoffee(context),

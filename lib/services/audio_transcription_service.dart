@@ -1,12 +1,15 @@
 import 'dart:typed_data';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async'; // Add this import for TimeoutException
 import 'package:cloud_functions/cloud_functions.dart';
 import '../env/firebase_config.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/foundation.dart' show Platform;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // Model classes for structured validation
 class Order {
@@ -305,27 +308,59 @@ class AudioTranscriptionService {
       final callable = _functions.httpsCallable('assign_people_to_items');
       
       // Extract the inner data object from the request
-      // The Cloud Function expects direct access to 'transcription' and 'receipt_items' 
       final innerData = request['data'];
       
-      // Ensure the transcription parameter is used (in case it was edited)
-      // This overrides any transcription that might have been in the request object
-      final modifiedData = Map<String, dynamic>.from(innerData);
+      // Convert to properly typed Map<String, Object> for Firebase Functions
+      final Map<String, Object> modifiedData = {};
+      
+      // Copy transcription as-is (preserving all characters)
       modifiedData['transcription'] = transcription;
       
-      debugPrint('Request data: ${modifiedData.toString()}');
+      // Handle receipt items with proper typing
+      if (innerData['receipt_items'] is List) {
+        final items = innerData['receipt_items'] as List;
+        final List<Map<String, Object>> typedItems = [];
+        
+        for (int i = 0; i < items.length; i++) {
+          if (items[i] is Map) {
+            final itemMap = items[i] as Map;
+            final Map<String, Object> typedItem = {};
+            
+            // Convert all key-value pairs with proper typing
+            itemMap.forEach((key, value) {
+              if (key != null) {
+                // Preserve the value as-is, just ensure correct typing
+                typedItem[key.toString()] = value as Object;
+              }
+            });
+            
+            // Add index for reference (helps with items by number)
+            typedItem['number'] = i + 1;
+            
+            typedItems.add(typedItem);
+          }
+        }
+        
+        modifiedData['receipt_items'] = typedItems;
+      }
       
-      final result = await callable.call(modifiedData);
+      debugPrint('Request data prepared for Firebase function');
       
-      debugPrint('Raw result: ${result.data.toString()}');
+      // Run with a timeout to handle potential timeout errors
+      final result = await callable.call(modifiedData).timeout(
+        const Duration(seconds: 45),
+        onTimeout: () {
+          throw TimeoutException('Function call timed out. The receipt might contain complex characters that are taking longer to process.');
+        }
+      );
+      
+      debugPrint('Raw result received from function');
       
       final responseData = _convertToStringKeyedMap(result.data);
       if (responseData == null) {
         throw Exception('Invalid response format from Cloud Function');
       }
-      debugPrint('Parsed response: ${responseData.toString()}');
       
-      // This now uses the corrected AssignmentResult.fromJson
       return AssignmentResult.fromJson(responseData);
     } catch (e) {
       // Log the error and rethrow
@@ -334,8 +369,69 @@ class AudioTranscriptionService {
     }
   }
   
+  // Helper method to enhance transcription with item numbers for easier matching
+  String _enhanceTranscriptionWithNumbers(String transcription, List<Map> items) {
+    // Skip if transcription already has item numbers or there are no items
+    if (items.isEmpty || transcription.contains('#')) {
+      return transcription;
+    }
+    
+    // Add a note about item numbers to help with processing
+    String enhanced = transcription;
+    
+    // If transcription doesn't end with a period, add one for better sentence separation
+    if (!enhanced.endsWith('.')) {
+      enhanced += '.';
+    }
+    
+    // Add a helpful sentence that links item numbers to items
+    enhanced += ' For reference, the items are numbered as follows:';
+    
+    // Add all items with their numbers
+    for (int i = 0; i < items.length; i++) {
+      if (items[i]['item'] != null) {
+        final itemName = items[i]['item'].toString();
+        enhanced += ' Item ${i + 1} is "$itemName".';
+      }
+    }
+    
+    return enhanced;
+  }
+  
+  // Helper method to sanitize a string for API call
+  String _sanitizeString(String input) {
+    // Replace any non-breaking spaces with regular spaces
+    String output = input.replaceAll('\u00A0', ' ');
+    
+    // Try to replace any known problematic Unicode characters with simpler versions
+    // For example, replace fancy quotes with straight quotes
+    output = output
+      .replaceAll('\u2018', "'")
+      .replaceAll('\u2019', "'")
+      .replaceAll('\u201C', '"')
+      .replaceAll('\u201D', '"')
+      .replaceAll('\u2013', '-')
+      .replaceAll('\u2014', '-');
+    
+    // Trim whitespace from the start and end
+    return output.trim();
+  }
+  
+  // Helper method to create a simplified version of a string (ASCII only)
+  String _simplifyString(String input) {
+    // Remove all non-ASCII characters and convert to lowercase
+    String simplified = '';
+    for (int i = 0; i < input.length; i++) {
+      int code = input.codeUnitAt(i);
+      if (code <= 127) { // ASCII only
+        simplified += String.fromCharCode(code);
+      }
+    }
+    return simplified.toLowerCase().trim();
+  }
+  
   // Helper method to convert dynamic Map to Map<String, dynamic>
-  Map<String, dynamic> _convertToStringKeyedMap(dynamic data) {
+  Map<String, dynamic>? _convertToStringKeyedMap(dynamic data) {
     if (data is Map) {
       final result = <String, dynamic>{};
       data.forEach((key, value) {
@@ -352,14 +448,14 @@ class AudioTranscriptionService {
       });
       return result;
     }
-    throw Exception('Data is not a Map: ${data.runtimeType}');
+    return null;
   }
   
   // Helper method to convert dynamic List
   List<dynamic> _convertList(List<dynamic> list) {
     return list.map((item) {
       if (item is Map) {
-        return _convertToStringKeyedMap(item);
+        return _convertToStringKeyedMap(item) ?? <String, dynamic>{};
       } else if (item is List) {
         return _convertList(item);
       } else {
