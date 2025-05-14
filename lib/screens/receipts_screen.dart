@@ -214,49 +214,30 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
             }
             
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top row with Status and Close button
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Status pill with modern design
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  // Drag handle at the top
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 8),
+                    child: Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
-                          color: receipt.isDraft 
-                              ? const Color(0xFFF5F5F7).withOpacity(0.8) // Light grey for draft
-                              : const Color(0xFF34C759), // Apple's system green for completed
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              receipt.isDraft ? Icons.edit_note_outlined : Icons.check_circle,
-                              size: 14,
-                              color: receipt.isDraft 
-                                  ? const Color(0xFF8A8A8E) // Medium grey for draft
-                                  : Colors.white,
-                            ),
-                            const SizedBox(width: 6), // Spacing between icon and text
-                            Text(
-                              receipt.isDraft ? 'Draft' : 'Completed',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: receipt.isDraft 
-                                    ? const Color(0xFF8A8A8E) // Medium grey for draft
-                                    : Colors.white,
-                              ),
-                            ),
-                          ],
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      
+                    ),
+                  ),
+                  
+                  // Top row with Close button
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
                       // Close button
                       IconButton(
                         icon: const Icon(Icons.close),
@@ -267,11 +248,9 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     ],
                   ),
                   
-                  const SizedBox(height: 16),
-                  
-                  // Restaurant Name Edit Section
+                  // Restaurant Name Edit Section with Completed tag
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: isEditingName
@@ -347,17 +326,28 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                     ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.only(left: 8.0),
-                                    child: IconButton(
-                                      icon: const Icon(Icons.edit, size: 20),
-                                      onPressed: () {
-                                        setState(() {
-                                          isEditingName = true;
-                                        });
-                                      },
-                                      tooltip: 'Edit restaurant name',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.only(left: 12.0),
+                                    child: Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF5D737E).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: IconButton(
+                                        icon: const Icon(
+                                          Icons.edit,
+                                          size: 22,
+                                          color: Color(0xFF5D737E),
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            isEditingName = true;
+                                          });
+                                        },
+                                        tooltip: 'Edit restaurant name',
+                                        padding: EdgeInsets.zero,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -366,6 +356,36 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     ],
                   ),
                   
+                  // Status pill with modern design - now below title
+                  const SizedBox(height: 8),
+                  if (!receipt.isDraft)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF34C759), // Apple's system green for completed
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 6), // Spacing between icon and text
+                          const Text(
+                            'Completed',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  
                   const SizedBox(height: 24),
                   const Divider(height: 1),
                   const SizedBox(height: 16),
@@ -373,17 +393,17 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                   // Simplified Receipt details - only show useful information
                   _buildDetailRow('Date', receipt.formattedDate),
                   
-                  // People detail with custom formatting to always show attendees
+                  // People detail with modern circular avatars
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           "People",
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
+                        const SizedBox(height: 12),
                         if (receipt.people.isEmpty)
                           Text(
                             "None assigned",
@@ -393,70 +413,43 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                             ),
                           )
                         else
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: Wrap(
-                                spacing: 12,
-                                runSpacing: 12,
-                                alignment: WrapAlignment.end,
-                                children: receipt.people.map((person) => 
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: receipt.people.map((person) => 
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Circular avatar with initial
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    width: 36,
+                                    height: 36,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.8),
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.2),
-                                        width: 1,
+                                      color: const Color(0xFF5D737E), // Slate Blue
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        person.isNotEmpty ? person[0].toUpperCase() : '?',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
                                       ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.05),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Container(
-                                          width: 28,
-                                          height: 28,
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(context).colorScheme.secondary.withOpacity(0.8),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: Colors.white,
-                                              width: 1.5,
-                                            ),
-                                          ),
-                                          child: Center(
-                                            child: Text(
-                                              person.isNotEmpty ? person[0].toUpperCase() : '?',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          person,
-                                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                            color: Theme.of(context).colorScheme.onSurface,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Person name
+                                  Text(
+                                    person,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w500,
                                     ),
-                                  )
-                                ).toList(),
+                                  ),
+                                ],
                               ),
-                            ),
+                            ).toList(),
                           ),
                       ],
                     ),
@@ -464,62 +457,50 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                   
                   const SizedBox(height: 24),
                   
-                  // Action buttons
-                  if (receipt.isDraft) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        icon: const Icon(Icons.edit),
-                        label: const Text('Continue Editing'),
-                        onPressed: () async {
-                          Navigator.pop(bottomSheetContext); // Pop the bottom sheet using ITS context
-                          debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for EDIT receipt: ${receipt.id}');
-                          
-                          // Use the CAPTURED screenContext from ReceiptsScreen for WorkflowModal.show
-                          if (!screenContext.mounted) {
-                            debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
-                            return;
-                          }
-                          final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
-                          if (result == true && screenContext.mounted) {
-                            // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
-                          }
-                        },
-                      ),
-                    ),
-                  ] else ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.edit),
-                        label: const Text('Edit Receipt'),
-                        onPressed: () async {
-                          Navigator.pop(bottomSheetContext); // Pop the bottom sheet using ITS context
-                          debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for EDIT receipt: ${receipt.id}');
-                          
-                          // Use the CAPTURED screenContext from ReceiptsScreen for WorkflowModal.show
-                          if (!screenContext.mounted) {
-                            debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
-                            return;
-                          }
-                          final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
-                          if (result == true && screenContext.mounted) {
-                            // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  
-                  // Delete button (for both draft and completed)
+                  // "Edit Receipt" button - primary action with filled style
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton.icon(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit Receipt'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF5D737E), // Slate Blue
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(bottomSheetContext);
+                        debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for EDIT receipt: ${receipt.id}');
+                        
+                        if (!screenContext.mounted) {
+                          debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
+                          return;
+                        }
+                        
+                        final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
+                        if (result == true && screenContext.mounted) {
+                          // StreamBuilder will handle data loading
+                        }
+                      },
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Delete button - text style in red
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
                       icon: const Icon(Icons.delete_outline, color: Colors.red),
                       label: const Text('Delete Receipt', style: TextStyle(color: Colors.red)),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.red),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       onPressed: () async {
                         Navigator.pop(bottomSheetContext);
@@ -528,7 +509,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     ),
                   ),
                   
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
                 ],
               ),
             );
