@@ -10,6 +10,7 @@ class AssignStepWidget extends StatelessWidget {
   final Future<bool> Function() onReTranscribeRequested;
   final Future<bool> Function() onConfirmProcessAssignments;
   final VoidCallback? onEditItems;
+  final Key? screenKey;
 
   const AssignStepWidget({
     Key? key,
@@ -20,12 +21,13 @@ class AssignStepWidget extends StatelessWidget {
     required this.onReTranscribeRequested,
     required this.onConfirmProcessAssignments,
     this.onEditItems,
+    this.screenKey,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return VoiceAssignmentScreen(
-      key: ValueKey('VoiceAssignmentScreen_AssignStep_${itemsToAssign.length}_${initialTranscription?.hashCode ?? 0}'),
+      key: screenKey,
       itemsToAssign: itemsToAssign,
       onAssignmentProcessed: onAssignmentProcessed,
       initialTranscription: initialTranscription,

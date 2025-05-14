@@ -34,11 +34,19 @@ class VoiceAssignmentScreen extends StatefulWidget {
     this.onEditItems,
   });
 
+  static VoiceAssignmentScreenState? of(BuildContext context, {bool nullOk = false}) {
+    final state = context.findAncestorStateOfType<VoiceAssignmentScreenState>();
+    if (state == null && !nullOk) {
+      throw FlutterError('VoiceAssignmentScreen.of() called with a context that does not contain a VoiceAssignmentScreen.');
+    }
+    return state;
+  }
+
   @override
-  State<VoiceAssignmentScreen> createState() => _VoiceAssignmentScreenState();
+  State<VoiceAssignmentScreen> createState() => VoiceAssignmentScreenState();
 }
 
-class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
+class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   final AudioRecorder _recorder = AudioRecorder();
   final AudioTranscriptionService _audioService = AudioTranscriptionService();
   late TextEditingController _transcriptionController;
@@ -275,6 +283,18 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
     }
   }
 
+  void flushTranscriptionToParent() {
+    final value = _transcriptionController.text;
+    debugPrint('[VoiceAssignmentScreen] Flushing transcription to parent: $value');
+    if (widget.onTranscriptionChanged != null) {
+      widget.onTranscriptionChanged!(value);
+    }
+  }
+
+  void unfocusTranscriptionField() {
+    _transcriptionFocusNode.unfocus();
+    debugPrint('[VoiceAssignmentScreen] Unfocused transcription field.');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -533,7 +553,6 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                               ),
                                               onChanged: (value) {
                                                 _transcription = value;
-                                                // Optionally, debounce or throttle if needed
                                               },
                                             ),
                                             Positioned(

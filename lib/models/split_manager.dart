@@ -221,6 +221,11 @@ class SplitManager extends ChangeNotifier {
     if (!person.sharedItems.contains(item)) {
       person.addSharedItem(item); // This should call notifyListeners in Person
     }
+    debugPrint('[SplitManager] addPersonToSharedItem: ${person.name} now sharing ${item.name}.');
+    debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
+      + _people.where((p) => p.sharedItems.contains(item)).map((p) => p.name).join(', '));
+    debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
+    debugPrint('[SplitManager] Subtotal after add: [38;5;2m$totalAmount[0m');
     notifyListeners(); // Notify SplitManager listeners
   }
 
@@ -230,6 +235,11 @@ class SplitManager extends ChangeNotifier {
     if (person.sharedItems.contains(item)) {
       person.removeSharedItem(item); // This should call notifyListeners in Person
     }
+    debugPrint('[SplitManager] removePersonFromSharedItem: ${person.name} no longer sharing ${item.name}.');
+    debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
+      + _people.where((p) => p.sharedItems.contains(item)).map((p) => p.name).join(', '));
+    debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
+    debugPrint('[SplitManager] Subtotal after remove: [38;5;1m$totalAmount[0m');
     notifyListeners(); // Notify SplitManager listeners
   }
 
@@ -343,6 +353,7 @@ class SplitManager extends ChangeNotifier {
       }
     }
     
+    debugPrint('[SplitManager] updateItemQuantity: ${item.name} set to $newQuantity. Subtotal: $totalAmount');
     notifyListeners();
   }
 

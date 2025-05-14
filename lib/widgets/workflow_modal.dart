@@ -168,6 +168,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // Variable to hold the function provided by ReceiptReviewScreen
   GetCurrentItemsCallback? _getCurrentReviewItemsCallback;
   
+  final GlobalKey<VoiceAssignmentScreenState> _voiceAssignKey = GlobalKey<VoiceAssignmentScreenState>();
+  
   @override
   void initState() {
     super.initState();
@@ -358,8 +360,29 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     }
   }
   
+  // Helper to flush transcription from controller to WorkflowState
+  Future<void> _flushTranscriptionToWorkflowState() async {
+    // Only flush if Assign step is active or was last active
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    if (workflowState.currentStep == 1) {
+      // Try to flush from VoiceAssignmentScreen if available
+      if (_voiceAssignKey.currentState != null) {
+        debugPrint('[WorkflowModal] Unfocusing transcription field before flush.');
+        _voiceAssignKey.currentState!.unfocusTranscriptionField();
+        await Future.delayed(Duration.zero); // Yield to event loop for focus change
+        debugPrint('[WorkflowModal] Flushing transcription from VoiceAssignmentScreen via key.');
+        _voiceAssignKey.currentState!.flushTranscriptionToParent();
+      } else {
+        debugPrint('[WorkflowModal] VoiceAssignmentScreen key not available, fallback to WorkflowState value.');
+        final transcription = workflowState.transcribeAudioResult['text'] as String?;
+        _handleTranscriptionChangedForAssignStep(transcription);
+      }
+    }
+  }
+
   // Show dialog when back button is pressed or Save & Exit is tapped
   Future<bool> _onWillPop({BuildContext? dialogContext}) async {
+    _flushTranscriptionToWorkflowState();
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     
     // If we're on the first step and nothing has been uploaded or parsed, just exit
@@ -485,6 +508,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
 
   // Save the current state as a draft
   Future<void> _saveDraft({bool isBackgroundSave = false, BuildContext? toastContext}) async {
+    _flushTranscriptionToWorkflowState();
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     
     // Use the provided toastContext if available and valid, otherwise try the state's context.
@@ -614,6 +638,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
             final List<ReceiptItem> itemsToAssign = _convertToReceiptItems(workflowState.parseReceiptResult);
             return AssignStepWidget(
               key: ValueKey('AssignStepWidget_${itemsToAssign.length}_${(workflowState.transcribeAudioResult['text'] as String?)?.hashCode ?? 0}'),
+              screenKey: _voiceAssignKey,
               itemsToAssign: itemsToAssign, 
               initialTranscription: workflowState.transcribeAudioResult['text'] as String?,
               onAssignmentProcessed: _handleAssignmentProcessedForAssignStep,
@@ -665,7 +690,13 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
           // Back button (hidden on first step)
           TextButton.icon(
             onPressed: currentStep > 0
-                ? () => workflowState.previousStep() 
+                ? () async {
+                    if (currentStep == 1) {
+                      debugPrint('[WorkflowModal] Flushing transcription before navigating back from Assign step.');
+                      await _flushTranscriptionToWorkflowState();
+                    }
+                    workflowState.previousStep();
+                  }
                 : null,
             icon: const Icon(Icons.arrow_back),
             label: const Text('Back'),
@@ -716,13 +747,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 return FilledButton.icon(
                   onPressed: isNextEnabled 
                     ? () async {
-                        // --- NEW: Cache transcription on navigation from Assign step ---
+                        // --- Always flush transcription on navigation from Assign step ---
                         if (currentStep == 1) {
-                          // Find the AssignStepWidget and call its onTranscriptionChanged with the current value
-                          // This is a workaround since we can't access the controller directly here
-                          // Instead, call the handler with the value from WorkflowState if available
-                          final transcription = localWorkflowState.transcribeAudioResult['text'] as String?;
-                          _handleTranscriptionChangedForAssignStep(transcription);
+                          debugPrint('[WorkflowModal] Flushing transcription before navigating away from Assign step.');
+                          await _flushTranscriptionToWorkflowState();
                         }
                         localWorkflowState.nextStep();
                       }

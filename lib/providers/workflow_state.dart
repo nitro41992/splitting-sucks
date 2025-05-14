@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../models/receipt.dart';
 import '../models/receipt_item.dart';
 import '../widgets/image_state_manager.dart'; // Assuming ImageStateManager is in lib/widgets/
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 // If ImageStateManager has been moved to lib/providers/, update path accordingly.
 // For now, assuming it's still in lib/widgets/
@@ -23,17 +25,68 @@ class WorkflowState extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  static const String _transcriptionPrefsKeyPrefix = 'transcription_';
+
   // Public getter for imageStateManager
   ImageStateManager get imageStateManager => _imageStateManager;
 
   // List to track GS URIs that might need deletion
   List<String> get pendingDeletionGsUris => _imageStateManager.pendingDeletionGsUris;
 
+  // Load transcription, tip, and tax from SharedPreferences if available
+  Future<void> loadTranscriptionFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _transcriptionPrefsKeyPrefix + (_receiptId ?? 'draft');
+    final jsonString = prefs.getString(key);
+    if (jsonString != null && jsonString.isNotEmpty) {
+      try {
+        final data = jsonDecode(jsonString) as Map<String, dynamic>;
+        if (data['text'] != null) {
+          _transcribeAudioResult = {'text': data['text']};
+        }
+        if (data['tip'] != null) {
+          _tip = (data['tip'] as num).toDouble();
+        }
+        if (data['tax'] != null) {
+          _tax = (data['tax'] as num).toDouble();
+        }
+        notifyListeners();
+      } catch (e) {
+        debugPrint('Error decoding transcription/tip/tax from prefs: $e');
+      }
+    }
+  }
+
+  // Save transcription, tip, and tax to SharedPreferences
+  Future<void> saveTranscriptionToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _transcriptionPrefsKeyPrefix + (_receiptId ?? 'draft');
+    final text = _transcribeAudioResult['text'] as String?;
+    final data = <String, dynamic>{};
+    if (text != null && text.isNotEmpty) {
+      data['text'] = text;
+    }
+    if (_tip != null) {
+      data['tip'] = _tip;
+    }
+    if (_tax != null) {
+      data['tax'] = _tax;
+    }
+    if (data.isNotEmpty) {
+      await prefs.setString(key, jsonEncode(data));
+    } else {
+      await prefs.remove(key);
+    }
+  }
+
   WorkflowState({required String restaurantName, String? receiptId, ImageStateManager? imageStateManager})
       : _restaurantName = restaurantName,
         _receiptId = receiptId,
-        _imageStateManager = imageStateManager ?? ImageStateManager() { // Use provided or create new
-    debugPrint('[WorkflowState Constructor] Initial _transcribeAudioResult: $_transcribeAudioResult');
+        _imageStateManager = imageStateManager ?? ImageStateManager() {
+    debugPrint('[WorkflowState Constructor] Initial _transcribeAudioResult: [38;5;2m$_transcribeAudioResult[0m');
+    if (_receiptId != null) {
+      loadTranscriptionFromPrefs();
+    }
   }
 
   // Getters
@@ -135,6 +188,7 @@ class WorkflowState extends ChangeNotifier {
     debugPrint('[WorkflowState setTranscribeAudioResult] Received result: $result');
     _transcribeAudioResult = result ?? {};
     debugPrint('[WorkflowState setTranscribeAudioResult] _transcribeAudioResult is now: $_transcribeAudioResult');
+    saveTranscriptionToPrefs();
     notifyListeners();
   }
 
@@ -151,6 +205,7 @@ class WorkflowState extends ChangeNotifier {
   void setTip(double? value) {
     if (_tip != value) {
       _tip = value;
+      saveTranscriptionToPrefs();
       notifyListeners();
     }
   }
@@ -158,6 +213,7 @@ class WorkflowState extends ChangeNotifier {
   void setTax(double? value) {
     if (_tax != value) {
       _tax = value;
+      saveTranscriptionToPrefs();
       notifyListeners();
     }
   }
