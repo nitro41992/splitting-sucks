@@ -1051,6 +1051,26 @@ class MockWorkflowState extends _i1.Mock implements _i11.WorkflowState {
       ) as bool);
 
   @override
+  _i8.Future<void> loadTranscriptionFromPrefs() => (super.noSuchMethod(
+        Invocation.method(
+          #loadTranscriptionFromPrefs,
+          [],
+        ),
+        returnValue: _i8.Future<void>.value(),
+        returnValueForMissingStub: _i8.Future<void>.value(),
+      ) as _i8.Future<void>);
+
+  @override
+  _i8.Future<void> saveTranscriptionToPrefs() => (super.noSuchMethod(
+        Invocation.method(
+          #saveTranscriptionToPrefs,
+          [],
+        ),
+        returnValue: _i8.Future<void>.value(),
+        returnValueForMissingStub: _i8.Future<void>.value(),
+      ) as _i8.Future<void>);
+
+  @override
   void goToStep(int? step) => super.noSuchMethod(
         Invocation.method(
           #goToStep,
@@ -1775,6 +1795,15 @@ class MockSplitManager extends _i1.Mock implements _i12.SplitManager {
         ),
         returnValue: <String, dynamic>{},
       ) as Map<String, dynamic>);
+
+  @override
+  double getPersonTotal(_i13.Person? person) => (super.noSuchMethod(
+        Invocation.method(
+          #getPersonTotal,
+          [person],
+        ),
+        returnValue: 0.0,
+      ) as double);
 
   @override
   void addListener(_i6.VoidCallback? listener) => super.noSuchMethod(

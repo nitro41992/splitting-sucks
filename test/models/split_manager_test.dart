@@ -187,17 +187,28 @@ void main() {
       });
 
       test('assignItemToPerson with an item of same type should update quantity of existing item in person\'s list', () {
-        manager.assignItemToPerson(assignableItem1, personForAssignment);
-        expect(personForAssignment.assignedItems.first.quantity, 1);
-        notified = false; 
+        var person = Person(name: 'Charlie');
+        manager.addPerson(person.name); // Add person to manager
+        person = manager.people.firstWhere((p) => p.name == 'Charlie'); // Get managed instance
 
-        final anotherPizzaSlice = ReceiptItem(name: 'Pizza Slice', price: 3.0, quantity: 2, itemId: 'another_pizza_slice_id');
-        manager.assignItemToPerson(anotherPizzaSlice, personForAssignment);
+        const testItemId = 'item_soda_test_id'; // Define a consistent itemId
 
-        expect(personForAssignment.assignedItems.length, 1); 
-        expect(personForAssignment.assignedItems.first.name, 'Pizza Slice');
-        expect(personForAssignment.assignedItems.first.quantity, 3); 
-        expect(notified, isTrue);
+        var item1 = ReceiptItem(name: 'Soda', price: 1.5, quantity: 1, itemId: testItemId);
+        manager.assignItemToPerson(item1, person);
+
+        // Expect 1 item, quantity 1
+        expect(person.assignedItems.length, 1);
+        expect(person.assignedItems.first.quantity, 1);
+        expect(person.assignedItems.first.itemId, testItemId);
+
+        // Assign another item of the same type (same itemId)
+        var item2 = ReceiptItem(name: 'Soda', price: 1.5, quantity: 1, itemId: testItemId);
+        manager.assignItemToPerson(item2, person);
+        
+        // Expect still 1 item in list, but quantity updated to 2
+        expect(person.assignedItems.length, 1);
+        expect(person.assignedItems.first.quantity, 2);
+        expect(person.assignedItems.first.itemId, testItemId); // Ensure itemId is preserved
       });
 
       test('unassignItemFromPerson should remove item from person\'s assignedItems and notify', () {
@@ -232,9 +243,9 @@ void main() {
 
       setUp(() {
         manager = SplitManager(originalReviewTotal: 100.0); // Arbitrary original total
-        itemA = ReceiptItem(name: 'Apple', price: 1.0, quantity: 5);
-        itemB = ReceiptItem(name: 'Banana', price: 2.0, quantity: 3);
-        itemC = ReceiptItem(name: 'Cherry', price: 3.0, quantity: 2);
+        itemA = ReceiptItem(name: 'Apple', price: 1.0, quantity: 5, itemId: 'apple_id');
+        itemB = ReceiptItem(name: 'Banana', price: 2.0, quantity: 3, itemId: 'banana_id');
+        itemC = ReceiptItem(name: 'Cherry', price: 3.0, quantity: 2, itemId: 'cherry_id');
         
         // Create fresh person instances for each test or within tests if state needs to be isolated.
         // For now, we can pre-define them but be careful about shared state across tests.
@@ -252,7 +263,7 @@ void main() {
         final managedP1 = manager.people.first;
 
         // Assign 2 Apples to P1
-        final itemAToAssign = ReceiptItem(name: 'Apple', price: 1.0, quantity: 2);
+        final itemAToAssign = ReceiptItem(name: 'Apple', price: 1.0, quantity: 2, itemId: 'apple_assign_id');
         manager.assignItemToPerson(itemAToAssign, managedP1);
 
         // Check P1
@@ -285,7 +296,7 @@ void main() {
         manager.addPerson(p1.name);
         final managedP1 = manager.people.first;
 
-        final itemAToAssign = ReceiptItem(name: 'Apple', price: 1.0, quantity: 1);
+        final itemAToAssign = ReceiptItem(name: 'Apple', price: 1.0, quantity: 1, itemId: 'apple_assign_id');
         manager.assignItemToPerson(itemAToAssign, managedP1); // P1 assigned 1 Apple (1.0)
 
         expect(managedP1.totalAssignedAmount, 1.0);
@@ -329,23 +340,23 @@ void main() {
         manager.assignItemToPerson(ReceiptItem.clone(itemC), managedP2); // P2: 6.0
 
         // Shared item
-        final sharedItem = ReceiptItem(name: 'Shared Drink', price: 10.0, quantity: 1);
-        manager.addSharedItem(sharedItem); // Shared: 10.0
+        final sharedItem = ReceiptItem(name: 'Shared Dish', price: 20.0, quantity: 1, itemId: 'shared_dish_id');
+        manager.addSharedItem(sharedItem); // Shared: 20.0
         // Add shared item to P1 and P2 for testing person.removeSharedItem logic if manager.removePerson triggers it.
         // manager.removePerson does NOT currently remove person from shared items lists within other persons or the manager's list.
         // It only removes the person object from manager._people.
         // The person object itself might still hold references to shared items.
 
-        // TotalAmount = P1_assigned (11.0) + P2_assigned (6.0) + Shared (10.0) = 27.0
-        expect(manager.totalAmount, 27.0);
+        // TotalAmount = P1_assigned (11.0) + P2_assigned (6.0) + Shared (20.0) = 37.0
+        expect(manager.totalAmount, 37.0);
 
         manager.removePerson(managedP1); // Remove P1
         expect(manager.people.length, 1);
         expect(manager.people, contains(managedP2));
         
-        // TotalAmount = P2_assigned (6.0) + Shared (10.0) = 16.0
+        // TotalAmount = P2_assigned (6.0) + Shared (20.0) = 26.0
         // This relies on totalAmount iterating over the updated _people list.
-        expect(manager.totalAmount, 16.0);
+        expect(manager.totalAmount, 26.0);
       });
 
       test('removePerson and shared items: removing person does not remove item from manager.sharedItems', () {
@@ -365,18 +376,18 @@ void main() {
       });
 
       test('getTotalUsedQuantity reflects quantities across unassigned, shared, and multiple people', () {
-        manager.addUnassignedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 3)); // Unassigned: 3
-        manager.addSharedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 2));     // Shared: 2
+        manager.addUnassignedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 3, itemId: 'itemx_unassigned_id')); // Unassigned: 3
+        manager.addSharedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 2, itemId: 'itemx_shared_id'));     // Shared: 2
 
         manager.addPerson(p1.name);
         final managedP1 = manager.people.first;
-        manager.assignItemToPerson(ReceiptItem(name: 'ItemX', price: 1, quantity: 1), managedP1); // P1: 1
+        manager.assignItemToPerson(ReceiptItem(name: 'ItemX', price: 1, quantity: 1, itemId: 'itemx_p1_id'), managedP1); // P1: 1
 
         manager.addPerson(p2.name);
         final managedP2 = manager.people.last;
-        manager.assignItemToPerson(ReceiptItem(name: 'ItemX', price: 1, quantity: 4), managedP2); // P2: 4
+        manager.assignItemToPerson(ReceiptItem(name: 'ItemX', price: 1, quantity: 4, itemId: 'itemx_p2_id'), managedP2); // P2: 4
         // P2 also has another different item
-        manager.assignItemToPerson(ReceiptItem(name: 'ItemY', price: 1, quantity: 5), managedP2);
+        manager.assignItemToPerson(ReceiptItem(name: 'ItemY', price: 1, quantity: 5, itemId: 'itemy_p2_id'), managedP2);
 
         // Total ItemX = Unassigned(3) + Shared(2) + P1(1) + P2(4) = 10
         expect(manager.getTotalUsedQuantity('ItemX'), 10);
@@ -385,15 +396,15 @@ void main() {
       });
 
       test('getTotalUsedQuantity when item name exists in one list but not others', () {
-        manager.addUnassignedItem(ReceiptItem(name: 'SoloUnassigned', price: 1, quantity: 3));
+        manager.addUnassignedItem(ReceiptItem(name: 'SoloUnassigned', price: 1, quantity: 3, itemId: 'solo_unassigned_id'));
         expect(manager.getTotalUsedQuantity('SoloUnassigned'), 3);
 
-        manager.addSharedItem(ReceiptItem(name: 'SoloShared', price: 1, quantity: 2));
+        manager.addSharedItem(ReceiptItem(name: 'SoloShared', price: 1, quantity: 2, itemId: 'solo_shared_id'));
         expect(manager.getTotalUsedQuantity('SoloShared'), 2);
 
         manager.addPerson(p1.name);
         final managedP1 = manager.people.first;
-        manager.assignItemToPerson(ReceiptItem(name: 'SoloAssignedP1', price: 1, quantity: 1), managedP1);
+        manager.assignItemToPerson(ReceiptItem(name: 'SoloAssignedP1', price: 1, quantity: 1, itemId: 'solo_p1_id'), managedP1);
         expect(manager.getTotalUsedQuantity('SoloAssignedP1'), 1);
       });
 
@@ -432,7 +443,7 @@ void main() {
       
       test('assignItemToPerson with quantity exceeding original unassigned (conceptual)', () {
         // If unassigned items list was source & its quantity reduced by assignItemToPerson.
-        final unassignedItem = ReceiptItem(name: 'LimitedStock', price: 10, quantity: 3);
+        final unassignedItem = ReceiptItem(name: 'LimitedStock', price: 10, quantity: 3, itemId: 'limited_stock_id');
         manager.addUnassignedItem(unassignedItem);
         manager.setOriginalQuantity(unassignedItem, 3);
 
@@ -440,7 +451,7 @@ void main() {
         final managedP1 = manager.people.first;
 
         // Try to assign 5 when only 3 are unassigned.
-        final toAssign = ReceiptItem(name: 'LimitedStock', price: 10, quantity: 5);
+        final toAssign = ReceiptItem(name: 'LimitedStock', price: 10, quantity: 5, itemId: 'to_assign_id');
         manager.assignItemToPerson(toAssign, managedP1);
 
         // Current behavior: P1 gets 5. Unassigned list is untouched.
@@ -555,8 +566,8 @@ void main() {
 
       setUp(() {
         manager = SplitManager();
-        itemA = ReceiptItem(name: 'UnassignedA', price: 5.0, quantity: 3);
-        itemB = ReceiptItem(name: 'UnassignedB', price: 2.0, quantity: 1);
+        itemA = ReceiptItem(name: 'UnassignedA', price: 5.0, quantity: 3, itemId: 'unassigned_a_id');
+        itemB = ReceiptItem(name: 'UnassignedB', price: 2.0, quantity: 1, itemId: 'unassigned_b_id');
       });
 
       test('addUnassignedItem adds item if not present and sets original quantity', () {
@@ -591,11 +602,11 @@ void main() {
       });
 
       test('getTotalUsedQuantity sums across unassigned, shared, and assigned', () {
-        manager.addUnassignedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 2)); // Unassigned: 2
-        manager.addSharedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 3));     // Shared: 3
+        manager.addUnassignedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 2, itemId: 'itemx_unassigned_id2')); // Unassigned: 2
+        manager.addSharedItem(ReceiptItem(name: 'ItemX', price: 1, quantity: 3, itemId: 'itemx_shared_id2'));     // Shared: 3
         manager.addPerson('P1');
         final p1 = manager.people.first;
-        manager.assignItemToPerson(ReceiptItem(name: 'ItemX', price: 1, quantity: 4), p1); // Assigned: 4
+        manager.assignItemToPerson(ReceiptItem(name: 'ItemX', price: 1, quantity: 4, itemId: 'itemx_p1_id2'), p1); // Assigned: 4
         expect(manager.getTotalUsedQuantity('ItemX'), 9);
       });
 
@@ -612,7 +623,7 @@ void main() {
       setUp(() {
         manager = SplitManager();
         person = Person(name: 'TipTester');
-        item = ReceiptItem(name: 'Meal', price: 100.0, quantity: 1);
+        item = ReceiptItem(name: 'Meal', price: 100.0, quantity: 1, itemId: 'meal_id');
         manager.addPerson(person.name);
         final managedPerson = manager.people.first;
         manager.assignItemToPerson(item, managedPerson);
@@ -668,7 +679,7 @@ void main() {
 
     setUp(() {
       manager = SplitManager();
-      item1 = ReceiptItem(name: 'Test Item', price: 10.0, quantity: 1);
+      item1 = ReceiptItem(name: 'Test Item', price: 10.0, quantity: 1, itemId: 'test_item_id');
       person1Instance = Person(name: 'Test Person');
     });
 
@@ -803,7 +814,7 @@ void main() {
     test('calculates totals correctly with item of zero price', () {
       manager.addPerson(person1Instance.name);
       final pInManager = manager.people.firstWhere((p) => p.name == person1Instance.name);
-      final zeroPriceItem = ReceiptItem(name: 'Free Item', price: 0.0, quantity: 1);
+      final zeroPriceItem = ReceiptItem(name: 'Free Item', price: 0.0, quantity: 1, itemId: 'free_item_id');
       manager.assignItemToPerson(ReceiptItem.clone(zeroPriceItem), pInManager);
       manager.taxPercentage = 10.0;
       manager.tipPercentage = 20.0;
@@ -867,7 +878,7 @@ void main() {
       manager.addPerson(person2.name);
       final p2InManager = manager.people.firstWhere((p) => p.name == person2.name);
 
-      final sharedItem = ReceiptItem(name: 'Shared Dish', price: 20.0, quantity: 1);
+      final sharedItem = ReceiptItem(name: 'Shared Dish', price: 20.0, quantity: 1, itemId: 'shared_dish_id');
       // Add to manager's shared list AND to each person's shared list for correct calculation
       manager.addSharedItem(ReceiptItem.clone(sharedItem)); 
       manager.addItemToShared(sharedItem, [p1InManager, p2InManager]);

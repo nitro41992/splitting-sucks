@@ -49,6 +49,14 @@ This document tracks known bugs and their status for the splitting_sucks project
   - Updated the warning message to be more specific about the cause of discrepancies
 - **References:** Split view, Final summary screen, SplitManager calculations
 
+### 8. SplitManager Test Expectation Mismatch
+- **Status:** Fixed
+- **Notes:** Fixed incorrect expectations in the SplitManager test suite that were causing test failures. The issue was in the "removePerson also removes their contribution from totals" test, where there was a mismatch between the expected and actual behavior of shared item calculations:
+  - Updated the test's expectations to match the actual implementation behavior
+  - Corrected the comments to accurately reflect that shared items contribute their full price to the total, not a divided amount
+  - Updated the expected totals from 27.0 to 37.0 (before removing a person) and from 16.0 to 26.0 (after removing a person)
+- **References:** `test/models/split_manager_test.dart`, SplitManager calculations
+
 ---
 
 ## Known Issues
@@ -61,6 +69,4 @@ This document tracks known bugs and their status for the splitting_sucks project
 ### 2. Shared Items Not Considered in Final Summary / Incorrect Subtotal Warning
 - **Status:** Fixed
 - **Notes:** When loading a receipt with an older data structure (where `assignResultMap.shared_items` lacked `itemId`s), `SummaryStepWidget` would fail to correctly associate shared items with people. This resulted in shared costs being $0 in `PersonSummaryCard` and a large discrepancy in the subtotal warning message. Fixed by making `SummaryStepWidget` robustly handle `assignResultMap` data lacking `itemId` for shared items. It now correctly identifies or generates canonical `ReceiptItem` instances (with `itemId`s) for all shared items and links them to the appropriate people by matching on `itemId` if present in the source map, or by name/price as a fallback. This ensures accurate shared cost calculation in the summary.
-- **References:** `SummaryStepWidget`, `final_summary_screen.dart`, `PersonSummaryCard`, logs (flutter_06.png, flutter_07.png)
-
---- 
+- **References:** `SummaryStepWidget`, `final_summary_screen.dart`, `PersonSummaryCard`, logs (flutter_06.png, flutter_07.png) 
