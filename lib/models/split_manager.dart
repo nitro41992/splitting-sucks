@@ -223,7 +223,7 @@ class SplitManager extends ChangeNotifier {
   }
 
   // New method to add a single person to an existing shared item
-  void addPersonToSharedItem(ReceiptItem item, Person person) {
+  void addPersonToSharedItem(ReceiptItem item, Person person, {bool notify = true}) {
     // Ensure the item is in the main shared list first (should usually be true)
     // Check if the item already exists in _sharedItems by itemId
     bool itemExists = _sharedItems.any((si) => si.itemId == item.itemId);
@@ -243,11 +243,15 @@ class SplitManager extends ChangeNotifier {
       + _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).map((p) => p.name).join(', '));
     debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
     debugPrint('[SplitManager] Subtotal after add: $totalAmount');
-    notifyListeners(); // Notify SplitManager listeners
+    
+    // Only notify listeners if requested (allows batching multiple operations)
+    if (notify) {
+      notifyListeners(); // Notify SplitManager listeners
+    }
   }
 
   // New method to remove a single person from a shared item
-  void removePersonFromSharedItem(ReceiptItem item, Person person) {
+  void removePersonFromSharedItem(ReceiptItem item, Person person, {bool notify = true}) {
     // Find the matching shared item in the person's list by itemId
     ReceiptItem? sharedItemInPerson;
     try {
@@ -265,8 +269,12 @@ class SplitManager extends ChangeNotifier {
     debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
       + _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).map((p) => p.name).join(', '));
     debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
-    debugPrint('[SplitManager] Subtotal after remove: [38;5;1m$totalAmount[0m');
-    notifyListeners(); // Notify SplitManager listeners
+    debugPrint('[SplitManager] Subtotal after remove: [38;5;1m$totalAmount[0m');
+    
+    // Only notify listeners if requested
+    if (notify) {
+      notifyListeners(); // Notify SplitManager listeners
+    }
   }
 
   // Method to set original quantity from review page
@@ -367,7 +375,7 @@ class SplitManager extends ChangeNotifier {
     if (newQuantity == 0) {
       // Check if it's in shared items
       if (_sharedItems.contains(item)) {
-        removeItemFromShared(item);
+        removeSharedItem(item);
       } else {
         // Check if it's in someone's assigned items
         for (var person in _people) {
@@ -421,12 +429,16 @@ class SplitManager extends ChangeNotifier {
     return null;
   }
 
-  // Get people who are sharing a specific item
+  // Get people who have a specific shared item
   List<Person> getPeopleForSharedItem(ReceiptItem item) {
-    // Use itemId for comparison instead of direct reference equality
-    return _people.where((person) => 
-      person.sharedItems.any((sharedItem) => sharedItem.itemId == item.itemId)
-    ).toList();
+    return _people.where((person) {
+      return person.sharedItems.any((sharedItem) => 
+        // Try by itemId first (most reliable)
+        (sharedItem.itemId != null && item.itemId != null && sharedItem.itemId == item.itemId) ||
+        // Fall back to name and price match
+        (sharedItem.name == item.name && sharedItem.price == item.price)
+      );
+    }).toList();
   }
 
   // --- EDIT: Add method to store the original subtotal ---

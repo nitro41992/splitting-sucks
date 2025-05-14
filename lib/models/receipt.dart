@@ -202,7 +202,7 @@ class Receipt {
   String get formattedDate {
     if (updatedAt == null) return 'Unknown date';
     final date = updatedAt!.toDate();
-    return '${date.month}/${date.day}/${date.year}';
+    return '${date.day}/${date.month}/${date.year}';
   }
   
   /// Get a formatted string of the total amount for display
@@ -216,8 +216,12 @@ class Receipt {
       }
     }
     
-    // Don't show any amount if it's not meaningful
-    return '';
+    // Return appropriate default based on status
+    if (isDraft) {
+      return 'Pending';
+    } else {
+      return '\$0.00';
+    }
   }
   
   /// Get the number of people as a string for display

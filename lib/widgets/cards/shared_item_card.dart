@@ -106,59 +106,46 @@ class SharedItemCard extends StatelessWidget {
                     runSpacing: 4,
                     children: people.map((person) {
                       // ALWAYS use itemId for comparison to ensure consistent selection state
-                      final isSelected = person.sharedItems.any((si) => si.itemId == item.itemId);
-                      
-                      // Debug print for diagnosing shared item selection
-                      debugPrint('[SharedItemCard] Person: ${person.name}, has sharedItems: ${person.sharedItems.length}');
-                      for (var si in person.sharedItems) {
-                        debugPrint('[SharedItemCard] - SharedItem: ${si.name}, ID: ${si.itemId}');
-                      }
-                      debugPrint('[SharedItemCard] Current item: ${item.name}, ID: ${item.itemId}, Selected: $isSelected');
+                      final isSelected = person.sharedItems.any((si) => 
+                        // Try by itemId match first (most reliable)
+                        (si.itemId != null && item.itemId != null && si.itemId == item.itemId) ||
+                        // Fall back to name and price match
+                        (si.name == item.name && si.price == item.price)
+                      );
                       
                       return FilterChip(
                         label: Text(person.name, overflow: TextOverflow.ellipsis),
                         selected: isSelected,
                         onSelected: (selected) {
-                          debugPrint('[SharedItemCard] Changing selection for ${person.name} to $selected');
                           if (selected) {
-                            splitManager.addPersonToSharedItem(item, person);
+                            // Add person to shared item
+                            Provider.of<SplitManager>(context, listen: false).addPersonToSharedItem(item, person);
                           } else {
-                            splitManager.removePersonFromSharedItem(item, person);
-                            final remainingSharers = splitManager.getPeopleForSharedItem(item);
-                            if (remainingSharers.isEmpty) {
-                              splitManager.removeItemFromShared(item);
-                              splitManager.addUnassignedItem(item);
-                            }
+                            // Remove person from shared item
+                            Provider.of<SplitManager>(context, listen: false).removePersonFromSharedItem(item, person);
                           }
-                          // Force UI refresh after the build phase is complete
-                          Future.microtask(() => splitManager.notifyListeners());
                         },
-                        selectedColor: colorScheme.primary.withOpacity(0.9),
-                        backgroundColor: isSelected
-                            ? colorScheme.primary.withOpacity(0.90)
-                            : colorScheme.surfaceVariant,
-                        checkmarkColor: isSelected
-                            ? colorScheme.onPrimary
-                            : colorScheme.primary,
-                        labelStyle: TextStyle(
-                          color: isSelected
-                              ? colorScheme.onPrimary
-                              : colorScheme.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        checkmarkColor: Colors.white,
+                        backgroundColor: Colors.grey[200],
+                        selectedColor: colorScheme.primary,
+                        showCheckmark: true,
                         shape: StadiumBorder(
                           side: BorderSide(
-                            color: isSelected
-                                ? colorScheme.primary
+                            color: isSelected 
+                                ? Colors.transparent
                                 : colorScheme.outlineVariant,
-                            width: isSelected ? 2.5 : 1.5,
+                            width: 1.0,
                           ),
                         ),
-                        elevation: isSelected ? 4 : 0,
-                        shadowColor: isSelected ? colorScheme.primary.withOpacity(0.3) : null,
-                        showCheckmark: true,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        labelStyle: TextStyle(
+                          color: isSelected 
+                              ? Colors.white
+                              : colorScheme.primary,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        elevation: 0,
+                        visualDensity: VisualDensity.compact,
                       );
                     }).toList(),
                   ),
@@ -189,3 +176,4 @@ class SharedItemCard extends StatelessWidget {
     );
   }
 }
+

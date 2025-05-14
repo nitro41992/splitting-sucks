@@ -118,8 +118,18 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
       final personName = assignment['person_name'] as String;
       final itemsForPerson = (assignment['items'] as List<dynamic>).map((itemMap) {
         final itemDetail = itemMap as Map<String, dynamic>;
+        
+        // Ensure each assigned item has a valid itemId
+        String itemId = itemDetail['itemId'] as String? ?? 
+                        'assigned_${itemDetail['name']}_${itemDetail['price']}_$personName';
+        
+        // Update the original map with the itemId for future reference
+        if (itemDetail['itemId'] == null) {
+          itemDetail['itemId'] = itemId;
+        }
+        
         return ReceiptItem(
-          itemId: itemDetail['itemId'] as String?,
+          itemId: itemId,
           name: itemDetail['name'] as String,
           quantity: (itemDetail['quantity'] as num).toInt(),
           price: (itemDetail['price'] as num).toDouble(),
@@ -135,8 +145,19 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
             .toList() ??
         [];
     return sharedItemsFromAssign.map((itemMap) {
+      // Ensure each shared item has a valid itemId
+      String itemId = itemMap['itemId'] as String? ?? 
+                      'shared_${itemMap['name']}_${itemMap['price']}';
+      
+      debugPrint('[SplitStepWidget] Creating shared item: ${itemMap['name']} with ID: $itemId');
+      
+      // Update the original map with the itemId for future reference
+      if (itemMap['itemId'] == null) {
+        itemMap['itemId'] = itemId;
+      }
+      
       return ReceiptItem(
-        itemId: itemMap['itemId'] as String?,
+        itemId: itemId,
         name: itemMap['name'] as String,
         quantity: (itemMap['quantity'] as num).toInt(),
         price: (itemMap['price'] as num).toDouble(),
@@ -150,8 +171,17 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
             .toList() ??
         [];
     return unassignedItemsFromAssign.map((itemMap) {
+      // Ensure each unassigned item has a valid itemId
+      String itemId = itemMap['itemId'] as String? ?? 
+                      'unassigned_${itemMap['name']}_${itemMap['price']}';
+      
+      // Update the original map with the itemId for future reference
+      if (itemMap['itemId'] == null) {
+        itemMap['itemId'] = itemId;
+      }
+      
       return ReceiptItem(
-        itemId: itemMap['itemId'] as String?,
+        itemId: itemId,
         name: itemMap['name'] as String,
         quantity: (itemMap['quantity'] as num).toInt(),
         price: (itemMap['price'] as num).toDouble(),
@@ -409,27 +439,33 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
 
     // Process all shared items and assign people to them using splitManager
     for (final sharedItemMap in sharedItemsDataFromAssign) {
-        final String itemName = sharedItemMap['name'] as String; // Keep for debug or remove if not needed
-        // final double itemPrice = (sharedItemMap['price'] as num).toDouble(); // No longer needed for matching
-        final String? mapItemId = sharedItemMap['itemId'] as String?; // Get itemId from map
+        final String itemName = sharedItemMap['name'] as String;
+        final double itemPrice = (sharedItemMap['price'] as num).toDouble();
+        final String? mapItemId = sharedItemMap['itemId'] as String?;
 
-        if (mapItemId == null) {
-          debugPrint('[SplitStepWidget] ERROR: Shared item map missing itemId: ${sharedItemMap['name']}');
-          continue;
-        }
-        
-        // Find the matching shared item in splitManager by itemId
+        // Try to find matching shared item by itemId first
         ReceiptItem? matchingSharedItem;
-        try {
-          matchingSharedItem = splitManager.sharedItems.firstWhere((item) => item.itemId == mapItemId);
-        } catch (e) {
-          debugPrint('[SplitStepWidget] ERROR: Could not find shared item with itemId: $mapItemId in splitManager.sharedItems (Name: ${sharedItemMap['name']})');
-          continue;
+        
+        if (mapItemId != null) {
+          try {
+            matchingSharedItem = splitManager.sharedItems.firstWhere((item) => item.itemId == mapItemId);
+            debugPrint('[SplitStepWidget] Found shared item by itemId: $mapItemId, name: ${matchingSharedItem.name}');
+          } catch (e) {
+            debugPrint('[SplitStepWidget] Could not find shared item with itemId: $mapItemId, falling back to name+price match');
+          }
         }
         
-        if (matchingSharedItem == null) { // Should be caught by the try-catch, but as a safeguard.
-          debugPrint('[SplitStepWidget] ERROR: Could not find shared item: ${sharedItemMap['name']} (itemId: $mapItemId) in splitManager (after try-catch)');
-          continue;
+        // If itemId match failed, fall back to name+price match
+        if (matchingSharedItem == null) {
+          try {
+            matchingSharedItem = splitManager.sharedItems.firstWhere(
+              (item) => item.name == itemName && item.price == itemPrice
+            );
+            debugPrint('[SplitStepWidget] Found shared item by name+price: $itemName, $itemPrice');
+          } catch (e) {
+            debugPrint('[SplitStepWidget] ERROR: Could not find shared item: $itemName at price $itemPrice');
+            continue;
+          }
         }
         
         // Debug the found item
@@ -466,30 +502,36 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
         
         debugPrint('[SplitStepWidget] People sharing ${matchingSharedItem.name}: ${personNamesSharingThisItem.join(', ')}');
         
-        // Add each person to the shared item using splitManager
-        bool anyPeopleUpdated = false;
-        for (final personName in personNamesSharingThisItem) {
-            final matchingPerson = splitManager.people.firstWhere(
-              (p) => p.name == personName, 
-              orElse: () => Person(name: 'dummy')
-            );
-            
-            if (matchingPerson.name != 'dummy') {
-                // Check if person already has this item to avoid duplicates
-                if (!matchingPerson.sharedItems.any((si) => si.itemId == matchingSharedItem!.itemId)) {
-                    debugPrint('[SplitStepWidget] Adding shared item ${matchingSharedItem.name} (${matchingSharedItem.itemId}) to ${matchingPerson.name}');
-                    splitManager.addPersonToSharedItem(matchingSharedItem, matchingPerson);
-                    anyPeopleUpdated = true;
+        // Store the final item and people for post-frame processing to avoid state updates during build
+        final ReceiptItem finalSharedItem = matchingSharedItem;
+        final List<String> finalPersonNames = personNamesSharingThisItem;
+        
+        // IMPORTANT: Use post-frame callback to update shared item assignments
+        // This prevents modifying state during the build phase which causes exceptions
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+            // Add each person to the shared item using splitManager
+            bool anyPeopleUpdated = false;
+            for (final personName in finalPersonNames) {
+                final matchingPerson = splitManager.people.firstWhere(
+                  (p) => p.name == personName, 
+                  orElse: () => Person(name: 'dummy')
+                );
+                
+                if (matchingPerson.name != 'dummy') {
+                    // Check if person already has this item to avoid duplicates
+                    if (!matchingPerson.sharedItems.any((si) => si.itemId == finalSharedItem.itemId)) {
+                        debugPrint('[SplitStepWidget] Adding shared item ${finalSharedItem.name} (${finalSharedItem.itemId}) to ${matchingPerson.name}');
+                        splitManager.addPersonToSharedItem(finalSharedItem, matchingPerson);
+                        anyPeopleUpdated = true;
+                    }
                 }
             }
-        }
-        
-        // Force UI refresh for this shared item
-        if (anyPeopleUpdated) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              splitManager.notifyListeners();
-            });
-        }
+            
+            // Force UI refresh if needed
+            if (anyPeopleUpdated) {
+                splitManager.notifyListeners();
+            }
+        });
     }
 
     for (var item in initialItemsFromParse) {

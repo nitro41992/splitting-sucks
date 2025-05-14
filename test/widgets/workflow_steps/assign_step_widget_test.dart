@@ -150,7 +150,7 @@ void main() {
       expect(find.text('Burger'), findsOneWidget);
       expect(find.text('Fries'), findsOneWidget);
       expect(find.text('Drink'), findsOneWidget);
-    }, skip: true);
+    });
 
     testWidgets('Should display initial transcription when provided', (WidgetTester tester) async {
       const testTranscription = 'Alice gets the burger, Bob gets the fries';
@@ -161,21 +161,21 @@ void main() {
       final textField = find.byType(TextField);
       expect(textField, findsOneWidget);
       expect(find.text(testTranscription), findsOneWidget);
-    }, skip: true);
+    });
 
     testWidgets('Should have mic button for voice input', (WidgetTester tester) async {
       await pumpAssignStepWidget(tester);
       
       // Look for a mic icon button
       expect(find.byIcon(Icons.mic), findsAtLeastNWidgets(1));
-    }, skip: true);
+    });
 
     testWidgets('Should have process button for assignments', (WidgetTester tester) async {
       await pumpAssignStepWidget(tester);
       
       // Look for a button that processes assignments
       expect(find.widgetWithText(ElevatedButton, 'Process'), findsOneWidget);
-    }, skip: true);
+    });
 
     testWidgets('Should trigger onTranscriptionChanged when text changes', (WidgetTester tester) async {
       await pumpAssignStepWidget(tester);
@@ -196,18 +196,10 @@ void main() {
       // Verify callback was triggered
       expect(callbackTriggered, isTrue);
       expect(capturedTranscription, 'New transcription text');
-    }, skip: true);
+    });
 
     testWidgets('tapping "Process" button shows loading indicator, calls service, then hides indicator', (tester) async {
-      // Skip this test if Firebase initialization is causing issues
-      // This test requires Firebase initialization which may not be available in the CI environment
-      final bool skipFirebaseTests = true; // Set to true to skip Firebase-dependent tests
-      if (skipFirebaseTests) {
-        // Mark test as skipped and explain why
-        debugPrint('⚠ Skipping test: Firebase initialization required but not available');
-        return;
-      }
-      
+      // This test now uses proper mocks and doesn't need Firebase
       final assignmentCompleter = Completer<AssignmentResult>();
       final mockReturnResult = AssignmentResult.fromJson({
         'assignments': [{'person_name': 'TestPerson', 'items': []}],
@@ -239,7 +231,7 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsNothing, reason: "Loading indicator should be hidden after processing is complete.");
       expect(onAssignmentProcessedCalled, isTrue, reason: "onAssignmentProcessed callback should be triggered.");
-    }, skip: true); // Skip this test as it requires Firebase initialization
+    });
 
   });
 } 

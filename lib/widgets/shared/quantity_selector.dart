@@ -50,7 +50,9 @@ class QuantitySelector extends StatelessWidget {
             Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: item.quantity > 0 ? () => onChanged(item.quantity - 1) : null,
+                onTap: item.quantity > 0 
+                    ? () => onChanged(item.quantity - 1)
+                    : null,
                 borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
                 child: Container(
                   width: 36,
