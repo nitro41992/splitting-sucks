@@ -1,1 +1,0 @@
-../docs/m1_firebase_setup.md
