@@ -45,27 +45,24 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     _taxPercentage = workflowState.tax ?? DEFAULT_TAX_RATE;
     
     _taxController = TextEditingController(text: _taxPercentage.toStringAsFixed(3));
-
+    // Update tax and calculations immediately on change
     _taxController.addListener(() {
       final newTax = double.tryParse(_taxController.text);
       if (newTax != null && newTax >= 0) {
         if (_taxPercentage != newTax) {
-           setState(() {
-             _taxPercentage = newTax;
-             // Update WorkflowState cache only (no DB persistence)
-             context.read<WorkflowState>().setTax(_taxPercentage);
-           });
+          setState(() {
+            _taxPercentage = newTax;
+            context.read<WorkflowState>().setTax(_taxPercentage);
+          });
         }
       } else if (_taxController.text.isEmpty) {
-        if (_taxPercentage != 0.0) { // Avoid rebuild if already 0
+        if (_taxPercentage != 0.0) {
           setState(() {
-            _taxPercentage = 0.0; // Set tax to 0 if input is cleared
-            // Update WorkflowState cache only (no DB persistence)
+            _taxPercentage = 0.0;
             context.read<WorkflowState>().setTax(_taxPercentage);
           });
         }
       }
-      // If input is invalid (not empty, not parsable), keep the last valid percentage
     });
   }
 

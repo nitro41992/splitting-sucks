@@ -645,6 +645,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // Build the navigation buttons
   Widget _buildNavigation(int currentStep) {
     final workflowState = Provider.of<WorkflowState>(context);
+    final isLastStep = currentStep == _stepTitles.length - 1;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -700,8 +701,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 ),
           
           // Next/Complete button
-          if (currentStep < 4) ...[ // Only show Next button if not on last step
-            Builder( // Use Builder to get latest workflowState for enable check
+          if (!isLastStep) ...[
+            Builder(
               builder: (context) {
                 final localWorkflowState = Provider.of<WorkflowState>(context);
                 bool isNextEnabled = true;
@@ -714,7 +715,15 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
 
                 return FilledButton.icon(
                   onPressed: isNextEnabled 
-                    ? () async { // Enabled logic
+                    ? () async {
+                        // --- NEW: Cache transcription on navigation from Assign step ---
+                        if (currentStep == 1) {
+                          // Find the AssignStepWidget and call its onTranscriptionChanged with the current value
+                          // This is a workaround since we can't access the controller directly here
+                          // Instead, call the handler with the value from WorkflowState if available
+                          final transcription = localWorkflowState.transcribeAudioResult['text'] as String?;
+                          _handleTranscriptionChangedForAssignStep(transcription);
+                        }
                         localWorkflowState.nextStep();
                       }
                     : null, // Disabled
@@ -862,11 +871,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
             Expanded(
               child: _buildStepContent(workflowState.currentStep),
             ),
-            WorkflowNavigationControls(
-              onExitAction: _handleNavigationExitAction,
-              onSaveDraftAction: _handleNavigationSaveDraftAction,
-              onCompleteAction: _handleNavigationCompleteAction,
-            ),
+            _buildNavigation(workflowState.currentStep),
           ],
         ),
       ),

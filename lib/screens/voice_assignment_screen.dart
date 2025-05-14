@@ -42,6 +42,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   final AudioRecorder _recorder = AudioRecorder();
   final AudioTranscriptionService _audioService = AudioTranscriptionService();
   late TextEditingController _transcriptionController;
+  late FocusNode _transcriptionFocusNode;
 
   bool _isRecording = false;
   bool _isLoading = false; // Loading state specific to this screen
@@ -52,19 +53,28 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   void initState() {
     super.initState();
     _transcriptionController = TextEditingController();
+    _transcriptionFocusNode = FocusNode();
     
     // Initialize with saved transcription if available
     if (widget.initialTranscription != null) {
       _transcription = widget.initialTranscription;
       _transcriptionController.text = widget.initialTranscription!;
     }
+    // Listen for focus loss to trigger cache
+    _transcriptionFocusNode.addListener(() {
+      if (!_transcriptionFocusNode.hasFocus) {
+        if (widget.onTranscriptionChanged != null) {
+          widget.onTranscriptionChanged!(_transcriptionController.text);
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
-    // Removed call to onTranscriptionChanged to avoid context issues on dispose
     _recorder.dispose();
     _transcriptionController.dispose();
+    _transcriptionFocusNode.dispose();
     super.dispose();
   }
 
@@ -139,6 +149,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       try {
         print('Stopping recording...');
         final path = await _recorder.stop();
+        if (!mounted) return;
         setState(() => _isRecording = false);
 
         if (path != null) {
@@ -207,17 +218,12 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
     }
     // --- END EDIT ---
 
-    setState(() => _isLoading = true);
+    setState(() => _isLoading = true); // Show loading indicator while splitting
     final editedTranscription = _transcriptionController.text;
-    
-    // Save the edited transcription in our local state
     _transcription = editedTranscription;
-    
-    // Notify parent of transcription change to ensure it's persisted
     if (widget.onTranscriptionChanged != null) {
       widget.onTranscriptionChanged!(editedTranscription);
     }
-
     try {
       print('DEBUG: Making API call for item assignment');
       print('DEBUG: Using transcription: $editedTranscription');
@@ -254,7 +260,8 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
       // Pass the raw assignment data back to the parent widget
       widget.onAssignmentProcessed(assignmentsData);
-      if (mounted) setState(() => _isLoading = false); // Hide spinner after success
+      if (!mounted) return;
+      setState(() => _isLoading = false); // Hide spinner after success
 
     } catch (e) {
       print('Error processing assignment in screen: $e');
@@ -510,6 +517,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                           children: [
                                             TextField(
                                               controller: _transcriptionController,
+                                              focusNode: _transcriptionFocusNode,
                                               maxLines: 8,
                                               minLines: 5,
                                               decoration: InputDecoration(
@@ -524,8 +532,8 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                                 height: 1.5,
                                               ),
                                               onChanged: (value) {
-                                                // Update transcription only locally; do not notify parent on every keystroke
                                                 _transcription = value;
+                                                // Optionally, debounce or throttle if needed
                                               },
                                             ),
                                             Positioned(

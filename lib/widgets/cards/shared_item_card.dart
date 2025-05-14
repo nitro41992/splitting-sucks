@@ -112,6 +112,7 @@ class SharedItemCard extends StatelessWidget {
                         onSelected: (selected) {
                           if (selected) {
                             splitManager.addPersonToSharedItem(item, person);
+                            splitManager.notifyListeners();
                           } else {
                             splitManager.removePersonFromSharedItem(item, person);
                             final remainingSharers = splitManager.people
@@ -121,18 +122,26 @@ class SharedItemCard extends StatelessWidget {
                               splitManager.removeItemFromShared(item);
                               splitManager.addUnassignedItem(item);
                             }
+                            splitManager.notifyListeners();
                           }
                         },
-                        selectedColor: colorScheme.primaryContainer,
-                        checkmarkColor: colorScheme.onPrimaryContainer,
+                        selectedColor: colorScheme.primary,
+                        backgroundColor: isSelected ? colorScheme.primary.withOpacity(0.15) : colorScheme.surfaceVariant,
+                        checkmarkColor: colorScheme.onPrimary,
                         labelStyle: TextStyle(
                           color: isSelected
-                              ? colorScheme.onPrimaryContainer
+                              ? colorScheme.onPrimary
                               : colorScheme.onSurface,
-                          fontWeight: FontWeight.normal,
+                          fontWeight: FontWeight.bold,
                         ),
                         visualDensity: VisualDensity.compact,
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        shape: StadiumBorder(
+                          side: BorderSide(
+                            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
+                            width: 1.5,
+                          ),
+                        ),
                       );
                     }).toList(),
                   ),
