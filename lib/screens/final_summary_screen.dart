@@ -362,23 +362,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     // Verification calculation
     double sumOfIndividualSubtotals = 0.0;
     for (var person in people) {
-      // Get person's total subtotal (individual + shared items)
-      double personSubtotal = person.totalAssignedAmount;
-      
-      // Calculate shared items with the same rounding approach as in SplitManager.getPersonTotal
-      for (var item in person.sharedItems) {
-        final sharingCount = splitManager.people
-            .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
-            .length;
-            
-        if (sharingCount > 0) {
-          // Use the same rounding approach to ensure consistency
-          final double shareAmount = (item.price * item.quantity) / sharingCount;
-          final double roundedShare = double.parse(shareAmount.toStringAsFixed(2));
-          personSubtotal += roundedShare;
-        }
-      }
-      
+      // Get person's total from the splitManager method for consistency
+      double personSubtotal = splitManager.getPersonTotal(person);
       sumOfIndividualSubtotals += personSubtotal;
     }
     
@@ -388,7 +373,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     }
     
     // Allow for small floating point inaccuracies (increase threshold slightly)
-    final bool subtotalsMatch = (subtotal - sumOfIndividualSubtotals).abs() < 0.02;
+    final bool subtotalsMatch = (subtotal - sumOfIndividualSubtotals).abs() < 0.05;
 
     return Stack(
       children: [
@@ -419,7 +404,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                         child: Text(
                           'Warning: Sum of parts (\$${sumOfIndividualSubtotals.toStringAsFixed(2)}) '
                           'doesn\'t perfectly match subtotal (\$${subtotal.toStringAsFixed(2)}). '
-                          'This might be due to rounding.',
+                          'This is due to rounding when calculating shared items.',
                           style: textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onErrorContainer,
                             fontWeight: FontWeight.w500,

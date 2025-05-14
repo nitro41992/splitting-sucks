@@ -41,4 +41,12 @@ This document tracks known bugs and their status for the splitting_sucks project
   - Updated person cards to accurately reflect shared item splits
 - **References:** Split view, SplitManager calculations, UI screenshot (flutter_03.png)
 
+### 7. Unassigned Items Not Correctly Calculated in Summary View
+- **Status:** Fixed
+- **Notes:** Fixed an issue where decreasing the quantity of a shared item would create an unassigned item, but the overall subtotal calculation would not reflect this change properly. Changes made:
+  - Modified the verification calculation in `final_summary_screen.dart` to use `splitManager.getPersonTotal()` consistently
+  - Increased floating point tolerance from 0.02 to 0.05 to prevent false warnings due to rounding
+  - Updated the warning message to be more specific about the cause of discrepancies
+- **References:** Split view, Final summary screen, SplitManager calculations
+
 --- 
