@@ -415,10 +415,24 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       return true;
     }
     
-    // Auto-save as draft without confirmation
+    // Check if receipt should be auto-completed instead of saved as draft
+    bool shouldAutoComplete = false;
     try {
-      // Pass the current context (or dialogContext if available from a retry) for potential toasts
-      await _saveDraft(isBackgroundSave: false, toastContext: dialogContext ?? (mounted ? context : null)); 
+      shouldAutoComplete = await _checkIfReceiptShouldBeCompleted();
+      if (!mounted) return false; // Check mounted after async operation
+    } catch (e) {
+      debugPrint('[_onWillPop] Error checking if receipt should be completed: $e');
+      shouldAutoComplete = false;
+    }
+    
+    try {
+      if (shouldAutoComplete) {
+        // Complete without navigation - we'll handle exit separately
+        await _completeReceiptWithoutNavigation();
+      } else {
+        // Auto-save as draft without confirmation
+        await _saveDraft(isBackgroundSave: false, toastContext: dialogContext ?? (mounted ? context : null));
+      }
       
       return true; // Allow pop if save is successful
     } catch (e) {
@@ -426,7 +440,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       if (!mounted) return false;
       
       // IMPORTANT: Use a new context for the dialog, which will be `dialogContext` in recursive calls.
-      final bool result = await showConfirmationDialog(context, 'Error Saving Draft', 'There was an error saving your draft: $e\n\n'
+      final bool result = await showConfirmationDialog(context, 'Error Saving Receipt', 'There was an error saving your data: $e\n\n'
             'Do you want to try again or discard changes?');
       
       if (result) {
@@ -441,6 +455,55 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     }
   }
   
+  // Check if a receipt has enough data to be considered complete
+  Future<bool> _checkIfReceiptShouldBeCompleted() async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
+    // Check if this is a draft receipt
+    final bool isDraft = workflowState.receiptId != null && 
+        (workflowState.toReceipt().status == 'draft');
+    
+    // Only consider completion for draft receipts with assignment data
+    if (!isDraft || !workflowState.hasAssignmentData || workflowState.assignPeopleToItemsResult == null) {
+      return false;
+    }
+    
+    // Check for assignments data (people with items)
+    bool hasAssignments = false;
+    if (workflowState.assignPeopleToItemsResult!.containsKey('assignments')) {
+      final assignments = workflowState.assignPeopleToItemsResult!['assignments'];
+      
+      if (assignments is List && assignments.isNotEmpty) {
+        // Check if any person has items assigned
+        for (var assignment in assignments) {
+          if (assignment is Map<String, dynamic> && 
+              assignment.containsKey('items') &&
+              assignment['items'] is List &&
+              (assignment['items'] as List).isNotEmpty) {
+            hasAssignments = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Also check for shared items - if any exist, it's a valid split
+    bool hasSharedItems = false;
+    if (workflowState.assignPeopleToItemsResult!.containsKey('shared_items')) {
+      final sharedItems = workflowState.assignPeopleToItemsResult!['shared_items'];
+      if (sharedItems is List && sharedItems.isNotEmpty) {
+        hasSharedItems = true;
+      }
+    }
+    
+    // Get people from assignments
+    Receipt receipt = workflowState.toReceipt();
+    final List<String> actualPeople = receipt.peopleFromAssignments;
+    
+    // Receipt should be completed if it has people and either assignments or shared items
+    return (hasAssignments || hasSharedItems) && actualPeople.isNotEmpty;
+  }
+
   // Helper function to delete orphaned images
   Future<void> _processPendingDeletions({required bool isSaving, bool requireConfirmation = false}) async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
@@ -797,9 +860,21 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       workflowState.setErrorMessage(null);
       
       // Create the receipt object and explicitly set status to 'completed'
-      final receipt = workflowState.toReceipt();
+      Receipt receipt = workflowState.toReceipt();
+      
+      // Update the people field with latest data from assignments
+      final List<String> actualPeople = receipt.peopleFromAssignments;
+      if (actualPeople.isNotEmpty) {
+        receipt = receipt.copyWith(people: actualPeople);
+        debugPrint('[_completeReceipt] Updated receipt with ${actualPeople.length} people from assignments');
+      } else {
+        debugPrint('[_completeReceipt] Warning: No people found in assignments data');
+      }
+      
       final Map<String, dynamic> receiptData = receipt.toMap();
       receiptData['metadata']['status'] = 'completed'; // Ensure status is explicitly set to 'completed'
+      
+      debugPrint('[_completeReceipt] Completing receipt with ID: ${receipt.id}');
       
       // --- First Await --- 
       final String definitiveReceiptId = await _firestoreService.completeReceipt( 
@@ -855,9 +930,103 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
 
   // --- START: New handlers for WorkflowNavigationControls callbacks ---
   Future<void> _handleNavigationExitAction() async {
-    final bool canPop = await _onWillPop(); 
-    if (canPop && mounted) {
-      Navigator.of(context).pop(true); // true indicates a deliberate exit/save
+    // Check if the receipt should be auto-completed before exiting
+    bool shouldAutoComplete = await _checkIfReceiptShouldBeCompleted();
+    if (!mounted) return; // Check mounted after async operation
+    
+    // Store navigation reference before any async operations
+    final navigator = Navigator.of(context);
+    bool completed = false;
+    
+    try {
+      if (shouldAutoComplete) {
+        // Complete the receipt without automatic navigation
+        await _completeReceiptWithoutNavigation();
+        completed = true;
+      } else {
+        // Save as draft
+        await _saveDraft(isBackgroundSave: false, toastContext: mounted ? context : null);
+        completed = true;
+      }
+    } catch (e) {
+      // Handle errors (already shown in _completeReceipt or _saveDraft)
+      debugPrint('[_handleNavigationExitAction] Error during save/complete: $e');
+      completed = false;
+    }
+    
+    // Only navigate if the operation completed successfully
+    if (completed && mounted && navigator.canPop()) {
+      navigator.pop(true); // true indicates a deliberate exit/save
+    }
+  }
+
+  // Version of _completeReceipt that doesn't navigate at the end
+  Future<void> _completeReceiptWithoutNavigation() async {
+    // Get workflow state ONCE at the beginning.
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
+    try {
+      // --- Start Operation ---
+      if (!mounted) return; 
+      workflowState.setLoading(true); 
+      workflowState.setErrorMessage(null);
+      
+      // Create the receipt object and explicitly set status to 'completed'
+      Receipt receipt = workflowState.toReceipt();
+      
+      // Update the people field with latest data from assignments
+      final List<String> actualPeople = receipt.peopleFromAssignments;
+      if (actualPeople.isNotEmpty) {
+        receipt = receipt.copyWith(people: actualPeople);
+        debugPrint('[_completeReceiptWithoutNavigation] Updated receipt with ${actualPeople.length} people from assignments');
+      } else {
+        debugPrint('[_completeReceiptWithoutNavigation] Warning: No people found in assignments data');
+      }
+      
+      final Map<String, dynamic> receiptData = receipt.toMap();
+      receiptData['metadata']['status'] = 'completed'; // Ensure status is explicitly set to 'completed'
+      
+      debugPrint('[_completeReceiptWithoutNavigation] Completing receipt with ID: ${receipt.id}');
+      
+      // --- First Await --- 
+      final String definitiveReceiptId = await _firestoreService.completeReceipt( 
+        receiptId: receipt.id, 
+        data: receiptData,
+      );
+      
+      // --- Check Mounted After First Await --- 
+      if (!mounted) return; 
+      
+      // --- State Updates (No Context Use) --- 
+      workflowState.setReceiptId(definitiveReceiptId);
+      workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
+      workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
+
+      // --- Second Await --- 
+      await _processPendingDeletions(isSaving: true); 
+
+      // --- Check Mounted After Second Await --- 
+      if (!mounted) return; 
+      
+      // --- Final State Updates & UI Feedback --- 
+      workflowState.setLoading(false); 
+      
+      // Show toast before navigation if context is still valid
+      if (mounted) {
+        showAppToast(context, "Receipt completed successfully", AppToastType.success);
+      }
+      
+    } catch (e) {
+      // --- Check Mounted in Catch Block --- 
+      if (!mounted) return; 
+      
+      // --- State Updates & UI Feedback --- 
+      workflowState.setLoading(false); 
+      workflowState.setErrorMessage('Failed to complete receipt: $e');
+      
+      // Show error toast with current context
+      showAppToast(context, "Failed to complete receipt: $e", AppToastType.error);
+      rethrow; // Propagate error to caller
     }
   }
 
@@ -1294,106 +1463,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     debugPrint('[_WorkflowModalBodyState._updateCurrentStep] Setting current step to $currentStep');
     // No need to track the step locally since it's managed by WorkflowState
     
-    // Auto-complete the receipt if we've reached the summary step and have assignment data
-    if (currentStep == 2) { // Summary step
-      _autoCompleteDraftIfDataExists();
-    }
-  }
-
-  // Auto-complete the draft receipt if it has meaningful data
-  void _autoCompleteDraftIfDataExists() async {
-    final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    
-    // Check for existing assignment data as an indicator
-    bool shouldAutoComplete = false;
-    
-    // Check if this is a draft receipt by checking status
-    final bool isDraft = workflowState.receiptId != null && 
-        (workflowState.toReceipt().status == 'draft');
-    
-    if (isDraft && 
-        workflowState.hasAssignmentData && 
-        workflowState.assignPeopleToItemsResult != null) {
-      
-      // Check for assignments data (people with items)
-      bool hasAssignments = false;
-      if (workflowState.assignPeopleToItemsResult!.containsKey('assignments')) {
-        final assignments = workflowState.assignPeopleToItemsResult!['assignments'];
-        
-        if (assignments is List && assignments.isNotEmpty) {
-          // Check if any person has items assigned
-          for (var assignment in assignments) {
-            if (assignment is Map<String, dynamic> && 
-                assignment.containsKey('items') &&
-                assignment['items'] is List &&
-                (assignment['items'] as List).isNotEmpty) {
-              hasAssignments = true;
-              break;
-            }
-          }
-        }
-      }
-      
-      // Also check for shared items - if any exist, it's a valid split
-      bool hasSharedItems = false;
-      if (workflowState.assignPeopleToItemsResult!.containsKey('shared_items')) {
-        final sharedItems = workflowState.assignPeopleToItemsResult!['shared_items'];
-        if (sharedItems is List && sharedItems.isNotEmpty) {
-          hasSharedItems = true;
-        }
-      }
-      
-      shouldAutoComplete = hasAssignments || hasSharedItems;
-      
-      // Get people from assignments
-      Receipt receipt = workflowState.toReceipt();
-      final List<String> actualPeople = receipt.peopleFromAssignments;
-      
-      // Only complete if we have people and assignments/shared-items
-      if (shouldAutoComplete && actualPeople.isNotEmpty) {
-        debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Auto-completing draft - Contains ${actualPeople.length} people and meaningful assignment data');
-        
-        try {
-          // Update people field in the receipt with the actual people from assignments
-          // First update the assignPeopleToItems map to ensure people are extracted correctly
-          Map<String, dynamic> updatedAssignments = Map<String, dynamic>.from(workflowState.assignPeopleToItemsResult!);
-          receipt = receipt.copyWith(people: actualPeople);
-          final Map<String, dynamic> receiptData = receipt.toMap();
-          
-          // Set the status explicitly to completed
-          receiptData['metadata']['status'] = 'completed';
-          
-          // Save the receipt as completed
-          final String definitiveReceiptId = await _firestoreService.completeReceipt( 
-            receiptId: receipt.id, 
-            data: receiptData,
-          );
-          
-          // Update the state
-          if (mounted) {
-            workflowState.setReceiptId(definitiveReceiptId);
-            
-            // Update assignment data to trigger extraction of people
-            // This will update workflowState._people internally
-            workflowState.setAssignPeopleToItemsResult(updatedAssignments);
-            
-            workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
-            workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
-            
-            // Show a toast to notify the user that the receipt was auto-completed
-            showAppToast(context, "Receipt auto-completed successfully", AppToastType.success);
-          }
-        } catch (e) {
-          debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Error auto-completing draft: $e');
-          // Don't show error to user, as this is happening behind the scenes
-        }
-      } else {
-        debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Not auto-completing - insufficient data');
-      }
-    } else if (workflowState.receiptId != null && workflowState.toReceipt().status == 'completed') {
-      debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Receipt already marked as completed');
-    } else {
-      debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Not auto-completing - missing assignment data');
-    }
+    // Auto-complete has been moved to _onWillPop to only happen on exit
   }
 }
