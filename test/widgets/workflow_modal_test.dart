@@ -9,9 +9,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import '../mocks.mocks.dart';
 
-// Key for the complete button in WorkflowNavigationControls
-const completeButtonKey = Key('complete_workflow_button');
+// Define keys for testing
+const Key backButtonKey = ValueKey('workflow_back_button');
+const Key saveButtonKey = ValueKey('workflow_save_button');
+const Key nextButtonKey = ValueKey('workflow_next_button');
 
 // Create a mock for WorkflowState
 class MockWorkflowState extends ChangeNotifier implements WorkflowState {
@@ -289,11 +292,10 @@ void main() {
     // Add more tests for WorkflowStepIndicator as needed
   }); // CORRECTED: End of WorkflowStepIndicator Tests group
 
-  // Helper to build WorkflowNavigationControls with a WorkflowState for focused testing
+  // Helper function for navigation control tests
   Widget _buildNavControlsTestWidget(
-    MockWorkflowState workflowState, {
-    Future<void> Function()? onExit,
-    Future<void> Function()? onSaveDraft,
+    WorkflowState workflowState, {
+    Future<void> Function()? onSave,
     Future<void> Function()? onComplete,
   }) {
     return MaterialApp(
@@ -305,8 +307,7 @@ void main() {
               ChangeNotifierProvider<WorkflowState>.value(
                 value: workflowState,
                 child: WorkflowNavigationControls(
-                  onExitAction: onExit ?? () async {},
-                  onSaveDraftAction: onSaveDraft ?? () async {},
+                  onSaveAction: onSave ?? () async {},
                   onCompleteAction: onComplete ?? () async {},
                 ),
               ),
@@ -328,46 +329,44 @@ void main() {
       // The tests verify behavior assuming the component correctly handles the *actual* last step.
     });
 
-    testWidgets('On Upload step (0 of 3), Next is visible and enabled if data present, Complete is hidden', (tester) async {
+    testWidgets('On Upload step (0 of 3), Next is visible and enabled if data present', (tester) async {
       mockWorkflowState.setCurrentStep(0);
       mockWorkflowState.setHasParseData(true); 
 
       await tester.pumpWidget(_buildNavControlsTestWidget(mockWorkflowState));
 
       expect(find.byKey(nextButtonKey), findsOneWidget, reason: "Next button should be visible on Upload step.");
-      expect(find.byKey(completeButtonKey), findsNothing, reason: "Complete button should be hidden on Upload step.");
-
+      
       final nextButtonWidget = tester.widget<FilledButton>(find.byKey(nextButtonKey));
       expect(nextButtonWidget.onPressed, isNotNull, reason: "Next button should be enabled on Upload step when hasParseData is true.");
     });
 
-    testWidgets('On Upload step (0 of 3), Next is visible and disabled if data NOT present, Complete is hidden', (tester) async {
+    testWidgets('On Upload step (0 of 3), Next is visible and disabled if data NOT present', (tester) async {
       mockWorkflowState.setCurrentStep(0);
       mockWorkflowState.setHasParseData(false);
 
       await tester.pumpWidget(_buildNavControlsTestWidget(mockWorkflowState));
 
       expect(find.byKey(nextButtonKey), findsOneWidget, reason: "Next button should be visible on Upload step.");
-      expect(find.byKey(completeButtonKey), findsNothing, reason: "Complete button should be hidden on Upload step.");
-
+      
       final nextButtonWidget = tester.widget<FilledButton>(find.byKey(nextButtonKey));
       expect(nextButtonWidget.onPressed, isNull, reason: "Next button should be disabled on Upload step when hasParseData is false.");
     });
 
-    testWidgets('On Assign step (1 of 3), Next is visible and enabled, Complete is hidden', (tester) async {
+    testWidgets('On Assign step (1 of 3), Next is visible and enabled', (tester) async {
       mockWorkflowState.setCurrentStep(1); 
       mockWorkflowState.setHasParseData(true); // Prereq to reach step 1
+      mockWorkflowState.setHasAssignmentData(true); // Enable Next button on Assign step
 
       await tester.pumpWidget(_buildNavControlsTestWidget(mockWorkflowState));
 
       expect(find.byKey(nextButtonKey), findsOneWidget, reason: "Next button should be visible on Assign step.");
-      expect(find.byKey(completeButtonKey), findsNothing, reason: "Complete button should be hidden on Assign step.");
-
+      
       final nextButtonWidget = tester.widget<FilledButton>(find.byKey(nextButtonKey));
       expect(nextButtonWidget.onPressed, isNotNull, reason: "Next button should be enabled on Assign step.");
     });
 
-    testWidgets('On Summary step (2 of 3 - actual last step), Next is hidden, Complete is visible and enabled', (tester) async {
+    testWidgets('On Summary step (2 of 3 - actual last step), Next is hidden', (tester) async {
       mockWorkflowState.setCurrentStep(2); 
       mockWorkflowState.setHasParseData(true); 
       mockWorkflowState.setHasAssignmentData(true); 
@@ -375,10 +374,6 @@ void main() {
       await tester.pumpWidget(_buildNavControlsTestWidget(mockWorkflowState));
 
       expect(find.byKey(nextButtonKey), findsNothing, reason: "Next button should be HIDDEN on the actual final Summary step.");
-      expect(find.byKey(completeButtonKey), findsOneWidget, reason: "Complete button should be VISIBLE on the actual final Summary step.");
-
-      final completeButtonWidget = tester.widget<FilledButton>(find.byKey(completeButtonKey));
-      expect(completeButtonWidget.onPressed, isNotNull, reason: "Complete button should be enabled on the final Summary step if data is valid.");
     });
     
     testWidgets('Back button is enabled on step 1, disabled on step 0', (tester) async {
@@ -394,27 +389,23 @@ void main() {
     });
 
     // Test for Exit/Save Draft button logic
-    // The current WorkflowNavigationControls shows Exit if currentStep < 4, else Save Draft.
-    // This means for a 3-step workflow (0, 1, 2), Exit will always be shown.
-    // If "Save Draft" is expected on the "Summary" (step 2, the actual final step), this test will highlight the discrepancy.
-    testWidgets('Exit button is shown on steps 0, 1, 2 (as currentStep < 4 for these)', (tester) async {
+    // With the updated WorkflowNavigationControls, we now have a consistent Save button
+    // across all steps instead of the Exit/Save Draft buttons
+    testWidgets('Save button is shown on all steps (0, 1, 2)', (tester) async {
       // Step 0
       mockWorkflowState.setCurrentStep(0);
       await tester.pumpWidget(_buildNavControlsTestWidget(mockWorkflowState));
-      expect(find.byKey(exitButtonKey), findsOneWidget, reason: "Exit button on step 0.");
-      expect(find.byKey(saveDraftButtonKey), findsNothing, reason: "Save Draft button not on step 0.");
+      expect(find.byKey(saveButtonKey), findsOneWidget, reason: "Save button should be visible on step 0.");
 
       // Step 1
       mockWorkflowState.setCurrentStep(1);
       await tester.pumpWidget(_buildNavControlsTestWidget(mockWorkflowState));
-      expect(find.byKey(exitButtonKey), findsOneWidget, reason: "Exit button on step 1.");
-      expect(find.byKey(saveDraftButtonKey), findsNothing, reason: "Save Draft button not on step 1.");
+      expect(find.byKey(saveButtonKey), findsOneWidget, reason: "Save button should be visible on step 1.");
       
       // Step 2 (Summary)
       mockWorkflowState.setCurrentStep(2);
       await tester.pumpWidget(_buildNavControlsTestWidget(mockWorkflowState));
-      expect(find.byKey(exitButtonKey), findsOneWidget, reason: "Exit button on step 2 (since 2 < 4).");
-      expect(find.byKey(saveDraftButtonKey), findsNothing, reason: "Save Draft button not on step 2 (since 2 < 4).");
+      expect(find.byKey(saveButtonKey), findsOneWidget, reason: "Save button should be visible on step 2.");
     });
 
     testWidgets('Tapping Next button calls workflowState.nextStep()', (tester) async {
@@ -440,28 +431,27 @@ void main() {
       expect(mockWorkflowState.previousStepCalled, isTrue, reason: "workflowState.previousStep() should be called.");
     });
 
-    testWidgets('Tapping Complete button calls onCompleteAction', (tester) async {
+    testWidgets('Tapping Save button on Summary step calls onCompleteAction', (tester) async {
       bool onCompleteCalled = false;
       Future<void> testOnCompleteAction() async {
         onCompleteCalled = true;
       }
-      mockWorkflowState.setCurrentStep(2); // To show Complete button (assuming fix)
+      mockWorkflowState.setCurrentStep(2); // Summary step
       mockWorkflowState.setHasAssignmentData(true); // Generally needed for completion
 
-      // This test relies on the previous assumption that for step 2 (actual last step),
-      // the 'Complete' button is shown. If the component wasn't fixed as such, this test would fail finding the button.
+      // With the updated WorkflowNavigationControls, the Save button calls onCompleteAction on the Summary step
       await tester.pumpWidget(_buildNavControlsTestWidget(
         mockWorkflowState,
         onComplete: testOnCompleteAction,
       ));
       
-      // Verify Complete button is actually there before trying to tap
-      expect(find.byKey(completeButtonKey), findsOneWidget, reason: "Complete button should be present on final step for this test to be valid.");
+      // Verify Save button is present
+      expect(find.byKey(saveButtonKey), findsOneWidget, reason: "Save button should be present on Summary step");
 
-      await tester.tap(find.byKey(completeButtonKey));
+      await tester.tap(find.byKey(saveButtonKey));
       await tester.pump();
 
-      expect(onCompleteCalled, isTrue, reason: "onCompleteAction should be called when Complete button is tapped.");
+      expect(onCompleteCalled, isTrue, reason: "onCompleteAction should be called when Save button is tapped on Summary step");
     });
   });
 

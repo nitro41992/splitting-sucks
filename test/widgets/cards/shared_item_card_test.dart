@@ -24,12 +24,12 @@ class MockSplitManager extends Mock implements SplitManager {
   }
   
   @override
-  void addPersonToSharedItem(ReceiptItem item, Person person) {
+  void addPersonToSharedItem(ReceiptItem item, Person person, {bool notify = true}) {
     // Implementation for tests
   }
   
   @override
-  void removePersonFromSharedItem(ReceiptItem item, Person person) {
+  void removePersonFromSharedItem(ReceiptItem item, Person person, {bool notify = true}) {
     // Implementation for tests
   }
   

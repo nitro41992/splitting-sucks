@@ -771,93 +771,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     }
   }
   
-  // Build the navigation buttons
-  Widget _buildNavigation(int currentStep) {
-    final workflowState = Provider.of<WorkflowState>(context);
-    final bool isSummaryStep = currentStep == _stepTitles.length - 1;
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -1),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: isSummaryStep ? MainAxisAlignment.spaceBetween : MainAxisAlignment.spaceBetween,
-        children: [
-          // Back button (hidden only on first step - always show on summary)
-          if (currentStep > 0)
-            TextButton.icon(
-              onPressed: () async {
-                if (currentStep == 1) {
-                  debugPrint('[WorkflowModal] Flushing transcription before navigating back from Assign step.');
-                  await _flushTranscriptionToWorkflowState();
-                }
-                workflowState.previousStep();
-              },
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Back'),
-            )
-          else // Placeholder if Back is hidden (to balance spaceBetween)
-             const SizedBox(width: 88), // Adjust width to match typical back button space
-          
-          // Middle button - Exit (only shown if NOT on summary step)
-          if (!isSummaryStep)
-            OutlinedButton(
-              onPressed: () async {
-                final bool canPop = await _onWillPop(); 
-                if (canPop && mounted) {
-                  Navigator.of(context).pop(true);
-                }
-              },
-              child: const Text('Exit'),
-            ),
-          
-          // Next/FilledExit button
-          if (!isSummaryStep) ...[
-            Builder(
-              builder: (context) {
-                final localWorkflowState = Provider.of<WorkflowState>(context);
-                bool isNextEnabled = true;
-                if (currentStep == 0 && !localWorkflowState.hasParseData) {
-                   isNextEnabled = false;
-                }
-                else if (currentStep == 1 && !localWorkflowState.hasAssignmentData) {
-                   isNextEnabled = false;
-                }
-
-                return FilledButton.icon(
-                  onPressed: isNextEnabled 
-                    ? () async {
-                        if (currentStep == 1) {
-                          debugPrint('[WorkflowModal] Flushing transcription before navigating away from Assign step.');
-                          await _flushTranscriptionToWorkflowState();
-                        }
-                        localWorkflowState.nextStep();
-                      }
-                    : null, // Disabled
-                  label: const Text('Next'),
-                  icon: const Icon(Icons.arrow_forward),
-                );
-              }
-            ),
-          ] else ...[ // This IS the Summary Step
-             FilledButton.icon(
-                  onPressed: () => _handleNavigationExitAction(), // This calls _onWillPop
-                  label: const Text('Exit'),
-                  icon: const Icon(Icons.exit_to_app), // Ensure correct icon
-                ),
-          ],
-        ],
-      ),
-    );
-  }
+  // The _buildNavigation method has been removed
+  // We now use the WorkflowNavigationControls widget directly in the build method
 
   // Mark the current receipt as completed
   Future<void> _completeReceipt() async {
@@ -1128,7 +1043,25 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
             Expanded(
               child: _buildStepContent(workflowState.currentStep),
             ),
-            _buildNavigation(workflowState.currentStep),
+            // Replace custom navigation with WorkflowNavigationControls
+            WorkflowNavigationControls(
+              onSaveAction: _handleNavigationSaveDraftAction,
+              onCompleteAction: _handleNavigationCompleteAction,
+              onBackAction: () async {
+                final workflowState = Provider.of<WorkflowState>(context, listen: false);
+                if (workflowState.currentStep == 1) {
+                  debugPrint('[WorkflowModal] Flushing transcription before navigating back from Assign step.');
+                  await _flushTranscriptionToWorkflowState();
+                }
+              },
+              onNextAction: () async {
+                final workflowState = Provider.of<WorkflowState>(context, listen: false);
+                if (workflowState.currentStep == 1) {
+                  debugPrint('[WorkflowModal] Flushing transcription before navigating away from Assign step.');
+                  await _flushTranscriptionToWorkflowState();
+                }
+              },
+            ),
           ],
         ),
       ),

@@ -1606,8 +1606,9 @@ class MockSplitManager extends _i1.Mock implements _i12.SplitManager {
   @override
   void addPersonToSharedItem(
     _i14.ReceiptItem? item,
-    _i13.Person? person,
-  ) =>
+    _i13.Person? person, {
+    bool? notify = true,
+  }) =>
       super.noSuchMethod(
         Invocation.method(
           #addPersonToSharedItem,
@@ -1615,6 +1616,7 @@ class MockSplitManager extends _i1.Mock implements _i12.SplitManager {
             item,
             person,
           ],
+          {#notify: notify},
         ),
         returnValueForMissingStub: null,
       );
@@ -1622,8 +1624,9 @@ class MockSplitManager extends _i1.Mock implements _i12.SplitManager {
   @override
   void removePersonFromSharedItem(
     _i14.ReceiptItem? item,
-    _i13.Person? person,
-  ) =>
+    _i13.Person? person, {
+    bool? notify = true,
+  }) =>
       super.noSuchMethod(
         Invocation.method(
           #removePersonFromSharedItem,
@@ -1631,6 +1634,7 @@ class MockSplitManager extends _i1.Mock implements _i12.SplitManager {
             item,
             person,
           ],
+          {#notify: notify},
         ),
         returnValueForMissingStub: null,
       );

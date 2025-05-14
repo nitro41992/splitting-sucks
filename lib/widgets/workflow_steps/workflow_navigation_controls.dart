@@ -4,23 +4,21 @@ import '../../providers/workflow_state.dart'; // Added import
 
 // Define Keys for testing
 const Key backButtonKey = ValueKey('workflow_back_button');
-const Key exitButtonKey = ValueKey('workflow_exit_button');
-const Key saveDraftButtonKey = ValueKey('workflow_save_draft_button');
+const Key saveButtonKey = ValueKey('workflow_save_button');
 const Key nextButtonKey = ValueKey('workflow_next_button');
-const Key completeButtonKey = ValueKey('complete_workflow_button');
 
 class WorkflowNavigationControls extends StatelessWidget {
-  // final int currentStep; // REMOVE: Get from WorkflowState via Consumer
-  final Future<void> Function() onExitAction;
-  final Future<void> Function() onSaveDraftAction;
+  final Future<void> Function() onSaveAction;
   final Future<void> Function() onCompleteAction;
+  final Future<void> Function()? onBackAction;
+  final Future<void> Function()? onNextAction;
 
   const WorkflowNavigationControls({
     Key? key,
-    // required this.currentStep, // REMOVE
-    required this.onExitAction,
-    required this.onSaveDraftAction,
+    required this.onSaveAction,
     required this.onCompleteAction,
+    this.onBackAction,
+    this.onNextAction,
   }) : super(key: key);
 
   @override
@@ -34,7 +32,7 @@ class WorkflowNavigationControls extends StatelessWidget {
         bool isNextEnabled = true;
         if (currentStep == 0 && !workflowState.hasParseData) {
           isNextEnabled = false;
-        } else if (currentStep == 2 && !workflowState.hasAssignmentData) {
+        } else if (currentStep == 1 && !workflowState.hasAssignmentData) {
           isNextEnabled = false;
         } else if (currentStep == 3 && !workflowState.hasAssignmentData) {
           // This condition implies that to go from Split (3) to Summary (4),
@@ -64,10 +62,24 @@ class WorkflowNavigationControls extends StatelessWidget {
               TextButton.icon(
                 key: backButtonKey,
                 onPressed: currentStep > 0 // Use local currentStep
-                    ? () => workflowState.previousStep()
+                    ? () async {
+                        // If custom back action provided, call it first
+                        if (onBackAction != null) {
+                          await onBackAction!();
+                        }
+                        workflowState.previousStep();
+                      }
                     : null,
                 icon: const Icon(Icons.arrow_back),
                 label: const Text('Back'),
+              ),
+              
+              // Save button - Always in the middle
+              FilledButton.icon(
+                key: saveButtonKey,
+                onPressed: isSummaryStep ? onCompleteAction : onSaveAction,
+                label: const Text('Save'),
+                icon: const Icon(Icons.save),
               ),
               
               // Right side button(s) - depend on current step
@@ -76,19 +88,20 @@ class WorkflowNavigationControls extends StatelessWidget {
                 FilledButton.icon(
                   key: nextButtonKey,
                   onPressed: isNextEnabled
-                      ? () => workflowState.nextStep()
+                      ? () async {
+                          // If custom next action provided, call it first
+                          if (onNextAction != null) {
+                            await onNextAction!();
+                          }
+                          workflowState.nextStep();
+                        }
                       : null,
                   label: const Text('Next'),
                   icon: const Icon(Icons.arrow_forward),
                 )
-              else 
-                // For summary step, show Exit button
-                FilledButton.icon(
-                  key: completeButtonKey,
-                  onPressed: onExitAction,
-                  label: const Text('Exit'),
-                  icon: const Icon(Icons.exit_to_app),
-                ),
+              else
+                // Empty container to maintain alignment when Next button isn't shown
+                Container(width: 100, color: Colors.transparent),
             ],
           ),
         );

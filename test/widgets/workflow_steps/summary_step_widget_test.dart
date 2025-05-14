@@ -8,6 +8,7 @@ import 'package:billfie/models/split_manager.dart';
 import 'package:billfie/widgets/workflow_steps/summary_step_widget.dart';
 import 'package:billfie/screens/final_summary_screen.dart';
 import 'package:billfie/providers/workflow_state.dart';
+import 'package:billfie/models/receipt.dart';
 import '../../test_helpers/firebase_mock_setup.dart';
 import '../../mocks.mocks.dart';
 
@@ -33,6 +34,15 @@ void main() {
     // Add stubs for WorkflowState's getters used in FinalSummaryScreen
     when(mockWorkflowState.tip).thenReturn(currentTip);
     when(mockWorkflowState.tax).thenReturn(currentTax);
+    when(mockWorkflowState.receiptId).thenReturn('test-receipt-id');
+    when(mockWorkflowState.assignPeopleToItemsResult).thenReturn(assignResultMap);
+    
+    // Add stub for toReceipt method
+    when(mockWorkflowState.toReceipt()).thenReturn(Receipt(
+      id: 'test-receipt-id',
+      status: 'draft',
+      restaurantName: 'Test Restaurant',
+    ));
     
     return MaterialApp(
       home: MultiProvider(
