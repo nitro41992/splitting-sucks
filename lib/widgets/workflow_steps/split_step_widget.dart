@@ -512,7 +512,7 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
                 }
                 return false;
               },
-              child: const SplitView(),
+              child: SplitView(onClose: widget.onClose),
             ),
           ],
         ),

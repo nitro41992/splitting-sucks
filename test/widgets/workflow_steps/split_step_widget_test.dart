@@ -360,7 +360,7 @@ void main() {
       await tester.tap(find.text('Open SplitStepWidget'));
       await tester.pumpAndSettle();
       // Tap the Done button
-      final doneButton = find.widgetWithText(ElevatedButton, 'Done');
+      final doneButton = find.byTooltip('Done');
       expect(doneButton, findsOneWidget);
       await tester.tap(doneButton);
       await tester.pumpAndSettle();

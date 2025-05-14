@@ -2,12 +2,15 @@ import 'package:billfie/providers/workflow_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart'; // Import for verify function
 import '../mocks.mocks.dart'; // Import the generated mocks
+import 'package:shared_preferences/shared_preferences.dart';
 
 late WorkflowState workflowState;
 late MockImageStateManager mockImageStateManager;
 bool listenerCalled = false;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
   setUp(() {
     mockImageStateManager = MockImageStateManager();
     // Initialize workflowState here for global use by listener

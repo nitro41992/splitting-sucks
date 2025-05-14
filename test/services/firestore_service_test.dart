@@ -288,11 +288,11 @@ void main() {
         final receipt1 = Receipt(id: 'r1', status: 'draft', restaurantName: 'Store 1', createdAt: Timestamp.now());
         // Ensure unique timestamps for predictable ordering if the mock relies on it.
         final receipt2Timestamp = Timestamp.fromMillisecondsSinceEpoch(Timestamp.now().millisecondsSinceEpoch + 1000);
-        final receipt2 = Receipt(id: 'r2', status: 'draft', restaurantName: 'Store 2', createdAt: receipt2Timestamp, updatedAt: receipt2Timestamp ); // also set updatedAt for ordering
+        final receipt2 = Receipt(id: 'r2', status: 'completed', restaurantName: 'Store 2', createdAt: receipt2Timestamp, updatedAt: receipt2Timestamp ); // also set updatedAt for ordering
 
         // Save with a slight delay or ensure timestamps are distinct if mock ordering is sensitive
         await firestoreService.saveReceipt(receiptId: receipt1.id, data: receipt1.toMap());
-        await Future.delayed(const Duration(milliseconds: 10)); // Small delay
+        await Future.delayed(const Duration(milliseconds: 50)); // Added delay
         await firestoreService.saveReceipt(receiptId: receipt2.id, data: receipt2.toMap());
         
         // Wait for a moment to ensure data is available in the stream
@@ -624,6 +624,7 @@ void main() {
         
         // Add receipts to Firestore
         await firestoreService.saveReceipt(receiptId: receipt1.id, data: receipt1.toMap());
+        await Future.delayed(const Duration(milliseconds: 50)); // Added delay
         await firestoreService.saveReceipt(receiptId: receipt2.id, data: receipt2.toMap());
         
         // Get the stream and convert to Receipt objects

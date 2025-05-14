@@ -20,8 +20,11 @@ class NavigateToPageNotification extends Notification {
 }
 
 class SplitView extends StatefulWidget {
+  final VoidCallback? onClose;
+
   const SplitView({
     super.key,
+    this.onClose,
   });
 
   @override
@@ -522,6 +525,7 @@ class _SplitViewState extends State<SplitView> {
                     FloatingActionButton(
                       heroTag: 'fab_done',
                       onPressed: () {
+                        widget.onClose?.call();
                         if (Navigator.of(context).canPop()) {
                           debugPrint('[SplitView] Done FAB: canPop is true, popping overlay.');
                           Navigator.of(context).pop();
