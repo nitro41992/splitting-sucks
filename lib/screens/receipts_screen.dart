@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/dialog_helpers.dart';
 import '../utils/toast_utils.dart';
+import 'dart:math'; // Add import for min function
 
 class ReceiptsScreen extends StatefulWidget {
   const ReceiptsScreen({Key? key}) : super(key: key);
@@ -56,6 +57,11 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
     });
     // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
     // _scrollController.addListener(_onScroll); // REMOVE
+
+    // Auto-fix any drafts with summary data when screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndFixDraftReceipts();
+    });
   }
 
   @override
@@ -151,6 +157,15 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
     // Capture the ReceiptsScreen's context BEFORE showing the bottom sheet.
     // This context should remain valid even after the bottom sheet is popped.
     final BuildContext screenContext = context; // IMPORTANT CHANGE HERE
+    
+    // Controller for editing restaurant name
+    final TextEditingController restaurantNameController = TextEditingController(
+      text: receipt.restaurantName ?? 'Unnamed Receipt'
+    );
+    
+    // State variables for the modal
+    bool isEditingName = false;
+    bool hasSaved = false;
 
     showModalBottomSheet(
       context: screenContext, // Use the captured screenContext to show the sheet
@@ -159,123 +174,324 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (bottomSheetContext) { // This is the bottom sheet's own context
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return StatefulBuilder(
+          builder: (context, setState) {
+            // Function to update restaurant name with feedback
+            Future<void> updateRestaurantName(String updatedName) async {
+              if (updatedName.isEmpty) {
+                updatedName = 'Unnamed Receipt';
+                restaurantNameController.text = updatedName;
+              }
+                                             
+              // Only update if name changed
+              if (updatedName != (receipt.restaurantName ?? 'Unnamed Receipt')) {
+                try {
+                  // Update receipt in Firestore
+                  await _firestoreService.saveReceipt(
+                    receiptId: receipt.id, 
+                    data: {
+                      'metadata': {
+                        'restaurant_name': updatedName
+                      }
+                    }
+                  );
+                  
+                  // Show feedback
+                  if (context.mounted) {
+                    showAppToast(context, 'Restaurant name updated', AppToastType.success);
+                  }
+                  
+                  setState(() {
+                    hasSaved = true;
+                  });
+                } catch (e) {
+                  debugPrint('Error updating restaurant name: $e');
+                  if (context.mounted) {
+                    showAppToast(context, 'Error updating name: $e', AppToastType.error);
+                  }
+                }
+              }
+            }
+            
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      receipt.restaurantName ?? 'Receipt',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                      overflow: TextOverflow.ellipsis,
+                  // Top row with Status and Close button
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Status pill with consistent style
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: receipt.isDraft 
+                              ? Colors.amber.shade100 
+                              : Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          receipt.isDraft ? 'Draft' : 'Completed',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: receipt.isDraft 
+                                ? Colors.amber.shade800 
+                                : Colors.green.shade800,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      
+                      // Close button
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(bottomSheetContext),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Restaurant Name Edit Section
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: isEditingName
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  TextFormField(
+                                    controller: restaurantNameController,
+                                    autofocus: true,
+                                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: 'Restaurant Name',
+                                      isDense: true,
+                                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                      focusedBorder: UnderlineInputBorder(
+                                        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+                                      ),
+                                    ),
+                                    onFieldSubmitted: (value) async {
+                                      await updateRestaurantName(value.trim());
+                                      setState(() {
+                                        isEditingName = false;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      TextButton(
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            restaurantNameController.text = receipt.restaurantName ?? 'Unnamed Receipt';
+                                            isEditingName = false;
+                                          });
+                                        },
+                                        child: const Text('Cancel'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        onPressed: () async {
+                                          await updateRestaurantName(restaurantNameController.text.trim());
+                                          setState(() {
+                                            isEditingName = false;
+                                          });
+                                        },
+                                        child: const Text('Save'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      restaurantNameController.text,
+                                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8.0),
+                                    child: IconButton(
+                                      icon: const Icon(Icons.edit, size: 20),
+                                      onPressed: () {
+                                        setState(() {
+                                          isEditingName = true;
+                                        });
+                                      },
+                                      tooltip: 'Edit restaurant name',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
+                  
+                  // Simplified Receipt details - only show useful information
+                  _buildDetailRow('Date', receipt.formattedDate),
+                  
+                  if (receipt.formattedAmount.isNotEmpty)
+                    _buildDetailRow('Total', receipt.formattedAmount),
+                    
+                  // People detail with custom formatting to always show attendees
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "People",
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        if (receipt.people.isEmpty)
+                          Text(
+                            "None assigned",
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              fontStyle: FontStyle.italic,
+                              color: Colors.grey[600],
+                            ),
+                          )
+                        else
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                alignment: WrapAlignment.end,
+                                children: receipt.people.map((person) => 
+                                  Chip(
+                                    avatar: CircleAvatar(
+                                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                      radius: 12,
+                                      child: Text(
+                                        person.isNotEmpty ? person[0].toUpperCase() : '?',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                        ),
+                                      ),
+                                    ),
+                                    label: Text(person),
+                                    labelStyle: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                    backgroundColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
+                                  )
+                                ).toList(),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(bottomSheetContext), // Use bottomSheetContext to pop itself
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Action buttons
+                  if (receipt.isDraft) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.edit),
+                        label: const Text('Continue Editing'),
+                        onPressed: () async {
+                          Navigator.pop(bottomSheetContext); // Pop the bottom sheet using ITS context
+                          debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for EDIT receipt: ${receipt.id}');
+                          
+                          // Use the CAPTURED screenContext from ReceiptsScreen for WorkflowModal.show
+                          if (!screenContext.mounted) {
+                            debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
+                            return;
+                          }
+                          final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
+                          if (result == true && screenContext.mounted) {
+                            // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
+                          }
+                        },
+                      ),
+                    ),
+                  ] else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.edit),
+                        label: const Text('Edit Receipt'),
+                        onPressed: () async {
+                          Navigator.pop(bottomSheetContext); // Pop the bottom sheet using ITS context
+                          debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for EDIT receipt: ${receipt.id}');
+                          
+                          // Use the CAPTURED screenContext from ReceiptsScreen for WorkflowModal.show
+                          if (!screenContext.mounted) {
+                            debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
+                            return;
+                          }
+                          final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
+                          if (result == true && screenContext.mounted) {
+                            // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  
+                  // Delete button (for both draft and completed)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      label: const Text('Delete Receipt', style: TextStyle(color: Colors.red)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.red),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(bottomSheetContext);
+                        _confirmDeleteReceipt(screenContext, receipt);
+                      },
+                    ),
                   ),
+                  
+                  const SizedBox(height: 12),
                 ],
               ),
-              const SizedBox(height: 8),
-              const Divider(),
-              const SizedBox(height: 8),
-              
-              // Receipt details
-              _buildDetailRow('Status', receipt.status),
-              _buildDetailRow('Date', receipt.formattedDate),
-              _buildDetailRow('Total', receipt.formattedAmount),
-              _buildDetailRow('People', receipt.numberOfPeople),
-              
-              const SizedBox(height: 16),
-              
-              // Action buttons
-              if (receipt.isDraft) ...[
-                // Resume draft
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Resume Draft'),
-                    onPressed: () async {
-                      Navigator.pop(bottomSheetContext); // Pop the bottom sheet using ITS context
-                      debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for RESUME draft: ${receipt.id}');
-                      
-                      // Use the CAPTURED screenContext from ReceiptsScreen for WorkflowModal.show
-                      if (!screenContext.mounted) { 
-                        debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for RESUME draft: ${receipt.id}');
-                        return;
-                      }
-                      final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
-                      if (result == true && screenContext.mounted) {
-                        // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              
-              // Edit (for completed receipts)
-              if (receipt.isCompleted) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edit Receipt'),
-                    onPressed: () async {
-                      Navigator.pop(bottomSheetContext); // Pop the bottom sheet using ITS context
-                      debugPrint('[_ReceiptsScreenState] Attempting to show WorkflowModal for EDIT receipt: ${receipt.id}');
-                      
-                      // Use the CAPTURED screenContext from ReceiptsScreen for WorkflowModal.show
-                      if (!screenContext.mounted) {
-                        debugPrint('[_ReceiptsScreenState] ReceiptsScreen NOT MOUNTED before showing WorkflowModal for EDIT receipt: ${receipt.id}');
-                        return;
-                      }
-                      final bool? result = await WorkflowModal.show(screenContext, receiptId: receipt.id);
-                      if (result == true && screenContext.mounted) {
-                        // _fetchInitialReceipts(); // REMOVE - StreamBuilder will handle data loading
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              
-              // Delete button (for both draft and completed)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.delete_outline),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
-                  ),
-                  label: const Text('Delete Receipt'),
-                  // Pass screenContext to _confirmDeleteReceipt if it also needs to show dialogs/modals
-                  onPressed: () async {
-                    // Pop the details bottom sheet FIRST.
-                    Navigator.pop(bottomSheetContext); 
-                    
-                    // Yield to the event loop to allow the pop to be processed.
-                    await Future.microtask(() {}); 
-
-                    // Ensure the screenContext is still mounted before showing the dialog.
-                    if (screenContext.mounted) {
-                      // Then show the confirmation dialog
-                      // IMPORTANT: Use screenContext for showing the dialog,
-                      // as bottomSheetContext is no longer valid after the pop.
-                      await _confirmDeleteReceipt(screenContext, receipt); 
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
+            );
+          }
         );
       },
     );
@@ -376,6 +592,9 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
   }
 
   Widget _buildReceiptCard(Receipt receipt) {
+    // Check if receipt has people data from assignments
+    final bool hasPeople = receipt.people.isNotEmpty;
+    
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 2,
@@ -388,6 +607,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Left side: Thumbnail
               Container(
@@ -424,6 +644,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Restaurant name (bold, clear, minimal)
                     Text(
                       receipt.restaurantName ?? 'Unnamed Receipt',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -433,57 +654,109 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
+                    
+                    // Date in mm/dd/yyyy format
                     Text(
                       receipt.formattedDate,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      receipt.numberOfPeople,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
                     
-                    // Draft badge
-                    if (receipt.isDraft)
-                      Container(
-                        margin: const EdgeInsets.only(top: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.amber[100],
-                          borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 8),
+                    
+                    // Attendees row - always show them if they exist in data
+                    // Or display a placeholder if no people are assigned
+                    if (hasPeople) 
+                      SizedBox(
+                        height: 32,
+                        child: Row(
+                          children: [
+                            // Show max 3 avatars + overflow indicator
+                            for (int i = 0; i < min(3, receipt.people.length); i++)
+                              Padding(
+                                padding: EdgeInsets.only(right: i < min(3, receipt.people.length) - 1 ? 4 : 0),
+                                child: CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                                  child: Text(
+                                    receipt.people[i].isNotEmpty ? receipt.people[i][0].toUpperCase() : '?',
+                                    style: TextStyle(
+                                      fontSize: 12, 
+                                      color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            
+                            // Show overflow indicator if more than 3 people
+                            if (receipt.people.length > 3)
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.surfaceVariant,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '+${receipt.people.length - 3}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        child: Text(
-                          'DRAFT',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Colors.amber[800],
-                          ),
+                      )
+                    else
+                      Text(
+                        "No people assigned",
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey[600],
                         ),
                       ),
+                    
+                    const SizedBox(height: 8),
+                    
+                    // Status pill with consistent style
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: receipt.isDraft 
+                            ? Colors.amber.shade100 
+                            : Colors.green.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        receipt.isDraft ? 'Draft' : 'Completed',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: receipt.isDraft 
+                              ? Colors.amber.shade800 
+                              : Colors.green.shade800,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
               
-              // Right side: Amount and menu
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
+              // Right side: Amount (only if meaningful)
+              if (receipt.formattedAmount.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0, top: 4.0),
+                  child: Text(
                     receipt.formattedAmount,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    onPressed: () {
-                      // TODO: Show options menu (edit, delete, etc.)
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
+                ),
             ],
           ),
         ),
@@ -669,6 +942,74 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         child: const Icon(Icons.add),
       ),
     );
+  }
+
+  // Scan for drafts with assignment data and auto-complete them
+  Future<void> _checkAndFixDraftReceipts() async {
+    try {
+      final draftReceipts = await _firestoreService.getDraftReceipts();
+      int fixedCount = 0;
+      
+      for (final receipt in draftReceipts) {
+        // Check if this receipt has assignment data that should make it completed
+        if (receipt.assignPeopleToItems != null && 
+            receipt.people.isNotEmpty &&
+            receipt.assignPeopleToItems!.containsKey('assignments')) {
+          
+          final assignments = receipt.assignPeopleToItems!['assignments'];
+          bool hasMeaningfulData = false;
+          
+          if (assignments is List && assignments.isNotEmpty) {
+            // Check if any assignments have items
+            for (var assignment in assignments) {
+              if (assignment is Map<String, dynamic> && 
+                  assignment.containsKey('items') &&
+                  assignment['items'] is List &&
+                  (assignment['items'] as List).isNotEmpty) {
+                hasMeaningfulData = true;
+                break;
+              }
+            }
+            
+            // Also check for shared items
+            if (!hasMeaningfulData && 
+                receipt.assignPeopleToItems!.containsKey('shared_items')) {
+              final sharedItems = receipt.assignPeopleToItems!['shared_items'];
+              if (sharedItems is List && sharedItems.isNotEmpty) {
+                hasMeaningfulData = true;
+              }
+            }
+            
+            // If it has meaningful data, complete it
+            if (hasMeaningfulData) {
+              debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Completing draft with ID: ${receipt.id}');
+              
+              // Convert receipt to map and set status to completed
+              final Map<String, dynamic> receiptData = receipt.toMap();
+              receiptData['metadata']['status'] = 'completed';
+              
+              // Save the receipt as completed using completeReceipt
+              await _firestoreService.completeReceipt(
+                receiptId: receipt.id,
+                data: receiptData,
+              );
+              
+              fixedCount++;
+            }
+          }
+        }
+      }
+      
+      if (fixedCount > 0) {
+        debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Fixed $fixedCount draft receipts');
+        if (mounted) {
+          showAppToast(context, "$fixedCount receipt(s) were automatically completed", AppToastType.success);
+        }
+      }
+    } catch (e) {
+      debugPrint('[_ReceiptsScreenState._checkAndFixDraftReceipts] Error fixing drafts: $e');
+      // Don't show error to user as this is a background task
+    }
   }
 }
 

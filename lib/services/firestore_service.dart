@@ -381,4 +381,21 @@ class FirestoreService {
       rethrow; // Re-throw other types of errors
     }
   }
+
+  /// Fetch all draft receipts for the current user
+  Future<List<Receipt>> getDraftReceipts() async {
+    try {
+      final query = await receiptsCollection
+          .where('metadata.status', isEqualTo: 'draft')
+          .orderBy('metadata.updated_at', descending: true)
+          .get();
+          
+      return query.docs
+          .map((doc) => Receipt.fromDocumentSnapshot(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('[FirestoreService.getDraftReceipts] Error fetching draft receipts: $e');
+      rethrow;
+    }
+  }
 } 

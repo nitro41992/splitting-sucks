@@ -96,9 +96,9 @@ class WorkflowNavigationControls extends StatelessWidget {
               ] else ...[
                 FilledButton.icon(
                   key: completeButtonKey,
-                  onPressed: onCompleteAction,
-                  label: const Text('Complete'),
-                  icon: const Icon(Icons.check),
+                  onPressed: onExitAction,
+                  label: const Text('Exit'),
+                  icon: const Icon(Icons.exit_to_app),
                 ),
               ],
             ],

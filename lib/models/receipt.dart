@@ -201,7 +201,8 @@ class Receipt {
   /// Get a formatted string of the updated date for display
   String get formattedDate {
     if (updatedAt == null) return 'Unknown date';
-    return '${updatedAt!.toDate().day}/${updatedAt!.toDate().month}/${updatedAt!.toDate().year}';
+    final date = updatedAt!.toDate();
+    return '${date.month}/${date.day}/${date.year}';
   }
   
   /// Get a formatted string of the total amount for display
@@ -215,8 +216,8 @@ class Receipt {
       }
     }
     
-    // Fallback to "Pending" for drafts without a total
-    return isDraft ? 'Pending' : '\$0.00';
+    // Don't show any amount if it's not meaningful
+    return '';
   }
   
   /// Get the number of people as a string for display

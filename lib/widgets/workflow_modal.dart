@@ -170,6 +170,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   
   final GlobalKey<VoiceAssignmentScreenState> _voiceAssignKey = GlobalKey<VoiceAssignmentScreenState>();
   
+  // Track the previous step to detect changes
+  int? _previousStep;
+  
   @override
   void initState() {
     super.initState();
@@ -202,6 +205,21 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         });
       }
     });
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Get the current step from WorkflowState
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    final currentStep = workflowState.currentStep;
+    
+    // If the step changed, call _updateCurrentStep
+    if (_previousStep != currentStep) {
+      _previousStep = currentStep;
+      _updateCurrentStep(currentStep);
+    }
   }
   
   @override
@@ -739,7 +757,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                   child: const Text('Save Draft'),
                 ),
           
-          // Next/Complete button
+          // Next/Complete button - Show Complete button on Summary step (2), Next button otherwise
           if (!isLastStep) ...[
             Builder(
               builder: (context) {
@@ -768,11 +786,11 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 );
               }
             ),
-          ] else ...[ // Show Complete button on last step
+          ] else ...[ // Only show Exit button on last step (auto-completion is handled)
              FilledButton.icon(
-                  onPressed: () => _completeReceipt(),
-                  label: const Text('Complete'),
-                  icon: const Icon(Icons.check),
+                  onPressed: () => _handleNavigationExitAction(),
+                  label: const Text('Exit'),
+                  icon: const Icon(Icons.arrow_back),
                 ),
           ],
         ],
@@ -1287,5 +1305,105 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         ),
       ),
     );
+  }
+
+  void _updateCurrentStep(int currentStep) {
+    debugPrint('[_WorkflowModalBodyState._updateCurrentStep] Setting current step to $currentStep');
+    // No need to track the step locally since it's managed by WorkflowState
+    
+    // Auto-complete the receipt if we've reached the summary step and have assignment data
+    if (currentStep == 2) { // Summary step
+      _autoCompleteDraftIfDataExists();
+    }
+  }
+
+  // Auto-complete the draft receipt if it has meaningful data
+  void _autoCompleteDraftIfDataExists() async {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
+    // Check for existing assignment data as an indicator
+    bool shouldAutoComplete = false;
+    
+    // Check if this is a draft receipt by checking status
+    final bool isDraft = workflowState.receiptId != null && 
+        (workflowState.toReceipt().status == 'draft');
+    
+    if (isDraft && 
+        workflowState.hasAssignmentData && 
+        workflowState.assignPeopleToItemsResult != null) {
+      
+      // Check for assignments data (people with items)
+      if (workflowState.assignPeopleToItemsResult!.containsKey('assignments')) {
+        final assignments = workflowState.assignPeopleToItemsResult!['assignments'];
+        
+        if (assignments is List && assignments.isNotEmpty) {
+          // Check if any person has items assigned
+          for (var assignment in assignments) {
+            if (assignment is Map<String, dynamic> && 
+                assignment.containsKey('items') &&
+                assignment['items'] is List &&
+                (assignment['items'] as List).isNotEmpty) {
+              shouldAutoComplete = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Also check for shared items - if any exist, it's a valid split
+      if (!shouldAutoComplete && 
+          workflowState.assignPeopleToItemsResult!.containsKey('shared_items')) {
+        final sharedItems = workflowState.assignPeopleToItemsResult!['shared_items'];
+        if (sharedItems is List && sharedItems.isNotEmpty) {
+          shouldAutoComplete = true;
+        }
+      }
+      
+      // Check for people data
+      if (shouldAutoComplete && workflowState.people.isNotEmpty) {
+        debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Auto-completing draft - Contains ${workflowState.people.length} people and meaningful assignment data');
+        
+        try {
+          final receipt = workflowState.toReceipt();
+          final Map<String, dynamic> receiptData = receipt.toMap();
+          
+          // Set the status explicitly to completed
+          receiptData['metadata']['status'] = 'completed';
+          
+          // Save the receipt as completed
+          final String definitiveReceiptId = await _firestoreService.completeReceipt( 
+            receiptId: receipt.id, 
+            data: receiptData,
+          );
+          
+          // Update the state
+          if (mounted) {
+            workflowState.setReceiptId(definitiveReceiptId);
+            
+            // Update the model
+            // Instead of using setStatus, directly update the parseReceipt model to reflect completion
+            final updatedReceiptData = Map<String, dynamic>.from(receiptData);
+            if (workflowState.parseReceiptResult.isNotEmpty) {
+              workflowState.setParseReceiptResult(updatedReceiptData['parse_receipt'] as Map<String, dynamic>? ?? {});
+            }
+            
+            workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
+            workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
+            
+            // Show a toast to notify the user that the receipt was auto-completed
+            showAppToast(context, "Receipt auto-completed successfully", AppToastType.success);
+          }
+        } catch (e) {
+          debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Error auto-completing draft: $e');
+          // Don't show error to user, as this is happening behind the scenes
+        }
+      } else {
+        debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Not auto-completing - insufficient data');
+      }
+    } else if (workflowState.receiptId != null && workflowState.toReceipt().status == 'completed') {
+      debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Receipt already marked as completed');
+    } else {
+      debugPrint('[_WorkflowModalBodyState._autoCompleteDraftIfDataExists] Not auto-completing - missing assignment data');
+    }
   }
 }
