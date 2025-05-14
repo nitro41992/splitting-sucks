@@ -711,10 +711,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         ],
       ),
       child: Row(
-        mainAxisAlignment: isSummaryStep ? MainAxisAlignment.end : MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: isSummaryStep ? MainAxisAlignment.spaceBetween : MainAxisAlignment.spaceBetween,
         children: [
-          // Back button (hidden on first step AND on summary step)
-          if (!isSummaryStep && currentStep > 0)
+          // Back button (hidden only on first step - always show on summary)
+          if (currentStep > 0)
             TextButton.icon(
               onPressed: () async {
                 if (currentStep == 1) {
@@ -726,7 +726,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
               icon: const Icon(Icons.arrow_back),
               label: const Text('Back'),
             )
-          else if (!isSummaryStep) // Placeholder if Back is hidden but not summary step (to balance spaceBetween)
+          else // Placeholder if Back is hidden (to balance spaceBetween)
              const SizedBox(width: 88), // Adjust width to match typical back button space
           
           // Middle button - Exit (only shown if NOT on summary step)

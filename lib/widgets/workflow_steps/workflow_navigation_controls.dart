@@ -60,7 +60,7 @@ class WorkflowNavigationControls extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Back button
+              // Back button - Always visible if not on first step
               TextButton.icon(
                 key: backButtonKey,
                 onPressed: currentStep > 0 // Use local currentStep
@@ -69,27 +69,10 @@ class WorkflowNavigationControls extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back),
                 label: const Text('Back'),
               ),
-
-              // Middle button - conditionally rendered
-              // Removed for summary step to avoid redundancy with the right-most Exit button.
-              if (!isSummaryStep) ...[
-                if (currentStep < 4) ...[ // Assuming original logic for steps other than summary
-                  OutlinedButton(
-                    key: exitButtonKey,
-                    onPressed: onExitAction,
-                    child: const Text('Exit'),
-                  )
-                ] else ...[ // Assuming original logic for step 4 (if it existed in a different flow)
-                  OutlinedButton(
-                    key: saveDraftButtonKey,
-                    onPressed: onSaveDraftAction,
-                    child: const Text('Save Draft'),
-                  ),
-                ]
-              ],
-
-              // Next/Complete/Exit button
-              if (!isSummaryStep) ...[
+              
+              // Right side button(s) - depend on current step
+              if (!isSummaryStep) 
+                // For non-summary steps, show Next button
                 FilledButton.icon(
                   key: nextButtonKey,
                   onPressed: isNextEnabled
@@ -97,15 +80,15 @@ class WorkflowNavigationControls extends StatelessWidget {
                       : null,
                   label: const Text('Next'),
                   icon: const Icon(Icons.arrow_forward),
-                ),
-              ] else ...[
+                )
+              else 
+                // For summary step, show Exit button
                 FilledButton.icon(
-                  key: completeButtonKey, // Consider renaming key if it's always Exit now
+                  key: completeButtonKey,
                   onPressed: onExitAction,
                   label: const Text('Exit'),
                   icon: const Icon(Icons.exit_to_app),
                 ),
-              ],
             ],
           ),
         );
