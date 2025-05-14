@@ -35,47 +35,85 @@ class WorkflowState extends ChangeNotifier {
 
   // Load transcription, tip, and tax from SharedPreferences if available
   Future<void> loadTranscriptionFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = _transcriptionPrefsKeyPrefix + (_receiptId ?? 'draft');
-    final jsonString = prefs.getString(key);
-    if (jsonString != null && jsonString.isNotEmpty) {
-      try {
-        final data = jsonDecode(jsonString) as Map<String, dynamic>;
-        if (data['text'] != null) {
-          _transcribeAudioResult = {'text': data['text']};
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _transcriptionPrefsKeyPrefix + (_receiptId ?? 'draft');
+      final jsonString = prefs.getString(key);
+      
+      if (jsonString != null && jsonString.isNotEmpty) {
+        try {
+          final data = jsonDecode(jsonString) as Map<String, dynamic>;
+          bool changed = false;
+          
+          if (data.containsKey('text')) {
+            final transcriptionMap = {'text': data['text']};
+            if (_transcribeAudioResult != transcriptionMap) {
+              _transcribeAudioResult = transcriptionMap;
+              changed = true;
+            }
+          }
+          
+          if (data.containsKey('tip')) {
+            final tipValue = data['tip'] as double?;
+            if (_tip != tipValue) {
+              _tip = tipValue;
+              changed = true;
+            }
+          }
+          
+          if (data.containsKey('tax')) {
+            final taxValue = data['tax'] as double?;
+            if (_tax != taxValue) {
+              _tax = taxValue;
+              changed = true;
+            }
+          }
+          
+          if (changed) {
+            notifyListeners();
+          }
+        } catch (e) {
+          debugPrint('Error parsing transcription JSON from SharedPreferences: $e');
+          // Don't crash if JSON is malformed
         }
-        if (data['tip'] != null) {
-          _tip = (data['tip'] as num).toDouble();
-        }
-        if (data['tax'] != null) {
-          _tax = (data['tax'] as num).toDouble();
-        }
-        notifyListeners();
-      } catch (e) {
-        debugPrint('Error decoding transcription/tip/tax from prefs: $e');
       }
+    } catch (e) {
+      debugPrint('Error loading transcription from SharedPreferences: $e');
     }
   }
 
-  // Save transcription, tip, and tax to SharedPreferences
+  // Save transcription text, tip, and tax to SharedPreferences
   Future<void> saveTranscriptionToPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = _transcriptionPrefsKeyPrefix + (_receiptId ?? 'draft');
-    final text = _transcribeAudioResult['text'] as String?;
-    final data = <String, dynamic>{};
-    if (text != null && text.isNotEmpty) {
-      data['text'] = text;
-    }
-    if (_tip != null) {
-      data['tip'] = _tip;
-    }
-    if (_tax != null) {
-      data['tax'] = _tax;
-    }
-    if (data.isNotEmpty) {
-      await prefs.setString(key, jsonEncode(data));
-    } else {
-      await prefs.remove(key);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = _transcriptionPrefsKeyPrefix + (_receiptId ?? 'draft');
+      
+      // Prepare data to save
+      final Map<String, dynamic> dataToSave = {};
+      
+      // Add text from transcribeAudioResult if available
+      if (_transcribeAudioResult.containsKey('text')) {
+        dataToSave['text'] = _transcribeAudioResult['text'];
+      }
+      
+      // Add tip and tax if they have values
+      if (_tip != null) {
+        dataToSave['tip'] = _tip;
+      }
+      
+      if (_tax != null) {
+        dataToSave['tax'] = _tax;
+      }
+      
+      // Only save if we have at least one value to save
+      if (dataToSave.isNotEmpty) {
+        await prefs.setString(key, jsonEncode(dataToSave));
+      } else {
+        // If no data, remove the key to clean up
+        await prefs.remove(key);
+      }
+    } catch (e) {
+      debugPrint('Error saving transcription to SharedPreferences: $e');
     }
   }
 
@@ -83,10 +121,10 @@ class WorkflowState extends ChangeNotifier {
       : _restaurantName = restaurantName,
         _receiptId = receiptId,
         _imageStateManager = imageStateManager ?? ImageStateManager() {
-    debugPrint('[WorkflowState Constructor] Initial _transcribeAudioResult: [38;5;2m$_transcribeAudioResult[0m');
-    if (_receiptId != null) {
-      loadTranscriptionFromPrefs();
-    }
+    debugPrint('[WorkflowState Constructor] Initial _transcribeAudioResult: $_transcribeAudioResult');
+    
+    // Always try to load data, whether for a specific receipt or for drafts
+    loadTranscriptionFromPrefs();
   }
 
   // Getters
@@ -185,37 +223,47 @@ class WorkflowState extends ChangeNotifier {
   }
 
   void setTranscribeAudioResult(Map<String, dynamic>? result) {
-    debugPrint('[WorkflowState setTranscribeAudioResult] Received result: $result');
-    _transcribeAudioResult = result ?? {};
-    debugPrint('[WorkflowState setTranscribeAudioResult] _transcribeAudioResult is now: $_transcribeAudioResult');
-    saveTranscriptionToPrefs();
-    notifyListeners();
+    if (result == null) {
+      if (_transcribeAudioResult.isNotEmpty) {
+        _transcribeAudioResult = {};
+        saveTranscriptionToPrefs();
+        notifyListeners();
+      }
+    } else {
+      debugPrint('[WorkflowState setTranscribeAudioResult] Received result: $result');
+      _transcribeAudioResult = Map<String, dynamic>.from(result);
+      debugPrint('[WorkflowState setTranscribeAudioResult] _transcribeAudioResult is now: $_transcribeAudioResult');
+      saveTranscriptionToPrefs();
+      notifyListeners();
+    }
   }
 
   void setAssignPeopleToItemsResult(Map<String, dynamic>? result) {
-    _assignPeopleToItemsResult = result ?? {};
-    debugPrint('[WorkflowState] setAssignPeopleToItemsResult set to: ${_assignPeopleToItemsResult}');
-    // Preserve tip and tax values when setting assignment data
-    // _tip = null;
-    // _tax = null;
-    _people = _extractPeopleFromAssignments();
+    if (result == null || result.isEmpty) {
+      // Reset assignment data, but preserve tip/tax
+      _assignPeopleToItemsResult = {};
+      _people = [];
+    } else {
+      debugPrint('[WorkflowState] setAssignPeopleToItemsResult set to: $result');
+      _assignPeopleToItemsResult = Map<String, dynamic>.from(result);
+      // Extract people
+      _people = _extractPeopleFromAssignments();
+    }
     notifyListeners();
   }
 
   void setTip(double? value) {
-    if (_tip != value) {
-      _tip = value;
-      saveTranscriptionToPrefs();
-      notifyListeners();
-    }
+    // Always update and notify in the current implementation
+    _tip = value;
+    saveTranscriptionToPrefs();
+    notifyListeners();
   }
 
   void setTax(double? value) {
-    if (_tax != value) {
-      _tax = value;
-      saveTranscriptionToPrefs();
-      notifyListeners();
-    }
+    // Always update and notify in the current implementation
+    _tax = value;
+    saveTranscriptionToPrefs();
+    notifyListeners();
   }
 
   void setLoading(bool loading) {
@@ -268,11 +316,15 @@ class WorkflowState extends ChangeNotifier {
     // when receiptId parameter is null in saveDraft/saveReceipt.
     final String receiptId = _receiptId ?? 'temp_${DateTime.now().millisecondsSinceEpoch}';
     
+    // Get URIs safely handling potential nulls
+    final imageUri = _imageStateManager.actualImageGsUri;
+    final thumbnailUri = _imageStateManager.actualThumbnailGsUri;
+    
     return Receipt(
       id: receiptId, // Use temporary ID when _receiptId is null
       restaurantName: _restaurantName,
-      imageUri: _imageStateManager.actualImageGsUri,
-      thumbnailUri: _imageStateManager.actualThumbnailGsUri,
+      imageUri: imageUri,
+      thumbnailUri: thumbnailUri,
       parseReceipt: _parseReceiptResult, // This map contains the items list
       transcribeAudio: _transcribeAudioResult,
       assignPeopleToItems: _assignPeopleToItemsResult, // This map contains assignments
@@ -288,45 +340,52 @@ class WorkflowState extends ChangeNotifier {
     );
   }
 
+  // Extract people from assignments result
   List<String> _extractPeopleFromAssignments() {
-    if (_assignPeopleToItemsResult.isEmpty ||
-        !_assignPeopleToItemsResult.containsKey('assignments')) {
+    return _extractPeopleFromAssignmentsMap(_assignPeopleToItemsResult);
+  }
+  
+  // Extract people from a provided assignments map
+  List<String> _extractPeopleFromAssignmentsMap(Map<String, dynamic> assignments) {
+    if (assignments.isEmpty ||
+        !assignments.containsKey('assignments')) {
       return [];
     }
 
     // Check if 'assignments' is a list before casting
-    final dynamic assignmentsDynamic = _assignPeopleToItemsResult['assignments'];
+    final dynamic assignmentsDynamic = assignments['assignments'];
     if (assignmentsDynamic is! List) {
       debugPrint('[WorkflowState _extractPeopleFromAssignments] \'assignments\' is not a List. Found: ${assignmentsDynamic.runtimeType}');
       return [];
     }
-    final List<dynamic> assignmentsList = assignmentsDynamic; // Safe cast now, renamed to avoid conflict
 
-    if (assignmentsList.isEmpty) {
-      return [];
-    }
+    final List<dynamic> assignmentsList = assignmentsDynamic;
+    final Set<String> peopleNames = {}; // Use a Set to avoid duplicates
 
-    final Set<String> peopleSet = {};
-    for (var assignmentItem in assignmentsList) { // Use the correctly typed and named list
-      if (assignmentItem is Map<String, dynamic> &&
-          assignmentItem.containsKey('people')) {
-        
-        // Check if 'people' is a list before casting
-        final dynamic peopleInAssignmentDynamic = assignmentItem['people'];
-        if (peopleInAssignmentDynamic is! List) {
-          debugPrint('[WorkflowState _extractPeopleFromAssignments] \'people\' in an assignment is not a List. Found: ${peopleInAssignmentDynamic.runtimeType}');
-          continue; // Skip this assignment item
+    for (var assignment in assignmentsList) {
+      if (assignment is! Map) {
+        continue; // Skip non-map assignments
+      }
+
+      final Map<dynamic, dynamic> assignmentMap = assignment;
+      final dynamic peopleListDynamic = assignmentMap['people'];
+      if (peopleListDynamic is! List) {
+        if (peopleListDynamic != null) {
+          debugPrint('[WorkflowState _extractPeopleFromAssignments] \'people\' in an assignment is not a List. Found: ${peopleListDynamic.runtimeType}');
         }
-        final List<dynamic> peopleInAssignment = peopleInAssignmentDynamic; // Safe cast now
+        continue; // Skip when people isn't a list
+      }
 
-        for (var person in peopleInAssignment) {
-          if (person is String && person.isNotEmpty) { // Also check if string is not empty
-            peopleSet.add(person);
-          }
+      final List<dynamic> peopleList = peopleListDynamic;
+      for (var person in peopleList) {
+        if (person != null) {
+          // Try to ensure we get a string representation no matter what
+          peopleNames.add(person.toString());
         }
       }
     }
-    return peopleSet.toList();
+
+    return peopleNames.toList();
   }
 
   // Methods for clearing data for subsequent steps

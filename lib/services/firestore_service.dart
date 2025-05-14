@@ -202,9 +202,15 @@ class FirestoreService {
     // Set status to draft
     data['metadata']['status'] = 'draft';
     
+    // Handle temporary IDs - if receiptId starts with 'temp_', treat it as null
+    String? finalReceiptId = receiptId;
+    if (receiptId != null && receiptId.startsWith('temp_')) {
+      finalReceiptId = null; // Force generation of a new ID
+    }
+    
     // Save the receipt
     return await saveReceipt(
-      receiptId: receiptId,
+      receiptId: finalReceiptId,
       data: data,
     );
   }

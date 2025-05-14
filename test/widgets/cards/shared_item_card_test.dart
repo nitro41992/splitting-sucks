@@ -7,14 +7,47 @@ import 'package:billfie/models/person.dart';
 import 'package:billfie/models/split_manager.dart';
 import 'package:billfie/widgets/cards/shared_item_card.dart';
 
-// Mocks
-
-// Since SplitManager extends ChangeNotifier, our mock needs to handle that.
-// Mockito's Mock class should be sufficient if SplitManager's interface is clear.
-class MockSplitManager extends Mock implements SplitManager {}
-
-// We'll use real Person objects because managing their internal lists (like sharedItems)
-// with Mockito stubs can be more complex than direct manipulation for this test.
+// Create a more complete mock implementation
+class MockSplitManager extends Mock implements SplitManager {
+  final List<Person> _people = [];
+  
+  @override
+  List<Person> get people => _people;
+  
+  void addMockPerson(Person person) {
+    _people.add(person);
+  }
+  
+  @override
+  List<Person> getPeopleForSharedItem(ReceiptItem item) {
+    return _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).toList();
+  }
+  
+  @override
+  void addPersonToSharedItem(ReceiptItem item, Person person) {
+    // Implementation for tests
+  }
+  
+  @override
+  void removePersonFromSharedItem(ReceiptItem item, Person person) {
+    // Implementation for tests
+  }
+  
+  @override
+  void removeItemFromShared(ReceiptItem item) {
+    // Implementation for tests
+  }
+  
+  @override
+  void addUnassignedItem(ReceiptItem item) {
+    // Implementation for tests
+  }
+  
+  @override
+  void updateItemQuantity(ReceiptItem item, int newQuantity) {
+    // Implementation for tests
+  }
+}
 
 void main() {
   late MockSplitManager mockSplitManager;
@@ -39,22 +72,16 @@ void main() {
     personBob.addSharedItem(ReceiptItem.clone(sharedItemNachos));
     // personCarol.sharedItems remains empty or without 'nachos_id_001'
 
-    final List<Person> peopleList = [personAlice, personBob, personCarol];
-
-    // Stub the 'people' getter on MockSplitManager.
-    // SharedItemCard uses context.select((SplitManager sm) => sm.people),
-    // so the mock must correctly provide this list.
-    when(mockSplitManager.people).thenReturn(peopleList);
-
-    // If SharedItemCard calls other methods on SplitManager during build or interaction,
-    // those might need stubbing too (e.g., getPeopleForSharedItem, updateItemQuantity, etc.)
-    // For initial render and chip selection state, 'people' and 'person.sharedItems' are key.
+    // Add people to the mock manager
+    mockSplitManager.addMockPerson(personAlice);
+    mockSplitManager.addMockPerson(personBob);
+    mockSplitManager.addMockPerson(personCarol);
   });
 
   Widget buildTestableWidget(ReceiptItem itemToDisplayInCard) {
     return MaterialApp(
       home: Scaffold(
-        body: ChangeNotifierProvider<SplitManager>.value( // Use ChangeNotifierProvider if SplitManager is a ChangeNotifier
+        body: ChangeNotifierProvider<SplitManager>.value(
           value: mockSplitManager,
           child: SharedItemCard(item: itemToDisplayInCard),
         ),
