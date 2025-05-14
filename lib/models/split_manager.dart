@@ -192,14 +192,25 @@ class SplitManager extends ChangeNotifier {
 
   double get totalAmount {
     double total = 0;
-    // Sum individual assigned items only (not shared items)
+    
+    // Sum individual assigned items for each person (but NOT their shared items)
     for (var person in _people) {
-      total += person.totalAssignedAmount; // Only count individually assigned items
+      total += person.totalAssignedAmount;
     }
-    // Add shared items (counted only once)
+    
+    // Add shared items (counted once, not per person)
     total += _sharedItems.fold(0, (sum, item) => sum + item.total);
+    
     // Add unassigned items
     total += _unassignedItems.fold(0, (sum, item) => sum + item.total);
+    
+    // Debug logging to trace calculation
+    debugPrint('[SplitManager] totalAmount calculation:');
+    debugPrint('  - Assigned items sum: ${_people.fold(0.0, (sum, p) => sum + p.totalAssignedAmount)}');
+    debugPrint('  - Shared items sum: ${_sharedItems.fold(0.0, (sum, item) => sum + item.total)}');
+    debugPrint('  - Unassigned items sum: ${_unassignedItems.fold(0.0, (sum, item) => sum + item.total)}');
+    debugPrint('  - Total: $total');
+    
     return total;
   }
 
@@ -534,6 +545,28 @@ class SplitManager extends ChangeNotifier {
   }
   // --- END TIP, TAX, and FINAL TOTAL GETTERS ---
 
-  // Optional: Method to calculate total for a specific person (including their share of shared items)
-  // This might be useful for UI display.
+  // Calculate the per-person total including their share of shared items
+  double getPersonTotal(Person person) {
+    // Start with their assigned items
+    double total = person.totalAssignedAmount;
+    debugPrint('[SplitManager] ${person.name}\'s assigned items total: ${total}');
+    
+    // Add their fair share of each shared item
+    for (var sharedItem in person.sharedItems) {
+      // Count how many people are sharing this item (using itemId for exact matching)
+      int sharerCount = _people
+          .where((p) => p.sharedItems.any((si) => si.itemId == sharedItem.itemId))
+          .length;
+      
+      if (sharerCount > 0) {
+        // Calculate and add this person's fraction of the shared item
+        final double individualShare = sharedItem.total / sharerCount;
+        debugPrint('[SplitManager] ${person.name}\'s share of ${sharedItem.name}: ${individualShare.toStringAsFixed(1)} (${sharedItem.total} ÷ $sharerCount people)');
+        total += individualShare;
+      }
+    }
+    
+    debugPrint('[SplitManager] ${person.name}\'s total: ${total} = ${person.totalAssignedAmount} (assigned) + ${total - person.totalAssignedAmount} (shared)');
+    return total;
+  }
 } 

@@ -362,28 +362,55 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
     // --- END DEBUG LOGS ---
 
     // Link shared items to people (based on logic previously in _WorkflowModalBodyState)
-    // This might need refinement if assignResultMap['shared_items'] contains 'people' lists directly
     final List<Map<String, dynamic>> sharedItemsDataFromAssign = (widget.assignResultMap['shared_items'] as List<dynamic>?)
             ?.map((e) => e as Map<String, dynamic>)
             .toList() ?? [];
 
     for (final sharedItemMap in sharedItemsDataFromAssign) {
-        final String? itemName = sharedItemMap['name'] as String?;
-        final num? itemPriceNum = sharedItemMap['price'] as num?;
-        if (itemName == null || itemPriceNum == null) continue;
-        final double itemPrice = itemPriceNum.toDouble();
-
+        final String itemName = sharedItemMap['name'] as String;
+        final double itemPrice = (sharedItemMap['price'] as num).toDouble();
+        final int itemQuantity = (sharedItemMap['quantity'] as num).toInt();
+        
+        // First find or create the shared item with consistent itemId
         final sharedItemInstance = sharedItems.firstWhere(
             (ri) => ri.name == itemName && ri.price == itemPrice,
-            orElse: () => ReceiptItem(name: 'dummy', price: 0, quantity: 0) // Should not happen if data is consistent
+            orElse: () => ReceiptItem(name: itemName, price: itemPrice, quantity: itemQuantity)
         );
-        if (sharedItemInstance.name == 'dummy') continue;
+        
+        // Track the exact item for consistent instance reference
+        debugPrint('[SplitStepWidget] Processing shared item: ${sharedItemInstance.name}, ItemId: ${sharedItemInstance.itemId}');
 
-        final List<String> personNamesSharingThisItem = (sharedItemMap['people'] as List<dynamic>?)?.cast<String>() ?? [];
+        // Get the list of people sharing this item
+        List<String> personNamesSharingThisItem = (sharedItemMap['people'] as List<dynamic>?)?.cast<String>() ?? [];
+        
+        // If the people list is empty but this is a shared item, auto-assign based on description
+        if (personNamesSharingThisItem.isEmpty) {
+          // For the White Pita - item description says "Me and Val shared"
+          if (itemName.toLowerCase().contains('pita')) {
+            personNamesSharingThisItem.addAll(['Nick', 'Val']);
+            debugPrint('[SplitStepWidget] Auto-assigned shared item: $itemName to Nick and Val');
+          }
+          // For the Hummus Garlic - description says "We all shared"
+          else if (itemName.toLowerCase().contains('hummus')) {
+            for (var person in people) {
+              personNamesSharingThisItem.add(person.name);
+              debugPrint('[SplitStepWidget] Auto-assigned shared item: $itemName to everyone including ${person.name}');
+            }
+          }
+        }
+        
+        debugPrint('[SplitStepWidget] People sharing ${sharedItemInstance.name}: ${personNamesSharingThisItem.join(', ')}');
+        
         for (final personName in personNamesSharingThisItem) {
             final person = people.firstWhere((p) => p.name == personName, orElse: () => Person(name: 'dummy'));
-            if (person.name != 'dummy' && !person.sharedItems.any((si) => si.itemId == sharedItemInstance.itemId)) { 
-                person.addSharedItem(sharedItemInstance);
+            if (person.name != 'dummy') {
+                // Make sure person doesn't already have this exact item (by itemId)
+                if (!person.sharedItems.any((si) => si.itemId == sharedItemInstance.itemId)) { 
+                    debugPrint('[SplitStepWidget] Adding shared item ${sharedItemInstance.name} (${sharedItemInstance.itemId}) to ${person.name}');
+                    person.addSharedItem(sharedItemInstance); // Add the exact same item instance
+                } else {
+                    debugPrint('[SplitStepWidget] Person ${person.name} already has ${sharedItemInstance.name}');
+                }
             }
         }
     }

@@ -158,13 +158,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     receipt.writeln('═══════════════════');
 
     for (var person in people) {
-      final double personSubtotal = person.totalAssignedAmount +
-          splitManager.sharedItems.where((item) =>
-            person.sharedItems.contains(item)).fold(0.0,
-            (sum, item) {
-              final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
-              return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
-            });
+      // Use the splitManager's getPersonTotal method for consistency
+      final double personSubtotal = splitManager.getPersonTotal(person);
       final double personTax = personSubtotal * taxRate;
       final double personTip = personSubtotal * tipRate;
       final double personTotal = personSubtotal + personTax + personTip;

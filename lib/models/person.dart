@@ -50,7 +50,13 @@ class Person extends ChangeNotifier {
   }
 
   double get totalSharedAmount {
-    return _sharedItems.fold(0, (sum, item) => sum + (item.price * item.quantity));
+    double total = 0.0;
+    for (var item in _sharedItems) {
+      // Debug the shared item calculation
+      debugPrint('[Person:$_name] SharedItem: ${item.name}, Price: ${item.price}, Qty: ${item.quantity}, ItemId: ${item.itemId}');
+      total += (item.price * item.quantity);
+    }
+    return total;
   }
 
   double get totalAmount {

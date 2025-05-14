@@ -28,21 +28,31 @@ class PersonSummaryCard extends StatelessWidget {
     // Calculate individual items total
     final double individualItemsTotal = person.totalAssignedAmount;
     
-    // Calculate shared items total
-    final double sharedItemsTotal = person.sharedItems.fold(
-      0.0,
-      (sum, item) {
-        final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
-        return sum + (sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0);
-      },
-    );
+    // Get person's total from SplitManager (includes shared items split by number of people sharing)
+    final double personSubtotal = splitManager.getPersonTotal(person);
     
-    // Calculate complete subtotal (individual + shared)
-    final double personSubtotal = individualItemsTotal + sharedItemsTotal;
+    // Calculate shared items portion for display
+    final double sharedItemsTotal = personSubtotal - individualItemsTotal;
     
     final double personTax = personSubtotal * taxRate;
     final double personTip = personSubtotal * tipRate;
     final double personTotal = personSubtotal + personTax + personTip;
+
+    // Debug the calculation
+    debugPrint('[PersonSummaryCard] ${person.name} totals:');
+    debugPrint('  - Individual: \$${individualItemsTotal.toStringAsFixed(2)}');
+    debugPrint('  - Shared: \$${sharedItemsTotal.toStringAsFixed(2)}');
+    debugPrint('  - Subtotal: \$${personSubtotal.toStringAsFixed(2)}');
+    // Debug shared items in detail
+    if (person.sharedItems.isNotEmpty) {
+      debugPrint('[PersonSummaryCard] Shared items for ${person.name}:');
+      for (var item in person.sharedItems) {
+        final int sharerCount = splitManager.people
+            .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
+            .length;
+        debugPrint('  - ${item.name} (${item.itemId}): \$${item.price.toStringAsFixed(1)} × ${item.quantity} ÷ ${sharerCount} people = \$${(item.total / sharerCount).toStringAsFixed(2)} per person');
+      }
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -131,7 +141,10 @@ class PersonSummaryCard extends StatelessWidget {
             String details = '';
             double itemCost = item.price * item.quantity;
             if (isShared) {
-              final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
+              final sharingCount = splitManager.people
+                  .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
+                  .length;
+              
               final individualShare = sharingCount > 0 ? (itemCost / sharingCount) : 0.0;
               details = '(${sharingCount}-way split: \$${individualShare.toStringAsFixed(2)})';
             } else {

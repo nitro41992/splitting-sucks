@@ -126,8 +126,12 @@ class SharedItemCard extends StatelessWidget {
                           }
                         },
                         selectedColor: colorScheme.primary,
-                        backgroundColor: isSelected ? colorScheme.primary.withOpacity(0.15) : colorScheme.surfaceVariant,
-                        checkmarkColor: colorScheme.onPrimary,
+                        backgroundColor: isSelected
+                            ? colorScheme.primary.withOpacity(0.90)
+                            : colorScheme.surfaceVariant,
+                        checkmarkColor: isSelected
+                            ? colorScheme.onPrimary
+                            : colorScheme.primary,
                         labelStyle: TextStyle(
                           color: isSelected
                               ? colorScheme.onPrimary
@@ -135,13 +139,18 @@ class SharedItemCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                         visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         shape: StadiumBorder(
                           side: BorderSide(
-                            color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
-                            width: 1.5,
+                            color: isSelected
+                                ? colorScheme.primary
+                                : colorScheme.outlineVariant,
+                            width: isSelected ? 2.5 : 1.5,
                           ),
                         ),
+                        elevation: isSelected ? 4 : 0,
+                        shadowColor: isSelected ? colorScheme.primary.withOpacity(0.3) : null,
+                        showCheckmark: true,
                       );
                     }).toList(),
                   ),

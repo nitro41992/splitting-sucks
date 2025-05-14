@@ -29,7 +29,7 @@ This document tracks known bugs and their status for the splitting_sucks project
 
 ### 5. Shared People Not Highlighted in Edit Screen (Summary View)
 - **Status:** Partially Fixed / Pending
-- **Notes:** Shared people chips in the Shared tab are now visually distinct (filled and colored) when selected. However, highlighting is still inconsistent in the Shared tab of the edit view. Changes to shared items now call `notifyListeners()` on `SplitManager`, ensuring the summary and person cards update immediately. Please verify that highlighting works and shared items are reflected in the summary and person cards.
+- **Notes:** Shared people chips in the Shared tab are not visually distinct (filled and colored) when selected. However, highlighting is still inconsistent in the Shared tab of the edit view. Changes to shared items now call `notifyListeners()` on `SplitManager`, ensuring the summary and person cards update immediately. Please verify that highlighting works and shared items are reflected in the summary and person cards. Use `flutter test` to check for bugs relating to this.
 - **References:** Summary view, Share tab, UI screenshot (flutter_01.png)
 - **My Notes:** Partially fixed. I see the shared items in the people summary card. But in the Shared tab of the edit view, the people are not highlighted on the card. This is still pending.
 --- 
