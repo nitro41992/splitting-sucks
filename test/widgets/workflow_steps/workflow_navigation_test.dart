@@ -30,7 +30,7 @@ void main() {
     setUp(() {
       tracker = MockCallbackTracker();
       workflowState = WorkflowState(restaurantName: 'Test Restaurant');
-      workflowState.goToStep(4); // Set to Summary step to show Complete button
+      workflowState.goToStep(2); // Set to Summary step to show Complete button (step 2 in 3-step workflow)
     });
 
     testWidgets('Complete button action calls the complete callback', (WidgetTester tester) async {

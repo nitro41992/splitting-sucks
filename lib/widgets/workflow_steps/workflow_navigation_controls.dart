@@ -7,7 +7,7 @@ const Key backButtonKey = ValueKey('workflow_back_button');
 const Key exitButtonKey = ValueKey('workflow_exit_button');
 const Key saveDraftButtonKey = ValueKey('workflow_save_draft_button');
 const Key nextButtonKey = ValueKey('workflow_next_button');
-const Key completeButtonKey = ValueKey('workflow_complete_button');
+const Key completeButtonKey = ValueKey('complete_workflow_button');
 
 class WorkflowNavigationControls extends StatelessWidget {
   // final int currentStep; // REMOVE: Get from WorkflowState via Consumer
@@ -41,6 +41,9 @@ class WorkflowNavigationControls extends StatelessWidget {
           // assignment data must be present.
           isNextEnabled = false;
         }
+
+        // Check if current step is the Summary step - in the 3-step workflow, Summary is step 2
+        final isSummaryStep = currentStep == 2;
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -80,8 +83,8 @@ class WorkflowNavigationControls extends StatelessWidget {
                       child: const Text('Save Draft'),
                     ),
 
-              // Next/Complete button
-              if (currentStep < 4) ...[ // Use local currentStep
+              // Next/Complete button - Show Complete button on Summary step (2), Next button otherwise
+              if (!isSummaryStep) ...[
                 FilledButton.icon(
                   key: nextButtonKey,
                   onPressed: isNextEnabled
@@ -93,7 +96,7 @@ class WorkflowNavigationControls extends StatelessWidget {
               ] else ...[
                 FilledButton.icon(
                   key: completeButtonKey,
-                  onPressed: onCompleteAction, // Directly use the passed callback
+                  onPressed: onCompleteAction,
                   label: const Text('Complete'),
                   icon: const Icon(Icons.check),
                 ),

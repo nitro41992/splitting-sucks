@@ -54,7 +54,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
   bool _isRecording = false;
   bool _isLoading = false; // Loading state specific to this screen
-  bool _tipsExpanded = true; // Track if tips are expanded or collapsed
+  bool _tipsExpanded = false; // Track if tips are expanded or collapsed
   String? _transcription;
 
   @override
@@ -792,7 +792,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                         SizedBox(width: 84), // Space for ID and quantity
                                         Expanded(
                                           child: Text(
-                                            'Total',
+                                            'Subtotal',
                                             style: textTheme.titleSmall?.copyWith(
                                               fontWeight: FontWeight.bold,
                                             ),

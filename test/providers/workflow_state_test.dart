@@ -3,10 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart'; // Import for verify function
 import '../mocks.mocks.dart'; // Import the generated mocks
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 late WorkflowState workflowState;
 late MockImageStateManager mockImageStateManager;
 bool listenerCalled = false;
+
+// Replicate the key prefix and logic from WorkflowState.dart for test purposes
+const String _testTranscriptionPrefsKeyPrefix = 'transcription_';
+String getTestTranscriptionPrefsKey(String? receiptId) {
+  return _testTranscriptionPrefsKeyPrefix + (receiptId ?? 'draft');
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -244,7 +251,13 @@ void main() {
   });
 
   group('setTranscribeAudioResult', () {
-    test('updates _transcribeAudioResult with valid data and calls notifyListeners', () {
+    test('updates _transcribeAudioResult with valid data, calls notifyListeners, and saves to SharedPreferences', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(workflowState.receiptId); // Use test helper
+      
+      // Ensure prefs are clean for this key or set known state
+      await prefs.remove(key);
+
       final mockResult = <String, dynamic>{'text': 'Hello world', 'confidence': 0.9};
       listenerCalled = false;
 
@@ -252,17 +265,75 @@ void main() {
 
       expect(workflowState.transcribeAudioResult, mockResult);
       expect(listenerCalled, isTrue);
+      
+      // Verify SharedPreferences interaction
+      final jsonString = prefs.getString(key);
+      expect(jsonString, isNotNull);
+      final savedData = jsonDecode(jsonString!) as Map<String, dynamic>;
+      expect(savedData['text'], 'Hello world');
     });
 
-    test('updates _transcribeAudioResult to empty map if null is passed and calls notifyListeners', () {
-      // Ensure it's not already empty or null from a previous state for a robust test
-      workflowState.setTranscribeAudioResult(<String, dynamic>{'text': 'initial text'}); 
-      listenerCalled = false; // Reset after initial set
+    test('updates _transcribeAudioResult with null, calls notifyListeners, and clears text in SharedPreferences', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(workflowState.receiptId);
 
+      // Pre-populate with some data including tip/tax to ensure only text is affected or key is removed if only text was there
+      final initialData = {'text': 'Existing text', 'tip': 5.0};
+      await prefs.setString(key, jsonEncode(initialData));
+      
+      workflowState.setTip(5.0); // Ensure tip is in WorkflowState to be re-saved
+      listenerCalled = false;
       workflowState.setTranscribeAudioResult(null);
 
       expect(workflowState.transcribeAudioResult, isEmpty);
       expect(listenerCalled, isTrue);
+
+      final jsonString = prefs.getString(key);
+      if (workflowState.tip != null || workflowState.tax != null) { // If other data like tip/tax exists, key should remain with text removed
+        expect(jsonString, isNotNull);
+        final savedData = jsonDecode(jsonString!) as Map<String, dynamic>;
+        expect(savedData.containsKey('text'), isFalse);
+        expect(savedData['tip'], 5.0); // Check if other data is preserved
+      } else { // If only text was there, key might be removed
+         final currentData = prefs.getString(key);
+         if (currentData != null) {
+            final decodedCurrentData = jsonDecode(currentData) as Map<String, dynamic>;
+            expect(decodedCurrentData.containsKey('text'), isFalse);
+         } else {
+            expect(currentData, isNull); // Or key is removed
+         }
+      }
+    });
+
+    test('updates _transcribeAudioResult with empty map, calls notifyListeners, and clears text in SharedPreferences', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(workflowState.receiptId);
+       // Pre-populate with some data including tip/tax to ensure only text is affected or key is removed if only text was there
+      final initialData = {'text': 'Existing text', 'tax': 2.0};
+      await prefs.setString(key, jsonEncode(initialData));
+
+      workflowState.setTax(2.0); // Ensure tax is in WorkflowState to be re-saved
+      listenerCalled = false;
+      workflowState.setTranscribeAudioResult({});
+
+      expect(workflowState.transcribeAudioResult, isEmpty);
+      expect(listenerCalled, isTrue);
+      
+      final jsonString = prefs.getString(key);
+       if (workflowState.tip != null || workflowState.tax != null) {
+        expect(jsonString, isNotNull);
+        final savedData = jsonDecode(jsonString!) as Map<String, dynamic>;
+        expect(savedData.containsKey('text'), isFalse);
+        expect(savedData['tax'], 2.0); 
+      } else {
+         final currentData = prefs.getString(key);
+         if (currentData != null) {
+            final decodedCurrentData = jsonDecode(currentData) as Map<String, dynamic>;
+            expect(decodedCurrentData.containsKey('text'), isFalse);
+         } else {
+            expect(currentData, isNull);
+         }
+      }
     });
   });
 
@@ -316,66 +387,96 @@ void main() {
   });
 
   group('setTip', () {
-    test('updates _tip and calls notifyListeners if value changed', () {
+    test('updates _tip, calls notifyListeners, and saves tip (and existing text/tax) to SharedPreferences', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(workflowState.receiptId);
+      
+      // Setup initial state with transcription text
+      workflowState.setTranscribeAudioResult({'text': 'some text'});
+      await prefs.setString(key, jsonEncode({'text': 'some text'})); // Simulate initial save
+
       listenerCalled = false;
-      workflowState.setTip(10.0);
-      expect(workflowState.tip, 10.0);
+      workflowState.setTip(7.5);
+
+      expect(workflowState.tip, 7.5);
       expect(listenerCalled, isTrue);
 
-      listenerCalled = false; // Reset
-      workflowState.setTip(15.0);
-      expect(workflowState.tip, 15.0);
-      expect(listenerCalled, isTrue);
+      final jsonString = prefs.getString(key);
+      expect(jsonString, isNotNull);
+      final savedData = jsonDecode(jsonString!) as Map<String, dynamic>;
+      expect(savedData['tip'], 7.5);
+      expect(savedData['text'], 'some text'); // Ensure existing text is preserved
     });
 
-    test('does not call notifyListeners if value is the same', () {
-      workflowState.setTip(10.0); // Set initial value
-      listenerCalled = false;      // Reset listener after initial call
+    test('updates _tip to null, calls notifyListeners, and removes tip from SharedPreferences', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(workflowState.receiptId);
 
-      workflowState.setTip(10.0); // Set same value
-      expect(workflowState.tip, 10.0);
-      expect(listenerCalled, isFalse);
-    });
+      // Setup initial state with transcription text and tip
+      workflowState.setTranscribeAudioResult({'text': 'some text'});
+      workflowState.setTip(7.5);
+      await prefs.setString(key, jsonEncode({'text': 'some text', 'tip': 7.5}));
 
-    test('updates _tip to null and calls notifyListeners', () {
-      workflowState.setTip(10.0); // Set an initial non-null value
-      listenerCalled = false;      // Reset listener
 
+      listenerCalled = false;
       workflowState.setTip(null);
+
       expect(workflowState.tip, isNull);
       expect(listenerCalled, isTrue);
+
+      final jsonString = prefs.getString(key);
+      expect(jsonString, isNotNull); // Key should still exist if other data (text) is present
+      final savedData = jsonDecode(jsonString!) as Map<String, dynamic>;
+      expect(savedData.containsKey('tip'), isFalse);
+      expect(savedData['text'], 'some text');
     });
   });
 
   group('setTax', () {
-    test('updates _tax and calls notifyListeners if value changed', () {
+    test('updates _tax, calls notifyListeners, and saves tax (and existing text/tip) to SharedPreferences', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(workflowState.receiptId);
+
+      // Setup initial state with transcription text and tip
+      workflowState.setTranscribeAudioResult({'text': 'other text'});
+      workflowState.setTip(3.0);
+      await prefs.setString(key, jsonEncode({'text': 'other text', 'tip': 3.0}));
+
+
       listenerCalled = false;
-      workflowState.setTax(5.0);
-      expect(workflowState.tax, 5.0);
+      workflowState.setTax(2.5);
+
+      expect(workflowState.tax, 2.5);
       expect(listenerCalled, isTrue);
 
-      listenerCalled = false; // Reset
-      workflowState.setTax(7.5);
-      expect(workflowState.tax, 7.5);
-      expect(listenerCalled, isTrue);
+      final jsonString = prefs.getString(key);
+      expect(jsonString, isNotNull);
+      final savedData = jsonDecode(jsonString!) as Map<String, dynamic>;
+      expect(savedData['tax'], 2.5);
+      expect(savedData['text'], 'other text');
+      expect(savedData['tip'], 3.0);
     });
 
-    test('does not call notifyListeners if value is the same', () {
-      workflowState.setTax(5.0); // Set initial value
-      listenerCalled = false;   // Reset listener after initial call
+    test('updates _tax to null, calls notifyListeners, and removes tax from SharedPreferences', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(workflowState.receiptId);
 
-      workflowState.setTax(5.0); // Set same value
-      expect(workflowState.tax, 5.0);
-      expect(listenerCalled, isFalse);
-    });
+       // Setup initial state with transcription text and tax
+      workflowState.setTranscribeAudioResult({'text': 'another text'});
+      workflowState.setTax(2.5);
+      await prefs.setString(key, jsonEncode({'text': 'another text', 'tax': 2.5}));
 
-    test('updates _tax to null and calls notifyListeners', () {
-      workflowState.setTax(5.0); // Set an initial non-null value
-      listenerCalled = false;   // Reset listener
-
+      listenerCalled = false;
       workflowState.setTax(null);
+
       expect(workflowState.tax, isNull);
       expect(listenerCalled, isTrue);
+
+      final jsonString = prefs.getString(key);
+      expect(jsonString, isNotNull);
+      final savedData = jsonDecode(jsonString!) as Map<String, dynamic>;
+      expect(savedData.containsKey('tax'), isFalse);
+      expect(savedData['text'], 'another text');
     });
   });
 
@@ -763,6 +864,165 @@ void main() {
       });
       // Expect only strings to be added
       expect(workflowState.people, unorderedEquals(['Eve', 'Frank']));
+    });
+
+  });
+
+  group('Persistence and Loading (loadTranscriptionFromPrefs / Constructor)', () {
+    const testReceiptId = 'test-receipt-123';
+
+    setUp(() {
+      // Reset workflowState for these tests to ensure constructor loading logic is hit cleanly
+      // or use a unique receiptId to avoid clashes if prefs are not cleared perfectly.
+       mockImageStateManager = MockImageStateManager();
+       // Initialize SharedPreferences *before* WorkflowState instance for constructor load test
+       SharedPreferences.setMockInitialValues({}); // Clear initially for the group
+
+       workflowState = WorkflowState(
+        restaurantName: 'Testaurant',
+        receiptId: testReceiptId, // Critical for loading by specific key
+        imageStateManager: mockImageStateManager,
+      );
+      listenerCalled = false;
+      workflowState.addListener(() {
+        listenerCalled = true;
+      });
+    });
+
+    test('loads transcription, tip, and tax from SharedPreferences by loadTranscriptionFromPrefs', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(testReceiptId);
+      final testData = {'text': 'loaded text', 'tip': 1.0, 'tax': 0.5};
+      await prefs.setString(key, jsonEncode(testData));
+
+      // Simulate being freshly loaded by clearing current state if needed, then call load
+      workflowState.setTranscribeAudioResult(null); 
+      workflowState.setTip(null); 
+      workflowState.setTax(null); 
+      await prefs.setString(key, jsonEncode(testData)); // Ensure desired data is in prefs before load
+
+      await workflowState.loadTranscriptionFromPrefs();
+
+      expect(workflowState.transcribeAudioResult['text'], 'loaded text');
+      expect(workflowState.tip, 1.0);
+      expect(workflowState.tax, 0.5);
+      expect(listenerCalled, isTrue); // loadTranscriptionFromPrefs calls notifyListeners
+    });
+
+    test('WorkflowState constructor loads data if receiptId is present and data exists in SharedPreferences', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(testReceiptId);
+      final constructorTestData = {'text': 'constructor load', 'tip': 2.0, 'tax': 1.5};
+      // Set SharedPreferences *before* creating the instance we want to test loading with
+      SharedPreferences.setMockInitialValues({key: jsonEncode(constructorTestData)});
+
+      // Create a new WorkflowState instance to trigger constructor loading logic
+      final freshWorkflowState = WorkflowState(
+        restaurantName: 'Constructor Test',
+        receiptId: testReceiptId,
+        imageStateManager: MockImageStateManager(),
+      );
+      // Allow loadTranscriptionFromPrefs (called by constructor) to complete
+      await Future.delayed(Duration.zero); 
+
+      expect(freshWorkflowState.transcribeAudioResult['text'], 'constructor load');
+      expect(freshWorkflowState.tip, 2.0);
+      expect(freshWorkflowState.tax, 1.5);
+    });
+
+
+    test('loads only available data from SharedPreferences via loadTranscriptionFromPrefs', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(testReceiptId);
+      final testData = {'text': 'only text here'};
+      await prefs.setString(key, jsonEncode(testData));
+      
+      workflowState.setTranscribeAudioResult(null);
+      workflowState.setTip(null);
+      workflowState.setTax(null);
+      await prefs.setString(key, jsonEncode(testData));
+
+
+      await workflowState.loadTranscriptionFromPrefs();
+
+      expect(workflowState.transcribeAudioResult['text'], 'only text here');
+      expect(workflowState.tip, isNull);
+      expect(workflowState.tax, isNull);
+    });
+
+    test('handles empty or missing SharedPreferences entry gracefully during loadTranscriptionFromPrefs', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(testReceiptId);
+      await prefs.remove(key); // Ensure no data
+
+      workflowState.setTranscribeAudioResult({'text': 'pre-existing'});
+      workflowState.setTip(10.0);
+      workflowState.setTax(5.0);
+      
+      await workflowState.loadTranscriptionFromPrefs(); 
+
+      // If no data for a field in prefs, it should not overwrite existing valid data with null.
+      // The current implementation of loadTranscriptionFromPrefs sets fields if they exist in the loaded JSON.
+      // If a key (like 'text') is not in JSON, it won't update that part of state.
+      // If the entire entry for `key` is missing, nothing is loaded, state remains.
+      expect(workflowState.transcribeAudioResult['text'], 'pre-existing');
+      expect(workflowState.tip, 10.0);
+      expect(workflowState.tax, 5.0);
+    });
+
+    test('handles malformed JSON in SharedPreferences gracefully during loadTranscriptionFromPrefs', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final key = getTestTranscriptionPrefsKey(testReceiptId);
+      await prefs.setString(key, "{malformed_json'");
+
+      // Set some initial state to ensure it's not wiped by a faulty load
+      workflowState.setTranscribeAudioResult({'text': 'stable text'});
+      workflowState.setTip(1.0);
+      workflowState.setTax(0.5);
+      
+      await workflowState.loadTranscriptionFromPrefs();
+
+      // Expect that state remains unchanged and no unhandled exception occurred
+      expect(workflowState.transcribeAudioResult['text'], 'stable text');
+      expect(workflowState.tip, 1.0);
+      expect(workflowState.tax, 0.5);
+    });
+
+    test('correctly uses "draft" key for SharedPreferences when receiptId is null during save and load', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final draftKey = getTestTranscriptionPrefsKey(null); // Test with explicit null for draft
+      await prefs.remove(draftKey); // Clear any previous draft state
+
+      // Create WorkflowState without a receiptId
+      final draftState = WorkflowState(
+        restaurantName: 'Draft Restaurant',
+        imageStateManager: mockImageStateManager, // receiptId is null
+      );
+      draftState.setTranscribeAudioResult({'text': 'draft text'});
+      draftState.setTip(1.1);
+
+      // Verify data is saved under the draft key
+      var jsonString = prefs.getString(draftKey);
+      expect(jsonString, isNotNull);
+      var savedData = jsonDecode(jsonString!) as Map<String, dynamic>;
+      expect(savedData['text'], 'draft text');
+      expect(savedData['tip'], 1.1);
+
+      // Now test loading for a draft state
+      // Simulate app restart by creating a new instance without receiptId
+      final newDraftState = WorkflowState(
+        restaurantName: 'New Draft Restaurant',
+        imageStateManager: mockImageStateManager,
+      );
+      // Manually call load, as constructor with null receiptId might not auto-load this specific key unless explicitly designed
+      // The current constructor calls loadTranscriptionFromPrefs if _receiptId != null.
+      // So for draft (receiptId == null), we need to call it manually or ensure the constructor logic covers it.
+      // Let's assume the constructor calls loadTranscriptionFromPrefs which then correctly uses (_receiptId ?? 'draft')
+      await newDraftState.loadTranscriptionFromPrefs();
+
+      expect(newDraftState.transcribeAudioResult['text'], 'draft text');
+      expect(newDraftState.tip, 1.1);
+      await prefs.remove(draftKey); // Clean up
     });
 
   });

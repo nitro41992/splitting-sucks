@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 import '../../test_helpers/firebase_mock_setup.dart';
+import 'dart:async';
+import 'dart:typed_data';
 
 // Custom widget that wraps the AssignStepWidget for testing
 class AssignStepTestWrapper extends StatelessWidget {
@@ -56,25 +58,39 @@ class MockCallbacks {
   void Function(String?) mockOnTranscriptionChanged = (_) {};
 }
 
-// Mock AudioTranscriptionService
+// MODIFIED Mock AudioTranscriptionService
 class MockAudioService extends Mock implements AudioTranscriptionService {
-  @override
-  Future<String> getTranscription(dynamic _) async {
-    return 'This is a mock transcription';
+  Completer<AssignmentResult>? _assignmentCompleterForTest;
+  Future<String> Function(Uint8List)? getTranscriptionForTestOverride;
+
+  void setAssignmentCompleter(Completer<AssignmentResult> completer) {
+    _assignmentCompleterForTest = completer;
+  }
+
+  void setGetTranscriptionOverride(Future<String> Function(Uint8List) overrideFn) {
+    getTranscriptionForTestOverride = overrideFn;
   }
 
   @override
-  Future<AssignmentResult> assignPeopleToItems(String _, Map<String, dynamic> __) async {
-    return AssignmentResult.fromJson({
-      'assignments': [
-        {
-          'person_name': 'Alice',
-          'items': [{'name': 'Burger', 'price': 10.99, 'quantity': 1}],
-        },
-      ],
+  Future<String> getTranscription(Uint8List audioBytes) async {
+    if (getTranscriptionForTestOverride != null) {
+      return getTranscriptionForTestOverride!(audioBytes);
+    }
+    // Default mock behavior or use super.noSuchMethod if preferred for general cases
+    return Future.value('Default mock transcription');
+  }
+
+  @override
+  Future<AssignmentResult> assignPeopleToItems(String transcription, Map<String, dynamic> items) async {
+    if (_assignmentCompleterForTest != null) {
+      return _assignmentCompleterForTest!.future;
+    }
+    // Default fallback if no specific completer is set by a test
+    return Future.value(AssignmentResult.fromJson({
+      'assignments': [{'person_name': 'DefaultPerson', 'items': []}],
       'shared_items': [],
       'unassigned_items': []
-    });
+    }));
   }
 }
 
@@ -181,5 +197,40 @@ void main() {
       expect(callbackTriggered, isTrue);
       expect(capturedTranscription, 'New transcription text');
     }, skip: true);
+
+    testWidgets('tapping "Process" button shows loading indicator, calls service, then hides indicator', (tester) async {
+      final assignmentCompleter = Completer<AssignmentResult>();
+      final mockReturnResult = AssignmentResult.fromJson({
+        'assignments': [{'person_name': 'TestPerson', 'items': []}],
+        'shared_items': [],
+        'unassigned_items': []
+      });
+
+      // Use the custom mock's method to set the completer
+      mockAudioService.setAssignmentCompleter(assignmentCompleter);
+
+      mockCallbacks.mockOnConfirmProcessAssignments = () async => true;
+      bool onAssignmentProcessedCalled = false;
+      mockCallbacks.mockOnAssignmentProcessed = (data) {
+        onAssignmentProcessedCalled = true;
+      };
+
+      await pumpAssignStepWidget(tester, initialTranscription: 'Alice gets burger');
+
+      final processButtonFinder = find.widgetWithText(ElevatedButton, 'Process');
+      expect(processButtonFinder, findsOneWidget);
+
+      await tester.tap(processButtonFinder);
+      await tester.pump(); 
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget, reason: "Loading indicator should be shown after tapping Process.");
+
+      assignmentCompleter.complete(mockReturnResult);
+      await tester.pumpAndSettle(); 
+
+      expect(find.byType(CircularProgressIndicator), findsNothing, reason: "Loading indicator should be hidden after processing is complete.");
+      expect(onAssignmentProcessedCalled, isTrue, reason: "onAssignmentProcessed callback should be triggered.");
+    });
+
   });
 } 
