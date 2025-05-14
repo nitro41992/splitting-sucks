@@ -401,52 +401,53 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   }
   
   // Helper function to delete orphaned images
-  Future<void> _processPendingDeletions({required bool isSaving}) async {
+  Future<void> _processPendingDeletions({required bool isSaving, bool requireConfirmation = false}) async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    // Create a copy to avoid concurrent modification issues if the list is somehow changed elsewhere
     final List<String> urisToDelete = List.from(workflowState.pendingDeletionGsUris);
 
-    if (!isSaving) {
-      // If not saving, also add the *current* URIs to the deletion list,
-      // as they represent an unsaved background upload or loaded draft being discarded.
-      if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty && !urisToDelete.contains(workflowState.actualImageGsUri!)) {
-          urisToDelete.add(workflowState.actualImageGsUri!);
-      }
-      if (workflowState.actualThumbnailGsUri != null && workflowState.actualThumbnailGsUri!.isNotEmpty && !urisToDelete.contains(workflowState.actualThumbnailGsUri!)) {
-          urisToDelete.add(workflowState.actualThumbnailGsUri!);
-      }
+    // Only proceed if user confirms, if required
+    if (requireConfirmation && urisToDelete.isNotEmpty) {
+      final confirmed = await showConfirmationDialog(
+        context,
+        'Delete Uploaded Images?',
+        'Are you sure you want to delete the uploaded images? This action cannot be undone.',
+      );
+      if (!confirmed) return;
     }
-    // If isSaving == true, we assume the calling method (_saveDraft/_completeReceipt) 
-    // already removed the *saved* URIs from the state's pending list before calling this.
 
-    if (urisToDelete.isEmpty) {
-      debugPrint('[Cleanup] No pending URIs to delete.');
+    // Check Firestore for references before deleting
+    List<String> safeToDelete = [];
+    for (final uri in urisToDelete) {
+      final isReferenced = await _isImageReferencedInFirestore(uri);
+      if (!isReferenced) safeToDelete.add(uri);
+    }
+
+    if (safeToDelete.isEmpty) {
+      debugPrint('[Cleanup] No orphaned URIs to delete after reference check.');
+      workflowState.clearPendingDeletions();
       return;
     }
 
-    debugPrint('[Cleanup] Attempting to delete ${urisToDelete.length} orphaned URIs: $urisToDelete');
-
-    // Use FirestoreService (add deleteImage method there)
+    debugPrint('[Cleanup] Attempting to delete ${safeToDelete.length} orphaned URIs: $safeToDelete');
     List<Future<void>> deleteFutures = [];
-    for (final uri in urisToDelete) {
+    for (final uri in safeToDelete) {
       deleteFutures.add(
         _firestoreService.deleteImage(uri).then((_) {
           debugPrint('[Cleanup] Successfully deleted: $uri');
         }).catchError((e) {
-          // Log deletion errors but don't block the user flow
           debugPrint('[Cleanup] Error deleting URI $uri: $e');
-          // Optionally, report this error more formally (e.g., to crash reporting)
         })
       );
     }
-
-    // Wait for all deletions to attempt completion
     await Future.wait(deleteFutures);
-
-    // Clear the list in the state after attempting all deletions
-    // It's important this happens AFTER the await, even if some deletions failed.
     workflowState.clearPendingDeletions();
     debugPrint('[Cleanup] Processed all pending deletions.');
+  }
+
+  // Helper to check if an image GS URI is referenced in any receipt
+  Future<bool> _isImageReferencedInFirestore(String gsUri) async {
+    final query = await _firestoreService.receiptsCollection.where('image_uri', isEqualTo: gsUri).limit(1).get();
+    return query.docs.isNotEmpty;
   }
 
   // Helper to upload image and generate thumbnail
@@ -1098,7 +1099,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     workflowState.setAssignPeopleToItemsResult(assignmentResultData);
     debugPrint('[WorkflowModal] Assignment processed, new state: ${workflowState.assignPeopleToItemsResult}');
-    // workflowState.nextStep(); // Decision: nextStep is usually called by the "Next" button in navigation after data is ready.
+    workflowState.nextStep(); // Advance to split view after assignment
   }
 
   // Signature: void Function(String? newTranscription)

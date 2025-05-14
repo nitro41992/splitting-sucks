@@ -62,6 +62,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
   @override
   void dispose() {
+    // Removed call to onTranscriptionChanged to avoid context issues on dispose
     _recorder.dispose();
     _transcriptionController.dispose();
     super.dispose();
@@ -253,6 +254,7 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
       // Pass the raw assignment data back to the parent widget
       widget.onAssignmentProcessed(assignmentsData);
+      if (mounted) setState(() => _isLoading = false); // Hide spinner after success
 
     } catch (e) {
       print('Error processing assignment in screen: $e');
@@ -522,11 +524,8 @@ class _VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                                 height: 1.5,
                                               ),
                                               onChanged: (value) {
-                                                // Update transcription and notify parent when edited
+                                                // Update transcription only locally; do not notify parent on every keystroke
                                                 _transcription = value;
-                                                if (widget.onTranscriptionChanged != null) {
-                                                  widget.onTranscriptionChanged!(value);
-                                                }
                                               },
                                             ),
                                             Positioned(
