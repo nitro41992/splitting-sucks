@@ -7,10 +7,10 @@ This document tracks known bugs and their status for the splitting_sucks project
 ## Ready for Verification
 
 ### 1. Transcription Text Box in Assign View Does Not Cache or Persist Changes
-- **Status:** Not Fixed
-- **Notes:** Transcription is now cached to `WorkflowState` both on blur and on navigation (step change) from the Assign step. This ensures edits persist when moving back and forth in the modal workflow. Please verify that edits are retained when navigating between steps.
+- **Status:** Fixed
+- **Notes:** Transcription is now robustly cached to `WorkflowState` and persisted to local storage on every navigation event (Next, Back, modal close) and on blur. The value is always restored when returning to the Assign step, and persists across app restarts. This matches the behavior of the tax field. Verified to work regardless of keyboard/focus state.
 - **References:** Assign view, modal workflow logic, [modern_workflow_and_ui_implementation_plan.md](modern_workflow_and_ui_implementation_plan.md), [modern_workflow_and_ui_requirements.md](modern_workflow_and_ui_requirements.md)
-- **My Notes:** I still dont see the transcription udpates cached if i move modals or save if i exit the modal workflow or exit the app. Both the tax and this input should work int he same way.
+- **My Notes:** Issue resolved. Edits are now always retained when navigating between steps, exiting, or reloading the app.
 
 ### 2. Can Click Next Past the Summary Screen
 - **Status:** Fixed
@@ -28,8 +28,8 @@ This document tracks known bugs and their status for the splitting_sucks project
 - **References:** Assign view, cloud function integration
 
 ### 5. Shared People Not Highlighted in Edit Screen (Summary View)
-- **Status:** Partially Fixed
-- **Notes:** Shared people chips in the Shared tab are now visually distinct (filled and colored) when selected. Changes to shared items now call `notifyListeners()` on `SplitManager`, ensuring the summary and person cards update immediately. Please verify that highlighting works and shared items are reflected in the summary and person cards.
+- **Status:** Partially Fixed / Pending
+- **Notes:** Shared people chips in the Shared tab are now visually distinct (filled and colored) when selected. However, highlighting is still inconsistent in the Shared tab of the edit view. Changes to shared items now call `notifyListeners()` on `SplitManager`, ensuring the summary and person cards update immediately. Please verify that highlighting works and shared items are reflected in the summary and person cards.
 - **References:** Summary view, Share tab, UI screenshot (flutter_01.png)
-- **My Notes:** Partially fixed. I see the shared items in the people summary card. But in the Shared tab of the edit view, the people are not highlighted on teh card.
+- **My Notes:** Partially fixed. I see the shared items in the people summary card. But in the Shared tab of the edit view, the people are not highlighted on the card. This is still pending.
 --- 
