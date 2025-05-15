@@ -39,20 +39,20 @@ class PersonSummaryCard extends StatelessWidget {
     final double personTotal = personSubtotal + personTax + personTip;
 
     // Debug the calculation
-    debugPrint('[PersonSummaryCard] ${person.name} totals:');
-    debugPrint('  - Individual: \$${individualItemsTotal.toStringAsFixed(2)}');
-    debugPrint('  - Shared: \$${sharedItemsTotal.toStringAsFixed(2)}');
-    debugPrint('  - Subtotal: \$${personSubtotal.toStringAsFixed(2)}');
-    // Debug shared items in detail
-    if (person.sharedItems.isNotEmpty) {
-      debugPrint('[PersonSummaryCard] Shared items for ${person.name}:');
-      for (var item in person.sharedItems) {
-        final int sharerCount = splitManager.people
-            .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
-            .length;
-        debugPrint('  - ${item.name} (${item.itemId}): \$${item.price.toStringAsFixed(1)} × ${item.quantity} ÷ ${sharerCount} people = \$${(item.total / sharerCount).toStringAsFixed(2)} per person');
-      }
-    }
+    // debugPrint('[PersonSummaryCard] ${person.name} totals:');
+    // debugPrint('  - Individual: \$${individualItemsTotal.toStringAsFixed(2)}');
+    // debugPrint('  - Shared: \$${sharedItemsTotal.toStringAsFixed(2)}');
+    // debugPrint('  - Subtotal: \$${personSubtotal.toStringAsFixed(2)}');
+    // // Debug shared items in detail
+    // if (person.sharedItems.isNotEmpty) {
+    //   debugPrint('[PersonSummaryCard] Shared items for ${person.name}:');
+    //   for (var item in person.sharedItems) {
+    //     final int sharerCount = splitManager.people
+    //         .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
+    //         .length;
+    //     debugPrint('  - ${item.name} (${item.itemId}): \$${item.price.toStringAsFixed(1)} × ${item.quantity} ÷ ${sharerCount} people = \$${(item.total / sharerCount).toStringAsFixed(2)} per person');
+    //   }
+    // }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),

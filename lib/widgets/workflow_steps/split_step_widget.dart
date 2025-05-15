@@ -149,7 +149,7 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
       String itemId = itemMap['itemId'] as String? ?? 
                       'shared_${itemMap['name']}_${itemMap['price']}';
       
-      debugPrint('[SplitStepWidget] Creating shared item: ${itemMap['name']} with ID: $itemId');
+      // debugPrint('[SplitStepWidget] Creating shared item: ${itemMap['name']} with ID: $itemId');
       
       // Update the original map with the itemId for future reference
       if (itemMap['itemId'] == null) {
@@ -408,28 +408,28 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
     final List<ReceiptItem> initialItemsFromParse = _extractInitialItemsFromParseResult(widget.parseResult);
 
     // --- BEGIN DEBUG LOGS ---
-    debugPrint('[SplitStepWidget] Initializing SplitManager.');
-    debugPrint('[SplitStepWidget] parseResult subtotal for originalReviewTotal: ${widget.parseResult['subtotal']}');
+    // debugPrint('[SplitStepWidget] Initializing SplitManager.');
+    // debugPrint('[SplitStepWidget] parseResult subtotal for originalReviewTotal: ${widget.parseResult['subtotal']}');
     double calculatedSumForDebug = 0;
-    debugPrint('[SplitStepWidget] People (${people.length}):');
-    for (var p in people) {
-      debugPrint('  ${p.name}, Items:');
-      for (var item in p.assignedItems) {
-        debugPrint('    - ${item.name}, Qty: ${item.quantity}, Price: ${item.price}, Total: ${item.total}');
-        calculatedSumForDebug += item.total;
-      }
-    }
-    debugPrint('[SplitStepWidget] Shared Items (${sharedItems.length}):');
-    for (var item in sharedItems) {
-      debugPrint('  - ${item.name}, Qty: ${item.quantity}, Price: ${item.price}, Total: ${item.total}');
-      calculatedSumForDebug += item.total;
-    }
-    debugPrint('[SplitStepWidget] Unassigned Items (${unassignedItems.length}):');
-    for (var item in unassignedItems) {
-      debugPrint('  - ${item.name}, Qty: ${item.quantity}, Price: ${item.price}, Total: ${item.total}');
-      calculatedSumForDebug += item.total;
-    }
-    debugPrint('[SplitStepWidget] Calculated sum of items passed to SplitManager: ${calculatedSumForDebug.toStringAsFixed(2)}');
+    // debugPrint('[SplitStepWidget] People (${people.length}):');
+    // for (var p in people) {
+    //   debugPrint('  ${p.name}, Items:');
+    //   for (var item in p.assignedItems) {
+    //     debugPrint('    - ${item.name}, Qty: ${item.quantity}, Price: ${item.price}, Total: ${item.total}');
+    //     calculatedSumForDebug += item.total;
+    //   }
+    // }
+    // // debugPrint('[SplitStepWidget] Shared Items (${sharedItems.length}):');
+    // for (var item in sharedItems) {
+    //   debugPrint('  - ${item.name}, Qty: ${item.quantity}, Price: ${item.price}, Total: ${item.total}');
+    //   calculatedSumForDebug += item.total;
+    // }
+    // // debugPrint('[SplitStepWidget] Unassigned Items (${unassignedItems.length}):');
+    // for (var item in unassignedItems) {
+    //   debugPrint('  - ${item.name}, Qty: ${item.quantity}, Price: ${item.price}, Total: ${item.total}');
+    //   calculatedSumForDebug += item.total;
+    // }
+    // debugPrint('[SplitStepWidget] Calculated sum of items passed to SplitManager: ${calculatedSumForDebug.toStringAsFixed(2)}');
     // --- END DEBUG LOGS ---
 
     // Link shared items to people (based on logic previously in _WorkflowModalBodyState)
@@ -449,9 +449,9 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
         if (mapItemId != null) {
           try {
             matchingSharedItem = splitManager.sharedItems.firstWhere((item) => item.itemId == mapItemId);
-            debugPrint('[SplitStepWidget] Found shared item by itemId: $mapItemId, name: ${matchingSharedItem.name}');
+            // debugPrint('[SplitStepWidget] Found shared item by itemId: $mapItemId, name: ${matchingSharedItem.name}');
           } catch (e) {
-            debugPrint('[SplitStepWidget] Could not find shared item with itemId: $mapItemId, falling back to name+price match');
+            // debugPrint('[SplitStepWidget] Could not find shared item with itemId: $mapItemId, falling back to name+price match');
           }
         }
         
@@ -461,15 +461,15 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
             matchingSharedItem = splitManager.sharedItems.firstWhere(
               (item) => item.name == itemName && item.price == itemPrice
             );
-            debugPrint('[SplitStepWidget] Found shared item by name+price: $itemName, $itemPrice');
+            // debugPrint('[SplitStepWidget] Found shared item by name+price: $itemName, $itemPrice');
           } catch (e) {
-            debugPrint('[SplitStepWidget] ERROR: Could not find shared item: $itemName at price $itemPrice');
+            // debugPrint('[SplitStepWidget] ERROR: Could not find shared item: $itemName at price $itemPrice');
             continue;
           }
         }
         
         // Debug the found item
-        debugPrint('[SplitStepWidget] Processing shared item: ${matchingSharedItem.name}, ItemId: ${matchingSharedItem.itemId}');
+        // debugPrint('[SplitStepWidget] Processing shared item: ${matchingSharedItem.name}, ItemId: ${matchingSharedItem.itemId}');
 
         // Get the list of people sharing this item
         List<String> personNamesSharingThisItem = (sharedItemMap['people'] as List<dynamic>?)?.cast<String>() ?? [];
@@ -482,14 +482,14 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
           if (itemName.toLowerCase().contains('pita')) {
             personNamesSharingThisItem.addAll(['Nick', 'Val']);
             didAutoAssign = true;
-            debugPrint('[SplitStepWidget] Auto-assigned shared item: $itemName to Nick and Val');
+            // debugPrint('[SplitStepWidget] Auto-assigned shared item: $itemName to Nick and Val');
           }
           // For the Hummus Garlic - description says "We all shared"
           else if (itemName.toLowerCase().contains('hummus')) {
             for (var person in splitManager.people) {
               personNamesSharingThisItem.add(person.name);
               didAutoAssign = true;
-              debugPrint('[SplitStepWidget] Auto-assigned shared item: $itemName to everyone including ${person.name}');
+              // debugPrint('[SplitStepWidget] Auto-assigned shared item: $itemName to everyone including ${person.name}');
             }
           }
           
@@ -500,7 +500,7 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
           }
         }
         
-        debugPrint('[SplitStepWidget] People sharing ${matchingSharedItem.name}: ${personNamesSharingThisItem.join(', ')}');
+        // debugPrint('[SplitStepWidget] People sharing ${matchingSharedItem.name}: ${personNamesSharingThisItem.join(', ')}');
         
         // Store the final item and people for post-frame processing to avoid state updates during build
         final ReceiptItem finalSharedItem = matchingSharedItem;
@@ -520,7 +520,7 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
                 if (matchingPerson.name != 'dummy') {
                     // Check if person already has this item to avoid duplicates
                     if (!matchingPerson.sharedItems.any((si) => si.itemId == finalSharedItem.itemId)) {
-                        debugPrint('[SplitStepWidget] Adding shared item ${finalSharedItem.name} (${finalSharedItem.itemId}) to ${matchingPerson.name}');
+                        // debugPrint('[SplitStepWidget] Adding shared item ${finalSharedItem.name} (${finalSharedItem.itemId}) to ${matchingPerson.name}');
                         splitManager.addPersonToSharedItem(finalSharedItem, matchingPerson);
                         anyPeopleUpdated = true;
                     }

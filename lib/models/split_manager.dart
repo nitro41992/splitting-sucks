@@ -237,12 +237,12 @@ class SplitManager extends ChangeNotifier {
       person.addSharedItem(item); // This should call notifyListeners in Person
     }
     
-    debugPrint('[SplitManager] addPersonToSharedItem: ${person.name} now sharing ${item.name}.');
+    // debugPrint('[SplitManager] addPersonToSharedItem: ${person.name} now sharing ${item.name}.');
     // Log the people sharing this item using itemId comparison
-    debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
-      + _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).map((p) => p.name).join(', '));
-    debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
-    debugPrint('[SplitManager] Subtotal after add: $totalAmount');
+    // debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
+      // + _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).map((p) => p.name).join(', '));
+    // debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
+    // debugPrint('[SplitManager] Subtotal after add: $totalAmount');
     
     // Only notify listeners if requested (allows batching multiple operations)
     if (notify) {
@@ -262,14 +262,14 @@ class SplitManager extends ChangeNotifier {
       // Remove item from the specific person's shared list if found
       person.removeSharedItem(sharedItemInPerson); // This should call notifyListeners in Person
     } catch (e) {
-      debugPrint('[SplitManager] Warning: Could not find shared item ${item.name} (${item.itemId}) in ${person.name}\'s shared items');
+      // debugPrint('[SplitManager] Warning: Could not find shared item ${item.name} (${item.itemId}) in ${person.name}\'s shared items');
     }
     
-    debugPrint('[SplitManager] removePersonFromSharedItem: ${person.name} no longer sharing ${item.name}.');
-    debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
-      + _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).map((p) => p.name).join(', '));
-    debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
-    debugPrint('[SplitManager] Subtotal after remove: [38;5;1m$totalAmount[0m');
+    // debugPrint('[SplitManager] removePersonFromSharedItem: ${person.name} no longer sharing ${item.name}.');
+    // debugPrint('[SplitManager] Shared item: ${item.name}, shared by: '
+      // + _people.where((p) => p.sharedItems.any((si) => si.itemId == item.itemId)).map((p) => p.name).join(', '));
+    // debugPrint('[SplitManager] SharedItems: ' + _sharedItems.map((i) => i.name).join(', '));
+    // debugPrint('[SplitManager] Subtotal after remove: [38;5;1m$totalAmount[0m');
     
     // Only notify listeners if requested
     if (notify) {
@@ -387,7 +387,7 @@ class SplitManager extends ChangeNotifier {
       }
     }
     
-    debugPrint('[SplitManager] updateItemQuantity: ${item.name} set to $newQuantity. Subtotal: $totalAmount');
+    // debugPrint('[SplitManager] updateItemQuantity: ${item.name} set to $newQuantity. Subtotal: $totalAmount');
     notifyListeners();
   }
 
@@ -582,7 +582,7 @@ class SplitManager extends ChangeNotifier {
   double getPersonTotal(Person person) {
     // Start with their assigned items
     double total = person.totalAssignedAmount;
-    debugPrint('[SplitManager] ${person.name}\'s assigned items total: ${total}');
+    // debugPrint('[SplitManager] ${person.name}\'s assigned items total: ${total}');
     
     // Add their fair share of each shared item
     for (var sharedItem in person.sharedItems) {
@@ -597,12 +597,12 @@ class SplitManager extends ChangeNotifier {
         final double individualShare = (sharedItem.total / sharerCount);
         final double roundedShare = double.parse(individualShare.toStringAsFixed(2));
         
-        debugPrint('[SplitManager] ${person.name}\'s share of ${sharedItem.name}: ${roundedShare.toStringAsFixed(2)} (${sharedItem.total} ÷ $sharerCount people)');
+        // debugPrint('[SplitManager] ${person.name}\'s share of ${sharedItem.name}: ${roundedShare.toStringAsFixed(2)} (${sharedItem.total} ÷ $sharerCount people)');
         total += roundedShare;
       }
     }
     
-    debugPrint('[SplitManager] ${person.name}\'s total: ${total} = ${person.totalAssignedAmount} (assigned) + ${total - person.totalAssignedAmount} (shared)');
+    // debugPrint('[SplitManager] ${person.name}\'s total: ${total} = ${person.totalAssignedAmount} (assigned) + ${total - person.totalAssignedAmount} (shared)');
     return total;
   }
 } 
