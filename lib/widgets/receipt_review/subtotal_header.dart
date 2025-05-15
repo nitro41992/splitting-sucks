@@ -7,6 +7,12 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double subtotal;
   final ColorScheme colorScheme;
   final TextTheme textTheme;
+  
+  // Add new parameters for Neumorphic style
+  final bool useNeumorphicStyle;
+  final Color? backgroundColor;
+  final Color? textColor;
+  final Color? accentColor;
 
   SubtotalHeaderDelegate({
     required this.minHeight,
@@ -15,6 +21,10 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.subtotal,
     required this.colorScheme,
     required this.textTheme,
+    this.useNeumorphicStyle = false,
+    this.backgroundColor,
+    this.textColor,
+    this.accentColor,
   });
 
   @override
@@ -35,6 +45,13 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
     // Ensure it's never less than minHeight
     final double currentHeight = (maxHeight - (shrinkOffset)).clamp(minHeight, maxHeight);
 
+    // Use custom colors if provided, otherwise fall back to theme colors
+    final Color effectiveBackgroundColor = backgroundColor ?? 
+        (shouldCollapse ? colorScheme.surface.withOpacity(0.95) : colorScheme.surfaceVariant.withOpacity(0.8));
+    
+    final Color effectiveTextColor = textColor ?? colorScheme.onSurface;
+    final Color effectiveAccentColor = accentColor ?? colorScheme.primary;
+
     return SizedBox(
       height: currentHeight,
       child: AnimatedContainer(
@@ -42,13 +59,27 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
         height: currentHeight,
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         decoration: BoxDecoration(
-          color: shouldCollapse ? colorScheme.surface.withOpacity(0.95) : colorScheme.surfaceVariant.withOpacity(0.8),
+          color: effectiveBackgroundColor,
           borderRadius: BorderRadius.vertical(
             top: const Radius.circular(16), // Match card radius
             bottom: Radius.circular(shouldCollapse ? 0 : 16),
           ),
           boxShadow: shouldCollapse
-              ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2))]
+              ? [
+                  if (useNeumorphicStyle)
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                      spreadRadius: 0,
+                    )
+                  else
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    )
+                ]
               : null,
         ),
         child: shouldCollapse
@@ -61,7 +92,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                     key: const ValueKey('subtotal_label_collapsed'),
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
+                      color: effectiveTextColor,
                     ),
                   ),
                   Text(
@@ -69,7 +100,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                     key: const ValueKey('subtotal_amount_collapsed'),
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: colorScheme.primary,
+                      color: effectiveAccentColor,
                     ),
                   ),
                 ],
@@ -83,7 +114,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                     children: [
                       Icon(
                         Icons.calculate_outlined,
-                        color: colorScheme.primary,
+                        color: effectiveAccentColor,
                         size: 30,
                       ),
                       const SizedBox(width: 16),
@@ -92,7 +123,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                         key: const ValueKey('subtotal_label_expanded'),
                         style: textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurfaceVariant,
+                          color: effectiveTextColor,
                         ),
                       ),
                     ],
@@ -102,7 +133,7 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                     key: const ValueKey('subtotal_amount_expanded'),
                     style: textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: colorScheme.primary,
+                      color: effectiveAccentColor,
                     ),
                   ),
                 ],
@@ -118,6 +149,10 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
            maxHeight != oldDelegate.maxHeight ||
            minHeight != oldDelegate.minHeight ||
            colorScheme != oldDelegate.colorScheme ||
-           textTheme != oldDelegate.textTheme;
+           textTheme != oldDelegate.textTheme ||
+           useNeumorphicStyle != oldDelegate.useNeumorphicStyle ||
+           backgroundColor != oldDelegate.backgroundColor ||
+           textColor != oldDelegate.textColor ||
+           accentColor != oldDelegate.accentColor;
   }
 } 

@@ -325,550 +325,460 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    // Use the theme's surface color for the background (industry standard)
+    // Background color changed to light grey as per design
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      backgroundColor: const Color(0xFFF5F5F7), // Light grey background
       body: LayoutBuilder(
         builder: (context, constraints) {
           return Stack(
             children: [
               // Scrollable content
               SingleChildScrollView(
-                padding: EdgeInsets.only(bottom: _isLoading || _transcription != null ? 80 : 16), // Add padding below content when button is visible
+                padding: EdgeInsets.only(bottom: _isLoading || _transcription != null ? 80 : 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Recording Controls Section
+                    // "Assign Items by Voice" Card - Neumorphic styling
                     Padding(
-                      padding: PlatformConfig.getCardPadding(),
-                      child: Card(
-                        elevation: 0,
-                        margin: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
-                          side: BorderSide(color: colorScheme.outlineVariant),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 8,
+                              offset: const Offset(2, 2),
+                              spreadRadius: 0,
+                            ),
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.9),
+                              blurRadius: 8,
+                              offset: const Offset(-2, -2),
+                              spreadRadius: 0,
+                            ),
+                          ],
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.mic_none_outlined, color: colorScheme.primary),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Assign Items by Voice',
-                                    style: textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: colorScheme.primary,
-                                    ),
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Title row
+                            Text(
+                              'Assign by Voice',
+                              style: textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF1D1D1F), // Primary Text Color
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            
+                            // Microphone button - Neumorphic styling
+                            Center(
+                              child: GestureDetector(
+                                onTap: !_isLoading ? _toggleRecording : null,
+                                child: Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                    boxShadow: _isRecording 
+                                      ? [
+                                          // Inset shadow for pressed state
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.1),
+                                            blurRadius: 5,
+                                            offset: const Offset(2, 2),
+                                            spreadRadius: -2,
+                                          ),
+                                        ]
+                                      : [
+                                          // Raised shadow for normal state
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.08),
+                                            blurRadius: 8,
+                                            offset: const Offset(2, 2),
+                                            spreadRadius: 0,
+                                          ),
+                                          BoxShadow(
+                                            color: Colors.white.withOpacity(0.9),
+                                            blurRadius: 8,
+                                            offset: const Offset(-2, -2),
+                                            spreadRadius: 0,
+                                          ),
+                                        ],
+                                  ),
+                                  child: _isLoading
+                                    ? const Center(child: CircularProgressIndicator())
+                                    : Icon(
+                                        _isRecording ? Icons.stop_circle : Icons.mic,
+                                        color: const Color(0xFF5D737E), // Slate Blue
+                                        size: 40,
+                                      ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            
+                            // Tips section with Neumorphic toggle
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                    spreadRadius: 0,
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              // Voice Input Guide
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: colorScheme.secondaryContainer.withOpacity(0.9),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: colorScheme.secondary.withOpacity(0.3)),
-                                ),
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment: CrossAxisAlignment.center, // Align icons and text vertically centered
+                                  onTap: () {
+                                    setState(() {
+                                      _tipsExpanded = !_tipsExpanded;
+                                    });
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
                                       children: [
-                                        Icon(
-                                          Icons.tips_and_updates_outlined,
-                                          color: colorScheme.onSecondaryContainer,
-                                          size: 24,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            'Some tips for a better split',
-                                            style: textTheme.titleMedium?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: colorScheme.onSecondaryContainer,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: Icon(
-                                            _tipsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                            color: colorScheme.onSecondaryContainer,
-                                            size: 24,
-                                          ),
-                                          onPressed: () {
-                                            setState(() {
-                                              _tipsExpanded = !_tipsExpanded;
-                                            });
-                                          },
-                                          tooltip: _tipsExpanded ? 'Hide tips' : 'Show tips',
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                        ),
-                                      ],
-                                    ),
-                                    if (_tipsExpanded) ...[
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.people,
-                                            size: 18,
-                                            color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Start by saying everyone\'s name (including yours).',
-                                              style: textTheme.bodyMedium?.copyWith(
-                                                color: colorScheme.onSecondaryContainer,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.restaurant_menu,
-                                            size: 18,
-                                            color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Describe what each person ordered using item names from the list below.',
-                                              style: textTheme.bodyMedium?.copyWith(
-                                                color: colorScheme.onSecondaryContainer,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.share,
-                                            size: 18,
-                                            color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Mention shared items like: "Alex and Jamie shared the fries and we all had the salad."',
-                                              style: textTheme.bodyMedium?.copyWith(
-                                                color: colorScheme.onSecondaryContainer,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.format_list_numbered,
-                                            size: 18,
-                                            color: colorScheme.onSecondaryContainer.withOpacity(0.8),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Use the item numbers! Say things like "Emma got #2 and we all shared #5" — super handy when dishes have complex names!',
-                                              style: textTheme.bodyMedium?.copyWith(
-                                                color: colorScheme.onSecondaryContainer,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      
-                                      // Add special tip for complex item names
-                                      const SizedBox(height: 12),
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: colorScheme.tertiaryContainer.withOpacity(0.3),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                        Row(
                                           children: [
                                             Icon(
-                                              Icons.lightbulb_outline,
-                                              size: 18,
-                                              color: colorScheme.tertiary,
+                                              Icons.tips_and_updates_outlined,
+                                              color: const Color(0xFF5D737E), // Slate Blue
+                                              size: 20,
                                             ),
-                                            const SizedBox(width: 8),
+                                            const SizedBox(width: 12),
                                             Expanded(
                                               child: Text(
-                                                'Pro Tip: Using item numbers (e.g., "Sam got item #1") is more reliable than using full item names, especially for menu items with special characters or long names.',
-                                                style: textTheme.bodyMedium?.copyWith(
-                                                  color: colorScheme.tertiary,
+                                                'Tips for a better split',
+                                                style: textTheme.titleMedium?.copyWith(
                                                   fontWeight: FontWeight.w500,
+                                                  color: const Color(0xFF1D1D1F),
                                                 ),
                                               ),
                                             ),
+                                            Icon(
+                                              _tipsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                              color: const Color(0xFF5D737E), // Slate Blue
+                                              size: 24,
+                                            ),
                                           ],
                                         ),
-                                      ),
-                                      
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        'Example: "Hey, Sam here. Alex got the burger. Jamie got item #3. I had the salad. We all shared item #5."',
-                                        style: textTheme.bodySmall?.copyWith(
-                                          fontStyle: FontStyle.italic,
-                                          color: colorScheme.onSecondaryContainer.withOpacity(0.9),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              
-                              Center(
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: _isRecording ? colorScheme.errorContainer : colorScheme.primaryContainer,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: (_isRecording ? colorScheme.error : colorScheme.primary).withOpacity(0.3),
-                                        spreadRadius: _isRecording ? 4 : 0,
-                                        blurRadius: 8,
-                                      ),
-                                    ],
-                                  ),
-                                  child: IconButton(
-                                    icon: Icon(
-                                      _isRecording ? Icons.stop : Icons.mic,
-                                      size: 48,
-                                      color: _isRecording ? colorScheme.onErrorContainer : colorScheme.onPrimaryContainer,
+                                        if (_tipsExpanded) ...[
+                                          const SizedBox(height: 16),
+                                          // Tips content with the same structure but updated styling
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Icon(
+                                                Icons.people,
+                                                size: 18,
+                                                color: const Color(0xFF8A8A8E), // Secondary Text Color
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'Start by saying everyone\'s name (including yours).',
+                                                  style: textTheme.bodyMedium?.copyWith(
+                                                    color: const Color(0xFF8A8A8E), // Secondary Text Color
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Icon(
+                                                Icons.restaurant_menu,
+                                                size: 18,
+                                                color: const Color(0xFF8A8A8E),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'Describe what each person ordered using item names from the list below.',
+                                                  style: textTheme.bodyMedium?.copyWith(
+                                                    color: const Color(0xFF8A8A8E),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Icon(
+                                                Icons.share,
+                                                size: 18,
+                                                color: const Color(0xFF8A8A8E),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'Mention shared items like: "Alex and Jamie shared the fries and we all had the salad."',
+                                                  style: textTheme.bodyMedium?.copyWith(
+                                                    color: const Color(0xFF8A8A8E),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Icon(
+                                                Icons.format_list_numbered,
+                                                size: 18,
+                                                color: const Color(0xFF8A8A8E),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'Use the item numbers! Say things like "Emma got #2 and we all shared #5" — super handy when dishes have complex names!',
+                                                  style: textTheme.bodyMedium?.copyWith(
+                                                    color: const Color(0xFF8A8A8E),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
                                     ),
-                                    onPressed: _isLoading ? null : _toggleRecording, // Disable while loading
-                                    tooltip: _isRecording ? 'Stop Recording' : 'Start Recording',
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              if (_isLoading)
-                                const Center(child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16.0),
-                                  child: CircularProgressIndicator(),
-                                )),
-                              if (!_isLoading && _transcription != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 16.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Transcription:',
-                                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          color: colorScheme.surfaceVariant.withOpacity(0.3),
-                                          borderRadius: BorderRadius.circular(16),
-                                          border: Border.all(color: colorScheme.outlineVariant),
-                                        ),
-                                        child: Stack(
-                                          children: [
-                                            TextField(
-                                              controller: _transcriptionController,
-                                              focusNode: _transcriptionFocusNode,
-                                              maxLines: 8,
-                                              minLines: 5,
-                                              decoration: InputDecoration(
-                                                hintText: 'Edit transcription if needed...',
-                                                hintStyle: textTheme.bodyLarge?.copyWith(
-                                                  color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                                                ),
-                                                border: InputBorder.none,
-                                                contentPadding: const EdgeInsets.all(16),
-                                              ),
-                                              style: textTheme.bodyLarge?.copyWith(
-                                                height: 1.5,
-                                              ),
-                                              onChanged: (value) {
-                                                _transcription = value;
-                                              },
-                                            ),
-                                            Positioned(
-                                              top: 8,
-                                              right: 8,
-                                              child: Container(
-                                                padding: const EdgeInsets.all(4),
-                                                decoration: BoxDecoration(
-                                                  color: colorScheme.primaryContainer,
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: Icon(
-                                                  Icons.edit,
-                                                  size: 16,
-                                                  color: colorScheme.onPrimaryContainer,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
 
-                    // Receipt Summary Section
-                    const SizedBox(height: 16),
-                    Card(
-                      elevation: 0,
-                      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(color: colorScheme.outlineVariant),
+                    // Transcription TextField (shown after recording)
+                    if (_transcription != null) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: TextField(
+                          key: const ValueKey('transcriptionField'),
+                          controller: _transcriptionController,
+                          focusNode: _transcriptionFocusNode,
+                          style: textTheme.bodyMedium,
+                          decoration: InputDecoration(
+                            labelText: 'Transcription',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          maxLines: 5,
+                          onChanged: (value) {
+                            if (widget.onTranscriptionChanged != null) {
+                              widget.onTranscriptionChanged!(value);
+                            }
+                          },
+                        ),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Receipt Summary Card with Neumorphic styling
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 8,
+                              offset: const Offset(2, 2),
+                              spreadRadius: 0,
+                            ),
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.9),
+                              blurRadius: 8,
+                              offset: const Offset(-2, -2),
+                              spreadRadius: 0,
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(20.0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Header with Edit Items button
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Icon(Icons.receipt_long_outlined, color: colorScheme.primary),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Receipt Summary',
-                                  style: textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: colorScheme.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if (widget.onEditItems != null)
-                                  GestureDetector(
-                                    onTap: widget.onEditItems,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.puce,
-                                        borderRadius: BorderRadius.circular(24),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: AppColors.puce.withOpacity(0.15),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.edit, color: Colors.white, size: 18),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'Edit Items',
-                                            style: textTheme.labelLarge?.copyWith(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
+                                Row(
+                                  children: [
+                                    Icon(Icons.receipt_long, color: const Color(0xFF5D737E), size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Receipt Summary',
+                                      style: textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.w500,
+                                        color: const Color(0xFF1D1D1F),
                                       ),
                                     ),
+                                  ],
+                                ),
+                                GestureDetector(
+                                  onTap: widget.onEditItems,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.08),
+                                          blurRadius: 4,
+                                          offset: const Offset(1, 1),
+                                          spreadRadius: 0,
+                                        ),
+                                        BoxShadow(
+                                          color: Colors.white.withOpacity(0.9),
+                                          blurRadius: 4,
+                                          offset: const Offset(-1, -1),
+                                          spreadRadius: 0,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.edit,
+                                          color: const Color(0xFF5D737E),
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Edit',
+                                          style: TextStyle(
+                                            color: const Color(0xFF5D737E),
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              // decoration: BoxDecoration(
-                              //   color: colorScheme.surfaceVariant.withOpacity(0.3),
-                              //   borderRadius: BorderRadius.circular(12),
-                              //   border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
-                              // ),
-                              child: Column(
-                                children: [
-                                  // Header row
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8.0),
-                                    child: Row(
-                                      children: [
-                                        SizedBox(width: 36), // Space for item number
-                                        SizedBox(width: 48), // Space for quantity
-                                        Expanded(
-                                          child: Text(
-                                            'Item',
-                                            style: textTheme.bodySmall?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: colorScheme.onSurfaceVariant,
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          width: 80,
-                                          child: Text(
-                                            'Price',
-                                            style: textTheme.bodySmall?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: colorScheme.onSurfaceVariant,
-                                            ),
-                                            textAlign: TextAlign.right,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Divider with very low opacity to separate header
-                                  Divider(
-                                    height: 1,
-                                    thickness: 1,
-                                    color: colorScheme.outlineVariant.withOpacity(0.3),
-                                  ),
-                                  // Items list
-                                  ...widget.itemsToAssign.asMap().entries.map((entry) {
-                                    final index = entry.key;
-                                    final item = entry.value;
-                                    
-                                    // Add a subtle grid row effect
-                                    return Container(
+                            
+                            // Item list
+                            ...widget.itemsToAssign.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final item = entry.value;
+                              
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12.0),
+                                child: Row(
+                                  children: [
+                                    // Quantity pill with Neumorphic styling
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: colorScheme.outlineVariant.withOpacity(0.15),
-                                            width: 1,
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.05),
+                                            blurRadius: 3,
+                                            offset: const Offset(1, 1),
+                                            spreadRadius: 0,
                                           ),
-                                        ),
-                                        color: index.isEven 
-                                            ? Colors.transparent
-                                            : colorScheme.surfaceVariant.withOpacity(0.15),
+                                        ],
                                       ),
-                                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                      child: Text(
+                                        '${item.quantity}x',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          color: const Color(0xFF8A8A8E),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    
+                                    // Item name and price
+                                    Expanded(
                                       child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          // Display numeric ID - fixed width
-                                          SizedBox(
-                                            width: 35,
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              // decoration: BoxDecoration(
-                                              //   color: colorScheme.secondaryContainer,
-                                              //   borderRadius: BorderRadius.circular(4),
-                                              // ),
-                                              child: Text(
-                                                '${index + 1}.', // 1-based index
-                                                style: textTheme.titleSmall?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: colorScheme.primary,
+                                          Row(
+                                            children: [
+                                              Text(
+                                                '#${index + 1}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w500,
+                                                  color: const Color(0xFF5D737E),
                                                 ),
-                                                textAlign: TextAlign.center,
                                               ),
-                                            ),
-                                          ),
-                                          // Add spacing between item ID and quantity
-                                          const SizedBox(width: 10),
-                                          // Quantity - fixed width
-                                          SizedBox(
-                                            width: 35,
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: colorScheme.primaryContainer,
-                                                borderRadius: BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                '${item.quantity}x',
-                                                style: textTheme.bodySmall?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                  color: colorScheme.onPrimaryContainer,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                          ),
-                                          // Item name - expanded
-                                          Expanded(
-                                            child: Padding(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                              child: Text(
+                                              const SizedBox(width: 8),
+                                              Text(
                                                 item.name,
-                                                style: textTheme.bodyMedium,
-                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: const Color(0xFF1D1D1F),
+                                                ),
                                               ),
-                                            ),
+                                            ],
                                           ),
-                                          // Price - fixed width for alignment
-                                          SizedBox(
-                                            width: 80,
-                                            child: Text(
-                                              '\$${(item.price * item.quantity).toStringAsFixed(2)}',
-                                              style: textTheme.bodyMedium?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: colorScheme.primary,
-                                              ),
-                                              textAlign: TextAlign.right,
+                                          Text(
+                                            '\$${(item.price * item.quantity).toStringAsFixed(2)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w500,
+                                              color: const Color(0xFF1D1D1F),
                                             ),
                                           ),
                                         ],
                                       ),
-                                    );
-                                  }).toList(),
-                                  // Total row with separation
-                                  Container(
-                                    padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        top: BorderSide(
-                                          color: colorScheme.outlineVariant.withOpacity(0.5),
-                                          width: 1,
-                                        ),
-                                      ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        SizedBox(width: 84), // Space for ID and quantity
-                                        Expanded(
-                                          child: Text(
-                                            'Subtotal',
-                                            style: textTheme.titleSmall?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          width: 80,
-                                          child: Text(
-                                            '\$${_calculateSubtotal().toStringAsFixed(2)}',
-                                            style: textTheme.titleSmall?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: colorScheme.primary,
-                                            ),
-                                            textAlign: TextAlign.right,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            
+                            // Subtotal
+                            const Divider(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Subtotal',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: const Color(0xFF1D1D1F),
                                   ),
-                                ],
-                              ),
+                                ),
+                                Text(
+                                  '\$${_calculateSubtotal().toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: const Color(0xFF1D1D1F),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -877,25 +787,49 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                   ],
                 ),
               ),
-
-              // Action Button (Positioned at the bottom)
-              if (!_isLoading && _transcription != null)
+              
+              // Bottom button (Process Assignments)
+              if (_transcription != null)
                 Positioned(
-                  bottom: 16,
-                  left: 16,
-                  right: 16,
-                  child: FilledButton.icon(
-                    onPressed: _processTranscription,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('Start Splitting'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.secondary, // Consider using theme colors
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16), // Adjust padding
-                      minimumSize: const Size(double.infinity, 48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    child: ElevatedButton(
+                      onPressed: !_isLoading ? _processTranscription : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF5D737E), // Slate Blue
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        shadowColor: Colors.black.withOpacity(0.1),
+                        elevation: 4,
                       ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Process Assignments',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                 ),
@@ -905,5 +839,4 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       ),
     );
   }
-
-  } 
+} 
