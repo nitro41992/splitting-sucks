@@ -362,7 +362,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF34C759), // Apple's system green for completed
+                        color: const Color(0xFFA1DFA1), // Pastel green for completed - MATCHED with list view
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -371,7 +371,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                           const Icon(
                             Icons.check_circle,
                             size: 14,
-                            color: Colors.white,
+                            color: Color(0xFF2E7D32), // Darker green for contrast - MATCHED
                           ),
                           const SizedBox(width: 6), // Spacing between icon and text
                           const Text(
@@ -379,7 +379,34 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white,
+                              color: Color(0xFF2E7D32), // Darker green for contrast - MATCHED
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else 
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFA9D), // Pastel yellow for draft - MATCHED with list view
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.edit_note_outlined,
+                            size: 14,
+                            color: Color(0xFF5D5A38), // Darker yellow-brown for contrast - MATCHED
+                          ),
+                          const SizedBox(width: 6), // Spacing between icon and text
+                          const Text(
+                            'Draft',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF5D5A38), // Darker yellow-brown for contrast - MATCHED
                             ),
                           ),
                         ],
@@ -859,8 +886,8 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: receipt.isDraft 
-                              ? const Color(0xFFF5F5F7).withOpacity(0.8) // Light grey for draft
-                              : const Color(0xFF34C759), // Apple's system green for completed
+                              ? const Color(0xFFFFFA9D) // Pastel yellow for draft
+                              : const Color(0xFFA1DFA1), // Pastel green for completed
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Row(
@@ -870,8 +897,8 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                               receipt.isDraft ? Icons.edit_note_outlined : Icons.check_circle,
                               size: 14,
                               color: receipt.isDraft 
-                                  ? const Color(0xFF8A8A8E) // Medium grey for draft
-                                  : Colors.white,
+                                  ? const Color(0xFF5D5A38) // Darker yellow-brown for contrast
+                                  : const Color(0xFF2E7D32), // Darker green text for contrast
                             ),
                             const SizedBox(width: 6), // Spacing between icon and text
                             Text(
@@ -880,8 +907,8 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                                 color: receipt.isDraft 
-                                    ? const Color(0xFF8A8A8E) // Medium grey for draft
-                                    : Colors.white,
+                                    ? const Color(0xFF5D5A38) // Darker yellow-brown for contrast
+                                    : const Color(0xFF2E7D32), // Darker green text for contrast
                               ),
                             ),
                           ],
@@ -938,7 +965,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
+            icon: const Icon(Icons.search, color: Color(0xFF5D737E)),
             onPressed: () {
               showSearch(
                 context: context,
