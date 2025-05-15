@@ -110,24 +110,30 @@ class SubtotalHeaderDelegate extends SliverPersistentHeaderDelegate {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calculate_outlined,
-                        color: effectiveAccentColor,
-                        size: 30,
-                      ),
-                      const SizedBox(width: 16),
-                      Text(
-                        'Subtotal',
-                        key: const ValueKey('subtotal_label_expanded'),
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: effectiveTextColor,
+                  Flexible(
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calculate_outlined,
+                          color: effectiveAccentColor,
+                          size: 30,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 16),
+                        Flexible(
+                          child: Text(
+                            'Subtotal',
+                            key: const ValueKey('subtotal_label_expanded'),
+                            style: textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: effectiveTextColor,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Text(
                     '\$${subtotal.toStringAsFixed(2)}',
                     key: const ValueKey('subtotal_amount_expanded'),

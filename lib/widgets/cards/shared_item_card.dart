@@ -113,39 +113,49 @@ class SharedItemCard extends StatelessWidget {
                         (si.name == item.name && si.price == item.price)
                       );
                       
-                      return FilterChip(
-                        label: Text(person.name, overflow: TextOverflow.ellipsis),
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          if (selected) {
-                            // Add person to shared item
-                            Provider.of<SplitManager>(context, listen: false).addPersonToSharedItem(item, person);
-                          } else {
-                            // Remove person from shared item
-                            Provider.of<SplitManager>(context, listen: false).removePersonFromSharedItem(item, person);
-                          }
-                        },
-                        checkmarkColor: Colors.white,
-                        backgroundColor: Colors.grey[200],
-                        selectedColor: colorScheme.primary,
-                        showCheckmark: true,
-                        shape: StadiumBorder(
-                          side: BorderSide(
-                            color: isSelected 
-                                ? Colors.transparent
-                                : colorScheme.outlineVariant,
-                            width: 1.0,
+                      return SizedBox(
+                        // Limit maximum width to prevent overflow
+                        width: MediaQuery.of(context).size.width * 0.3,
+                        child: FilterChip(
+                          label: Text(
+                            person.name,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected) {
+                              // Add person to shared item
+                              Provider.of<SplitManager>(context, listen: false).addPersonToSharedItem(item, person);
+                            } else {
+                              // Remove person from shared item
+                              Provider.of<SplitManager>(context, listen: false).removePersonFromSharedItem(item, person);
+                            }
+                          },
+                          checkmarkColor: Colors.white,
+                          backgroundColor: Colors.grey[200],
+                          selectedColor: colorScheme.primary,
+                          showCheckmark: true,
+                          shape: StadiumBorder(
+                            side: BorderSide(
+                              color: isSelected 
+                                  ? Colors.transparent
+                                  : colorScheme.outlineVariant,
+                              width: 1.0,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          labelStyle: TextStyle(
+                            color: isSelected 
+                                ? Colors.white
+                                : colorScheme.primary,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 12, // Make the font a bit smaller to fit better
+                          ),
+                          elevation: 0,
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        labelStyle: TextStyle(
-                          color: isSelected 
-                              ? Colors.white
-                              : colorScheme.primary,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        elevation: 0,
-                        visualDensity: VisualDensity.compact,
                       );
                     }).toList(),
                   ),

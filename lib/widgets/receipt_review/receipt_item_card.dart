@@ -42,6 +42,7 @@ class ReceiptItemCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
+                    flex: 3,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -81,40 +82,49 @@ class ReceiptItemCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 8),
                   // Quantity Stepper
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.remove_circle_outline, color: item.quantity > 1 ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.4)),
-                        onPressed: item.quantity > 1 ? () => onQuantityChanged(index, item.quantity - 1) : null,
-                        visualDensity: VisualDensity.comfortable,
-                        padding: EdgeInsets.zero,
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0), // Padding around quantity number
-                        child: Text(
-                          '${item.quantity}',
-                          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 90),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.remove_circle_outline, color: item.quantity > 1 ? colorScheme.primary : colorScheme.onSurface.withOpacity(0.4)),
+                          onPressed: item.quantity > 1 ? () => onQuantityChanged(index, item.quantity - 1) : null,
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          iconSize: 20,
                         ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.add_circle_outline, color: colorScheme.primary),
-                        onPressed: () => onQuantityChanged(index, item.quantity + 1),
-                        visualDensity: VisualDensity.comfortable,
-                        padding: EdgeInsets.zero,
-                      ),
-                    ],
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0), // Padding around quantity number
+                          child: Text(
+                            '${item.quantity}',
+                            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.add_circle_outline, color: colorScheme.primary),
+                          onPressed: () => onQuantityChanged(index, item.quantity + 1),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 10), // Spacing before delete
+                  const SizedBox(width: 4), // Spacing before delete
                   // Delete Button
                   IconButton(
                     icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
                     onPressed: () => onDelete(index),
                     tooltip: 'Delete Item',
-                    visualDensity: VisualDensity.comfortable,
+                    visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    iconSize: 20,
                   ),
                 ],
               ),

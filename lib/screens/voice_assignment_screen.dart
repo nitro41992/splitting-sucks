@@ -724,24 +724,31 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Row(
-                                            children: [
-                                              Text(
-                                                '#${index + 1}',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w500,
-                                                  color: const Color(0xFF5D737E),
+                                          Flexible(
+                                            child: Row(
+                                              children: [
+                                                Text(
+                                                  '#${index + 1}',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                    color: const Color(0xFF5D737E),
+                                                  ),
                                                 ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                item.name,
-                                                style: TextStyle(
-                                                  color: const Color(0xFF1D1D1F),
+                                                const SizedBox(width: 8),
+                                                Flexible(
+                                                  child: Text(
+                                                    item.name,
+                                                    style: TextStyle(
+                                                      color: const Color(0xFF1D1D1F),
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                    maxLines: 1,
+                                                  ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
+                                          const SizedBox(width: 8),
                                           Text(
                                             '\$${(item.price * item.quantity).toStringAsFixed(2)}',
                                             style: TextStyle(
