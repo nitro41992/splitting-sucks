@@ -112,6 +112,20 @@ if (workflowState.hasAssignmentData) {
 - Optimize how image references are stored and retrieved
 - Consider adding placeholder animations during the transition
 
+### 3. Exit Dialog Cancel Behavior
+**Issue:** When a user attempts to exit the workflow (via back gesture or X button), a dialog appears asking if they want to save changes. If the user clicks "Cancel" (indicating they want to remain in the workflow), the app incorrectly exits to the receipts screen anyway.
+
+**Root Cause Analysis:**
+- The dialog's "Cancel" response handling logic is not properly implemented
+- The return value from the confirmation dialog may not be correctly propagated to the caller
+- The WillPopScope or equivalent navigation guard may not be correctly respecting the dialog result
+
+**Potential Fix:**
+- Review and correct the `_onWillPop` method in `workflow_modal.dart`
+- Ensure confirmation dialog results are properly handled
+- Add additional logging to track the navigation flow
+- Consider adding a dedicated test for this specific navigation path
+
 ## Next Steps
 
 ### Immediate Fixes (High Priority)
