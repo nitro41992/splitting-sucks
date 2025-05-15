@@ -1033,20 +1033,88 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(workflowState.restaurantName),
-          automaticallyImplyLeading: false,
-        ),
+        backgroundColor: const Color(0xFFF5F5F7), // Light grey background
+        // Remove the app bar and replace with a custom header
         body: Column(
           children: [
+            // Custom minimalist header
+            SafeArea(
+              bottom: false,
+              child: Container(
+                color: const Color(0xFFF5F5F7), // Light grey background - same as page
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Left: Close (X) button with Neumorphic styling
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(2, 2),
+                            spreadRadius: 0,
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.9),
+                            blurRadius: 8,
+                            offset: const Offset(-2, -2),
+                            spreadRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        shape: CircleBorder(),
+                        clipBehavior: Clip.hardEdge,
+                        child: InkWell(
+                          onTap: () => _handleNavigationExitAction(),
+                          child: const Icon(
+                            Icons.close,
+                            color: Color(0xFF5D737E), // Slate Blue
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Center: Title
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          workflowState.restaurantName,
+                          style: const TextStyle(
+                            color: Color(0xFF1D1D1F), // Primary Text Color
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    // Right: Empty space to balance the layout
+                    const SizedBox(width: 36),
+                  ],
+                ),
+              ),
+            ),
+            
             WorkflowStepIndicator(currentStep: workflowState.currentStep, stepTitles: _stepTitles),
+            
             Expanded(
               child: _buildStepContent(workflowState.currentStep),
             ),
+            
             // Replace custom navigation with WorkflowNavigationControls
             WorkflowNavigationControls(
               onSaveAction: _handleNavigationSaveDraftAction,
               onCompleteAction: _handleNavigationCompleteAction,
+              // Show the Save button in the bottom bar now
+              hideMiddleButton: false,
               onBackAction: () async {
                 final workflowState = Provider.of<WorkflowState>(context, listen: false);
                 if (workflowState.currentStep == 1) {

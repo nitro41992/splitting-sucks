@@ -7,9 +7,10 @@ class AppColors {
   static const Color battleshipGray = Color(0xFF969696);
   static const Color dimGray = Color(0xFF67697C);
   static const Color prussianBlue = Color(0xFF253D5B);
+  static const Color slateBlue = Color(0xFF506C97);
 
   // Theme Color Assignments
-  static const Color primary = prussianBlue;
+  static const Color primary = slateBlue;
   static const Color secondary = puce;
   static const Color tertiary = rosyBrown;
   static const Color background = Colors.white;
@@ -22,7 +23,7 @@ class AppColors {
   static const Color textMuted = battleshipGray;
   
   // Interactive Elements
-  static const Color buttonPrimary = prussianBlue;
+  static const Color buttonPrimary = slateBlue;
   static const Color buttonSecondary = puce;
   static const Color buttonTertiary = rosyBrown;
   static const Color disabled = battleshipGray;
@@ -30,10 +31,14 @@ class AppColors {
   // Decorative Elements
   static const Color divider = battleshipGray;
   static const Color cardBorder = rosyBrown;
-  static const Color accent = puce;
+  static const Color accent = slateBlue;
   
   // Status Colors
   static const Color success = Color(0xFF4CAF50);
   static const Color error = puce;
   static const Color warning = Color(0xFFFFA726);
+  
+  // Neumorphism colors
+  static const Color surfaceLight = Color(0xFFFFFFFF);
+  static const Color surfaceDark = Color(0xFFE8EAF0);
 } 

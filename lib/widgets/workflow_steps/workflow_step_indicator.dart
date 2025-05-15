@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_colors.dart';
 
 class WorkflowStepIndicator extends StatelessWidget {
   final int currentStep;
@@ -43,27 +44,34 @@ class WorkflowStepIndicator extends StatelessWidget {
                   final isCompleted = stepIndex < currentStep;
                   
                   return Container(
-                    width: 16,
-                    height: 16,
+                    width: 20, // Slightly larger dots
+                    height: 20,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isActive
-                          ? Theme.of(context).colorScheme.primary
+                          ? AppColors.primary // Slate Blue for active step
                           : isCompleted
-                              ? Theme.of(context).colorScheme.primaryContainer
-                              : Theme.of(context).colorScheme.surfaceVariant,
+                              ? AppColors.primary.withOpacity(0.7) // Lighter Slate Blue for completed
+                              : Colors.transparent, // Transparent for inactive steps
                       border: Border.all(
                         color: isActive || isCompleted
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(context).colorScheme.outline,
-                        width: 1,
+                            ? AppColors.primary // Slate Blue border for active/completed
+                            : Colors.grey.shade400, // Medium grey for inactive
+                        width: 2, // Thicker border
                       ),
+                      boxShadow: isActive ? [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ] : null,
                     ),
                     child: isCompleted
                         ? Icon(
                             Icons.check,
                             size: 12,
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            color: Colors.white,
                           )
                         : null,
                   );
@@ -73,38 +81,44 @@ class WorkflowStepIndicator extends StatelessWidget {
                   final isCompleted = lineIndex < currentStep;
                   
                   return Container(
-                    width: 24,
-                    height: 2,
-                    color: isCompleted
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.outline,
+                    width: 35, // Slightly longer lines
+                    height: 2.5, // Slightly thicker lines
+                    decoration: BoxDecoration(
+                      color: isCompleted
+                          ? AppColors.primary // Slate Blue for completed
+                          : Colors.grey.shade300, // Light grey for inactive
+                      borderRadius: BorderRadius.circular(1.0),
+                    ),
                   );
                 }
               },
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10), // More space
           // Step titles
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
               stepTitles.length,
-              (index) => Container(
-                width: 72, // Fixed width for each title container
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  stepTitles[index],
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: index == currentStep ? FontWeight.bold : FontWeight.normal,
-                    color: index == currentStep
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
+              (index) {
+                final isActive = index == currentStep;
+                return Container(
+                  width: 90, // Wider to accommodate text better
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    stepTitles[index],
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13, // Larger font size
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                      color: isActive
+                          ? AppColors.primary // Slate Blue for active
+                          : Colors.grey.shade600, // Darker grey for inactive 
+                    ),
+                    overflow: TextOverflow.ellipsis, // Handle long titles
                   ),
-                  overflow: TextOverflow.ellipsis, // Handle long titles
-                ),
-              ),
+                );
+              },
             ),
           ),
         ],
