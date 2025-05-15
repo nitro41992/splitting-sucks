@@ -16,6 +16,7 @@ This document details the redesign of the receipt upload and processing workflow
 5. **Neumorphic Styling** - Applied to buttons and image containers for a modern, tactile feel
 6. **Improved Visual Hierarchy** - Better spacing, typography, and component organization
 7. **Step Navigation Improvements** - Added both clickable step indicators and swipe gestures
+8. **Enhanced Item Dialogs** - Updated Add Item and Edit Item dialogs with improved formatting and validation
 
 ### Code Changes
 1. **workflow_modal.dart** - Updated to support the new navigation paradigm:
@@ -42,6 +43,12 @@ This document details the redesign of the receipt upload and processing workflow
    - Added `_isUploading` state variable to track upload progress
    - Modified auto-progression logic to check current loading state
    - Prevented multiple concurrent uploads of the same image
+
+6. **Item Dialogs Enhancement** - Improved Add Item and Edit Item dialogs:
+   - Added Material widget wrapper to fix rendering issues
+   - Implemented proper price field formatting and validation
+   - Added real-time error feedback for user inputs
+   - Enhanced the visual consistency with the app's Neumorphic style
 
 ## Fixed Issues
 
@@ -85,6 +92,56 @@ if (workflowState.hasAssignmentData) {
 - Added `_isUploading` state tracking to prevent duplicate uploads
 - Modified auto-progression logic to check loading states
 - Implemented proper upload state management across components
+
+### 4. Item Dialog Rendering and Validation
+**Issue:** Edit Item dialog was missing Material widget parent, causing TextField rendering errors. Both Add and Edit item dialogs lacked proper price input validation and formatting.
+
+**Solution:**
+1. Fixed rendering issue in Edit Item dialog:
+   - Added Material widget as a parent to the Container
+   - Ensured consistent widget hierarchy between Add and Edit dialogs
+
+2. Enhanced price field in both dialogs:
+   ```dart
+   // Added input formatters to ensure only valid numeric input
+   inputFormatters: [
+     // Allow only numbers and decimal point
+     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+     // Custom formatter to handle decimal formatting
+     TextInputFormatter.withFunction((oldValue, newValue) {
+       final formattedValue = _formatPrice(newValue.text);
+       return TextEditingValue(
+         text: formattedValue,
+         selection: TextSelection.collapsed(offset: formattedValue.length),
+       );
+     }),
+   ],
+   ```
+
+3. Implemented real-time validation with clear error messages:
+   ```dart
+   void _validatePrice(String value) {
+     setState(() {
+       if (value.isEmpty) {
+         _priceError = 'Price is required';
+       } else {
+         final price = double.tryParse(value);
+         if (price == null) {
+           _priceError = 'Invalid price format';
+         } else if (price <= 0) {
+           _priceError = 'Price must be greater than 0';
+         } else {
+           _priceError = null;
+         }
+       }
+     });
+   }
+   ```
+
+4. Added visual error feedback to match design language:
+   - Error text displayed in red below the price field
+   - Consistent styling with the app's color scheme
+   - Improved user experience with immediate validation feedback
 
 ## Current Issues
 
@@ -144,6 +201,11 @@ if (workflowState.hasAssignmentData) {
    - Enhance visual feedback when swiping and tapping navigation elements
    - Consider adding a tutorial overlay for first-time users
 
+4. **Further Item Dialog Enhancements:**
+   - Consider adding currency symbol selection for international support
+   - Add support for tax-inclusive item pricing
+   - Implement item categorization for better organization
+
 ### Future Enhancements (Medium Priority)
 1. **Error Handling:**
    - Enhance error messages for upload/processing failures
@@ -194,6 +256,17 @@ if (workflowState.hasAssignmentData) {
 - `lib/widgets/workflow_steps/assign_step_widget.dart`: UI for assigning items to people
 - `lib/widgets/workflow_steps/split_step_widget.dart`: UI for splitting bill
 - `lib/widgets/workflow_steps/summary_step_widget.dart`: UI for final bill summary
+
+#### Dialog Components
+- `lib/widgets/dialogs/add_item_dialog.dart`: Dialog for adding new items
+  - Provides intuitive interface for item creation
+  - Implements real-time validation for price input
+  - Follows Neumorphic design principles
+
+- `lib/widgets/dialogs/edit_item_dialog.dart`: Dialog for editing existing items
+  - Matches styling and behavior of add item dialog
+  - Preserves consistent UX between item creation and editing
+  - Implements proper input validation and formatting
 
 ### Data Flow
 
@@ -247,4 +320,22 @@ The fix implemented:
 - Added checks in auto-progression to prevent duplicate processing
 - Made upload state transparent between components
 
-This pattern should be followed for any future modifications to ensure operations like uploads aren't unintentionally duplicated. 
+This pattern should be followed for any future modifications to ensure operations like uploads aren't unintentionally duplicated.
+
+### Price Input Formatting and Validation
+
+We've implemented a consistent approach to price input formatting and validation that:
+
+1. **Enforces Valid Numeric Input**: Only allows numbers and a single decimal point
+   - Uses `FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))` to restrict input
+   - Custom formatter handles decimal placement and ensures max 2 decimal places
+
+2. **Provides Real-time Validation**: Validates as the user types
+   - Shows clear, specific error messages for different error cases
+   - Visually indicates error state directly in the UI
+
+3. **Maintains UX Consistency**: Uses the same validation approach across all money input fields
+   - Should be extended to other monetary input fields in the app
+   - Creates a predictable pattern for users
+
+This implementation follows the app's design principles by prioritizing visual clarity, providing immediate feedback, and maintaining a clean, modern aesthetic while ensuring data integrity. 
