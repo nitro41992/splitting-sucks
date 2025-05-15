@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/receipt_upload/full_image_viewer.dart'; // Import the full image viewer
 import '../services/file_helper.dart'; // Import FileHelper
-import '../theme/app_colors.dart';
 import '../utils/toast_helper.dart'; // Import the toast helper
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -41,14 +40,59 @@ class ReceiptUploadScreen extends StatefulWidget {
   State<ReceiptUploadScreen> createState() => _ReceiptUploadScreenState();
 }
 
-class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
+class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTickerProviderStateMixin {
   // Use the injected picker if available, otherwise create a new one.
   late final ImagePicker _picker;
-
+  late AnimationController _animationController;
+  
   @override
   void initState() {
     super.initState();
     _picker = widget.picker ?? ImagePicker();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+  }
+  
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ReceiptUploadScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Detect if an image was newly selected
+    final bool imageNowSelected = (widget.imageFile != null || widget.imageUrl != null) && 
+                                 (oldWidget.imageFile == null && oldWidget.imageUrl == null);
+    
+    // Only auto-proceed if an image was newly selected AND we're not already loading
+    if (imageNowSelected && !widget.isLoading) {
+      debugPrint('[ReceiptUploadScreen] Image newly selected and not loading. Setting up auto-proceed timer.');
+      _autoProceedAfterImageSelection();
+    } else if (imageNowSelected && widget.isLoading) {
+      debugPrint('[ReceiptUploadScreen] Image newly selected but already loading. Skipping auto-proceed.');
+    }
+  }
+
+  // Auto proceed to process receipt after selecting an image
+  void _autoProceedAfterImageSelection() {
+    // Add a small delay before auto-proceeding to allow the user to see the image
+    Future.delayed(const Duration(milliseconds: 800), () {
+      // Only proceed if we're still mounted, have an image, and not already loading
+      if (mounted && 
+          (widget.imageFile != null || widget.imageUrl != null) && 
+          !widget.isLoading) {
+        // Auto-proceed when we have a valid image
+        debugPrint('[ReceiptUploadScreen] Auto-proceeding to parse receipt after delay.');
+        widget.onParseReceipt();
+      } else if (mounted && widget.isLoading) {
+        debugPrint('[ReceiptUploadScreen] Not auto-proceeding because isLoading is true.');
+      }
+    });
   }
 
   Future<void> _takePicture() async {
@@ -140,7 +184,6 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
   @override
   Widget build(BuildContext context) {
     final TextTheme textTheme = Theme.of(context).textTheme;
-    final Size screenSize = MediaQuery.of(context).size;
 
     // Debug print for tracking
     debugPrint('[ReceiptUploadScreen Build] Building - isLoading: ${widget.isLoading}, isParsed: ${widget.isSuccessfullyParsed}, hasImageFile: ${widget.imageFile != null}, hasImageUrl: ${widget.imageUrl != null}, hasThumbUrl: ${widget.loadedThumbnailUrl != null}, thumbUrlValue: ${widget.loadedThumbnailUrl}');
@@ -300,113 +343,140 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
               isPrimary: true,
             ),
             
-            // Add extra space at the bottom to ensure buttons don't get covered by navigation
-            const SizedBox(height: 120),
+            // Add extra bottom padding (no longer needed with bottom bar removed)
+            const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
 
-  // Build the image preview screen
+  // Build the image preview screen with floating action buttons
   Widget _buildImagePreviewScreen(Widget imagePreviewWidget, String heroTag) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 24),
-            
-            // Main image preview with enhanced Neumorphic styling
-            Container(
-              margin: const EdgeInsets.only(bottom: 24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.12),
-                    offset: const Offset(4, 4),
-                    blurRadius: 12,
-                    spreadRadius: 0,
+    return Stack(
+      children: [
+        // Main scrollable content
+        SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 24),
+                
+                // Main image preview with enhanced Neumorphic styling
+                Container(
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        offset: const Offset(4, 4),
+                        blurRadius: 12,
+                        spreadRadius: 0,
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.9),
+                        offset: const Offset(-4, -4),
+                        blurRadius: 12,
+                        spreadRadius: 0,
+                      ),
+                    ],
                   ),
-                  BoxShadow(
-                    color: Colors.white.withOpacity(0.9),
-                    offset: const Offset(-4, -4),
-                    blurRadius: 12,
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: AspectRatio(
-                  aspectRatio: 3/4, // Portrait ratio for receipt
-                  child: GestureDetector(
-                    onTap: _showFullImage,
-                    child: Hero(
-                      tag: heroTag,
-                      child: Material(
-                        color: Colors.white,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            imagePreviewWidget,
-                            if (widget.isLoading)
-                              Container(
-                                color: Colors.black.withOpacity(0.5),
-                                child: const Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        color: Colors.white,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: AspectRatio(
+                      aspectRatio: 3/4, // Portrait ratio for receipt
+                      child: GestureDetector(
+                        onTap: _showFullImage,
+                        child: Hero(
+                          tag: heroTag,
+                          child: Material(
+                            color: Colors.white,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                imagePreviewWidget,
+                                if (widget.isLoading)
+                                  Container(
+                                    color: Colors.black.withOpacity(0.5),
+                                    child: const Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          CircularProgressIndicator(
+                                            color: Colors.white,
+                                          ),
+                                          SizedBox(height: 16),
+                                          Text(
+                                            'Processing Receipt...',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      SizedBox(height: 16),
-                                      Text(
-                                        'Processing Receipt...',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              ),
-                          ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
+                
+                // Informational text - what to do next
+                Text(
+                  'Tap the buttons below the image to change or process it.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: secondaryTextColor,
+                    fontSize: 14,
+                  ),
+                ),
+                
+                // Add bottom padding
+                const SizedBox(height: 100),
+              ],
             ),
-            
-            // Parse button with Neumorphic styling
-            _buildNeumorphicButton(
-              icon: Icons.auto_fix_high,
-              label: 'Process Receipt',
-              onPressed: widget.isLoading ? null : () => widget.onParseReceipt(),
-              isPrimary: true,
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Retry button
-            _buildNeumorphicButton(
-              icon: Icons.refresh_rounded,
-              label: 'Select Different Image',
-              onPressed: widget.isLoading ? null : widget.onRetry,
-              isPrimary: false,
-            ),
-            
-            // Add extra space at the bottom
-            const SizedBox(height: 120),
-          ],
+          ),
         ),
-      ),
+        
+        // Overlay floating action buttons near the bottom of the image
+        Positioned(
+          bottom: 120,
+          left: 0,
+          right: 0,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Left floating button - Change image
+                _buildFloatingActionButton(
+                  icon: Icons.refresh_rounded,
+                  label: 'Change',
+                  onPressed: widget.isLoading ? null : widget.onRetry,
+                  isPrimary: false,
+                ),
+                
+                // Right floating button - Process image
+                _buildFloatingActionButton(
+                  icon: Icons.auto_fix_high,
+                  label: 'Process',
+                  onPressed: widget.isLoading ? null : () => widget.onParseReceipt(),
+                  isPrimary: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -490,6 +560,78 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> {
                       fontWeight: FontWeight.w500,
                       fontSize: 16,
                     ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  // Build a floating action button for image actions
+  Widget _buildFloatingActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    required bool isPrimary,
+  }) {
+    // Colors based on primary/secondary and enabled/disabled state
+    final Color backgroundColor = isPrimary ? slateBlue : Colors.white;
+    final Color textColor = isPrimary ? Colors.white : slateBlue;
+    final bool isEnabled = onPressed != null;
+    
+    // Apply opacity for disabled state
+    final Color effectiveBackgroundColor = isEnabled 
+        ? backgroundColor 
+        : backgroundColor.withOpacity(isPrimary ? 0.6 : 0.9);
+    final Color effectiveTextColor = isEnabled 
+        ? textColor 
+        : textColor.withOpacity(0.6);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: effectiveBackgroundColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isEnabled ? [
+          BoxShadow(
+            color: Colors.black.withOpacity(isPrimary ? 0.15 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(3, 3),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.white.withOpacity(isPrimary ? 0.1 : 0.9),
+            blurRadius: 10,
+            offset: const Offset(-3, -3),
+            spreadRadius: 0,
+          ),
+        ] : [],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  color: effectiveTextColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: effectiveTextColor,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
                   ),
                 ),
               ],

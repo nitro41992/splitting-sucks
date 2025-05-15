@@ -1,25 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:collection/collection.dart';
 import '../models/receipt.dart';
 import '../models/receipt_item.dart';
-import '../models/person.dart';
 import '../services/firestore_service.dart';
-import '../models/split_manager.dart';
-import '../screens/receipt_upload_screen.dart';
-import '../screens/receipt_review_screen.dart';
 import '../screens/voice_assignment_screen.dart';
-import '../screens/final_summary_screen.dart';
-import '../widgets/split_view.dart';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../services/receipt_parser_service.dart';
-import '../services/audio_transcription_service.dart' hide Person;
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import './image_state_manager.dart'; // Import the new manager
-import '../providers/workflow_state.dart'; // ADDED: Import for moved WorkflowState
+import '../providers/workflow_state.dart'; // Import for WorkflowState
 import './workflow_steps/upload_step_widget.dart'; // Corrected import path
 import './workflow_steps/review_step_widget.dart'; // Import ReviewStepWidget
 import './workflow_steps/assign_step_widget.dart'; // Import AssignStepWidget
@@ -27,7 +16,6 @@ import './workflow_steps/split_step_widget.dart'; // Import SplitStepWidget
 import './workflow_steps/summary_step_widget.dart'; // Import SummaryStepWidget
 import '../utils/dialog_helpers.dart'; // Added import
 import './workflow_steps/workflow_step_indicator.dart'; // Import new widget
-import './workflow_steps/workflow_navigation_controls.dart'; // Import new widget
 import '../utils/toast_utils.dart'; // Import the new toast utility
 
 // --- Moved Typedef to top level --- 
@@ -164,6 +152,8 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   ];
   int _initialSplitViewTabIndex = 0;
   bool _isDraftLoading = false; // Added for initial draft load
+  bool _isLoading = false;
+  bool _isUploading = false; // Track upload state
   
   // Variable to hold the function provided by ReceiptReviewScreen
   GetCurrentItemsCallback? _getCurrentReviewItemsCallback;
@@ -360,9 +350,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       } else if (workflowState.hasTranscriptionData) {
         targetStep = 1; // Go to Assign (Step 1) if transcription data exists (and no assignment)
       } else if (workflowState.hasParseData) {
-        targetStep = 0; // Go to Upload (Step 0) if only parse data exists
+        targetStep = 1; // Go to Assign (Step 1) if parse data exists, not step 0
       }
-      // Else, targetStep remains 0 (Upload) if no other data exists.
+      // Else, targetStep remains 0 (Upload) if no data exists.
       
       workflowState.goToStep(targetStep);
       
@@ -398,74 +388,55 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     }
   }
 
-  // Show dialog when back button is pressed or Save & Exit is tapped
+  // Remove WillPopScope with our own implementation
   Future<bool> _onWillPop({BuildContext? dialogContext}) async {
     _flushTranscriptionToWorkflowState();
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     
     // If we're on the first step and nothing has been uploaded or parsed, just exit
-    // Adjusted condition to be more robust: if no image file, no existing receiptId, and no parse data.
     if (workflowState.currentStep == 0 && 
         workflowState.imageFile == null && 
         workflowState.receiptId == null && 
         !workflowState.hasParseData) {
       // Before exiting, process any pending deletions that might have accumulated from UI interactions
-      // without resulting in a savable state.
       await _processPendingDeletions(isSaving: false); 
       return true;
     }
     
-    // Check if we are on the final step (Summary) and ensure it's completed
-    bool isOnFinalStep = workflowState.currentStep == 2; // Summary step
+    // Show confirmation dialog to save draft
+    if (!mounted) return false;
     
-    // If on final step, prioritize completion over saving as draft
-    if (isOnFinalStep) {
+    final bool shouldSave = await showConfirmationDialog(
+      context, 
+      'Save Draft?', 
+      'Do you want to save your progress as a draft before exiting?'
+    );
+    
+    if (shouldSave) {
+      // Try to save draft
       try {
-        debugPrint('[_onWillPop] On final step, completing receipt...');
-        await _completeReceiptWithoutNavigation();
-        return true; // Allow pop after completion
+        await _saveDraft(isBackgroundSave: false, toastContext: mounted ? context : null);
+        return true; // Allow pop if save is successful
       } catch (e) {
-        debugPrint('[_onWillPop] Error completing receipt from final step: $e');
-        // Fall through to regular check if completion fails
+        // If saving fails, show an error
+        if (!mounted) return false;
+        
+        final bool retry = await showConfirmationDialog(
+          context, 
+          'Error Saving', 
+          'Failed to save draft: $e. Try again?'
+        );
+        
+        if (retry) {
+          return _onWillPop(dialogContext: context);
+        } else {
+          await _processPendingDeletions(isSaving: false);
+          return true; // Allow pop if user doesn't want to retry
+        }
       }
-    }
-    
-    // Regular check if receipt should be auto-completed
-    bool shouldAutoComplete = false;
-    try {
-      shouldAutoComplete = await _checkIfReceiptShouldBeCompleted();
-      if (!mounted) return false; // Check mounted after async operation
-    } catch (e) {
-      debugPrint('[_onWillPop] Error checking if receipt should be completed: $e');
-      shouldAutoComplete = false;
-    }
-    
-    try {
-      if (shouldAutoComplete) {
-        // Complete without navigation - we'll handle exit separately
-        await _completeReceiptWithoutNavigation();
-      } else {
-        // Auto-save as draft without confirmation
-        await _saveDraft(isBackgroundSave: false, toastContext: dialogContext ?? (mounted ? context : null));
-      }
-      
-      return true; // Allow pop if save is successful
-    } catch (e) {
-      // If saving fails, show an error and ask what to do
-      if (!mounted) return false;
-      
-      // IMPORTANT: Use a new context for the dialog, which will be `dialogContext` in recursive calls.
-      final bool result = await showConfirmationDialog(context, 'Error Saving Receipt', 'There was an error saving your data: $e\n\n'
-            'Do you want to try again or discard changes?');
-      
-      if (result) {
-        // Try again, passing the context from *this* level of the dialog/error handling
-        return _onWillPop(dialogContext: context); 
-      }
-      
-      // Discard and exit
-      // Process deletions before exiting if changes are discarded
-      await _processPendingDeletions(isSaving: false); 
+    } else {
+      // Just exit without saving
+      await _processPendingDeletions(isSaving: false);
       return true;
     }
   }
@@ -576,28 +547,44 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     String? imageGsUri;
     String? thumbnailGsUri;
 
-    // final workflowState = Provider.of<WorkflowState>(context, listen: false); // Not needed here
-
     try {
+      // Start a stopwatch to measure performance
+      final stopwatch = Stopwatch()..start();
+      
       debugPrint('_uploadImageAndProcess: Uploading image...');
       imageGsUri = await _firestoreService.uploadReceiptImage(imageFile);
-      debugPrint('_uploadImageAndProcess: Image uploaded to: $imageGsUri');
+      debugPrint('_uploadImageAndProcess: Image uploaded to: $imageGsUri in ${stopwatch.elapsedMilliseconds}ms');
 
       if (imageGsUri != null) {
-        try {
-          debugPrint('_uploadImageAndProcess: Generating thumbnail...');
-          thumbnailGsUri = await _firestoreService.generateThumbnail(imageGsUri);
-          debugPrint('_uploadImageAndProcess: Thumbnail generated: $thumbnailGsUri');
-        } catch (thumbError) {
+        // Start thumbnail generation in parallel with other operations
+        final thumbnailFuture = _firestoreService.generateThumbnail(imageGsUri).catchError((thumbError) {
           debugPrint('_uploadImageAndProcess: Error generating thumbnail (proceeding without it): $thumbError');
+          return null;
+        });
+        
+        // Allow some time for thumbnail generation but don't wait too long
+        thumbnailGsUri = await thumbnailFuture.timeout(
+          const Duration(seconds: 5),
+          onTimeout: () {
+            debugPrint('_uploadImageAndProcess: Thumbnail generation timed out after 5 seconds');
+            return null;
+          }
+        );
+        
+        if (thumbnailGsUri != null) {
+          debugPrint('_uploadImageAndProcess: Thumbnail generated: $thumbnailGsUri in ${stopwatch.elapsedMilliseconds}ms');
         }
       } else {
-         debugPrint('_uploadImageAndProcess: Skipping thumbnail generation because imageGsUri is null.');
+        debugPrint('_uploadImageAndProcess: Skipping thumbnail generation because imageGsUri is null.');
       }
+      
+      stopwatch.stop();
+      debugPrint('[_uploadImageAndProcess] Total time: ${stopwatch.elapsedMilliseconds}ms');
     } catch (uploadError) {
-       debugPrint('_uploadImageAndProcess: Error during image upload: $uploadError');
-       rethrow;
+      debugPrint('_uploadImageAndProcess: Error during image upload: $uploadError');
+      rethrow;
     }
+    
     debugPrint('[_uploadImageAndProcess] Returning URIs - Image: $imageGsUri, Thumbnail: $thumbnailGsUri');
     return {'imageUri': imageGsUri, 'thumbnailUri': thumbnailGsUri};
   }
@@ -730,9 +717,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
               loadedThumbnailUrl: consumedState.loadedThumbnailUrl,
               isLoading: consumedState.isLoading,
               isSuccessfullyParsed: isSuccessfullyParsed,
-              onImageSelected: _handleImageSelectedForUploadStep, // Use new handler
-              onParseReceipt: _handleParseReceiptForUploadStep,    // Use new handler
-              onRetry: _handleRetryForUploadStep,                // Use new handler
+              onImageSelected: _handleImageSelectedForUploadStep,
+              onParseReceipt: _handleParseReceiptForUploadStep,
+              onRetry: () => _handleImageSelectedForUploadStep(null),
+              isUploading: _isUploading,
             ) as Widget; // Explicit cast
           },
         );
@@ -858,164 +846,51 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     }
   }
 
-  // --- START: New handlers for WorkflowNavigationControls callbacks ---
+  // --- START: New handlers for navigation action ---
   Future<void> _handleNavigationExitAction() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     final bool isOnFinalStep = workflowState.currentStep == 2; // Summary step
     
-    // If on final step, always prioritize completion
-    if (isOnFinalStep) {
-      try {
-        debugPrint('[_handleNavigationExitAction] On final step, prioritizing completion...');
-        await _completeReceiptWithoutNavigation();
-        
-        if (mounted && Navigator.of(context).canPop()) {
-          Navigator.of(context).pop(true); // Exit after completion
-        }
-        return;
-      } catch (e) {
-        debugPrint('[_handleNavigationExitAction] Error completing receipt from final step: $e');
-        // Fall through to regular flow if completion fails
-      }
-    }
-    
-    // Regular check for auto-completion for other steps
-    bool shouldAutoComplete = await _checkIfReceiptShouldBeCompleted();
-    
-    // Either auto-complete from checks OR manually complete if on Summary step
-    // This is a backup in case the earlier direct completion failed
-    shouldAutoComplete = shouldAutoComplete || isOnFinalStep;
-    
-    if (!mounted) return; // Check mounted after async operation
-    
-    // Store navigation reference before any async operations
-    final navigator = Navigator.of(context);
-    bool completed = false;
-    
-    try {
-      if (shouldAutoComplete) {
-        // Complete the receipt without automatic navigation
-        await _completeReceiptWithoutNavigation();
-        completed = true;
-      } else {
-        // Save as draft
-        await _saveDraft(isBackgroundSave: false, toastContext: mounted ? context : null);
-        completed = true;
-      }
-    } catch (e) {
-      // Handle errors (already shown in _completeReceipt or _saveDraft)
-      debugPrint('[_handleNavigationExitAction] Error during save/complete: $e');
-      completed = false;
-    }
-    
-    // Only navigate if the operation completed successfully
-    if (completed && mounted && navigator.canPop()) {
-      navigator.pop(true); // true indicates a deliberate exit/save
-    }
-  }
-
-  // Version of _completeReceipt that doesn't navigate at the end
-  Future<void> _completeReceiptWithoutNavigation() async {
-    // Get workflow state ONCE at the beginning.
-    final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    
-    debugPrint('[_completeReceiptWithoutNavigation] Starting to complete receipt: ${workflowState.receiptId}');
-    
-    try {
-      // --- Start Operation ---
-      if (!mounted) return; 
-      workflowState.setLoading(true); 
-      workflowState.setErrorMessage(null);
-      
-      // Skip if there's no receipt ID
-      if (workflowState.receiptId == null) {
-        debugPrint('[_completeReceiptWithoutNavigation] Cannot complete: No receipt ID found');
-        throw Exception('No receipt ID found');
-      }
-      
-      // Create the receipt object and explicitly set status to 'completed'
-      Receipt receipt = workflowState.toReceipt();
-      
-      // Update the people field with latest data from assignments
-      final List<String> actualPeople = receipt.peopleFromAssignments;
-      if (actualPeople.isNotEmpty) {
-        receipt = receipt.copyWith(people: actualPeople);
-        debugPrint('[_completeReceiptWithoutNavigation] Updated receipt with ${actualPeople.length} people from assignments');
-      } else {
-        debugPrint('[_completeReceiptWithoutNavigation] Warning: No people found in assignments data');
-      }
-      
-      final Map<String, dynamic> receiptData = receipt.toMap();
-      receiptData['metadata']['status'] = 'completed'; // Ensure status is explicitly set to 'completed'
-      
-      debugPrint('[_completeReceiptWithoutNavigation] Calling FirestoreService to complete receipt: ${receipt.id}');
-      
-      // --- First Await --- 
-      final String definitiveReceiptId = await _firestoreService.completeReceipt( 
-        receiptId: receipt.id, 
-        data: receiptData,
+    // Show confirmation dialog if we have unsaved changes
+    if (workflowState.imageFile != null || workflowState.hasParseData || workflowState.hasTranscriptionData) {
+      final bool shouldSave = await showConfirmationDialog(
+        context, 
+        'Save Changes?', 
+        'Do you want to save your progress as a draft before exiting?'
       );
       
-      debugPrint('[_completeReceiptWithoutNavigation] Successfully completed receipt in Firestore: $definitiveReceiptId');
-      
-      // --- Check Mounted After First Await --- 
-      if (!mounted) return; 
-      
-      // --- State Updates (No Context Use) --- 
-      workflowState.setReceiptId(definitiveReceiptId);
-      workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
-      workflowState.removeUriFromPendingDeletions(workflowState.actualThumbnailGsUri);
-
-      // --- Second Await --- 
-      await _processPendingDeletions(isSaving: true); 
-
-      // --- Check Mounted After Second Await --- 
-      if (!mounted) return; 
-      
-      // --- Final State Updates & UI Feedback --- 
-      workflowState.setLoading(false); 
-      
-      // Show toast before navigation if context is still valid
-      if (mounted) {
-        showAppToast(context, "Receipt completed successfully", AppToastType.success);
+      if (shouldSave) {
+        // Save as draft before exiting
+        try {
+          await _saveDraft(isBackgroundSave: false, toastContext: mounted ? context : null);
+          if (mounted && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop(true);
+          }
+        } catch (e) {
+          debugPrint('[_handleNavigationExitAction] Error saving draft: $e');
+          // Show error but stay in the modal
+          if (mounted) {
+            showAppToast(context, "Failed to save draft: $e", AppToastType.error);
+          }
+        }
+      } else {
+        // Just exit without saving
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(false);
+        }
       }
-      
-    } catch (e) {
-      debugPrint('[_completeReceiptWithoutNavigation] Error completing receipt: $e');
-      
-      // --- Check Mounted in Catch Block --- 
-      if (!mounted) return; 
-      
-      // --- State Updates & UI Feedback --- 
-      workflowState.setLoading(false); 
-      workflowState.setErrorMessage('Failed to complete receipt: $e');
-      
-      // Show error toast with current context
-      showAppToast(context, "Failed to complete receipt: $e", AppToastType.error);
-      rethrow; // Propagate error to caller
-    }
-  }
-
-  Future<void> _handleNavigationSaveDraftAction() async {
-    bool saveSuccess = false;
-    try {
-      // For UI-triggered save, use the current widget's context for toasts
-      await _saveDraft(isBackgroundSave: false, toastContext: mounted ? context : null);
-      saveSuccess = true;
-    } catch (e) {
-      // _saveDraft already handles logging and showing a SnackBar
-      // for the error.
-      saveSuccess = false;
-    }
-    if (saveSuccess && mounted) {
-      Navigator.of(context).pop(true); // true indicates a deliberate exit/save
+    } else {
+      // No changes to save, just exit
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop(false);
+      }
     }
   }
 
   Future<void> _handleNavigationCompleteAction() async {
     await _completeReceipt();
   }
-  // --- END: New handlers for WorkflowNavigationControls callbacks ---
+  // --- END: New handlers for navigation action ---
 
   @override
   Widget build(BuildContext context) {
@@ -1037,19 +912,20 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
         // Remove the app bar and replace with a custom header
         body: Column(
           children: [
-            // Custom minimalist header
+            // Enhanced top app bar with contextual primary action
             SafeArea(
               bottom: false,
               child: Container(
-                color: const Color(0xFFF5F5F7), // Light grey background - same as page
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                height: 64, // Enhanced prominence
+                color: const Color(0xFFF5F5F7), // Match page background
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     // Left: Close (X) button with Neumorphic styling
                     Container(
-                      width: 36,
-                      height: 36,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
@@ -1070,18 +946,19 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                       ),
                       child: Material(
                         color: Colors.transparent,
-                        shape: CircleBorder(),
+                        shape: const CircleBorder(),
                         clipBehavior: Clip.hardEdge,
                         child: InkWell(
                           onTap: () => _handleNavigationExitAction(),
                           child: const Icon(
                             Icons.close,
                             color: Color(0xFF5D737E), // Slate Blue
-                            size: 18,
+                            size: 28,
                           ),
                         ),
                       ),
                     ),
+                    
                     // Center: Title
                     Expanded(
                       child: Center(
@@ -1089,47 +966,54 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                           workflowState.restaurantName,
                           style: const TextStyle(
                             color: Color(0xFF1D1D1F), // Primary Text Color
-                            fontSize: 16,
+                            fontSize: 18,
                             fontWeight: FontWeight.w600,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
-                    // Right: Empty space to balance the layout
-                    const SizedBox(width: 36),
+                    
+                    // Right: Contextual Primary Action (only for Summary step)
+                    workflowState.currentStep == 2 // Summary step
+                      ? TextButton(
+                          onPressed: _handleNavigationCompleteAction,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                            minimumSize: const Size(44, 44), // Ensure good tap target
+                          ),
+                          child: const Text(
+                            'Save Bill',
+                            style: TextStyle(
+                              color: Color(0xFF5D737E), // Slate Blue
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        )
+                      : const SizedBox(width: 44), // Empty space to balance layout
                   ],
                 ),
               ),
             ),
             
-            WorkflowStepIndicator(currentStep: workflowState.currentStep, stepTitles: _stepTitles),
+            // Step indicator directly below top app bar
+            WorkflowStepIndicator(
+              currentStep: workflowState.currentStep, 
+              stepTitles: _stepTitles,
+              onStepTapped: (stepIndex) => _handleStepTapped(stepIndex, workflowState),
+              availableSteps: _getAvailableSteps(workflowState),
+            ),
             
+            // Main content area (takes all remaining space)
             Expanded(
-              child: _buildStepContent(workflowState.currentStep),
+              child: GestureDetector(
+                onHorizontalDragEnd: (details) => _handleSwipe(details, workflowState),
+                child: _buildStepContent(workflowState.currentStep),
+              ),
             ),
             
-            // Replace custom navigation with WorkflowNavigationControls
-            WorkflowNavigationControls(
-              onSaveAction: _handleNavigationSaveDraftAction,
-              onCompleteAction: _handleNavigationCompleteAction,
-              // Show the Save button in the bottom bar now
-              hideMiddleButton: false,
-              onBackAction: () async {
-                final workflowState = Provider.of<WorkflowState>(context, listen: false);
-                if (workflowState.currentStep == 1) {
-                  debugPrint('[WorkflowModal] Flushing transcription before navigating back from Assign step.');
-                  await _flushTranscriptionToWorkflowState();
-                }
-              },
-              onNextAction: () async {
-                final workflowState = Provider.of<WorkflowState>(context, listen: false);
-                if (workflowState.currentStep == 1) {
-                  debugPrint('[WorkflowModal] Flushing transcription before navigating away from Assign step.');
-                  await _flushTranscriptionToWorkflowState();
-                }
-              },
-            ),
+            // Bottom navigation bar removed (replaced with floating action buttons or in-content actions)
           ],
         ),
       ),
@@ -1199,51 +1083,79 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // --- END EDIT ---
 
   // --- START OF NEW HELPER METHODS FOR UPLOAD STEP ---
-  Future<void> _handleImageSelectedForUploadStep(File? file) async {
+  Future<Map<String, String>> _handleImageSelectedForUploadStep(File? file) async {
+    if (_isUploading) {
+      debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Upload already in progress, skipping');
+      return {};
+    }
+    
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
     if (workflowState.hasParseData) {
       final confirmed = await showConfirmationDialog(
         context,
         'Confirm Action',
         'Selecting a new image will clear all currently reviewed items, assigned people, and split details. Do you want to continue?'
       );
-      if (!confirmed) return; // User cancelled
+      if (!confirmed) return {}; // User cancelled
       workflowState.clearParseAndSubsequentData();
     }
-
-    if (file != null) {
-      workflowState.setImageFile(file); // This already clears subsequent data internally
+    
+    if (file == null) {
+      workflowState.resetImageFile();
       workflowState.setErrorMessage(null);
-      final File imageFileForThisUpload = file; 
-
-      _uploadImageAndProcess(imageFileForThisUpload).then((uris) {
-        if (mounted && workflowState.imageFile == imageFileForThisUpload) { 
+      return {};
+    }
+    
+    setState(() {
+      _isUploading = true;
+    });
+    
+    try {
+      workflowState.setImageFile(file);
+      workflowState.setErrorMessage(null);
+      
+      // Start the upload in background
+      _uploadImageAndProcess(file).then((uris) {
+        debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload complete. WorkflowState updated.');
+        if (mounted) {
           workflowState.setUploadedGsUris(uris['imageUri'], uris['thumbnailUri']);
-          debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload complete. WorkflowState updated.');
-        } else {
-          debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload complete, but context changed or image no longer matches. URIs not set. Orphaned URIs might be ${uris['imageUri']}, ${uris['thumbnailUri']}');
-          if (uris['imageUri'] != null) workflowState.addUriToPendingDeletions(uris['imageUri']);
-          if (uris['thumbnailUri'] != null) workflowState.addUriToPendingDeletions(uris['thumbnailUri']);
         }
+        setState(() {
+          _isUploading = false;
+        });
       }).catchError((error) {
-         if (mounted && workflowState.imageFile == imageFileForThisUpload) { 
-            debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload failed for current image: $error');
-            workflowState.setErrorMessage('Background image upload failed. Please try parsing again or reselect.');
-            workflowState.setUploadedGsUris(null, null);
-          } else {
-            debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Background upload failed for an outdated image selection: $error');
-          }
+        debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Error: $error');
+        if (mounted) {
+          workflowState.setErrorMessage('Background image upload failed. Please try parsing again or reselect.');
+        }
+        setState(() {
+          _isUploading = false;
+        });
       });
-    } else {
-      workflowState.resetImageFile(); 
-      workflowState.setErrorMessage(null);
+      
+      return {};
+    } catch (e) {
+      debugPrint('[_WorkflowModalBodyState._handleImageSelectedForUploadStep] Error: $e');
+      setState(() {
+        _isUploading = false;
+      });
+      return {};
     }
   }
 
   Future<void> _handleParseReceiptForUploadStep() async {
+    if (_isUploading) {
+      debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Upload already in progress, skipping');
+      return;
+    }
+    
+    debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Starting parse receipt process. Setting isUploading=true');
+    
+    // Get workflowState before any async operations
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    final scaffoldMessenger = ScaffoldMessenger.of(context); // Capture before async
-
+    
+    // Check if we need to confirm re-parse
     if (workflowState.hasParseData) {
       final confirmed = await showConfirmationDialog(
         context,
@@ -1253,29 +1165,51 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       if (!confirmed) return;
       workflowState.clearParseAndSubsequentData();
     }
-
-    workflowState.setLoading(true); 
+    
+    // Fast path: if we already have a valid GS URI, just set loading indicator in WorkflowState
+    // to minimize UI rebuilds
+    if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty) {
+      workflowState.setLoading(true);
+    } else {
+      setState(() {
+        _isLoading = true;
+        _isUploading = true;
+      });
+      workflowState.setLoading(true);
+    }
+    
     workflowState.setErrorMessage(null);
-    String? gsUriForParsing;
+    
     try {
+      String? gsUriForParsing;
+      
       if (workflowState.actualImageGsUri != null && workflowState.actualImageGsUri!.isNotEmpty) {
-          gsUriForParsing = workflowState.actualImageGsUri;
-          debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Using pre-existing actualImageGsUri: $gsUriForParsing');
+        gsUriForParsing = workflowState.actualImageGsUri;
+        debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Using pre-existing actualImageGsUri: $gsUriForParsing');
       } else if (workflowState.imageFile != null) {
-          debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Local file detected, no GS URI yet. Uploading synchronously...');
-          final uris = await _uploadImageAndProcess(workflowState.imageFile!);
-          workflowState.setUploadedGsUris(uris['imageUri'], uris['thumbnailUri']);
-          gsUriForParsing = uris['imageUri'];
-          debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Synchronous upload complete. Using: $gsUriForParsing for parsing.');
+        debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Local file detected, no GS URI yet. Uploading synchronously...');
+        final uris = await _uploadImageAndProcess(workflowState.imageFile!);
+        workflowState.setUploadedGsUris(uris['imageUri'], uris['thumbnailUri']);
+        gsUriForParsing = uris['imageUri'];
+        debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Synchronous upload complete. Using: $gsUriForParsing for parsing.');
       } else if (workflowState.loadedImageUrl != null) {
         debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] CRITICAL: loadedImageUrl is present, but actualImageGsUri is missing...');
         throw Exception('Image loaded from draft, but its GS URI is missing in state.');
       } else {
         debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] No image selected or available for parsing.');
+        
+        // Clear loading states before returning
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isUploading = false;
+          });
+        }
         workflowState.setLoading(false);
+        
         workflowState.setErrorMessage('Please select an image first.');
         if (mounted) {
-          showAppToast(scaffoldMessenger.context, "Please select an image first.", AppToastType.error);
+          showAppToast(context, "Please select an image first.", AppToastType.error);
         }
         return;
       }
@@ -1287,37 +1221,45 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       
       Map<String, dynamic> newParseResult = {}; 
       debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Parsing receipt with URI: $gsUriForParsing');
-      final ReceiptData parsedData = await ReceiptParserService.parseReceipt(gsUriForParsing);
+      final parsedData = await ReceiptParserService.parseReceipt(gsUriForParsing);
       newParseResult['items'] = parsedData.items;
       newParseResult['subtotal'] = parsedData.subtotal;
       workflowState.setParseReceiptResult(newParseResult);
       debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Receipt parsed successfully.');
 
+      // Clear loading states before navigating to next step
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isUploading = false;
+        });
+      }
       workflowState.setLoading(false);
+      
+      // Add a very short delay before advancing step for better UI responsiveness
+      await Future.delayed(const Duration(milliseconds: 100));
       workflowState.nextStep();
-    } catch (e) { 
+    } catch (e) {
       debugPrint('[_WorkflowModalBodyState._handleParseReceiptForUploadStep] Error: $e');
+      
+      // Clear loading states
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isUploading = false;
+        });
+      }
       workflowState.setLoading(false);
+      
       workflowState.setErrorMessage('Failed to process/parse receipt: ${e.toString()}');
       if (mounted) {
-        showAppToast(scaffoldMessenger.context, "Failed to process/parse receipt: ${e.toString()}", AppToastType.error);
+        showAppToast(context, "Failed to process/parse receipt: ${e.toString()}", AppToastType.error);
       }
     }
   }
 
   void _handleRetryForUploadStep() async {
-    final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    // Show confirmation dialog before clearing data
-    final confirm = await showConfirmationDialog( 
-      context,
-      "Confirm Retry",
-      "Retrying will clear any existing parsed receipt data. Are you sure you want to continue?",
-    );
-
-    if (confirm) {
-      workflowState.resetImageFile();
-      workflowState.setErrorMessage(null);
-    }
+    _handleImageSelectedForUploadStep(null);
   }
   // --- END OF NEW HELPER METHODS FOR UPLOAD STEP ---
 
@@ -1516,5 +1458,93 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     // No need to track the step locally since it's managed by WorkflowState
     
     // Auto-complete has been moved to _onWillPop to only happen on exit
+  }
+
+  // Handle step indicator taps
+  void _handleStepTapped(int stepIndex, WorkflowState workflowState) {
+    // Don't do anything if we tap the current step
+    if (stepIndex == workflowState.currentStep) return;
+    
+    // Check if the step is available to navigate to
+    List<bool> availableSteps = _getAvailableSteps(workflowState);
+    if (stepIndex < availableSteps.length && availableSteps[stepIndex]) {
+      debugPrint('[_WorkflowModalBodyState._handleStepTapped] Navigating to step $stepIndex');
+      workflowState.goToStep(stepIndex);
+    } else {
+      debugPrint('[_WorkflowModalBodyState._handleStepTapped] Step $stepIndex is not available for navigation');
+      // Show a toast or message informing the user why they can't navigate to this step
+      if (mounted) {
+        String message = 'Please complete the current step first';
+        if (stepIndex == 1 && !workflowState.hasParseData) {
+          message = 'Please upload and process a receipt first';
+        } else if (stepIndex == 2 && !workflowState.hasAssignmentData) {
+          message = 'Please complete the assignment step first';
+        }
+        showAppToast(context, message, AppToastType.info);
+      }
+    }
+  }
+  
+  // Determine which steps are available for navigation
+  List<bool> _getAvailableSteps(WorkflowState workflowState) {
+    List<bool> availableSteps = List.filled(_stepTitles.length, false);
+    
+    // Step 0 (Upload) is always available
+    availableSteps[0] = true;
+    
+    // Step 1 (Assign) is available if we have parse data
+    if (workflowState.hasParseData) {
+      availableSteps[1] = true;
+    }
+    
+    // Step 2 (Summary) is available if we have assignment data
+    if (workflowState.hasAssignmentData) {
+      availableSteps[2] = true;
+    }
+    
+    return availableSteps;
+  }
+
+  void _handleSwipe(DragEndDetails details, WorkflowState workflowState) {
+    // Determine swipe direction and distance
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    
+    // Minimum velocity threshold to count as an intentional swipe
+    const double velocityThreshold = 200.0;
+    
+    if (velocity.abs() < velocityThreshold) {
+      // Swipe not strong enough to be considered intentional
+      return;
+    }
+    
+    if (velocity > 0) {
+      // Swiped right (right to left on screen) - go to previous step
+      final previousStep = workflowState.currentStep - 1;
+      if (previousStep >= 0) {
+        // Always allow going back to a previous step
+        debugPrint('[_WorkflowModalBodyState._handleSwipe] Navigating to previous step $previousStep');
+        workflowState.goToStep(previousStep);
+      }
+    } else {
+      // Swiped left (left to right on screen) - go to next step
+      final nextStep = workflowState.currentStep + 1;
+      // For forward navigation, check if the step is available
+      List<bool> availableSteps = _getAvailableSteps(workflowState);
+      if (nextStep < availableSteps.length && availableSteps[nextStep]) {
+        debugPrint('[_WorkflowModalBodyState._handleSwipe] Navigating to next step $nextStep');
+        workflowState.goToStep(nextStep);
+      } else {
+        // Show toast explaining why they can't advance
+        if (mounted) {
+          String message = 'Please complete the current step first';
+          if (nextStep == 1 && !workflowState.hasParseData) {
+            message = 'Please upload and process a receipt first';
+          } else if (nextStep == 2 && !workflowState.hasAssignmentData) {
+            message = 'Please complete the assignment step first';
+          }
+          showAppToast(context, message, AppToastType.info);
+        }
+      }
+    }
   }
 }

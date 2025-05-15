@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../screens/receipt_upload_screen.dart';
-import '../../theme/app_colors.dart';
+import 'package:provider/provider.dart';
+import '../../providers/workflow_state.dart';
 
 class UploadStepWidget extends StatelessWidget {
   final File? imageFile;
@@ -10,32 +11,32 @@ class UploadStepWidget extends StatelessWidget {
   final bool isLoading;
   final bool isSuccessfullyParsed;
   final Function(File?) onImageSelected;
-  final Future<void> Function() onParseReceipt;
+  final VoidCallback onParseReceipt;
   final VoidCallback onRetry;
-  final String? billName;
+  final bool isUploading;
 
   const UploadStepWidget({
     Key? key,
     required this.imageFile,
     required this.imageUrl,
-    required this.loadedThumbnailUrl,
+    this.loadedThumbnailUrl,
     required this.isLoading,
     required this.isSuccessfullyParsed,
     required this.onImageSelected,
     required this.onParseReceipt,
     required this.onRetry,
-    this.billName,
+    this.isUploading = false,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // We pass through to the ReceiptUploadScreen directly, avoiding any wrapping widgets
-    // that might cause conflicts with parent layout constraints
+    // Direct pass-through to ReceiptUploadScreen with additional state checking
+    // to prevent duplicate uploads and processing
     return ReceiptUploadScreen(
       imageFile: imageFile,
       imageUrl: imageUrl,
       loadedThumbnailUrl: loadedThumbnailUrl,
-      isLoading: isLoading,
+      isLoading: isLoading || isUploading,  // Account for both loading states
       isSuccessfullyParsed: isSuccessfullyParsed,
       onImageSelected: onImageSelected,
       onParseReceipt: onParseReceipt,
