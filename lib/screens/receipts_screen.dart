@@ -248,10 +248,11 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     ],
                   ),
                   
-                  // Restaurant Name Edit Section with Completed tag
+                  // Unified header section with title, status pill, and edit icon
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      // Restaurant name (expanded to take available space)
                       Expanded(
                         child: isEditingName
                             ? Column(
@@ -317,6 +318,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                               )
                             : Row(
                                 children: [
+                                  // Restaurant name
                                   Expanded(
                                     child: Text(
                                       restaurantNameController.text,
@@ -325,6 +327,43 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                       ),
                                     ),
                                   ),
+                                  
+                                  // Status pill inline with title
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: receipt.isDraft 
+                                          ? const Color(0xFFFFFA9D) // Pastel yellow for draft
+                                          : const Color(0xFFA1DFA1), // Pastel green for completed
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          receipt.isDraft ? Icons.edit_note_outlined : Icons.check_circle,
+                                          size: 14,
+                                          color: receipt.isDraft 
+                                              ? const Color(0xFF5D5A38) // Darker yellow-brown
+                                              : const Color(0xFF2E7D32), // Darker green
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          receipt.isDraft ? 'Draft' : 'Completed',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                            color: receipt.isDraft 
+                                                ? const Color(0xFF5D5A38)
+                                                : const Color(0xFF2E7D32),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  
+                                  // Edit icon for restaurant name
                                   Padding(
                                     padding: const EdgeInsets.only(left: 12.0),
                                     child: Container(
@@ -356,134 +395,145 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     ],
                   ),
                   
-                  // Status pill with modern design - now below title
-                  const SizedBox(height: 8),
-                  if (!receipt.isDraft)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFA1DFA1), // Pastel green for completed - MATCHED with list view
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.check_circle,
-                            size: 14,
-                            color: Color(0xFF2E7D32), // Darker green for contrast - MATCHED
-                          ),
-                          const SizedBox(width: 6), // Spacing between icon and text
-                          const Text(
-                            'Completed',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF2E7D32), // Darker green for contrast - MATCHED
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else 
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFA9D), // Pastel yellow for draft - MATCHED with list view
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.edit_note_outlined,
-                            size: 14,
-                            color: Color(0xFF5D5A38), // Darker yellow-brown for contrast - MATCHED
-                          ),
-                          const SizedBox(width: 6), // Spacing between icon and text
-                          const Text(
-                            'Draft',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF5D5A38), // Darker yellow-brown for contrast - MATCHED
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(height: 20),
                   
-                  const SizedBox(height: 24),
+                  // Receipt thumbnail for visual context
+                  Center(
+                    child: Container(
+                      width: 150,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: receipt.thumbnailUrlForDisplay != null 
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: CachedNetworkImage(
+                                imageUrl: receipt.thumbnailUrlForDisplay!,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2.0)),
+                                errorWidget: (context, url, error) => const Icon(
+                                  Icons.receipt_long, 
+                                  size: 40, 
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            )
+                          : const Center(
+                              child: Icon(
+                                Icons.receipt_long, 
+                                size: 40, 
+                                color: Colors.grey,
+                              ),
+                            ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
                   const Divider(height: 1),
                   const SizedBox(height: 16),
                   
-                  // Simplified Receipt details - only show useful information
-                  _buildDetailRow('Date', receipt.formattedDate),
-                  
-                  // People detail with modern circular avatars
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "People",
-                          style: Theme.of(context).textTheme.titleMedium,
+                  // Date information row with consistent styling
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Date",
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontSize: 15,
+                          color: Colors.grey[700],
                         ),
-                        const SizedBox(height: 12),
-                        if (receipt.people.isEmpty)
+                      ),
+                      Text(
+                        receipt.formattedDate,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // People section with improved layout
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
                           Text(
-                            "None assigned",
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                              fontStyle: FontStyle.italic,
-                              color: Colors.grey[600],
+                            "People",
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontSize: 15,
+                              color: Colors.grey[700],
                             ),
-                          )
-                        else
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: receipt.people.map((person) => 
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Circular avatar with initial
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF5D737E), // Slate Blue
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        person.isNotEmpty ? person[0].toUpperCase() : '?',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
+                          ),
+                          // Optional: Add edit icon for people if needed
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (receipt.people.isEmpty)
+                        Text(
+                          "None assigned",
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey[600],
+                          ),
+                        )
+                      else 
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: receipt.people.map((person) => 
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Circular avatar with initial
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF5D737E), // Slate Blue
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      person.isNotEmpty ? person[0].toUpperCase() : '?',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  // Person name
-                                  Text(
-                                    person,
-                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                ),
+                                const SizedBox(width: 8),
+                                // Person name
+                                Text(
+                                  person,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w500,
                                   ),
-                                ],
-                              ),
-                            ).toList(),
-                          ),
-                      ],
-                    ),
+                                ),
+                              ],
+                            ),
+                          ).toList(),
+                        ),
+                    ],
                   ),
                   
                   const SizedBox(height: 24),
                   
+                  // Action buttons with clear separation
                   // "Edit Receipt" button - primary action with filled style
                   SizedBox(
                     width: double.infinity,
@@ -544,26 +594,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         );
       },
     );
-  }
-  
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-        ],
-      ),
-    );
-  }
+    }
   
   // Helper for confirmation dialog before deleting a receipt
   Future<void> _confirmDeleteReceipt(BuildContext context, Receipt receipt) async {
@@ -623,23 +654,36 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         await _firestoreService.deleteReceipt(receipt.id);
 
         if (context.mounted) {
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //   SnackBar(content: Text('"${receipt.restaurantName ?? 'Receipt'}" deleted successfully')),
-          // );
           showAppToast(context, '"${receipt.restaurantName ?? 'Receipt'}" deleted successfully', AppToastType.success);
         }
       } catch (e) {
         debugPrint('Error during deletion process: $e');
         if (context.mounted) {
-          // ScaffoldMessenger.of(context).showSnackBar(
-          //   SnackBar(content: Text('Error deleting receipt: $e'), backgroundColor: Colors.red),
-          // );
           showAppToast(context, "Error deleting receipt: $e", AppToastType.error);
         }
       }
     }
   }
-
+  
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ],
+      ),
+    );
+  }
+    
   Widget _buildReceiptCard(Receipt receipt) {
     // Check if receipt has people data from assignments
     final bool hasPeople = receipt.people.isNotEmpty;
