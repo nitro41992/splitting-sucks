@@ -7,14 +7,14 @@ import 'dart:async';
 
 import '../models/split_manager.dart';
 // import '../models/receipt_item.dart'; // Not directly used in this snippet but keep if PersonSummaryCard needs it
-import '../models/person.dart'; 
-import '../theme/app_colors.dart'; 
-import '../widgets/split_view.dart'; 
-import '../widgets/final_summary/person_summary_card.dart'; 
-import '../utils/platform_config.dart'; 
-import '../utils/toast_helper.dart'; 
+import '../models/person.dart';
+import '../theme/app_colors.dart';
+import '../widgets/split_view.dart';
+import '../widgets/final_summary/person_summary_card.dart';
+import '../utils/platform_config.dart';
+import '../utils/toast_helper.dart';
 // import '../widgets/workflow_modal.dart'; // Not directly used in this snippet
-import '../providers/workflow_state.dart'; 
+import '../providers/workflow_state.dart';
 import '../models/receipt.dart';
 import '../services/firestore_service.dart';
 import '../widgets/workflow_steps/split_step_widget.dart';
@@ -28,24 +28,26 @@ class FinalSummaryScreen extends StatefulWidget {
   State<FinalSummaryScreen> createState() => _FinalSummaryScreenState();
 }
 
-class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBindingObserver {
+class _FinalSummaryScreenState extends State<FinalSummaryScreen>
+    with WidgetsBindingObserver {
   static const double DEFAULT_TAX_RATE = 8.875; // Default NYC tax rate
 
   double _tipPercentage = 20.0;
   double _taxPercentage = DEFAULT_TAX_RATE;
   late TextEditingController _taxController;
-  
+
   @override
   void initState() {
     super.initState();
-    
+
     WidgetsBinding.instance.addObserver(this);
-    
+
     final workflowState = context.read<WorkflowState>();
     _tipPercentage = workflowState.tip ?? 20.0;
     _taxPercentage = workflowState.tax ?? DEFAULT_TAX_RATE;
-    
-    _taxController = TextEditingController(text: _taxPercentage.toStringAsFixed(3));
+
+    _taxController =
+        TextEditingController(text: _taxPercentage.toStringAsFixed(3));
     _taxController.addListener(() {
       final newTax = double.tryParse(_taxController.text);
       if (newTax != null && newTax >= 0) {
@@ -75,11 +77,13 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       final workflowState = Provider.of<WorkflowState>(context, listen: false);
       workflowState.setTax(_taxPercentage);
       workflowState.setTip(_tipPercentage);
-      debugPrint("[FinalSummaryScreen] App backgrounded, caching tax: $_taxPercentage, tip: $_tipPercentage");
+      debugPrint(
+          "[FinalSummaryScreen] App backgrounded, caching tax: $_taxPercentage, tip: $_tipPercentage");
     }
   }
 
@@ -88,50 +92,53 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
     workflowState.setTax(_taxPercentage);
     workflowState.setTip(_tipPercentage);
-    
+
     _completeReceiptInDatabase();
-    
-    debugPrint("[FinalSummaryScreen] Screen deactivated, caching tax: $_taxPercentage, tip: $_tipPercentage");
+
+    debugPrint(
+        "[FinalSummaryScreen] Screen deactivated, caching tax: $_taxPercentage, tip: $_tipPercentage");
     super.deactivate();
   }
 
   Future<void> _completeReceiptInDatabase() async {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    
+
     if (workflowState.receiptId == null) {
-      debugPrint("[FinalSummaryScreen] Cannot complete receipt: No receipt ID found");
+      debugPrint(
+          "[FinalSummaryScreen] Cannot complete receipt: No receipt ID found");
       return;
     }
-    
+
     try {
       Receipt receipt = workflowState.toReceipt();
       final List<String> actualPeople = receipt.peopleFromAssignments;
-      
+
       if (actualPeople.isNotEmpty) {
         receipt = receipt.copyWith(people: actualPeople);
       }
-      
+
       final splitManager = Provider.of<SplitManager>(context, listen: false);
-      
+
       final assignmentMap = splitManager.generateAssignmentMap();
-      if (workflowState.assignPeopleToItemsResult == null || 
+      if (workflowState.assignPeopleToItemsResult == null ||
           workflowState.assignPeopleToItemsResult!.isEmpty) {
         workflowState.setAssignPeopleToItemsResult(assignmentMap);
       }
-      
+
       workflowState.setTip(_tipPercentage);
       workflowState.setTax(_taxPercentage);
-      
+
       final Map<String, dynamic> receiptData = receipt.toMap();
-      receiptData['metadata']['status'] = 'completed'; 
-      
+      receiptData['metadata']['status'] = 'completed';
+
       final firestoreService = FirestoreService();
       await firestoreService.completeReceipt(
         receiptId: receipt.id,
         data: receiptData,
       );
-      
-      debugPrint("[FinalSummaryScreen] Successfully completed receipt ${receipt.id} in database");
+
+      debugPrint(
+          "[FinalSummaryScreen] Successfully completed receipt ${receipt.id} in database");
     } catch (e) {
       debugPrint("[FinalSummaryScreen] Error completing receipt: $e");
     }
@@ -140,29 +147,27 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
   Future<void> _launchBuyMeACoffee(BuildContext context) async {
     String buyMeACoffeeLink;
     try {
-      buyMeACoffeeLink = dotenv.env['BUY_ME_A_COFFEE_LINK'] ?? 'https://buymeacoffee.com/kuchiman';
+      buyMeACoffeeLink = dotenv.env['BUY_ME_A_COFFEE_LINK'] ??
+          'https://buymeacoffee.com/kuchiman';
     } catch (e) {
       buyMeACoffeeLink = 'https://buymeacoffee.com/kuchiman';
     }
-    
+
     final Uri url = Uri.parse(buyMeACoffeeLink);
     try {
-        if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-            throw 'Could not launch $url';
-        }
+      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+        throw 'Could not launch $url';
+      }
     } catch (e) {
-        if (!mounted) return;
-        try {
-          ToastHelper.showToast(
-              context, 
-              'Could not launch link: ${e.toString()}',
-              isError: true
-          );
-        } catch (_) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Could not launch link: ${e.toString()}')),
-          );
-        }
+      if (!mounted) return;
+      try {
+        ToastHelper.showToast(context, 'Could not launch link: ${e.toString()}',
+            isError: true);
+      } catch (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not launch link: ${e.toString()}')),
+        );
+      }
     }
   }
 
@@ -184,8 +189,10 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     receipt.writeln('');
     receipt.writeln('📊 TOTALS');
     receipt.writeln('Subtotal: \$${subtotal.toStringAsFixed(2)}');
-    receipt.writeln('Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${tax.toStringAsFixed(2)}');
-    receipt.writeln('Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${tip.toStringAsFixed(2)}');
+    receipt.writeln(
+        'Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${tax.toStringAsFixed(2)}');
+    receipt.writeln(
+        'Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${tip.toStringAsFixed(2)}');
     receipt.writeln('TOTAL: \$${total.toStringAsFixed(2)}');
     receipt.writeln('');
     receipt.writeln('👥 INDIVIDUAL BREAKDOWNS');
@@ -198,13 +205,15 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
       final double personTotal = personSubtotal + personTax + personTip;
 
       receipt.writeln('');
-      receipt.writeln('👤 ${person.name.toUpperCase()} → YOU OWE: \$${personTotal.toStringAsFixed(2)}');
+      receipt.writeln(
+          '👤 ${person.name.toUpperCase()} → YOU OWE: \$${personTotal.toStringAsFixed(2)}');
       receipt.writeln('───────────────');
 
       if (person.assignedItems.isNotEmpty) {
         receipt.writeln('Individual Items:');
         for (var item in person.assignedItems) {
-          receipt.writeln('• ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
+          receipt.writeln(
+              '• ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
         }
       }
 
@@ -212,17 +221,24 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
         receipt.writeln('');
         receipt.writeln('Shared Items:');
         for (var item in person.sharedItems) {
-          final sharingCount = splitManager.people.where((p) => p.sharedItems.contains(item)).length;
-          final individualShare = sharingCount > 0 ? (item.price * item.quantity / sharingCount) : 0.0;
-          receipt.writeln('• ${item.quantity}x ${item.name} (${sharingCount}-way split: \$${individualShare.toStringAsFixed(2)})');
+          final sharingCount = splitManager.people
+              .where((p) => p.sharedItems.contains(item))
+              .length;
+          final individualShare = sharingCount > 0
+              ? (item.price * item.quantity / sharingCount)
+              : 0.0;
+          receipt.writeln(
+              '• ${item.quantity}x ${item.name} (${sharingCount}-way split: \$${individualShare.toStringAsFixed(2)})');
         }
       }
 
       receipt.writeln('');
       receipt.writeln('Details:');
       receipt.writeln('Subtotal: \$${personSubtotal.toStringAsFixed(2)}');
-      receipt.writeln('+ Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${personTax.toStringAsFixed(2)}');
-      receipt.writeln('+ Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${personTip.toStringAsFixed(2)}');
+      receipt.writeln(
+          '+ Tax (${_taxPercentage.toStringAsFixed(1)}%): \$${personTax.toStringAsFixed(2)}');
+      receipt.writeln(
+          '+ Tip (${_tipPercentage.toStringAsFixed(1)}%): \$${personTip.toStringAsFixed(2)}');
     }
 
     if (splitManager.unassignedItems.isNotEmpty) {
@@ -230,25 +246,25 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
       receipt.writeln('⚠️ UNASSIGNED ITEMS');
       receipt.writeln('═══════════════════');
       for (var item in splitManager.unassignedItems) {
-        receipt.writeln('• ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
+        receipt.writeln(
+            '• ${item.quantity}x ${item.name} (\$${(item.price * item.quantity).toStringAsFixed(2)})');
       }
       final double unassignedSubtotal = splitManager.unassignedItemsTotal;
       final double unassignedTax = unassignedSubtotal * taxRate;
       final double unassignedTip = unassignedSubtotal * tipRate;
-      final double unassignedTotal = unassignedSubtotal + unassignedTax + unassignedTip;
+      final double unassignedTotal =
+          unassignedSubtotal + unassignedTax + unassignedTip;
       receipt.writeln('');
-      receipt.writeln('Unassigned Total (inc. tax/tip): \$${unassignedTotal.toStringAsFixed(2)}');
+      receipt.writeln(
+          'Unassigned Total (inc. tax/tip): \$${unassignedTotal.toStringAsFixed(2)}');
     }
 
     await Clipboard.setData(ClipboardData(text: receipt.toString()));
 
     if (!mounted) return;
     try {
-      ToastHelper.showToast(
-        context,
-        'Receipt copied to clipboard!',
-        isSuccess: true
-      );
+      ToastHelper.showToast(context, 'Receipt copied to clipboard!',
+          isSuccess: true);
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -263,15 +279,17 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
       builder: (dialogContext) {
         final colorScheme = Theme.of(dialogContext).colorScheme;
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          icon: Icon(Icons.celebration_rounded, color: colorScheme.primary, size: 36),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          icon: Icon(Icons.celebration_rounded,
+              color: colorScheme.primary, size: 36),
           title: const Text('Receipt Copied! 🎉'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
                 'Your summary is ready to paste! ✨',
-                 textAlign: TextAlign.center,
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               Container(
@@ -284,14 +302,15 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                   'Keeping the magic alive (and the AI fed!) costs a little. If Billfie made your day easier, consider fueling future features!',
                   textAlign: TextAlign.center,
                   style: Theme.of(dialogContext).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSecondaryContainer,
-                  ),
+                        color: colorScheme.onSecondaryContainer,
+                      ),
                 ),
               ),
             ],
           ),
           actionsAlignment: MainAxisAlignment.center,
-          actionsPadding: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
+          actionsPadding:
+              const EdgeInsets.only(bottom: 16, left: 16, right: 16),
           actions: [
             FilledButton.icon(
               icon: const Icon(Icons.coffee_outlined),
@@ -301,7 +320,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                 _launchBuyMeACoffee(context);
               },
               style: FilledButton.styleFrom(
-                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
             TextButton(
@@ -320,9 +340,11 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final splitManager = context.watch<SplitManager>();
 
-    if (splitManager.people.isEmpty && splitManager.unassignedItems.isEmpty && splitManager.sharedItems.isEmpty) {
-       return Container(
-        color: const Color(0xFFF5F5F7), 
+    if (splitManager.people.isEmpty &&
+        splitManager.unassignedItems.isEmpty &&
+        splitManager.sharedItems.isEmpty) {
+      return Container(
+        color: const Color(0xFFF5F5F7),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -349,7 +371,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
               ),
               const SizedBox(height: 16),
               Text(
-                'Assign items to people or mark them as shared first.', 
+                'Assign items to people or mark them as shared first.',
                 textAlign: TextAlign.center,
                 style: textTheme.bodyLarge?.copyWith(
                   color: colorScheme.onSurfaceVariant,
@@ -359,7 +381,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
               _buildNeumorphicButton(
                 heroTag: 'goToSplitView_empty',
                 onPressed: () {
-                  NavigateToPageNotification(3).dispatch(context); 
+                  NavigateToPageNotification(3).dispatch(context);
                 },
                 icon: Icons.arrow_back,
                 label: 'Go to Split View',
@@ -385,15 +407,16 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
       double personSubtotal = splitManager.getPersonTotal(person);
       sumOfIndividualSubtotals += personSubtotal;
     }
-    
+
     if (splitManager.unassignedItems.isNotEmpty) {
       sumOfIndividualSubtotals += splitManager.unassignedItemsTotal;
     }
-    
-    final bool subtotalsMatch = (subtotal - sumOfIndividualSubtotals).abs() < 0.05;
+
+    final bool subtotalsMatch =
+        (subtotal - sumOfIndividualSubtotals).abs() < 0.05;
 
     return Container(
-      color: const Color(0xFFF5F5F7), 
+      color: const Color(0xFFF5F5F7),
       child: Stack(
         children: [
           ListView(
@@ -403,7 +426,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                 padding: const EdgeInsets.only(bottom: 16.0),
                 child: Row(
                   children: [
-                    Icon(Icons.receipt_long_outlined, color: AppColors.primary, size: 24),
+                    Icon(Icons.receipt_long_outlined,
+                        color: AppColors.primary, size: 24),
                     const SizedBox(width: 8),
                     Text(
                       'Bill Overview',
@@ -415,7 +439,6 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                   ],
                 ),
               ),
-
               if (!subtotalsMatch)
                 _buildNeumorphicContainer(
                   backgroundColor: colorScheme.errorContainer,
@@ -425,7 +448,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
-                          Icons.warning_amber_rounded, 
+                          Icons.warning_amber_rounded,
                           color: colorScheme.error,
                           size: 28,
                         ),
@@ -445,7 +468,6 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                     ),
                   ),
                 ),
-
               _buildNeumorphicContainer(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -454,7 +476,6 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                     children: [
                       _buildTotalRow(context, 'Subtotal:', subtotal),
                       const SizedBox(height: 16),
-
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -465,19 +486,23 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                             height: 40,
                             child: _buildNeumorphicContainer(
                               borderRadius: 8,
-                              isElevated: false, 
+                              isElevated: false,
                               child: TextField(
                                 key: const ValueKey('tax_field'),
                                 controller: _taxController,
                                 textAlignVertical: TextAlignVertical.center,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
                                 inputFormatters: [
-                                   FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')),
+                                  FilteringTextInputFormatter.allow(
+                                      RegExp(r'^\d*\.?\d{0,3}')),
                                 ],
                                 decoration: InputDecoration(
                                   suffixText: '%',
                                   isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 8),
                                   border: InputBorder.none,
                                 ),
                                 textAlign: TextAlign.right,
@@ -491,17 +516,16 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                             child: Text(
                               '\$${tax.toStringAsFixed(2)}',
                               key: const ValueKey('tax_percentage_text'),
-                              style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                              style: textTheme.bodyLarge
+                                  ?.copyWith(fontWeight: FontWeight.w500),
                               textAlign: TextAlign.right,
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-
                       Text('Tip:', style: textTheme.titleMedium),
                       const SizedBox(height: 8),
-
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -528,23 +552,24 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                         ],
                       ),
                       const SizedBox(height: 16),
-
                       Row(
                         children: [
                           Expanded(
                             child: SliderTheme(
                               data: SliderThemeData(
                                 activeTrackColor: AppColors.primary,
-                                inactiveTrackColor: AppColors.primary.withOpacity(0.2),
+                                inactiveTrackColor:
+                                    AppColors.primary.withOpacity(0.2),
                                 thumbColor: AppColors.primary,
-                                overlayColor: AppColors.primary.withOpacity(0.2),
+                                overlayColor:
+                                    AppColors.primary.withOpacity(0.2),
                                 trackHeight: 4.0,
                               ),
                               child: Slider(
                                 value: _tipPercentage,
                                 min: 0.0,
                                 max: 30.0,
-                                divisions: 60, 
+                                divisions: 60,
                                 onChanged: _onTipSliderChanged,
                               ),
                             ),
@@ -554,22 +579,21 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                             width: 80,
                             child: Text(
                               '\$${tip.toStringAsFixed(2)}',
-                              style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                              style: textTheme.bodyLarge
+                                  ?.copyWith(fontWeight: FontWeight.w500),
                               textAlign: TextAlign.right,
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
-
-                      _buildTotalRow(context, 'Total:', total, isGrandTotal: true),
+                      _buildTotalRow(context, 'Total:', total,
+                          isGrandTotal: true),
                     ],
                   ),
                 ),
               ),
-              
-              const SizedBox(height: 24), 
-
+              const SizedBox(height: 24),
               Padding(
                 padding: const EdgeInsets.only(bottom: 16.0, top: 8.0),
                 child: Row(
@@ -577,7 +601,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.people_alt_outlined, color: AppColors.primary, size: 24),
+                        Icon(Icons.people_alt_outlined,
+                            color: AppColors.primary, size: 24),
                         const SizedBox(width: 8),
                         Text(
                           'Split Breakdown',
@@ -609,35 +634,50 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () {
-                            debugPrint("[FinalSummaryScreen] Attempting to navigate to SplitView (index 3)");
-                            
-                            final workflowState = Provider.of<WorkflowState>(context, listen: false);
-                            final splitManager = Provider.of<SplitManager>(context, listen: false);
-                            
-                            splitManager.initialSplitViewTabIndex = 0; 
-                            
+                            debugPrint(
+                                "[FinalSummaryScreen] Attempting to navigate to SplitView (index 3)");
+
+                            final workflowState = Provider.of<WorkflowState>(
+                                context,
+                                listen: false);
+                            final splitManager = Provider.of<SplitManager>(
+                                context,
+                                listen: false);
+
+                            splitManager.initialSplitViewTabIndex = 0;
+
                             Navigator.of(context).push(
                               MaterialPageRoute(
                                 fullscreenDialog: true,
-                                builder: (context) => ChangeNotifierProvider<WorkflowState>.value(
+                                builder: (context) =>
+                                    ChangeNotifierProvider<WorkflowState>.value(
                                   value: workflowState,
                                   child: SplitStepWidget(
-                                    parseResult: workflowState.parseReceiptResult,
-                                    assignResultMap: workflowState.assignPeopleToItemsResult ?? {},
+                                    parseResult:
+                                        workflowState.parseReceiptResult,
+                                    assignResultMap: workflowState
+                                            .assignPeopleToItemsResult ??
+                                        {},
                                     currentTip: workflowState.tip,
                                     currentTax: workflowState.tax,
-                                    initialSplitViewTabIndex: splitManager.initialSplitViewTabIndex ?? 0,
+                                    initialSplitViewTabIndex:
+                                        splitManager.initialSplitViewTabIndex ??
+                                            0,
                                     onTipChanged: (newTip) {
                                       workflowState.setTip(newTip);
                                     },
                                     onTaxChanged: (newTax) {
                                       workflowState.setTax(newTax);
                                     },
-                                    onAssignmentsUpdatedBySplit: (newAssignments) {
-                                      workflowState.setAssignPeopleToItemsResult(newAssignments);
+                                    onAssignmentsUpdatedBySplit:
+                                        (newAssignments) {
+                                      workflowState
+                                          .setAssignPeopleToItemsResult(
+                                              newAssignments);
                                     },
                                     onNavigateToPage: (pageIndex) {
-                                      debugPrint("[FinalSummaryScreen] SplitView requested navigation to page: $pageIndex");
+                                      debugPrint(
+                                          "[FinalSummaryScreen] SplitView requested navigation to page: $pageIndex");
                                     },
                                   ),
                                 ),
@@ -646,7 +686,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                           },
                           borderRadius: BorderRadius.circular(16),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
                             child: Row(
                               children: [
                                 const Icon(
@@ -671,21 +712,22 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                   ],
                 ),
               ),
-
               if (splitManager.unassignedItems.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 0), 
+                  padding: const EdgeInsets.only(bottom: 16.0),
                   child: InkWell(
                     onTap: () {
-                      context.read<SplitManager>().initialSplitViewTabIndex = 2; 
-                      NavigateToPageNotification(3).dispatch(context); 
+                      context.read<SplitManager>().initialSplitViewTabIndex = 2;
+                      NavigateToPageNotification(3).dispatch(context);
                     },
                     borderRadius: BorderRadius.circular(16),
                     child: _buildNeumorphicContainer(
                       borderRadius: 16,
-                      backgroundColor: colorScheme.errorContainer.withOpacity(0.1),
+                      backgroundColor:
+                          colorScheme.errorContainer.withOpacity(0.1),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 12.0),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -693,7 +735,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                               children: [
                                 CircleAvatar(
                                   radius: 16,
-                                  backgroundColor: AppColors.secondary.withOpacity(0.2),
+                                  backgroundColor:
+                                      AppColors.secondary.withOpacity(0.2),
                                   child: Icon(
                                     Icons.help_outline,
                                     size: 20,
@@ -732,20 +775,18 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                     ),
                   ),
                 ),
-
-              _buildPeopleSection(context, splitManager, people, taxRate, tipRate),
-
+              _buildPeopleSection(
+                  context, splitManager, people, taxRate, tipRate),
               const SizedBox(height: 80),
             ],
           ),
-
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F7), 
+                color: const Color(0xFFF5F5F7),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -765,10 +806,10 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                       icon: Icons.coffee_outlined,
                       label: 'Support Me',
                       isPrimary: false,
-                      isSecondary: true, 
+                      isSecondary: true,
                     ),
                   ),
-                  const SizedBox(width: 16), 
+                  const SizedBox(width: 16),
                   Expanded(
                     child: _buildNeumorphicButton(
                       heroTag: 'shareButton_final',
@@ -789,69 +830,57 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
   }
 
   // Helper to build the people cards section - CODE FIX APPLIED HERE
-  Widget _buildPeopleSection(BuildContext context, SplitManager splitManager, List<Person> people, double taxRate, double tipRate) {
-    // final textTheme = Theme.of(context).textTheme; // Not used directly here
-    // final colorScheme = Theme.of(context).colorScheme; // Not used directly here
-
+  Widget _buildPeopleSection(BuildContext context, SplitManager splitManager,
+      List<Person> people, double taxRate, double tipRate) {
     // If there are no people, return an empty container to avoid rendering an empty Column.
     if (splitManager.people.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: splitManager.people.length,
-          itemBuilder: (context, index) {
-            final person = splitManager.people[index];
-            return Padding(
-              padding: EdgeInsets.only(
-                // If it's the first card (index == 0):
-                // - If unassigned items banner is present, no top padding (0.0).
-                // - If no unassigned items banner, add 8.0 top padding to separate from the "Split Breakdown" header.
-                // For subsequent cards (index > 0), always add 8.0 top padding for separation from the card above.
-                top: (index == 0) 
-                    ? (splitManager.unassignedItems.isNotEmpty ? 0.0 : 8.0) 
-                    : 8.0,
-                bottom: 8.0 // Add 8.0 padding below each person card.
-              ),
-              child: PersonSummaryCard(
-                key: ValueKey(person.name), // Ensure unique key for each person
-                person: person,
-                splitManager: splitManager,
-                taxPercentage: _taxPercentage,
-                tipPercentage: _tipPercentage,
-              ),
-            );
-          },
-        ),
-      ],
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero, // Remove any default padding
+      itemCount: splitManager.people.length,
+      itemBuilder: (context, index) {
+        final person = splitManager.people[index];
+        return Padding(
+          padding: EdgeInsets.only(
+              top: (index == 0) ? 0.0 : 8.0, // First card always 0.0 top, others 8.0
+              bottom: 8.0),
+          child: PersonSummaryCard(
+            key: ValueKey(person.name), // Ensure unique key for each person
+            person: person,
+            splitManager: splitManager,
+            taxPercentage: _taxPercentage,
+            tipPercentage: _tipPercentage,
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTotalRow(BuildContext context, String label, double value, {bool isGrandTotal = false}) {
+  Widget _buildTotalRow(BuildContext context, String label, double value,
+      {bool isGrandTotal = false}) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final style = isGrandTotal
         ? textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
-        : textTheme.titleMedium; 
+        : textTheme.titleMedium;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Flexible(  
+        Flexible(
           child: Text(
-            label, 
+            label,
             style: style?.copyWith(
               color: isGrandTotal ? AppColors.primary : colorScheme.onSurface,
             ),
-            overflow: TextOverflow.ellipsis,  
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(width: 8),  
+        const SizedBox(width: 8),
         Text(
           '\$${value.toStringAsFixed(2)}',
           style: style?.copyWith(
@@ -863,14 +892,14 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
   }
 
   void _setTipPercentage(double percentage) {
-    setState(() { 
+    setState(() {
       _tipPercentage = percentage;
       context.read<WorkflowState>().setTip(_tipPercentage);
     });
   }
 
   void _onTipSliderChanged(double value) {
-    setState(() { 
+    setState(() {
       _tipPercentage = (value * 10).round() / 10.0;
       context.read<WorkflowState>().setTip(_tipPercentage);
     });
@@ -884,13 +913,14 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     required bool isPrimary,
     required bool isSecondary,
   }) {
-    final Color backgroundColor = isPrimary 
-        ? AppColors.primary 
-        : isSecondary 
-            ? AppColors.secondary 
+    final Color backgroundColor = isPrimary
+        ? AppColors.primary
+        : isSecondary
+            ? AppColors.secondary
             : Colors.white;
-    final Color textColor = (isPrimary || isSecondary) ? Colors.white : AppColors.primary;
-    
+    final Color textColor =
+        (isPrimary || isSecondary) ? Colors.white : AppColors.primary;
+
     return Container(
       decoration: BoxDecoration(
         color: backgroundColor,
@@ -903,7 +933,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
             spreadRadius: 0,
           ),
           BoxShadow(
-            color: Colors.white.withOpacity((isPrimary || isSecondary) ? 0.1 : 0.9),
+            color: Colors.white
+                .withOpacity((isPrimary || isSecondary) ? 0.1 : 0.9),
             blurRadius: 10,
             offset: const Offset(-4, -4),
             spreadRadius: 0,
@@ -916,10 +947,12 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
           onTap: onPressed,
           borderRadius: BorderRadius.circular(20),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center, // Center content in button
+              mainAxisAlignment:
+                  MainAxisAlignment.center, // Center content in button
               children: [
                 Icon(
                   icon,
@@ -950,7 +983,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
   }) {
     final Color backgroundColor = isSelected ? AppColors.primary : Colors.white;
     final Color textColor = isSelected ? Colors.white : AppColors.primary;
-    
+
     return Container(
       width: 64,
       height: 36,
@@ -999,38 +1032,40 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     bool isElevated = true,
   }) {
     final Color bgColor = backgroundColor ?? Colors.white;
-    
+
     return Container(
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: isElevated ? [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(4, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.white.withOpacity(0.9),
-            blurRadius: 10,
-            offset: const Offset(-4, -4),
-            spreadRadius: 0,
-          ),
-        ] : [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 4,
-            offset: const Offset(2, 2),
-            spreadRadius: -1,
-          ),
-          BoxShadow(
-            color: Colors.white.withOpacity(0.8),
-            blurRadius: 4,
-            offset: const Offset(-2, -2),
-            spreadRadius: -1,
-          ),
-        ],
+        boxShadow: isElevated
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 10,
+                  offset: const Offset(4, 4),
+                  spreadRadius: 0,
+                ),
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.9),
+                  blurRadius: 10,
+                  offset: const Offset(-4, -4),
+                  spreadRadius: 0,
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 4,
+                  offset: const Offset(2, 2),
+                  spreadRadius: -1,
+                ),
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.8),
+                  blurRadius: 4,
+                  offset: const Offset(-2, -2),
+                  spreadRadius: -1,
+                ),
+              ],
       ),
       child: Material(
         color: Colors.transparent,
