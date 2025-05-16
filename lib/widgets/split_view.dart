@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/split_manager.dart';
 import '../models/person.dart';
 import '../models/receipt_item.dart';
+import 'dart:developer' as developer;
 
 // Import the extracted widgets
 import 'cards/person_card.dart';
@@ -16,6 +17,127 @@ import '../theme/neumorphic_theme.dart';
 import 'neumorphic/neumorphic_container.dart';
 import 'neumorphic/neumorphic_text_field.dart';
 import 'neumorphic/neumorphic_tabs.dart';
+
+// Add Person Dialog Widget
+class AddPersonDialog extends StatefulWidget {
+  final int maxNameLength;
+  final Function(String) onAddPerson;
+
+  const AddPersonDialog({
+    Key? key,
+    required this.maxNameLength,
+    required this.onAddPerson,
+  }) : super(key: key);
+
+  @override
+  State<AddPersonDialog> createState() => _AddPersonDialogState();
+}
+
+class _AddPersonDialogState extends State<AddPersonDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      child: NeumorphicContainer(
+        type: NeumorphicType.raised,
+        radius: 16, 
+        padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.person_add,
+                    color: NeumorphicTheme.slateBlue,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Add Person',
+                    style: NeumorphicTheme.primaryText(
+                      size: 18,
+                      weight: FontWeight.w600
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              NeumorphicTextField(
+                controller: _controller,
+                labelText: 'Name',
+                maxLength: widget.maxNameLength,
+                prefixIcon: Icon(
+                  Icons.person_outline,
+                  color: NeumorphicTheme.slateBlue,
+                  size: 18,
+                ),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: NeumorphicTheme.mutedRed,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  NeumorphicContainer(
+                    type: NeumorphicType.raised,
+                    color: NeumorphicTheme.slateBlue,
+                    radius: 8,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    onTap: () {
+                      final name = _controller.text.trim();
+                      if (name.isNotEmpty) {
+                        widget.onAddPerson(name);
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: Text(
+                      'Add',
+                      style: NeumorphicTheme.onAccentText(weight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // Define a notification class to request navigation
 class NavigateToPageNotification extends Notification {
@@ -537,20 +659,89 @@ class _SplitViewState extends State<SplitView> {
   
   // Show add person dialog
   void _showAddPersonDialog(BuildContext context, SplitManager splitManager) {
-    final controller = TextEditingController();
-    
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        child: NeumorphicContainer(
-          type: NeumorphicType.raised,
-          radius: 16,
-          padding: const EdgeInsets.all(24),
+      builder: (context) => AddPersonDialog(
+        maxNameLength: personMaxNameLength,
+        onAddPerson: (name) {
+          splitManager.addPerson(name);
+        },
+      ),
+    );
+  }
+  
+  // Show add item dialog
+  void _showAddItemDialog(BuildContext context, SplitManager splitManager) {
+    showDialog(
+      context: context,
+      builder: (context) => AddItemDialog(
+        onAddItem: (item) {
+          splitManager.addUnassignedItem(item);
+        },
+      ),
+    );
+  }
+  
+  // Show edit person dialog
+  void _showEditPersonDialog(BuildContext context, SplitManager splitManager, Person person) {
+    showDialog(
+      context: context,
+      builder: (context) => EditPersonDialog(
+        initialName: person.name,
+        maxNameLength: personMaxNameLength,
+        onUpdateName: (newName) {
+          splitManager.updatePersonName(person, newName);
+        },
+      ),
+    );
+  }
+}
+
+// Add Item Dialog Widget
+class AddItemDialog extends StatefulWidget {
+  final Function(ReceiptItem) onAddItem;
+
+  const AddItemDialog({
+    Key? key,
+    required this.onAddItem,
+  }) : super(key: key);
+
+  @override
+  State<AddItemDialog> createState() => _AddItemDialogState();
+}
+
+class _AddItemDialogState extends State<AddItemDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _priceController;
+  int _quantity = 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _priceController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      child: NeumorphicContainer(
+        type: NeumorphicType.raised,
+        radius: 16,
+        padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,33 +749,89 @@ class _SplitViewState extends State<SplitView> {
               Row(
                 children: [
                   Icon(
-                    Icons.person_add, 
+                    Icons.add_shopping_cart,
                     color: NeumorphicTheme.slateBlue,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Add Person', 
+                    'Add Item',
                     style: NeumorphicTheme.primaryText(
-                      size: 18, 
+                      size: 18,
                       weight: FontWeight.w600
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
+              
+              // Name field
               NeumorphicTextField(
-                controller: controller,
-                labelText: 'Name',
-                maxLength: personMaxNameLength,
-                prefixIcon: Icon(
-                  Icons.person_outline, 
-                  color: NeumorphicTheme.slateBlue,
-                  size: 18,
-                ),
-                textCapitalization: TextCapitalization.words,
+                controller: _nameController,
+                labelText: 'Item Name',
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 16),
+              
+              // Price field
+              NeumorphicTextField(
+                controller: _priceController,
+                labelText: 'Price',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                prefixText: '\$',
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Quantity selector
+              Text(
+                'Quantity:',
+                style: NeumorphicTheme.primaryText(size: 14),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  NeumorphicIconButton(
+                    icon: Icons.remove,
+                    backgroundColor: Colors.white,
+                    size: 36,
+                    radius: 18,
+                    iconSize: 18,
+                    iconColor: _quantity > 1 
+                      ? NeumorphicTheme.slateBlue 
+                      : NeumorphicTheme.mediumGrey.withOpacity(0.5),
+                    onPressed: _quantity > 1 
+                      ? () => setState(() => _quantity--) 
+                      : null,
+                  ),
+                  Container(
+                    width: 40,
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$_quantity',
+                      style: NeumorphicTheme.primaryText(
+                        size: 18,
+                        weight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  NeumorphicIconButton(
+                    icon: Icons.add,
+                    backgroundColor: Colors.white,
+                    size: 36,
+                    radius: 18,
+                    iconSize: 18,
+                    iconColor: NeumorphicTheme.slateBlue,
+                    onPressed: () => setState(() => _quantity++),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
+              
+              // Buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -608,11 +855,21 @@ class _SplitViewState extends State<SplitView> {
                     radius: 8,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     onTap: () {
-                      final name = controller.text.trim();
-                      if (name.isNotEmpty) {
-                        splitManager.addPerson(name);
-                        Navigator.of(context).pop();
-                      }
+                      // Validate and parse inputs
+                      final itemName = _nameController.text.trim();
+                      if (itemName.isEmpty) return;
+                      
+                      double? price = double.tryParse(_priceController.text);
+                      if (price == null || price <= 0) return;
+                      
+                      // Create and add the new item
+                      final newItem = ReceiptItem(
+                        name: itemName,
+                        price: price,
+                        quantity: _quantity,
+                      );
+                      widget.onAddItem(newItem);
+                      Navigator.of(context).pop();
                     },
                     child: Text(
                       'Add',
@@ -625,195 +882,55 @@ class _SplitViewState extends State<SplitView> {
           ),
         ),
       ),
-    ).then((_) => controller.dispose());
+    );
   }
-  
-  // Show add item dialog
-  void _showAddItemDialog(BuildContext context, SplitManager splitManager) {
-    final nameController = TextEditingController();
-    final priceController = TextEditingController();
-    int quantity = 1;
+}
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-              child: NeumorphicContainer(
-                type: NeumorphicType.raised,
-                radius: 16,
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.add_shopping_cart, 
-                          color: NeumorphicTheme.slateBlue,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Add Item', 
-                          style: NeumorphicTheme.primaryText(
-                            size: 18, 
-                            weight: FontWeight.w600
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    
-                    // Name field
-                    NeumorphicTextField(
-                      controller: nameController,
-                      labelText: 'Item Name',
-                      textCapitalization: TextCapitalization.sentences,
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Price field
-                    NeumorphicTextField(
-                      controller: priceController,
-                      labelText: 'Price',
-                      keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      prefixText: '\$',
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Quantity selector
-                    Text(
-                      'Quantity:',
-                      style: NeumorphicTheme.primaryText(size: 14),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        NeumorphicIconButton(
-                          icon: Icons.remove,
-                          backgroundColor: Colors.white,
-                          size: 36,
-                          radius: 18,
-                          iconSize: 18,
-                          iconColor: quantity > 1 
-                            ? NeumorphicTheme.slateBlue 
-                            : NeumorphicTheme.mediumGrey.withOpacity(0.5),
-                          onPressed: quantity > 1 
-                            ? () => setStateDialog(() => quantity--) 
-                            : () {},
-                        ),
-                        Container(
-                          width: 40,
-                          alignment: Alignment.center,
-                          child: Text(
-                            '$quantity',
-                            style: NeumorphicTheme.primaryText(
-                              size: 18,
-                              weight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        NeumorphicIconButton(
-                          icon: Icons.add,
-                          backgroundColor: Colors.white,
-                          size: 36,
-                          radius: 18,
-                          iconSize: 18,
-                          iconColor: NeumorphicTheme.slateBlue,
-                          onPressed: () => setStateDialog(() => quantity++),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(
-                                color: NeumorphicTheme.mutedRed,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        NeumorphicContainer(
-                          type: NeumorphicType.raised,
-                          color: NeumorphicTheme.slateBlue,
-                          radius: 8,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          onTap: () {
-                            // Validate and parse inputs
-                            final itemName = nameController.text.trim();
-                            if (itemName.isEmpty) return;
-                            
-                            double? price = double.tryParse(priceController.text);
-                            if (price == null || price <= 0) return;
-                            
-                            // Create and add the new item
-                            final newItem = ReceiptItem(
-                              name: itemName,
-                              price: price,
-                              quantity: quantity,
-                            );
-                            splitManager.addUnassignedItem(newItem);
-                            Navigator.of(context).pop();
-                          },
-                          child: Text(
-                            'Add',
-                            style: NeumorphicTheme.onAccentText(weight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    ).then((_) {
-      nameController.dispose();
-      priceController.dispose();
-    });
+// Add EditPersonDialog widget 
+class EditPersonDialog extends StatefulWidget {
+  final String initialName;
+  final int maxNameLength;
+  final Function(String) onUpdateName;
+
+  const EditPersonDialog({
+    Key? key,
+    required this.initialName,
+    required this.maxNameLength,
+    required this.onUpdateName,
+  }) : super(key: key);
+
+  @override
+  State<EditPersonDialog> createState() => _EditPersonDialogState();
+}
+
+class _EditPersonDialogState extends State<EditPersonDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
   }
-  
-  // Show edit person dialog
-  void _showEditPersonDialog(BuildContext context, SplitManager splitManager, Person person) {
-    final controller = TextEditingController(text: person.name);
-    
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        child: NeumorphicContainer(
-          type: NeumorphicType.raised,
-          radius: 16,
-          padding: const EdgeInsets.all(24),
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      child: NeumorphicContainer(
+        type: NeumorphicType.raised,
+        radius: 16,
+        padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -821,15 +938,15 @@ class _SplitViewState extends State<SplitView> {
               Row(
                 children: [
                   Icon(
-                    Icons.edit, 
+                    Icons.edit,
                     color: NeumorphicTheme.slateBlue,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Edit Person', 
+                    'Edit Person',
                     style: NeumorphicTheme.primaryText(
-                      size: 18, 
+                      size: 18,
                       weight: FontWeight.w600
                     ),
                   ),
@@ -837,11 +954,11 @@ class _SplitViewState extends State<SplitView> {
               ),
               const SizedBox(height: 20),
               NeumorphicTextField(
-                controller: controller,
+                controller: _controller,
                 labelText: 'Name',
-                maxLength: personMaxNameLength,
+                maxLength: widget.maxNameLength,
                 prefixIcon: Icon(
-                  Icons.person_outline, 
+                  Icons.person_outline,
                   color: NeumorphicTheme.slateBlue,
                   size: 18,
                 ),
@@ -871,9 +988,9 @@ class _SplitViewState extends State<SplitView> {
                     radius: 8,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     onTap: () {
-                      final newName = controller.text.trim();
-                      if (newName.isNotEmpty && newName != person.name) {
-                        splitManager.updatePersonName(person, newName);
+                      final newName = _controller.text.trim();
+                      if (newName.isNotEmpty && newName != widget.initialName) {
+                        widget.onUpdateName(newName);
                         Navigator.of(context).pop();
                       } else if (newName.isEmpty) {
                         // Show error or handle empty name case
@@ -893,6 +1010,6 @@ class _SplitViewState extends State<SplitView> {
           ),
         ),
       ),
-    ).then((_) => controller.dispose());
+    );
   }
 } 

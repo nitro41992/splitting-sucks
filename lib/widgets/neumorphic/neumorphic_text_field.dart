@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'neumorphic_container.dart';
+import '../../theme/neumorphic_theme.dart';
 
 class NeumorphicTextField extends StatelessWidget {
   final TextEditingController controller;
@@ -49,9 +50,9 @@ class NeumorphicTextField extends StatelessWidget {
         if (labelText != null) ...[
           Text(
             labelText!,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF8A8A8E), // Medium Grey
+            style: TextStyle(
+              fontSize: 14,
+              color: NeumorphicTheme.mediumGrey,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -59,12 +60,12 @@ class NeumorphicTextField extends StatelessWidget {
         ],
         NeumorphicContainer(
           type: NeumorphicType.inset,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
               if (prefixIcon != null) ...[
                 prefixIcon!,
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
               ],
               Expanded(
                 child: TextField(
@@ -82,24 +83,25 @@ class NeumorphicTextField extends StatelessWidget {
                     prefixText: prefixText,
                     suffixText: suffixText,
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                     counterText: '', // Remove default counter
+                    isDense: true,
                   ),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
-                    color: Color(0xFF1D1D1F), // Dark Grey
+                    color: NeumorphicTheme.darkGrey,
                   ),
                 ),
               ),
               if (suffixIcon != null) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 suffixIcon!,
               ],
             ],
           ),
         ),
         if (showCounter && maxLength != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Align(
             alignment: Alignment.centerRight,
             child: ValueListenableBuilder<TextEditingValue>(
@@ -110,8 +112,8 @@ class NeumorphicTextField extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     color: value.text.length > maxLength!
-                        ? const Color(0xFFE57373) // Muted Red
-                        : const Color(0xFF8A8A8E), // Medium Grey
+                        ? NeumorphicTheme.error 
+                        : NeumorphicTheme.mediumGrey,
                   ),
                 );
               },
