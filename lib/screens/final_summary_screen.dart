@@ -7,6 +7,7 @@ import 'dart:async';
 
 import '../models/split_manager.dart';
 import '../models/receipt_item.dart'; // Ensure ReceiptItem is available if needed for calculations/display
+import '../models/person.dart'; // Added Person import
 import '../theme/app_colors.dart'; // Ensure AppColors is correctly defined or replace with Theme colors
 import '../widgets/split_view.dart'; // Import to get NavigateToPageNotification
 import '../widgets/final_summary/person_summary_card.dart'; // Import the new card
@@ -439,6 +440,78 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
             // Also add horizontal padding to prevent cards from touching the sides
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             children: [
+              // Single primary section title at the top
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.receipt_long_outlined, color: AppColors.primary, size: 24),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Split Summary',
+                          style: textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Edit Split button (Muted Coral/Peach color)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(2, 2),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(-2, -2),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            // Navigate to Split View (index 3)
+                            NavigateToPageNotification(3).dispatch(context);
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.edit,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Edit Split',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               // Show warning if subtotals don't match due to rounding/distribution
               if (!subtotalsMatch)
                 _buildNeumorphicContainer(
@@ -470,8 +543,239 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                   ),
                 ),
 
-            // Header Card: Overall Totals, Tax/Tip Adjustment
-            _buildNeumorphicContainer(
+              // Receipt Totals Card - Compact, neumorphic design
+              _buildNeumorphicContainer(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Subtotal row
+                      _buildTotalRow(context, 'Subtotal:', subtotal),
+                      const SizedBox(height: 16),
+
+                      // Tax Input Row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text('Tax:', style: textTheme.titleMedium),
+                          const Spacer(),
+                          SizedBox(
+                            width: 90,
+                            height: 40,
+                            child: _buildNeumorphicContainer(
+                              borderRadius: 8,
+                              isElevated: false, // Inset effect for input field
+                              child: TextField(
+                                key: const ValueKey('tax_field'),
+                                controller: _taxController,
+                                textAlignVertical: TextAlignVertical.center,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                   FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')),
+                                ],
+                                decoration: InputDecoration(
+                                  suffixText: '%',
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  border: InputBorder.none,
+                                ),
+                                textAlign: TextAlign.right,
+                                style: textTheme.bodyLarge,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          SizedBox(
+                            width: 80,
+                            child: Text(
+                              '\$${tax.toStringAsFixed(2)}',
+                              key: const ValueKey('tax_percentage_text'),
+                              style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Tip Section
+                      Text('Tip:', style: textTheme.titleMedium),
+                      const SizedBox(height: 8),
+
+                      // Tip Percentage Buttons Row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildNeumorphicPercentButton(
+                            percentage: 15.0,
+                            isSelected: _tipPercentage == 15.0,
+                            onPressed: () => _setTipPercentage(15.0),
+                          ),
+                          _buildNeumorphicPercentButton(
+                            percentage: 18.0,
+                            isSelected: _tipPercentage == 18.0,
+                            onPressed: () => _setTipPercentage(18.0),
+                          ),
+                          _buildNeumorphicPercentButton(
+                            percentage: 20.0,
+                            isSelected: _tipPercentage == 20.0,
+                            onPressed: () => _setTipPercentage(20.0),
+                          ),
+                          _buildNeumorphicPercentButton(
+                            percentage: 25.0,
+                            isSelected: _tipPercentage == 25.0,
+                            onPressed: () => _setTipPercentage(25.0),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Tip Slider
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SliderTheme(
+                              data: SliderThemeData(
+                                activeTrackColor: AppColors.primary,
+                                inactiveTrackColor: AppColors.primary.withOpacity(0.2),
+                                thumbColor: AppColors.primary,
+                                overlayColor: AppColors.primary.withOpacity(0.2),
+                                trackHeight: 4.0,
+                              ),
+                              child: Slider(
+                                value: _tipPercentage,
+                                min: 0.0,
+                                max: 30.0,
+                                divisions: 60, // 0.5% increments
+                                onChanged: _onTipSliderChanged,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Tip amount display
+                          SizedBox(
+                            width: 80,
+                            child: Text(
+                              '\$${tip.toStringAsFixed(2)}',
+                              style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Grand Total
+                      _buildTotalRow(context, 'Total:', total, isGrandTotal: true),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 24), // Increased spacing
+
+              // People Cards Section
+              _buildPeopleSection(context, splitManager, people, taxRate, tipRate),
+
+              // Add some extra space at the bottom to ensure action buttons don't overlap with content
+              const SizedBox(height: 40),
+            ],
+          ),
+
+          // Floating Action Buttons (Positioned)
+          Positioned(
+            // Position FABs at the bottom center with padding
+            left: 0,
+            right: 0,
+            bottom: 16,
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildNeumorphicButton(
+                    heroTag: 'buyMeACoffeeButton_final',
+                    onPressed: () => _launchBuyMeACoffee(context),
+                    icon: Icons.coffee_outlined,
+                    label: 'Support Me',
+                    isPrimary: false,
+                    isSecondary: true, // Use puce color
+                  ),
+                  const SizedBox(width: 16), // Space between buttons
+                  _buildNeumorphicButton(
+                    heroTag: 'shareButton_final',
+                    onPressed: () => _generateAndShareReceipt(context),
+                    icon: Icons.share_outlined,
+                    label: 'Share Bill',
+                    isPrimary: true,
+                    isSecondary: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper to build the people cards section
+  Widget _buildPeopleSection(BuildContext context, SplitManager splitManager, List<Person> people, double taxRate, double tipRate) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Individual Person Cards
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: splitManager.people.length,
+          itemBuilder: (context, index) {
+            final person = splitManager.people[index];
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: PersonSummaryCard(
+                key: ValueKey(person.name),
+                person: person,
+                splitManager: splitManager,
+                taxPercentage: _taxPercentage,
+                tipPercentage: _tipPercentage,
+              ),
+            );
+          },
+        ),
+
+        // Unassigned items section (if any)
+        if (splitManager.unassignedItems.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Row(
+              children: [
+                Icon(Icons.help_outline_rounded, size: 24, color: AppColors.error),
+                const SizedBox(width: 8),
+                Text(
+                  'Unassigned Items',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.error,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Wrap the Card with InkWell for tappable navigation
+          InkWell(
+            onTap: () {
+              // Set the initial tab index before navigating
+              context.read<SplitManager>().initialSplitViewTabIndex = 2; // 2 = Unassigned tab
+              // Notify the parent PageView controller to navigate
+              NavigateToPageNotification(3).dispatch(context); // Go to Split View (index 3)
+            },
+            borderRadius: BorderRadius.circular(24),
+            child: _buildNeumorphicContainer(
+              borderRadius: 24,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -479,490 +783,141 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.receipt_long_outlined, color: AppColors.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Receipt Totals',
-                          style: textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Subtotal row
-                    _buildTotalRow(context, 'Subtotal:', subtotal),
-                    const SizedBox(height: 16),
-
-                    // Tax Input Row
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text('Tax:', style: textTheme.titleMedium), // Match Subtotal style
-                        const Spacer(), // Pushes input field and amount to the right
-                        SizedBox(
-                          width: 90, // Adjusted width
-                          height: 40, // Constrain height
-                          child: _buildNeumorphicContainer(
-                            borderRadius: 8,
-                            child: TextField(
-                              key: const ValueKey('tax_field'),
-                              controller: _taxController,
-                              textAlignVertical: TextAlignVertical.center,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              inputFormatters: [
-                                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')), // Allow digits and up to 3 decimal points
-                              ],
-                              decoration: InputDecoration(
-                                suffixText: '%',
-                                isDense: true, // Makes it more compact
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), // Adjust padding
-                                border: InputBorder.none, // Remove default border
+                        Container(
+                          decoration: BoxDecoration(
+                            color: colorScheme.errorContainer.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
+                                offset: const Offset(2, 2),
                               ),
-                              textAlign: TextAlign.right,
-                              style: textTheme.bodyLarge,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16), // Space between input and amount
-                        SizedBox(
-                          width: 80, // Width for the amount
-                          child: Text(
-                            '\$${tax.toStringAsFixed(2)}',
-                            key: const ValueKey('tax_percentage_text'),
-                            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-                            textAlign: TextAlign.right,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Tip Section Label
-                    Row(
-                       children: [ Text('Tip:', style: textTheme.titleMedium) ], // Match Subtotal style
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Tip Percentage Display
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildNeumorphicContainer(
-                          borderRadius: 24,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                            child: Text(
-                              '${_tipPercentage.toStringAsFixed(1)}%',
-                              key: const ValueKey('tip_percentage_text'),
-                              style: textTheme.headlineSmall?.copyWith( // Make percentage stand out
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12), // Reduced space
-
-                    // Tip Controls (Buttons and Slider)
-                    Column(
-                      children: [
-                        // Quick select buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [15.0, 18.0, 20.0, 25.0].map((percentage) {
-                            bool isSelected = (_tipPercentage - percentage).abs() < 0.01;
-                            return _buildNeumorphicPercentButton(
-                              percentage: percentage,
-                              isSelected: isSelected,
-                              onPressed: () {
-                                _setTipPercentage(percentage);
-                              },
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Fine-tune slider
-                        SliderTheme(
-                          data: SliderThemeData(
-                            activeTrackColor: AppColors.primary,
-                            inactiveTrackColor: AppColors.surfaceDark,
-                            thumbColor: AppColors.primary,
-                            overlayColor: AppColors.primary.withOpacity(0.1),
-                            trackHeight: 6,
-                            thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 8,
-                              elevation: 4,
-                            ),
-                            overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 16,
-                            ),
-                          ),
-                          child: Slider(
-                            key: const ValueKey('tip_slider'),
-                            value: _tipPercentage,
-                            min: 0,
-                            max: 30, // Max tip percentage
-                            divisions: 60, // Allows 0.5% increments
-                            label: '${_tipPercentage.toStringAsFixed(1)}%',
-                            onChanged: _onTipSliderChanged,
-                          ),
-                        ),
-                      ],
-                    ),
-                     const SizedBox(height: 12), // Reduced space
-
-                    // Tip Amount Display
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Tip Amount: ',
-                          style: textTheme.bodyLarge,
-                        ),
-                        SizedBox(
-                          width: 80, // Align with tax amount width
-                           child: Text(
-                             '\$${tip.toStringAsFixed(2)}',
-                             style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
-                             textAlign: TextAlign.right,
-                           ),
-                        ),
-                      ],
-                    ),
-
-                    const Divider(height: 32, thickness: 1), // Increased spacing around divider
-
-                    // Grand Total Row
-                    _buildTotalRow(context, 'Total:', total, isGrandTotal: true),
-                  ],
-                ),
-              ),
-            ),
-
-            // People section header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16), // Add padding
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(  // Wrap in Flexible to allow the text to shrink if needed
-                    child: Row(
-                      children: [
-                        Icon(Icons.people_outline, size: 24, color: AppColors.primary),
-                        const SizedBox(width: 8),
-                        Flexible(  // Add Flexible here to allow text to shrink
-                          child: Text(
-                            'Split Summary (${people.length} ${people.length == 1 ? "Person" : "People"})',
-                            style: textTheme.titleLarge?.copyWith( // Slightly larger title
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
-                            overflow: TextOverflow.ellipsis, // Add overflow handling
-                            maxLines: 1, // Limit to 1 line
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Edit Split Button with neumorphic styling
-                  GestureDetector(
-                    onTap: () {
-                      // Navigate to Split View
-                      NavigateToPageNotification(3).dispatch(context);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 4,
-                            offset: const Offset(2, 2),
-                          ),
-                          BoxShadow(
-                            color: Colors.white.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(-2, -2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,  // Add this to make the button only as wide as needed
-                        children: [
-                          const Icon(
-                            Icons.edit,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Edit Split',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Individual Person Cards
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: splitManager.people.length,
-              itemBuilder: (context, index) {
-                final person = splitManager.people[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2.0),
-                  child: _buildNeumorphicContainer(
-                    child: PersonSummaryCard(
-                      key: ValueKey(person.name), // Use person's name as key (assuming unique)
-                      person: person,
-                      splitManager: splitManager,
-                      taxPercentage: _taxPercentage,
-                      tipPercentage: _tipPercentage,
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            // Unassigned items section (if any)
-            if (splitManager.unassignedItems.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16), // Add top margin
-                child: Row(
-                  children: [
-                    Icon(Icons.help_outline_rounded, size: 24, color: AppColors.error), // Different icon
-                    const SizedBox(width: 8),
-                    Text(
-                      'Unassigned Items',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.error,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Wrap the Card with InkWell for tappable navigation
-              InkWell(
-                onTap: () {
-                  // Set the initial tab index before navigating
-                  context.read<SplitManager>().initialSplitViewTabIndex = 2; // 2 = Unassigned tab
-                  // Notify the parent PageView controller to navigate
-                  NavigateToPageNotification(3).dispatch(context); // Go to Split View (index 3)
-                },
-                borderRadius: BorderRadius.circular(24), // Match the Card's border radius for ripple effect
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2.0),
-                  child: _buildNeumorphicContainer(
-                    borderRadius: 24,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: colorScheme.errorContainer.withOpacity(0.5),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 4,
-                                      offset: const Offset(2, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: CircleAvatar(
-                                  backgroundColor: Colors.transparent,
-                                  child: Icon(Icons.question_mark, color: colorScheme.onErrorContainer),
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              // Title and Subtitle
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Unclaimed',
-                                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                                    ),
-                                    Text(
-                                      'Tap to assign these items',
-                                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              // Total cost
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.errorContainer,
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 2,
-                                      offset: const Offset(1, 1),
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  '\$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}', // Show subtotal here
-                                  style: textTheme.titleMedium?.copyWith(
-                                    color: colorScheme.onErrorContainer,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              // Add a trailing icon to indicate clickability
-                              const SizedBox(width: 8),
-                              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
                             ],
                           ),
-                          const SizedBox(height: 16),
-                          _buildItemList(context, 'Items:', splitManager.unassignedItems),
-                          const SizedBox(height: 12),
-                          Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.3)),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12.0),
-                            child: Column(
-                              children: [
-                                // Show the tax/tip associated with these items for clarity
-                                _buildDetailRow(context, 'Tax (${_taxPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * taxRate),
-                                const SizedBox(height: 4),
-                                _buildDetailRow(context, 'Tip (${_tipPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * tipRate),
-                              ],
+                          child: CircleAvatar(
+                            backgroundColor: Colors.transparent,
+                            child: Icon(Icons.question_mark, color: colorScheme.onErrorContainer),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // Title and Subtitle
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Unclaimed',
+                                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                'Tap to assign these items',
+                                style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Total cost
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 2,
+                                offset: const Offset(1, 1),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            '\$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}',
+                            style: textTheme.titleMedium?.copyWith(
+                              color: colorScheme.onErrorContainer,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
+                        ),
+                        // Add a trailing icon to indicate clickability
+                        const SizedBox(width: 8),
+                        Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildItemList(context, 'Items:', splitManager.unassignedItems),
+                    const SizedBox(height: 12),
+                    Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.3)),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      child: Column(
+                        children: [
+                          // Show the tax/tip associated with these items for clarity
+                          _buildDetailRow(context, 'Tax (${_taxPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * taxRate),
+                          const SizedBox(height: 4),
+                          _buildDetailRow(context, 'Tip (${_tipPercentage.toStringAsFixed(1)}%)', splitManager.unassignedItemsTotal * tipRate),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ), // End of InkWell wrapper
-            ],
-
-             // Add some extra space at the bottom
-             const SizedBox(height: 20),
-
-          ],
-        ),
-
-        // Floating Action Buttons (Positioned)
-        Positioned(
-          // Position FABs at the bottom right with padding
-          right: 16,
-          bottom: 16,
-          child: Row( // Use Row for side-by-side buttons
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _buildNeumorphicButton(
-                heroTag: 'buyMeACoffeeButton_final',
-                onPressed: () => _launchBuyMeACoffee(context),
-                icon: Icons.coffee_outlined,
-                label: 'Support Me',
-                isPrimary: false,
-                isSecondary: true, // Use puce color
               ),
-              const SizedBox(width: 12), // Space between buttons
-              _buildNeumorphicButton(
-                heroTag: 'shareButton_final',
-                onPressed: () => _generateAndShareReceipt(context),
-                icon: Icons.share_outlined,
-                label: 'Share Bill',
-                isPrimary: true,
-                isSecondary: false,
-              ),
-            ],
+            ),
           ),
-        ),
-      ]),
+        ],
+      ],
     );
   }
 
-   // Helper to build item lists consistently
-  Widget _buildItemList(BuildContext context, String title, List<ReceiptItem> items, {SplitManager? splitManager}) {
-     final textTheme = Theme.of(context).textTheme;
-     final colorScheme = Theme.of(context).colorScheme;
-     bool isSharedList = splitManager != null; // Check if we are building the shared list
-
-     return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-           Text(
-             title,
-             style: textTheme.titleSmall?.copyWith( // Use titleSmall for section headers
-               fontWeight: FontWeight.bold,
-               color: isSharedList ? colorScheme.tertiary : colorScheme.secondary, // Different color for shared
-             ),
-           ),
-           const SizedBox(height: 8),
-           ...items.map((item) {
-              double displayPrice = item.price * item.quantity;
-              String suffix = '';
-
-              if (isSharedList) {
-                 final sharingCount = splitManager.people
-                     .where((p) => p.sharedItems.contains(item))
-                     .length;
-                 if (sharingCount > 0) {
-                   displayPrice = item.price * item.quantity / sharingCount;
-                   suffix = ' (${sharingCount}-way)';
-                 } else {
-                   displayPrice = 0; // Should not happen if item is in person's list
-                   suffix = ' (Error)';
-                 }
-              }
-
-              return Padding(
-                 padding: const EdgeInsets.only(bottom: 6.0, left: 8.0), // Indent items
-                 child: Row(
-                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                   children: [
-                     Expanded(
-                       child: Text(
-                         '${item.quantity}x ${item.name}$suffix',
-                         style: textTheme.bodyMedium,
-                         overflow: TextOverflow.ellipsis, // Prevent long names from breaking layout
-                         maxLines: 1, // Ensure it stays on one line
-                       ),
-                     ),
-                     const SizedBox(width: 16), // Space before price
-                     SizedBox(
-                       width: 80, // Fixed width to ensure price has enough space
-                       child: Text(
-                         '\$${displayPrice.toStringAsFixed(2)}',
-                         style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-                         textAlign: TextAlign.right, // Right-align the price text
-                       ),
-                     ),
-                   ],
-                 ),
-              );
-           }).toList(),
-        ],
-     );
+  // Helper to build item lists consistently
+  Widget _buildItemList(BuildContext context, String title, List<ReceiptItem> items) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.secondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...items.map((item) {
+          double displayPrice = item.price * item.quantity;
+          
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    '${item.quantity}x ${item.name}',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  '\$${displayPrice.toStringAsFixed(2)}',
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
+    );
   }
 
   // Helper for consistent detail rows (Tax, Tip, Subtotal for person)
@@ -1015,7 +970,9 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
         Flexible(  // Make label flexible
           child: Text(
             label, 
-            style: style,
+            style: style?.copyWith(
+              color: isGrandTotal ? AppColors.primary : colorScheme.onSurface,
+            ),
             overflow: TextOverflow.ellipsis,  // Add ellipsis for very long labels
           ),
         ),
@@ -1023,7 +980,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
         Text(
           '\$${value.toStringAsFixed(2)}',
           style: style?.copyWith(
-            color: isGrandTotal ? AppColors.primary : null, // Use AppColors.primary for Grand Total
+            color: isGrandTotal ? AppColors.primary : colorScheme.onSurface,
           ),
         ),
       ],
@@ -1137,14 +1094,14 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
         color: backgroundColor,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          // Stronger shadow for raised effect - bottom right
+          // Shadow for bottom-right (darker)
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
             blurRadius: 6,
             offset: const Offset(2, 2),
             spreadRadius: 0,
           ),
-          // Lighter highlight for neumorphic effect - top left
+          // Highlight for top-left (lighter)
           BoxShadow(
             color: Colors.white.withOpacity(isSelected ? 0.1 : 0.9),
             blurRadius: 6,
@@ -1201,9 +1158,28 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
             offset: const Offset(-4, -4),
             spreadRadius: 0,
           ),
-        ] : [],
+        ] : [
+          // Inner shadow for inset effect - bottom right (using negative spreadRadius instead of inset)
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4,
+            offset: const Offset(2, 2),
+            spreadRadius: -1,
+          ),
+          // Inner highlight - top left (using negative spreadRadius instead of inset)
+          BoxShadow(
+            color: Colors.white.withOpacity(0.8),
+            blurRadius: 4,
+            offset: const Offset(-2, -2),
+            spreadRadius: -1,
+          ),
+        ],
       ),
-      child: child,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: child,
+      ),
     );
   }
 }

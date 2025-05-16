@@ -50,30 +50,29 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
     final double personTip = personSubtotal * tipRate;
     final double personTotal = personSubtotal + personTax + personTip;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          // Shadow for bottom-right (darker)
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(4, 4),
-            spreadRadius: 0,
-          ),
-          // Highlight for top-left (lighter)
-          BoxShadow(
-            color: Colors.white.withOpacity(0.9),
-            blurRadius: 10,
-            offset: const Offset(-4, -4),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(24),
+    return Material(
+      color: Colors.transparent,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            // Outer shadow - bottom right (diffused)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(4, 4),
+              spreadRadius: 0,
+            ),
+            // Outer highlight - top left (diffused)
+            BoxShadow(
+              color: Colors.white.withOpacity(0.9),
+              blurRadius: 10,
+              offset: const Offset(-4, -4),
+              spreadRadius: 0,
+            ),
+          ],
+        ),
         child: InkWell(
           onTap: () {
             setState(() {
@@ -89,9 +88,28 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
                 // Header: Person's name, expand/collapse icon, and total
                 Row(
                   children: [
-                    CircleAvatar(
-                      backgroundColor: AppColors.primary.withOpacity(0.1),
-                      child: Icon(Icons.person, color: AppColors.primary),
+                    // Avatar with neumorphic effect
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(2, 2),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.9),
+                            blurRadius: 4,
+                            offset: const Offset(-2, -2),
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: Icon(Icons.person, color: AppColors.primary),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     // Person's name and subtitle
@@ -103,24 +121,36 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
                             widget.person.name,
                             style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                           ),
-                          Text(
-                            _isExpanded ? 'Tap to collapse' : 'Tap to expand',
-                            style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
-                          ),
+                          // Text(
+                          //   _isExpanded ? 'Tap to collapse' : 'Tap to expand',
+                          //   style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                          // ),
                         ],
                       ),
                     ),
-                    // Total amount owed in a pill
+                    // Total amount owed in a slate blue pill
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary,
                         borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(2, 2),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(-2, -2),
+                          ),
+                        ],
                       ),
                       child: Text(
                         '\$${personTotal.toStringAsFixed(2)}',
                         style: textTheme.titleMedium?.copyWith(
-                          color: AppColors.primary,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -161,10 +191,10 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
                   // Cost breakdown - Individual, Shared, Subtotal, Tax, Tip, Total
                   Column(
                     children: [
-                      if (widget.person.assignedItems.isNotEmpty)
-                        _buildDetailRow(context, 'Individual Items:', individualSubtotal),
-                      if (widget.person.sharedItems.isNotEmpty)
-                        _buildDetailRow(context, 'Shared Items:', sharedSubtotal),
+                      // if (widget.person.assignedItems.isNotEmpty)
+                      //   _buildDetailRow(context, 'Individual Items:', individualSubtotal),
+                      // if (widget.person.sharedItems.isNotEmpty)
+                      //   _buildDetailRow(context, 'Shared Items:', sharedSubtotal),
                       _buildDetailRow(context, 'Subtotal:', personSubtotal, isBold: true),
                       _buildDetailRow(
                         context, 
@@ -198,6 +228,7 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
   // Helper to build item lists consistently  
   Widget _buildItemList(BuildContext context, String title, List<ReceiptItem> items) {
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,14 +253,19 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
                 Expanded(
                   child: Text(
                     '${item.quantity}x ${item.name}',
-                    style: textTheme.bodyMedium,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Text(
                   '\$${displayPrice.toStringAsFixed(2)}',
-                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
               ],
             ),
@@ -247,6 +283,7 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
     SplitManager splitManager
   ) {
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,17 +292,19 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
           title,
           style: textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
-            color: AppColors.tertiary,
+            color: AppColors.tertiary, // Different color for shared items
           ),
         ),
         const SizedBox(height: 8),
         ...items.map((item) {
+          // Calculate number of people sharing this item
           final sharingCount = splitManager.people
               .where((p) => p.sharedItems.contains(item))
               .length;
-          final individualShare = sharingCount > 0 
-              ? (item.price * item.quantity / sharingCount) 
-              : 0.0;
+          
+          // Calculate per-person cost
+          double displayPrice = (item.price * item.quantity) / 
+              (sharingCount > 0 ? sharingCount : 1);
           
           return Padding(
             padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
@@ -276,14 +315,19 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
                 Expanded(
                   child: Text(
                     '${item.quantity}x ${item.name} (${sharingCount}-way)',
-                    style: textTheme.bodyMedium,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Text(
-                  '\$${individualShare.toStringAsFixed(2)}',
-                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                  '\$${displayPrice.toStringAsFixed(2)}',
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
               ],
             ),
@@ -293,35 +337,23 @@ class _PersonSummaryCardState extends State<PersonSummaryCard> {
     );
   }
 
-  // Helper for consistent detail rows
-  Widget _buildDetailRow(
-    BuildContext context, 
-    String label, 
-    double value, 
-    {bool isBold = false, bool isTotal = false}
-  ) {
+  // Helper to build detail rows
+  Widget _buildDetailRow(BuildContext context, String label, double amount, {bool isBold = false, bool isTotal = false}) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
+    
+    final textStyle = textTheme.bodyMedium?.copyWith(
+      fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+      color: isTotal ? AppColors.primary : colorScheme.onSurface,
+    );
     
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: textTheme.bodyMedium?.copyWith(
-              color: isTotal ? AppColors.primary : colorScheme.onSurfaceVariant,
-              fontWeight: isBold || isTotal ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-          Text(
-            '\$${value.toStringAsFixed(2)}',
-            style: textTheme.bodyMedium?.copyWith(
-              fontWeight: isBold || isTotal ? FontWeight.bold : FontWeight.w500,
-              color: isTotal ? AppColors.primary : colorScheme.onSurface,
-            ),
-          ),
+          Text(label, style: textStyle),
+          Text('\$${amount.toStringAsFixed(2)}', style: textStyle),
         ],
       ),
     );

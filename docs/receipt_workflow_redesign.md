@@ -17,6 +17,7 @@ This document details the redesign of the receipt upload and processing workflow
 6. **Improved Visual Hierarchy** - Better spacing, typography, and component organization
 7. **Step Navigation Improvements** - Added both clickable step indicators and swipe gestures
 8. **Enhanced Item Dialogs** - Updated Add Item and Edit Item dialogs with improved formatting and validation
+9. **Bill Summary Screen Redesign** - Updated to fully embody the 'Soft & Tactile (Neumorphism-Lite)' design philosophy
 
 ### Code Changes
 1. **workflow_modal.dart** - Updated to support the new navigation paradigm:
@@ -49,6 +50,21 @@ This document details the redesign of the receipt upload and processing workflow
    - Implemented proper price field formatting and validation
    - Added real-time error feedback for user inputs
    - Enhanced the visual consistency with the app's Neumorphic style
+
+7. **final_summary_screen.dart** - Completely redesigned to follow neumorphic design principles:
+   - Consolidated the 'Split Summary' heading to a single entry point with the 'Edit Split' button
+   - Created a distinct, compact neumorphic card for Receipt Totals with soft shadows
+   - Redesigned per-person summary cards with proper neumorphic styling
+   - Improved the overall visual hierarchy and information flow
+   - Repositioned action buttons ('Support Me', 'Share Bill') at the bottom of the screen
+   - Enhanced shadow effects for depth and separation between elements
+
+8. **person_summary_card.dart** - Updated with neumorphic design:
+   - Added proper shadow effects for the card container
+   - Enhanced the person avatar with neumorphic styling
+   - Used slate blue pills/lozenges for total amounts with shadow effects
+   - Improved typography and color consistency for better readability
+   - Enhanced expand/collapse interaction with visual indicators
 
 ## Fixed Issues
 
@@ -142,6 +158,33 @@ if (workflowState.hasAssignmentData) {
    - Error text displayed in red below the price field
    - Consistent styling with the app's color scheme
    - Improved user experience with immediate validation feedback
+
+### 5. Bill Summary Screen Visual Inconsistency
+**Issue:** The Bill Summary screen lacked the distinct neumorphic card separation and streamlined information flow seen in other screens.
+
+**Solution:**
+1. Consolidated the 'Split Summary' heading:
+   - Created one primary section title at the top with document icon and 'Edit Split' button
+   - Removed the secondary "Split Summary (X People)" title that appeared lower down
+   - Improved visual clarity and reduced redundancy
+
+2. Redesigned the 'Receipt Totals' presentation:
+   - Created a distinct neumorphic card with proper shadow effects
+   - Improved the tax input field with inset shadow styling
+   - Enhanced tip selection with neumorphic buttons and slider
+   - Ensured proper sizing to flow better with per-person summaries
+
+3. Enhanced Per-Person Summary Cards:
+   - Applied consistent neumorphic styling with proper shadows
+   - Added neumorphic styling to avatars and amount tags
+   - Improved typography for better readability
+   - Maintained clear information hierarchy within each card
+
+4. Repositioned Action Buttons:
+   - Placed 'Support Me' and 'Share Bill' buttons clearly below all content
+   - Added adequate spacing to prevent visual overlap
+   - Centered the buttons for better visual balance
+   - Enhanced the neumorphic effect for better affordance
 
 ## Current Issues
 
@@ -246,6 +289,17 @@ if (workflowState.hasAssignmentData) {
   - Displays receipt image preview
   - Contains floating action buttons for image actions
 
+- `lib/screens/final_summary_screen.dart`: UI for the bill summary
+  - Displays overall receipt totals with tax and tip calculations
+  - Shows per-person breakdown of costs
+  - Provides neumorphic styling for consistent visual language
+  - Includes action buttons for sharing and supporting the app
+
+- `lib/widgets/final_summary/person_summary_card.dart`: UI for individual person summary
+  - Displays person details with expandable content
+  - Shows individual and shared items with proper cost breakdowns
+  - Implements neumorphic styling for cards and interactive elements
+
 #### State Management
 - `lib/providers/workflow_state.dart`: Manages the state for the entire workflow
   - Tracks current step, receipt data, and loading states
@@ -268,21 +322,41 @@ if (workflowState.hasAssignmentData) {
   - Preserves consistent UX between item creation and editing
   - Implements proper input validation and formatting
 
-### Data Flow
+### Design Implementation Notes
 
-1. **Image Selection**: User selects image → WorkflowState updated → Auto-progress triggered
-2. **Parsing**: Image uploaded to Firebase → Cloud Function processes receipt → Results stored in WorkflowState
-3. **Assignment**: Items assigned to people → Stored in WorkflowState
-4. **Summary**: Final calculations performed → Receipt can be saved/completed
+#### Neumorphic Design System
+The app implements a "Neumorphism-Lite" design system across its interface, characterized by:
 
-### Testing Approach
+1. **Light Background with Subtle Shadows**: Uses a very light grey background (#F5F5F7) with white/near-white cards
+2. **Soft Shadow Effects**: Elements appear gently raised with diffused outer shadows (no hard edges)
+3. **Color Palette**:
+   - Primary: Slate Blue (#506C97) - Used for primary actions, highlights, and totals
+   - Secondary: Muted Coral/Peach (#C6878F) - Used for secondary actions and section titles
+   - Tertiary: Rosy Brown (#B79D94) - Used for tertiary elements like shared items
 
-- UI tests should focus on the workflow screens and state transitions
-- Mock Firebase responses for predictable testing
-- Ensure draft saving/loading works correctly across steps
-- Add specific tests for navigation patterns (swipe, tap indicators)
+4. **Interactive Elements**:
+   - Elevated buttons use raised shadows to indicate clickability
+   - Input fields use subtle inset shadows to indicate editable areas
+   - Cards use gentle shadows to create visual separation
 
-## Implementation Notes
+5. **Typography**:
+   - Clear hierarchy with font weight and size distinctions
+   - Dark grey text on light backgrounds for maximum readability
+   - Accent colors used sparingly for section headers and important values
+
+#### Bill Summary Screen Implementation
+The redesigned Bill Summary screen features:
+
+1. **Consolidated Header**: A single "Split Summary" header with edit button, removing redundant titles
+2. **Receipt Totals Card**: Compact, clear presentation of subtotal, tax, and tip with interactive controls
+3. **Individual Person Cards**: Each person has their own distinct card with expandable details
+4. **Slate Blue Amount Tags**: Amount totals are displayed in eye-catching slate blue pills
+5. **Bottom-Centered Action Buttons**: "Support Me" and "Share Bill" buttons are placed at the bottom center
+6. **Visual Flow**: Clear progression from overall totals to individual breakdowns
+7. **Consistent Padding**: Maintains comfortable spacing between all elements
+8. **Expanded States**: Person cards have clear collapsed/expanded states with proper visuals
+
+This system creates a cohesive, visually pleasing interface that guides users through the receipt splitting process with minimal cognitive load.
 
 ### Navigation Pattern
 

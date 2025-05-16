@@ -228,54 +228,54 @@ class SummaryStepWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Row(
-              children: [
-                Icon(Icons.summarize, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'Split Summary',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (onEditAssignments != null)
-                  GestureDetector(
-                    onTap: onEditAssignments,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.puce,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.puce.withOpacity(0.15),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, color: Colors.white, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Edit Split',
-                            style: textTheme.labelLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          // Padding(
+          //   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          //   child: Row(
+          //     children: [
+          //       Icon(Icons.summarize, color: colorScheme.primary),
+          //       const SizedBox(width: 8),
+          //       Text(
+          //         'Split Summary',
+          //         style: textTheme.titleMedium?.copyWith(
+          //           fontWeight: FontWeight.bold,
+          //           color: colorScheme.primary,
+          //         ),
+          //       ),
+          //       const SizedBox(width: 8),
+          //       if (onEditAssignments != null)
+          //         GestureDetector(
+          //           onTap: onEditAssignments,
+          //           child: Container(
+          //             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          //             decoration: BoxDecoration(
+          //               color: AppColors.puce,
+          //               borderRadius: BorderRadius.circular(24),
+          //               boxShadow: [
+          //                 BoxShadow(
+          //                   color: AppColors.puce.withOpacity(0.15),
+          //                   blurRadius: 4,
+          //                   offset: const Offset(0, 2),
+          //                 ),
+          //               ],
+          //             ),
+          //             child: Row(
+          //               children: [
+          //                 Icon(Icons.edit, color: Colors.white, size: 18),
+          //                 const SizedBox(width: 6),
+          //                 Text(
+          //                   'Edit Split',
+          //                   style: textTheme.labelLarge?.copyWith(
+          //                     color: Colors.white,
+          //                     fontWeight: FontWeight.w600,
+          //                   ),
+          //                 ),
+          //               ],
+          //             ),
+          //           ),
+          //         ),
+          //     ],
+          //   ),
+          // ),
           const SizedBox(height: 8),
           Expanded(
             child: FinalSummaryScreen(),
