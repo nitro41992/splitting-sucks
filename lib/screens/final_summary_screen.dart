@@ -353,57 +353,54 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
 
     // Check if there's anything to summarize. Rely on SplitManager state.
     if (splitManager.people.isEmpty && splitManager.unassignedItems.isEmpty && splitManager.sharedItems.isEmpty) {
-       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.summarize_outlined,
-                size: 60,
-                color: colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'No Split Summary Available',
-              style: textTheme.headlineSmall?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Assign items to people or mark them as shared first.', // More specific message
-              textAlign: TextAlign.center,
-              style: textTheme.bodyLarge?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton.icon(
-              onPressed: () {
-                  // Notify the parent PageView controller to navigate
-                  NavigateToPageNotification(3).dispatch(context); // Go to Split View (index 3)
-              },
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Go to Split View'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorScheme.primary,
-                foregroundColor: colorScheme.onPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+       return Container(
+        color: const Color(0xFFF5F5F7), // Light grey background
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildNeumorphicContainer(
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  padding: const EdgeInsets.all(24),
+                  child: Icon(
+                    Icons.summarize_outlined,
+                    size: 60,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 32),
+              Text(
+                'No Split Summary Available',
+                style: textTheme.headlineSmall?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Assign items to people or mark them as shared first.', // More specific message
+                textAlign: TextAlign.center,
+                style: textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 40),
+              _buildNeumorphicButton(
+                heroTag: 'goToSplitView_empty',
+                onPressed: () {
+                  // Notify the parent PageView controller to navigate
+                  NavigateToPageNotification(3).dispatch(context); // Go to Split View (index 3)
+                },
+                icon: Icons.arrow_back,
+                label: 'Go to Split View',
+                isPrimary: true,
+                isSecondary: false,
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -433,55 +430,48 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     // Allow for small floating point inaccuracies (increase threshold slightly)
     final bool subtotalsMatch = (subtotal - sumOfIndividualSubtotals).abs() < 0.05;
 
-    return Stack(
-      children: [
-        ListView(
-          // Add padding at the bottom to ensure content isn't hidden by FABs
-          // Also add horizontal padding to prevent cards from touching the sides
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-          children: [
-            // Show warning if subtotals don't match due to rounding/distribution
-            if (!subtotalsMatch)
-              Card(
-                elevation: 0,
-                margin: const EdgeInsets.only(bottom: 16),
-                color: Theme.of(context).colorScheme.errorContainer,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.warning_amber_rounded, 
-                        color: colorScheme.error,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Warning: Sum of parts (\$${sumOfIndividualSubtotals.toStringAsFixed(2)}) '
-                          'doesn\'t perfectly match subtotal (\$${subtotal.toStringAsFixed(2)}). '
-                          'This is due to rounding when calculating shared items.',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onErrorContainer,
-                            fontWeight: FontWeight.w500,
+    return Container(
+      color: const Color(0xFFF5F5F7), // Light grey background (near off-white)
+      child: Stack(
+        children: [
+          ListView(
+            // Add padding at the bottom to ensure content isn't hidden by FABs
+            // Also add horizontal padding to prevent cards from touching the sides
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            children: [
+              // Show warning if subtotals don't match due to rounding/distribution
+              if (!subtotalsMatch)
+                _buildNeumorphicContainer(
+                  backgroundColor: colorScheme.errorContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded, 
+                          color: colorScheme.error,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Warning: Sum of parts (\$${sumOfIndividualSubtotals.toStringAsFixed(2)}) '
+                            'doesn\'t perfectly match subtotal (\$${subtotal.toStringAsFixed(2)}). '
+                            'This is due to rounding when calculating shared items.',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onErrorContainer,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
             // Header Card: Overall Totals, Tax/Tip Adjustment
-            Card(
-              elevation: 1, // Subtle elevation
-              shadowColor: colorScheme.shadow.withOpacity(0.2),
-              margin: const EdgeInsets.only(bottom: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+            _buildNeumorphicContainer(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -489,13 +479,13 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.receipt_long_outlined, color: colorScheme.primary),
+                        Icon(Icons.receipt_long_outlined, color: AppColors.primary),
                         const SizedBox(width: 8),
                         Text(
                           'Receipt Totals',
                           style: textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: colorScheme.primary,
+                            color: AppColors.primary,
                           ),
                         ),
                       ],
@@ -515,22 +505,25 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                         SizedBox(
                           width: 90, // Adjusted width
                           height: 40, // Constrain height
-                          child: TextField(
-                            key: const ValueKey('tax_field'),
-                            controller: _taxController,
-                            textAlignVertical: TextAlignVertical.center,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                               FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')), // Allow digits and up to 3 decimal points
-                            ],
-                            decoration: InputDecoration(
-                              suffixText: '%',
-                              isDense: true, // Makes it more compact
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), // Adjust padding
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          child: _buildNeumorphicContainer(
+                            borderRadius: 8,
+                            child: TextField(
+                              key: const ValueKey('tax_field'),
+                              controller: _taxController,
+                              textAlignVertical: TextAlignVertical.center,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [
+                                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')), // Allow digits and up to 3 decimal points
+                              ],
+                              decoration: InputDecoration(
+                                suffixText: '%',
+                                isDense: true, // Makes it more compact
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), // Adjust padding
+                                border: InputBorder.none, // Remove default border
+                              ),
+                              textAlign: TextAlign.right,
+                              style: textTheme.bodyLarge,
                             ),
-                            textAlign: TextAlign.right,
-                            style: textTheme.bodyLarge,
                           ),
                         ),
                         const SizedBox(width: 16), // Space between input and amount
@@ -557,17 +550,23 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          '${_tipPercentage.toStringAsFixed(1)}%',
-                          key: const ValueKey('tip_percentage_text'),
-                          style: textTheme.headlineSmall?.copyWith( // Make percentage stand out
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.bold,
+                        _buildNeumorphicContainer(
+                          borderRadius: 24,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                            child: Text(
+                              '${_tipPercentage.toStringAsFixed(1)}%',
+                              key: const ValueKey('tip_percentage_text'),
+                              style: textTheme.headlineSmall?.copyWith( // Make percentage stand out
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4), // Reduced space
+                    const SizedBox(height: 12), // Reduced space
 
                     // Tip Controls (Buttons and Slider)
                     Column(
@@ -577,36 +576,46 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [15.0, 18.0, 20.0, 25.0].map((percentage) {
                             bool isSelected = (_tipPercentage - percentage).abs() < 0.01;
-                            return ElevatedButton(
+                            return _buildNeumorphicPercentButton(
+                              percentage: percentage,
+                              isSelected: isSelected,
                               onPressed: () {
                                 _setTipPercentage(percentage);
                               },
-                              style: ElevatedButton.styleFrom(
-                                elevation: isSelected ? 2 : 0,
-                                backgroundColor: isSelected ? colorScheme.primary : colorScheme.surfaceVariant,
-                                foregroundColor: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), // Pill shape
-                              ),
-                              child: Text('${percentage.toInt()}%'), // Show integer percentage on button
                             );
                           }).toList(),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
 
                         // Fine-tune slider
-                        Slider(
-                          key: const ValueKey('tip_slider'),
-                          value: _tipPercentage,
-                          min: 0,
-                          max: 30, // Max tip percentage
-                          divisions: 60, // Allows 0.5% increments
-                          label: '${_tipPercentage.toStringAsFixed(1)}%',
-                          onChanged: _onTipSliderChanged,
+                        SliderTheme(
+                          data: SliderThemeData(
+                            activeTrackColor: AppColors.primary,
+                            inactiveTrackColor: AppColors.surfaceDark,
+                            thumbColor: AppColors.primary,
+                            overlayColor: AppColors.primary.withOpacity(0.1),
+                            trackHeight: 6,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 8,
+                              elevation: 4,
+                            ),
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 16,
+                            ),
+                          ),
+                          child: Slider(
+                            key: const ValueKey('tip_slider'),
+                            value: _tipPercentage,
+                            min: 0,
+                            max: 30, // Max tip percentage
+                            divisions: 60, // Allows 0.5% increments
+                            label: '${_tipPercentage.toStringAsFixed(1)}%',
+                            onChanged: _onTipSliderChanged,
+                          ),
                         ),
                       ],
                     ),
-                     const SizedBox(height: 4), // Reduced space
+                     const SizedBox(height: 12), // Reduced space
 
                     // Tip Amount Display
                     Row(
@@ -638,16 +647,71 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
 
             // People section header
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8), // Add padding
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16), // Add padding
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.people_outline, size: 24, color: colorScheme.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Split Summary (${people.length} ${people.length == 1 ? "Person" : "People"})',
-                    style: textTheme.titleLarge?.copyWith( // Slightly larger title
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.primary,
+                  Flexible(  // Wrap in Flexible to allow the text to shrink if needed
+                    child: Row(
+                      children: [
+                        Icon(Icons.people_outline, size: 24, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Flexible(  // Add Flexible here to allow text to shrink
+                          child: Text(
+                            'Split Summary (${people.length} ${people.length == 1 ? "Person" : "People"})',
+                            style: textTheme.titleLarge?.copyWith( // Slightly larger title
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                            overflow: TextOverflow.ellipsis, // Add overflow handling
+                            maxLines: 1, // Limit to 1 line
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Edit Split Button with neumorphic styling
+                  GestureDetector(
+                    onTap: () {
+                      // Navigate to Split View
+                      NavigateToPageNotification(3).dispatch(context);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 4,
+                            offset: const Offset(2, 2),
+                          ),
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(-2, -2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,  // Add this to make the button only as wide as needed
+                        children: [
+                          const Icon(
+                            Icons.edit,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Edit Split',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -662,13 +726,15 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
               itemBuilder: (context, index) {
                 final person = splitManager.people[index];
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-                  child: PersonSummaryCard(
-                    key: ValueKey(person.name), // Use person's name as key (assuming unique)
-                    person: person,
-                    splitManager: splitManager,
-                    taxPercentage: _taxPercentage,
-                    tipPercentage: _tipPercentage,
+                  padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2.0),
+                  child: _buildNeumorphicContainer(
+                    child: PersonSummaryCard(
+                      key: ValueKey(person.name), // Use person's name as key (assuming unique)
+                      person: person,
+                      splitManager: splitManager,
+                      taxPercentage: _taxPercentage,
+                      tipPercentage: _tipPercentage,
+                    ),
                   ),
                 );
               },
@@ -680,13 +746,13 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16), // Add top margin
                 child: Row(
                   children: [
-                    Icon(Icons.help_outline_rounded, size: 24, color: colorScheme.error), // Different icon
+                    Icon(Icons.help_outline_rounded, size: 24, color: AppColors.error), // Different icon
                     const SizedBox(width: 8),
                     Text(
                       'Unassigned Items',
                       style: textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: colorScheme.error,
+                        color: AppColors.error,
                       ),
                     ),
                   ],
@@ -702,19 +768,9 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                 },
                 borderRadius: BorderRadius.circular(24), // Match the Card's border radius for ripple effect
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
-                  child: Card(
-                    elevation: 1,
-                    shadowColor: colorScheme.shadow.withOpacity(0.2),
-                    margin: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      // Add a subtle border using the theme's outline color
-                      side: BorderSide(
-                        color: colorScheme.outlineVariant.withOpacity(0.5),
-                        width: 1.0,
-                      ),
-                    ),
+                  padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 2.0),
+                  child: _buildNeumorphicContainer(
+                    borderRadius: 24,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
@@ -722,9 +778,22 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                         children: [
                           Row(
                             children: [
-                              CircleAvatar(
-                                backgroundColor: colorScheme.errorContainer.withOpacity(0.5),
-                                child: Icon(Icons.question_mark, color: colorScheme.onErrorContainer),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: colorScheme.errorContainer.withOpacity(0.5),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 4,
+                                      offset: const Offset(2, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: CircleAvatar(
+                                  backgroundColor: Colors.transparent,
+                                  child: Icon(Icons.question_mark, color: colorScheme.onErrorContainer),
+                                ),
                               ),
                               const SizedBox(width: 16),
                               // Title and Subtitle
@@ -749,6 +818,13 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                                 decoration: BoxDecoration(
                                   color: colorScheme.errorContainer,
                                   borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 2,
+                                      offset: const Offset(1, 1),
+                                    ),
+                                  ],
                                 ),
                                 child: Text(
                                   '\$${splitManager.unassignedItemsTotal.toStringAsFixed(2)}', // Show subtotal here
@@ -800,31 +876,27 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
           child: Row( // Use Row for side-by-side buttons
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              FloatingActionButton.extended(
-                heroTag: 'buyMeACoffeeButton_final', // Ensure unique heroTag
+              _buildNeumorphicButton(
+                heroTag: 'buyMeACoffeeButton_final',
                 onPressed: () => _launchBuyMeACoffee(context),
-                icon: const Icon(Icons.coffee_outlined), // Coffee icon
-                label: const Text('Support Me'), // Shorter label
-                tooltip: 'Buy me a coffee (optional)', // Tooltip
-                backgroundColor: AppColors.secondary.withOpacity(0.9), // Use AppColor, add slight transparency
-                foregroundColor: Colors.white, // Ensure text is readable
-                elevation: 2,
+                icon: Icons.coffee_outlined,
+                label: 'Support Me',
+                isPrimary: false,
+                isSecondary: true, // Use puce color
               ),
               const SizedBox(width: 12), // Space between buttons
-              FloatingActionButton.extended(
-                heroTag: 'shareButton_final', // Ensure unique heroTag
+              _buildNeumorphicButton(
+                heroTag: 'shareButton_final',
                 onPressed: () => _generateAndShareReceipt(context),
-                icon: const Icon(Icons.share_outlined), // Share icon
-                label: const Text('Share Bill'),
-                tooltip: 'Copy summary to clipboard', // Tooltip
-                backgroundColor: colorScheme.primary, // Use primary theme color
-                foregroundColor: colorScheme.onPrimary, // Ensure text is readable
-                elevation: 2,
+                icon: Icons.share_outlined,
+                label: 'Share Bill',
+                isPrimary: true,
+                isSecondary: false,
               ),
             ],
           ),
         ),
-      ],
+      ]),
     );
   }
 
@@ -873,12 +945,17 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
                          '${item.quantity}x ${item.name}$suffix',
                          style: textTheme.bodyMedium,
                          overflow: TextOverflow.ellipsis, // Prevent long names from breaking layout
+                         maxLines: 1, // Ensure it stays on one line
                        ),
                      ),
                      const SizedBox(width: 16), // Space before price
-                     Text(
-                       '\$${displayPrice.toStringAsFixed(2)}',
-                       style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                     SizedBox(
+                       width: 80, // Fixed width to ensure price has enough space
+                       child: Text(
+                         '\$${displayPrice.toStringAsFixed(2)}',
+                         style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                         textAlign: TextAlign.right, // Right-align the price text
+                       ),
                      ),
                    ],
                  ),
@@ -897,18 +974,26 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
        child: Row(
          mainAxisAlignment: MainAxisAlignment.spaceBetween,
          children: [
-           Text(
-             label,
-             style: textTheme.bodyMedium?.copyWith(
-               color: colorScheme.onSurfaceVariant, // Use a less prominent color for labels
-               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+           Flexible(  // Make label flexible to avoid overflow
+             child: Text(
+               label,
+               style: textTheme.bodyMedium?.copyWith(
+                 color: colorScheme.onSurfaceVariant, // Use a less prominent color for labels
+                 fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+               ),
+               overflow: TextOverflow.ellipsis,  // Add ellipsis for very long labels
              ),
            ),
-           Text(
-             '\$${value.toStringAsFixed(2)}',
-             style: textTheme.bodyMedium?.copyWith(
-               fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-               color: isBold ? colorScheme.onSurface : colorScheme.onSurface, // Consistent color for values
+           const SizedBox(width: 8), // Space between label and value
+           SizedBox(
+             width: 80, // Fixed width for consistent alignment
+             child: Text(
+               '\$${value.toStringAsFixed(2)}',
+               style: textTheme.bodyMedium?.copyWith(
+                 fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+                 color: isBold ? colorScheme.onSurface : colorScheme.onSurface, // Consistent color for values
+               ),
+               textAlign: TextAlign.right, // Right-align the value
              ),
            ),
          ],
@@ -927,11 +1012,18 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: style),
+        Flexible(  // Make label flexible
+          child: Text(
+            label, 
+            style: style,
+            overflow: TextOverflow.ellipsis,  // Add ellipsis for very long labels
+          ),
+        ),
+        const SizedBox(width: 8),  // Add space between label and value
         Text(
           '\$${value.toStringAsFixed(2)}',
           style: style?.copyWith(
-            color: isGrandTotal ? colorScheme.primary : null, // Highlight Grand Total
+            color: isGrandTotal ? AppColors.primary : null, // Use AppColors.primary for Grand Total
           ),
         ),
       ],
@@ -957,6 +1049,162 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen> with WidgetsBin
       // Update WorkflowState cache only (no DB persistence)
       context.read<WorkflowState>().setTip(_tipPercentage);
     });
+  }
+
+  // Helper for neumorphic buttons
+  Widget _buildNeumorphicButton({
+    required String heroTag,
+    required VoidCallback onPressed,
+    required IconData icon,
+    required String label,
+    required bool isPrimary,
+    required bool isSecondary,
+  }) {
+    // Use AppColors for consistent styling
+    final Color backgroundColor = isPrimary 
+        ? AppColors.primary 
+        : isSecondary 
+            ? AppColors.secondary 
+            : Colors.white;
+    final Color textColor = (isPrimary || isSecondary) ? Colors.white : AppColors.primary;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          // Stronger shadow for raised effect - bottom right
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 10,
+            offset: const Offset(4, 4),
+            spreadRadius: 0,
+          ),
+          // Lighter highlight for neumorphic effect - top left
+          BoxShadow(
+            color: Colors.white.withOpacity((isPrimary || isSecondary) ? 0.1 : 0.9),
+            blurRadius: 10,
+            offset: const Offset(-4, -4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  color: textColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper for neumorphic percentage buttons
+  Widget _buildNeumorphicPercentButton({
+    required double percentage,
+    required bool isSelected,
+    required VoidCallback onPressed,
+  }) {
+    final Color backgroundColor = isSelected ? AppColors.primary : Colors.white;
+    final Color textColor = isSelected ? Colors.white : AppColors.primary;
+    
+    return Container(
+      width: 64,
+      height: 36,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          // Stronger shadow for raised effect - bottom right
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(2, 2),
+            spreadRadius: 0,
+          ),
+          // Lighter highlight for neumorphic effect - top left
+          BoxShadow(
+            color: Colors.white.withOpacity(isSelected ? 0.1 : 0.9),
+            blurRadius: 6,
+            offset: const Offset(-2, -2),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(18),
+          child: Center(
+            child: Text(
+              '${percentage.toInt()}%',
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper to build neumorphic container with consistent styling
+  Widget _buildNeumorphicContainer({
+    required Widget child,
+    Color? backgroundColor,
+    double borderRadius = 16,
+    bool isElevated = true,
+  }) {
+    final Color bgColor = backgroundColor ?? Colors.white;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: isElevated ? [
+          // Outer shadow - bottom right
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(4, 4),
+            spreadRadius: 0,
+          ),
+          // Outer highlight - top left
+          BoxShadow(
+            color: Colors.white.withOpacity(0.9),
+            blurRadius: 10,
+            offset: const Offset(-4, -4),
+            spreadRadius: 0,
+          ),
+        ] : [],
+      ),
+      child: child,
+    );
   }
 }
 

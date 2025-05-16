@@ -2,187 +2,324 @@ import 'package:flutter/material.dart';
 import '../../models/person.dart';
 import '../../models/split_manager.dart';
 import '../../models/receipt_item.dart';
+import '../../theme/app_colors.dart';
 
-class PersonSummaryCard extends StatelessWidget {
+class PersonSummaryCard extends StatefulWidget {
   final Person person;
   final SplitManager splitManager;
   final double taxPercentage;
   final double tipPercentage;
 
   const PersonSummaryCard({
-    super.key,
+    Key? key,
     required this.person,
     required this.splitManager,
     required this.taxPercentage,
     required this.tipPercentage,
-  });
+  }) : super(key: key);
+
+  @override
+  State<PersonSummaryCard> createState() => _PersonSummaryCardState();
+}
+
+class _PersonSummaryCardState extends State<PersonSummaryCard> {
+  bool _isExpanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     final TextTheme textTheme = Theme.of(context).textTheme;
-
-    final double taxRate = taxPercentage / 100.0;
-    final double tipRate = tipPercentage / 100.0;
-
-    // Calculate individual items total
-    final double individualItemsTotal = person.totalAssignedAmount;
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     
-    // Get person's total from SplitManager (includes shared items split by number of people sharing)
-    final double personSubtotal = splitManager.getPersonTotal(person);
+    // Calculate subtotals and totals
+    final double individualSubtotal = widget.person.assignedItems.fold(
+      0.0, (sum, item) => sum + (item.price * item.quantity));
     
-    // Calculate shared items portion for display
-    final double sharedItemsTotal = personSubtotal - individualItemsTotal;
+    // Calculate shared items subtotal for this person
+    final double sharedSubtotal = widget.person.sharedItems.fold(
+      0.0, (sum, item) {
+        final sharingCount = widget.splitManager.people
+            .where((p) => p.sharedItems.contains(item))
+            .length;
+        return sum + ((item.price * item.quantity) / (sharingCount > 0 ? sharingCount : 1));
+      });
     
+    final double personSubtotal = individualSubtotal + sharedSubtotal;
+    final double taxRate = widget.taxPercentage / 100.0;
+    final double tipRate = widget.tipPercentage / 100.0;
     final double personTax = personSubtotal * taxRate;
     final double personTip = personSubtotal * tipRate;
     final double personTotal = personSubtotal + personTax + personTip;
 
-    // Debug the calculation
-    // debugPrint('[PersonSummaryCard] ${person.name} totals:');
-    // debugPrint('  - Individual: \$${individualItemsTotal.toStringAsFixed(2)}');
-    // debugPrint('  - Shared: \$${sharedItemsTotal.toStringAsFixed(2)}');
-    // debugPrint('  - Subtotal: \$${personSubtotal.toStringAsFixed(2)}');
-    // // Debug shared items in detail
-    // if (person.sharedItems.isNotEmpty) {
-    //   debugPrint('[PersonSummaryCard] Shared items for ${person.name}:');
-    //   for (var item in person.sharedItems) {
-    //     final int sharerCount = splitManager.people
-    //         .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
-    //         .length;
-    //     debugPrint('  - ${item.name} (${item.itemId}): \$${item.price.toStringAsFixed(1)} × ${item.quantity} ÷ ${sharerCount} people = \$${(item.total / sharerCount).toStringAsFixed(2)} per person');
-    //   }
-    // }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.5)),
-      ),
-      child: ExpansionTile(
-        iconColor: colorScheme.primary,
-        collapsedIconColor: colorScheme.onSurfaceVariant,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // Match card shape
-        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // Match card shape
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        expandedCrossAxisAlignment: CrossAxisAlignment.start,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                person.name,
-                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '\$${personTotal.toStringAsFixed(2)}',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0).copyWith(bottom: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Divider(),
-                if (person.assignedItems.isNotEmpty)
-                  _buildItemList(context, 'Individual Items', person.assignedItems),
-                if (person.sharedItems.isNotEmpty)
-                  _buildItemList(context, 'Shared Items', person.sharedItems, isShared: true),
-                if (person.assignedItems.isEmpty && person.sharedItems.isEmpty)
-                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text('No items assigned or shared.', style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
-                  ),
-                const Divider(),
-                
-                // Show individual and shared subtotals if both exist
-                if (individualItemsTotal > 0 && sharedItemsTotal > 0) ...[
-                  _buildCostDetailRow(context, 'Individual Items:', '\$${individualItemsTotal.toStringAsFixed(2)}'),
-                  _buildCostDetailRow(context, 'Shared Items:', '\$${sharedItemsTotal.toStringAsFixed(2)}'),
-                  _buildCostDetailRow(context, 'Subtotal:', '\$${personSubtotal.toStringAsFixed(2)}', isBold: true),
-                ] else 
-                  // Just show total subtotal if only one type exists
-                  _buildCostDetailRow(context, 'Subtotal:', '\$${personSubtotal.toStringAsFixed(2)}'),
-                
-                _buildCostDetailRow(context, '+ Tax (${taxPercentage.toStringAsFixed(1)}%):', '\$${personTax.toStringAsFixed(2)}'),
-                _buildCostDetailRow(context, '+ Tip (${tipPercentage.toStringAsFixed(1)}%):', '\$${personTip.toStringAsFixed(2)}'),
-                const Divider(),
-                _buildCostDetailRow(context, 'Total Owed:', '\$${personTotal.toStringAsFixed(2)}', isTotal: true),
-              ],
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          // Shadow for bottom-right (darker)
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(4, 4),
+            spreadRadius: 0,
+          ),
+          // Highlight for top-left (lighter)
+          BoxShadow(
+            color: Colors.white.withOpacity(0.9),
+            blurRadius: 10,
+            offset: const Offset(-4, -4),
+            spreadRadius: 0,
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildItemList(BuildContext context, String title, List<ReceiptItem> items, {bool isShared = false}) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('$title:', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          ...items.map((item) {
-            String details = '';
-            double itemCost = item.price * item.quantity;
-            if (isShared) {
-              final sharingCount = splitManager.people
-                  .where((p) => p.sharedItems.any((si) => si.itemId == item.itemId))
-                  .length;
-              
-              final individualShare = sharingCount > 0 ? (itemCost / sharingCount) : 0.0;
-              details = '(${sharingCount}-way split: \$${individualShare.toStringAsFixed(2)})';
-            } else {
-              details = '(\$${itemCost.toStringAsFixed(2)})';
-            }
-            return Padding(
-              padding: const EdgeInsets.only(left: 8.0, top: 2.0),
-              child: Text(
-                '• ${item.quantity}x ${item.name} ${details}',
-                style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-              ),
-            );
-          }),
-        ],
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _isExpanded = !_isExpanded;
+            });
+          },
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header: Person's name, expand/collapse icon, and total
+                Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      child: Icon(Icons.person, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 16),
+                    // Person's name and subtitle
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.person.name,
+                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            _isExpanded ? 'Tap to collapse' : 'Tap to expand',
+                            style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Total amount owed in a pill
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '\$${personTotal.toStringAsFixed(2)}',
+                        style: textTheme.titleMedium?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    // Expand/collapse icon
+                    const SizedBox(width: 8),
+                    Icon(
+                      _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      color: AppColors.primary,
+                    ),
+                  ],
+                ),
+                
+                // Expanded content - item details, shared items, cost breakdown
+                if (_isExpanded) ...[
+                  const SizedBox(height: 16),
+                  
+                  // Individual items list (if any)
+                  if (widget.person.assignedItems.isNotEmpty) ...[
+                    _buildItemList(context, 'Individual Items:', widget.person.assignedItems),
+                    const SizedBox(height: 12),
+                  ],
+                  
+                  // Shared items list (if any)
+                  if (widget.person.sharedItems.isNotEmpty) ...[
+                    _buildSharedItemList(
+                      context, 
+                      'Shared Items:', 
+                      widget.person.sharedItems, 
+                      widget.splitManager
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  
+                  Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant.withOpacity(0.3)),
+                  const SizedBox(height: 12),
+                  
+                  // Cost breakdown - Individual, Shared, Subtotal, Tax, Tip, Total
+                  Column(
+                    children: [
+                      if (widget.person.assignedItems.isNotEmpty)
+                        _buildDetailRow(context, 'Individual Items:', individualSubtotal),
+                      if (widget.person.sharedItems.isNotEmpty)
+                        _buildDetailRow(context, 'Shared Items:', sharedSubtotal),
+                      _buildDetailRow(context, 'Subtotal:', personSubtotal, isBold: true),
+                      _buildDetailRow(
+                        context, 
+                        'Tax (${widget.taxPercentage.toStringAsFixed(1)}%):', 
+                        personTax
+                      ),
+                      _buildDetailRow(
+                        context, 
+                        'Tip (${widget.tipPercentage.toStringAsFixed(1)}%):', 
+                        personTip
+                      ),
+                      const SizedBox(height: 4),
+                      _buildDetailRow(
+                        context, 
+                        'Total Owed:', 
+                        personTotal,
+                        isBold: true,
+                        isTotal: true,
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildCostDetailRow(BuildContext context, String label, String value, {bool isTotal = false, bool isBold = false}) {
+  // Helper to build item lists consistently  
+  Widget _buildItemList(BuildContext context, String title, List<ReceiptItem> items) {
+    final textTheme = Theme.of(context).textTheme;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.secondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...items.map((item) {
+          double displayPrice = item.price * item.quantity;
+          
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    '${item.quantity}x ${item.name}',
+                    style: textTheme.bodyMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  '\$${displayPrice.toStringAsFixed(2)}',
+                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  // Helper to build shared item lists with split information
+  Widget _buildSharedItemList(
+    BuildContext context, 
+    String title, 
+    List<ReceiptItem> items, 
+    SplitManager splitManager
+  ) {
+    final textTheme = Theme.of(context).textTheme;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.tertiary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...items.map((item) {
+          final sharingCount = splitManager.people
+              .where((p) => p.sharedItems.contains(item))
+              .length;
+          final individualShare = sharingCount > 0 
+              ? (item.price * item.quantity / sharingCount) 
+              : 0.0;
+          
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    '${item.quantity}x ${item.name} (${sharingCount}-way)',
+                    style: textTheme.bodyMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  '\$${individualShare.toStringAsFixed(2)}',
+                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  // Helper for consistent detail rows
+  Widget _buildDetailRow(
+    BuildContext context, 
+    String label, 
+    double value, 
+    {bool isBold = false, bool isTotal = false}
+  ) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
+    
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
             style: textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              fontWeight: isTotal || isBold ? FontWeight.bold : null,
+              color: isTotal ? AppColors.primary : colorScheme.onSurfaceVariant,
+              fontWeight: isBold || isTotal ? FontWeight.bold : FontWeight.normal,
             ),
           ),
           Text(
-            value,
+            '\$${value.toStringAsFixed(2)}',
             style: textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: isTotal ? colorScheme.primary : null,
+              fontWeight: isBold || isTotal ? FontWeight.bold : FontWeight.w500,
+              color: isTotal ? AppColors.primary : colorScheme.onSurface,
             ),
           ),
         ],

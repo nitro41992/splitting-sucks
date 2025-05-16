@@ -431,14 +431,14 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
                 ),
                 
                 // Informational text - what to do next
-                Text(
-                  'Tap the buttons below the image to change or process it.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: secondaryTextColor,
-                    fontSize: 14,
-                  ),
-                ),
+                // Text(
+                //   'Tap the buttons below the image to change or process it.',
+                //   textAlign: TextAlign.center,
+                //   style: TextStyle(
+                //     color: secondaryTextColor,
+                //     fontSize: 14,
+                //   ),
+                // ),
                 
                 // Add bottom padding
                 const SizedBox(height: 100),
