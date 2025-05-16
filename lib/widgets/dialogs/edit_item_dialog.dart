@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/receipt_item.dart'; // Import ReceiptItem model
+import '../../theme/neumorphic_theme.dart';
+import '../neumorphic/neumorphic_container.dart';
+import '../neumorphic/neumorphic_text_field.dart';
 
 // Define a return type for the dialog
 class EditItemResult {
@@ -110,7 +113,7 @@ class _EditItemDialogContentState extends State<_EditItemDialogContent> {
       color: Colors.transparent,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: NeumorphicTheme.pageBackground,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
@@ -141,36 +144,20 @@ class _EditItemDialogContentState extends State<_EditItemDialogContent> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Close button (Cancel)
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context, null),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.06),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Color(0xFF5D737E),
-                        size: 20,
-                      ),
-                    ),
+                  NeumorphicIconButton(
+                    icon: Icons.close,
+                    iconColor: NeumorphicTheme.slateBlue,
+                    size: 36,
+                    iconSize: 20,
+                    onPressed: () => Navigator.pop(context, null),
                   ),
                   
                   // Title
-                  const Text(
+                  Text(
                     'Edit Item', 
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1D1D1F),
+                    style: NeumorphicTheme.primaryText(
+                      size: NeumorphicTheme.titleLarge,
+                      weight: FontWeight.w600,
                     ),
                   ),
                   
@@ -186,203 +173,95 @@ class _EditItemDialogContentState extends State<_EditItemDialogContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Item Name Label
-                  const Text(
-                    'Item Name',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF5D737E),
+                  // Item Name field
+                  NeumorphicTextField(
+                    controller: _nameController,
+                    labelText: 'Item Name',
+                    hintText: 'Enter item name',
+                    prefixIcon: Icon(
+                      Icons.shopping_bag_outlined,
+                      color: NeumorphicTheme.slateBlue,
+                      size: 18,
                     ),
+                    maxLength: maxNameLength,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 24),
                   
-                  // Item Name field with Neumorphic styling
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                          spreadRadius: 0,
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      key: const ValueKey('editItemDialog_name_field'),
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter item name',
-                        hintStyle: TextStyle(
-                          color: const Color(0xFF8A8A8E).withOpacity(0.7),
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.fastfood_outlined,
-                          color: Color(0xFF5D737E),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF5D737E),
-                            width: 1,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        counterText: '${_nameController.text.length}/$maxNameLength',
-                      ),
-                      maxLength: maxNameLength,
-                      textCapitalization: TextCapitalization.words,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF1D1D1F),
-                      ),
-                      onChanged: (value) => setState(() {}),
-                      autofocus: true,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Price Label
-                  const Text(
-                    'Price',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF5D737E),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
                   // Price field with Neumorphic styling
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                          spreadRadius: 0,
-                        ),
-                      ],
+                  NeumorphicTextField(
+                    controller: _priceController,
+                    labelText: 'Price',
+                    hintText: '0.00',
+                    prefixIcon: Icon(
+                      Icons.attach_money,
+                      color: NeumorphicTheme.slateBlue,
+                      size: 18,
                     ),
-                    child: TextField(
-                      key: const ValueKey('editItemDialog_price_field'),
-                      controller: _priceController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter price',
-                        hintStyle: TextStyle(
-                          color: const Color(0xFF8A8A8E).withOpacity(0.7),
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.attach_money,
-                          color: Color(0xFF5D737E),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF5D737E),
-                            width: 1,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        errorText: _priceError,
-                        errorStyle: const TextStyle(
-                          color: Color(0xFFE53935),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                    ],
+                    onChanged: (value) {
+                      _validatePrice(value);
+                    },
+                  ),
+                  if (_priceError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0, left: 12.0),
+                      child: Text(
+                        _priceError!,
+                        style: TextStyle(
+                          color: NeumorphicTheme.mutedRed,
                           fontSize: 12,
                         ),
                       ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF1D1D1F),
-                      ),
-                      inputFormatters: [
-                        // Allow only numbers and decimal point
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                        // Custom formatter to handle decimal formatting
-                        TextInputFormatter.withFunction((oldValue, newValue) {
-                          final formattedValue = _formatPrice(newValue.text);
-                          return TextEditingValue(
-                            text: formattedValue,
-                            selection: TextSelection.collapsed(offset: formattedValue.length),
-                          );
-                        }),
-                      ],
-                      onChanged: _validatePrice,
                     ),
-                  ),
+                  
                   const SizedBox(height: 32),
-
-                  // Save Button
-                  InkWell(
-                    onTap: _saveChanges,
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF5D737E),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                            spreadRadius: 0,
+                  
+                  // Action buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // Cancel button
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, null),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: NeumorphicTheme.mutedRed,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
                           ),
-                        ],
+                        ),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
-                          Icon(
-                            Icons.check_circle_outline,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Save',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                      const SizedBox(width: 16),
+                      
+                      // Save button
+                      NeumorphicButton(
+                        color: NeumorphicTheme.slateBlue,
+                        radius: NeumorphicTheme.buttonRadius,
+                        onPressed: _saveChanges,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check, 
+                              color: Colors.white, 
+                              size: 18
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 8),
+                            Text(
+                              'Save',
+                              style: NeumorphicTheme.onAccentText(
+                                size: 15, 
+                                weight: FontWeight.w500
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),

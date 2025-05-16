@@ -7,6 +7,10 @@ import '../../models/split_manager.dart';
 import '../shared/editable_price.dart';
 import 'package:flutter/services.dart';
 import '../shared/quantity_selector.dart';
+import '../../theme/neumorphic_theme.dart';
+import '../neumorphic/neumorphic_container.dart';
+import '../neumorphic/neumorphic_avatar.dart';
+import '../neumorphic/neumorphic_text_field.dart';
 
 class UnassignedItemCard extends StatelessWidget {
   final ReceiptItem item;
@@ -16,169 +20,213 @@ class UnassignedItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splitManager = context.watch<SplitManager>();
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12.0),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: NeumorphicContainer(
+        type: NeumorphicType.raised,
+        radius: NeumorphicTheme.cardRadius,
+        child: Stack(
+          children: [
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 60.0),
+                  padding: const EdgeInsets.fromLTRB(20.0, 20.0, 80.0, 16.0),
                   child: Text(
                     item.name,
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    style: NeumorphicTheme.primaryText(
+                      size: NeumorphicTheme.titleLarge,
+                      weight: FontWeight.bold,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 2,
                   ),
                 ),
-                const SizedBox(height: 20),
                 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Text(
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
                         '${item.quantity} x \$${item.price.toStringAsFixed(2)} each',
-                        style: textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                        style: NeumorphicTheme.primaryText(),
                       ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Delete button
+                          NeumorphicIconButton(
+                            icon: Icons.delete_outline,
+                            iconColor: NeumorphicTheme.mutedRed,
+                            type: NeumorphicType.inset,
+                            size: 36,
+                            iconSize: 20,
+                            onPressed: () => _confirmDelete(context, splitManager, item),
+                          ),
+                          const SizedBox(width: 8),
+                          // Edit button
+                          NeumorphicIconButton(
+                            icon: Icons.edit_outlined,
+                            iconColor: NeumorphicTheme.slateBlue,
+                            type: NeumorphicType.inset,
+                            size: 36,
+                            iconSize: 20,
+                            onPressed: () => _showEditDialog(context, splitManager, item),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Divider(height: 1, thickness: 1, color: NeumorphicTheme.mediumGrey.withOpacity(0.3)),
+                ),
+                const SizedBox(height: 16),
+                
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20.0, 0.0, 20.0, 20.0),
+                  child: NeumorphicButton(
+                    color: NeumorphicTheme.slateBlue,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Delete button
-                        IconButton(
-                          icon: Icon(Icons.delete_outline, color: colorScheme.error),
-                          tooltip: 'Delete Item',
-                          onPressed: () => _confirmDelete(context, splitManager, item),
-                          constraints: const BoxConstraints(),
-                          padding: EdgeInsets.zero,
-                        ),
+                        const Icon(Icons.person_add, color: Colors.white, size: 20),
                         const SizedBox(width: 8),
-                        // Edit button
-                        IconButton(
-                          icon: Icon(Icons.edit_outlined, color: colorScheme.primary),
-                          tooltip: 'Edit Item Details',
-                          onPressed: () => _showEditDialog(context, splitManager, item),
-                          constraints: const BoxConstraints(),
-                          padding: EdgeInsets.zero,
+                        Text(
+                          'Assign Item',
+                          style: NeumorphicTheme.onAccentText(
+                            size: 16,
+                            weight: FontWeight.w500,
+                          ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
-                const SizedBox(height: 16),
-                
-                FilledButton.icon(
-                  onPressed: () => _showAssignDialog(context, splitManager, item),
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Assign Item'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 40),
+                    onPressed: () => _showAssignDialog(context, splitManager, item),
                   ),
                 ),
               ],
             ),
-          ),
-          
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '\$${item.total.toStringAsFixed(2)}',
-                style: textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.bold,
-                ),
+            
+            Positioned(
+              top: 8,
+              right: 8,
+              child: NeumorphicPricePill(
+                price: item.total,
+                color: NeumorphicTheme.slateBlue,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   void _showAssignDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Assign Item'),
-        contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0.0),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Choose how to assign this item:'),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.person),
-                    label: const Text('To Person'),
-                    onPressed: () {
-                      Navigator.pop(context); // Close this dialog first
-                      _showAssignToPersonDialog(context, splitManager, item);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      foregroundColor: colorScheme.onPrimaryContainer,
-                      backgroundColor: colorScheme.primaryContainer,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.group),
-                    label: const Text('Share'),
-                    onPressed: () {
-                      Navigator.pop(context); // Close this dialog first
-                      _showShareDialog(context, splitManager, item);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      foregroundColor: colorScheme.onSecondaryContainer,
-                      backgroundColor: colorScheme.secondaryContainer,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-             const SizedBox(height: 16),
-          ],
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: NeumorphicContainer(
+          type: NeumorphicType.raised,
+          radius: 16,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.person_add,
+                    color: NeumorphicTheme.slateBlue,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Assign Item',
+                    style: NeumorphicTheme.primaryText(
+                      size: 18,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Choose how to assign this item:',
+                style: NeumorphicTheme.primaryText(),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Expanded(
+                    child: NeumorphicButton(
+                      color: NeumorphicTheme.slateBlue,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.person, color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'To Person',
+                            style: NeumorphicTheme.onAccentText(),
+                          ),
+                        ],
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context); // Close this dialog first
+                        _showAssignToPersonDialog(context, splitManager, item);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: NeumorphicButton(
+                      color: NeumorphicTheme.mutedCoral,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.group, color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Share',
+                            style: NeumorphicTheme.onAccentText(),
+                          ),
+                        ],
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context); // Close this dialog first
+                        _showShareDialog(context, splitManager, item);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: NeumorphicTheme.mutedRed,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -816,136 +864,182 @@ class UnassignedItemCard extends StatelessWidget {
   void _showEditDialog(BuildContext context, SplitManager splitManager, ReceiptItem item) {
     final nameController = TextEditingController(text: item.name);
     final priceController = TextEditingController(text: item.price.toStringAsFixed(2));
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    int selectedQuantity = item.quantity;
+    int editedQuantity = item.quantity;
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.edit_outlined, color: colorScheme.primary),
-            const SizedBox(width: 8),
-            const Text('Edit Item'),
-          ],
-        ),
-        content: StatefulBuilder(
-          builder: (BuildContext context, StateSetter setStateDialog) {
-            return SingleChildScrollView(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            child: NeumorphicContainer(
+              type: NeumorphicType.raised,
+              radius: 16,
+              padding: const EdgeInsets.all(20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name field
-                  TextField(
-                    controller: nameController,
-                    decoration: InputDecoration(
-                      labelText: 'Item Name',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.edit_outlined,
+                        color: NeumorphicTheme.slateBlue,
+                        size: 20,
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Edit Item',
+                        style: NeumorphicTheme.primaryText(
+                          size: 18,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  NeumorphicTextField(
+                    controller: nameController,
+                    labelText: 'Item Name',
+                    hintText: 'Enter item name',
                     textCapitalization: TextCapitalization.sentences,
                   ),
+                  
                   const SizedBox(height: 16),
                   
-                  // Price field
-                  TextField(
+                  NeumorphicTextField(
                     controller: priceController,
-                    decoration: InputDecoration(
-                      labelText: 'Price',
-                      prefixText: '\$',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
+                    labelText: 'Price',
+                    hintText: 'Enter price',
+                    prefixText: '\$',
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                     ],
                   ),
+                  
                   const SizedBox(height: 16),
                   
-                  // Quantity selector - simplified for better reliability
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Quantity:', style: textTheme.titleMedium),
+                      Text(
+                        'Quantity:',
+                        style: NeumorphicTheme.primaryText(
+                          weight: FontWeight.w500,
+                        ),
+                      ),
                       Row(
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            onPressed: selectedQuantity > 1 
-                                ? () => setStateDialog(() => selectedQuantity--) 
+                          NeumorphicIconButton(
+                            icon: Icons.remove,
+                            type: NeumorphicType.inset,
+                            size: 36,
+                            iconSize: 18,
+                            radius: 18,
+                            iconColor: editedQuantity > 1
+                                ? NeumorphicTheme.slateBlue
+                                : NeumorphicTheme.mediumGrey.withOpacity(0.5),
+                            onPressed: editedQuantity > 1
+                                ? () => setState(() => editedQuantity--)
                                 : null,
-                            color: selectedQuantity > 1 ? colorScheme.primary : colorScheme.onSurfaceVariant.withOpacity(0.38),
                           ),
-                          Text(
-                            selectedQuantity.toString(),
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              editedQuantity.toString(),
+                              style: NeumorphicTheme.primaryText(
+                                weight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            onPressed: () => setStateDialog(() => selectedQuantity++),
-                            color: colorScheme.primary,
+                          NeumorphicIconButton(
+                            icon: Icons.add,
+                            type: NeumorphicType.inset,
+                            size: 36,
+                            iconSize: 18,
+                            radius: 18,
+                            iconColor: NeumorphicTheme.slateBlue,
+                            onPressed: () => setState(() => editedQuantity++),
                           ),
                         ],
                       ),
                     ],
                   ),
+                
+                  const SizedBox(height: 24),
+                  
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: NeumorphicTheme.mutedRed,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      NeumorphicButton(
+                        color: NeumorphicTheme.slateBlue,
+                        radius: 8,
+                        onPressed: () {
+                          // Validate inputs
+                          final newName = nameController.text.trim();
+                          if (newName.isEmpty) return;
+                          
+                          final double? newPrice = double.tryParse(priceController.text);
+                          if (newPrice == null || newPrice <= 0) return;
+                          
+                          // Update the item
+                          splitManager.updateUnassignedItem(
+                            item,
+                            editedQuantity,
+                            newPrice,
+                          );
+                          
+                          // Also update the name if changed
+                          if (newName != item.name) {
+                            item.updateName(newName);
+                          }
+                          
+                          Navigator.pop(context);
+                        },
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Save',
+                              style: NeumorphicTheme.onAccentText(
+                                size: 15,
+                                weight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: colorScheme.error),
             ),
-          ),
-          FilledButton.icon(
-            onPressed: () {
-              // Validate and parse inputs
-              final newName = nameController.text.trim();
-              if (newName.isEmpty) return;
-              
-              double? newPrice = double.tryParse(priceController.text);
-              if (newPrice == null || newPrice <= 0) return;
-              
-              // Use the updateUnassignedItem method which correctly handles updates
-              splitManager.updateUnassignedItem(item, selectedQuantity, newPrice);
-              
-              // Also apply the name change
-              if (newName != item.name) {
-                item.updateName(newName);
-              }
-              
-              // Visual confirmation
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Item updated successfully'),
-                  backgroundColor: colorScheme.primary,
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-              
-              Navigator.pop(context);
-            },
-            icon: const Icon(Icons.check),
-            label: const Text('Save'),
-            style: FilledButton.styleFrom(
-              backgroundColor: colorScheme.primary,
-              foregroundColor: colorScheme.onPrimary,
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

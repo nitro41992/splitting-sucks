@@ -15,6 +15,7 @@ import '../theme/app_colors.dart';
 // Import neumorphic widgets
 import 'neumorphic/neumorphic_container.dart';
 import 'neumorphic/neumorphic_text_field.dart';
+import 'neumorphic/neumorphic_tabs.dart';
 
 /// Utility class for Neumorphic styling
 class NeumorphicStyles {
@@ -198,6 +199,60 @@ class _SplitViewState extends State<SplitView> {
     }
   }
 
+  // Build the bottom fixed footer
+  Widget _buildFixedFooter(SplitManager splitManager) {
+    return Container(
+      height: 72,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            offset: const Offset(0, -4),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          NeumorphicIconButton(
+            icon: Icons.person_add,
+            backgroundColor: Colors.white,
+            iconColor: NeumorphicStyles.slateBlue,
+            size: 48,
+            radius: 24,
+            type: NeumorphicType.inset,
+            onPressed: () => _showAddPersonDialog(context, splitManager),
+          ),
+          NeumorphicIconButton(
+            icon: Icons.add_shopping_cart,
+            backgroundColor: Colors.white,
+            iconColor: NeumorphicStyles.slateBlue,
+            size: 48,
+            radius: 24,
+            type: NeumorphicType.inset,
+            onPressed: () => _showAddItemDialog(context, splitManager),
+          ),
+          NeumorphicIconButton(
+            icon: Icons.check,
+            backgroundColor: Colors.white,
+            iconColor: NeumorphicStyles.slateBlue,
+            size: 48,
+            radius: 24,
+            type: NeumorphicType.inset,
+            onPressed: () {
+              widget.onClose?.call();
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<SplitManager>(
@@ -228,10 +283,10 @@ class _SplitViewState extends State<SplitView> {
           final String originalTotalFormatted = originalTotal?.toStringAsFixed(2) ?? 'N/A';
           
           warningWidget = Padding(
-            padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0), 
+            padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 4.0), 
             child: NeumorphicContainer(
               type: NeumorphicType.raised,
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
               child: Row(
                 children: [
                   Container(
@@ -239,18 +294,19 @@ class _SplitViewState extends State<SplitView> {
                       color: warningColor.withOpacity(0.15),
                       shape: BoxShape.circle,
                     ),
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(6),
                     child: Icon(
                       Icons.warning_amber_rounded, 
                       color: warningColor,
-                      size: 24,
+                      size: 16,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Warning: Current item sum in split (\$$currentTotalFormatted) doesn\'t match reviewed subtotal (\$$originalTotalFormatted).',
-                      style: NeumorphicStyles.primaryText(
+                      'Current sum (\$$currentTotalFormatted) ≠ subtotal (\$$originalTotalFormatted)',
+                      style: NeumorphicStyles.secondaryText(
+                        size: 13,
                         weight: FontWeight.w500,
                       ),
                     ),
@@ -267,137 +323,128 @@ class _SplitViewState extends State<SplitView> {
             children: [
               Column(
                 children: [
-                  // Header with subtotal
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Subtotal: ',
-                          style: NeumorphicStyles.primaryText(
-                            size: 18.0,
-                            weight: FontWeight.w500,
+                  // Header with subtotal - Updated to match specs
+                  SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 8.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Subtotal: ',
+                            style: NeumorphicStyles.primaryText(
+                              size: 18.0,
+                              weight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                        Text(
-                          '\$${subtotal.toStringAsFixed(2)}',
-                          style: NeumorphicStyles.primaryText(
-                            size: 18.0, 
-                            weight: FontWeight.w600,
+                          Text(
+                            '\$${subtotal.toStringAsFixed(2)}',
+                            style: NeumorphicStyles.primaryText(
+                              size: 18.0, 
+                              weight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            _isSubtotalCollapsed ? Icons.expand_more : Icons.expand_less, 
-                            color: AppColors.slateBlue,
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => setState(() => _isSubtotalCollapsed = !_isSubtotalCollapsed),
+                            child: Icon(
+                              _isSubtotalCollapsed ? Icons.expand_more : Icons.expand_less,
+                              color: NeumorphicStyles.slateBlue,
+                              size: 24,
+                            ),
                           ),
-                          onPressed: () => setState(() => _isSubtotalCollapsed = !_isSubtotalCollapsed),
-                          tooltip: _isSubtotalCollapsed ? 'Show details' : 'Hide details',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          splashRadius: 24,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   
-                  // Expanded subtotal section (conditionally shown)
+                  // Dropdown overlay when expanded
                   if (!_isSubtotalCollapsed)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       child: NeumorphicContainer(
                         type: NeumorphicType.raised,
                         padding: const EdgeInsets.all(16.0),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Individual Items Total
+                            // Individual Items Row
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   'Individual Items: ',
-                                  style: NeumorphicStyles.primaryText(),
+                                  style: NeumorphicStyles.primaryText(size: 14),
                                 ),
                                 Text(
                                   '\$${individualTotal.toStringAsFixed(2)}',
                                   style: NeumorphicStyles.primaryText(
-                                    weight: FontWeight.bold,
+                                    size: 14,
+                                    weight: FontWeight.w500,
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
-                            // Shared Items Total
+                            
+                            // Shared Items Row
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   'Shared Items: ',
-                                  style: NeumorphicStyles.primaryText(),
+                                  style: NeumorphicStyles.primaryText(size: 14),
                                 ),
                                 Text(
                                   '\$${sharedTotal.toStringAsFixed(2)}',
                                   style: NeumorphicStyles.primaryText(
-                                    weight: FontWeight.bold,
+                                    size: 14,
+                                    weight: FontWeight.w500,
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
-                            // Combined Assigned Total
+                            
+                            // Unassigned Items Row
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Assigned Total: ',
-                                  style: NeumorphicStyles.primaryText(),
-                                ),
-                                Text(
-                                  '\$${assignedTotal.toStringAsFixed(2)}',
-                                  style: NeumorphicStyles.primaryText(
-                                    weight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Unassigned: ',
-                                  style: NeumorphicStyles.primaryText(),
+                                  'Unassigned Items: ',
+                                  style: NeumorphicStyles.primaryText(size: 14),
                                 ),
                                 Text(
                                   '\$${unassignedTotal.toStringAsFixed(2)}',
                                   style: NeumorphicStyles.primaryText(
-                                    weight: FontWeight.bold,
+                                    size: 14,
+                                    weight: FontWeight.w500,
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 12),
-                            // Subtotal row - always visible and more prominent
-                            Divider(height: 1, thickness: 1, color: NeumorphicStyles.mediumGrey.withOpacity(0.3)),
+                            
+                            // Subtotal row - with divider
+                            Divider(height: 1, thickness: 1, color: NeumorphicStyles.mediumGrey.withOpacity(0.2)),
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8.0),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    'Subtotal: ',
+                                    'Assigned Total: ',
                                     style: NeumorphicStyles.primaryText(
-                                      size: 16,
-                                      weight: FontWeight.bold,
+                                      size: 14,
+                                      weight: FontWeight.w600,
                                     ),
                                   ),
                                   Text(
                                     '\$${subtotal.toStringAsFixed(2)}',
                                     style: NeumorphicStyles.primaryText(
-                                      size: 16,
-                                      weight: FontWeight.bold,
+                                      size: 14,
+                                      weight: FontWeight.w600,
                                     ),
                                   ),
                                 ],
@@ -411,52 +458,26 @@ class _SplitViewState extends State<SplitView> {
                   // Warning widget (if needed)
                   if (warningWidget != null) warningWidget,
                   
-                  // Tabs
+                  // Tabs with updated Neumorphic style
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 16.0),
-                    child: Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: NeumorphicStyles.pageBackground,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            offset: const Offset(2, 2),
-                            blurRadius: 4,
-                          ),
-                          BoxShadow(
-                            color: Colors.white.withOpacity(0.8),
-                            offset: const Offset(-2, -2),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _buildTabItem(
-                                index: 0,
-                                label: 'People',
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildTabItem(
-                                index: 1,
-                                label: 'Shared',
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildTabItem(
-                                index: 2,
-                                label: 'Unassigned',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 12.0),
+                    child: NeumorphicTabs(
+                      tabs: [
+                        NeumorphicTabItem(label: 'People'),
+                        NeumorphicTabItem(label: 'Shared'),
+                        NeumorphicTabItem(label: 'Unassigned'),
+                      ],
+                      selectedIndex: _selectedIndex,
+                      onTabSelected: (index) {
+                        setState(() {
+                          _selectedIndex = index;
+                        });
+                        _checkScrollability();
+                      },
+                      trackColor: const Color(0xFFE9ECEF),
+                      selectedColor: NeumorphicStyles.slateBlue,
+                      selectedTextColor: Colors.white,
+                      unselectedTextColor: NeumorphicStyles.slateBlue,
                     ),
                   ),
                   
@@ -512,49 +533,13 @@ class _SplitViewState extends State<SplitView> {
                 ],
               ),
               
-              // Add Person / Add Item floating action buttons
-              if (_isFabVisible)
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      NeumorphicIconButton(
-                        icon: Icons.person_add,
-                        backgroundColor: AppColors.slateBlue,
-                        iconColor: Colors.white,
-                        size: 56,
-                        radius: 28,
-                        onPressed: () => _showAddPersonDialog(context, splitManager),
-                      ),
-                      const SizedBox(width: 16),
-                      NeumorphicIconButton(
-                        icon: Icons.add_shopping_cart,
-                        backgroundColor: AppColors.slateBlue,
-                        iconColor: Colors.white,
-                        size: 56,
-                        radius: 28,
-                        onPressed: () => _showAddItemDialog(context, splitManager),
-                      ),
-                      const SizedBox(width: 16),
-                      NeumorphicIconButton(
-                        icon: Icons.check,
-                        backgroundColor: AppColors.slateBlue,
-                        iconColor: Colors.white,
-                        size: 56,
-                        radius: 28,
-                        onPressed: () {
-                          widget.onClose?.call();
-                          if (Navigator.of(context).canPop()) {
-                            Navigator.of(context).pop();
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+              // Replace floating action buttons with fixed footer
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildFixedFooter(splitManager),
+              ),
             ],
           ),
         );
@@ -572,7 +557,7 @@ class _SplitViewState extends State<SplitView> {
     return itemCount > 0
       ? ListView.builder(
           controller: controller,
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100), // Extra bottom padding for FAB
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100), // Extra bottom padding for fixed footer
           itemCount: itemCount,
           itemBuilder: itemBuilder,
         )
@@ -596,53 +581,6 @@ class _SplitViewState extends State<SplitView> {
         );
   }
   
-  // Building a tab item with neumorphic design
-  Widget _buildTabItem({
-    required int index,
-    required String label,
-  }) {
-    final bool isSelected = _selectedIndex == index;
-    
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedIndex = index);
-        _checkScrollability();
-      },
-      child: Container(
-        height: 40,
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.slateBlue : NeumorphicStyles.pageBackground,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: isSelected 
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  offset: const Offset(2, 2),
-                  blurRadius: 4,
-                ),
-                BoxShadow(
-                  color: Colors.white.withOpacity(0.7),
-                  offset: const Offset(-2, -2),
-                  blurRadius: 4,
-                ),
-              ]
-            : null,
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: isSelected
-            ? NeumorphicStyles.onAccentText(
-                weight: FontWeight.w500,
-              )
-            : NeumorphicStyles.primaryText(
-                weight: FontWeight.w500,
-              ),
-        ),
-      ),
-    );
-  }
-
   // Show add person dialog
   void _showAddPersonDialog(BuildContext context, SplitManager splitManager) {
     final controller = TextEditingController();
@@ -668,7 +606,7 @@ class _SplitViewState extends State<SplitView> {
                   Icon(
                     Icons.person_add, 
                     color: NeumorphicStyles.slateBlue,
-                    size: 22,
+                    size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -680,63 +618,51 @@ class _SplitViewState extends State<SplitView> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               NeumorphicTextField(
                 controller: controller,
                 labelText: 'Name',
-                hintText: 'Enter person\'s name',
+                maxLength: personMaxNameLength,
                 prefixIcon: Icon(
                   Icons.person_outline, 
                   color: NeumorphicStyles.slateBlue,
                   size: 18,
                 ),
-                maxLength: personMaxNameLength,
                 textCapitalization: TextCapitalization.words,
-                autofocus: true,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(
-                        color: NeumorphicStyles.mutedRed,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: NeumorphicStyles.mutedRed,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
-                  NeumorphicButton(
+                  NeumorphicContainer(
+                    type: NeumorphicType.raised,
                     color: NeumorphicStyles.slateBlue,
                     radius: 8,
-                    onPressed: () {
-                      final newName = controller.text.trim();
-                      if (newName.isNotEmpty && newName.length <= personMaxNameLength) {
-                        splitManager.addPerson(newName);
-                        Navigator.pop(context);
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    onTap: () {
+                      final name = controller.text.trim();
+                      if (name.isNotEmpty) {
+                        splitManager.addPerson(name);
+                        Navigator.of(context).pop();
                       }
                     },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.check, 
-                          color: Colors.white, 
-                          size: 18
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Add',
-                          style: NeumorphicStyles.onAccentText(
-                            size: 15, 
-                            weight: FontWeight.w500
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'Add',
+                      style: NeumorphicStyles.onAccentText(weight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -745,7 +671,7 @@ class _SplitViewState extends State<SplitView> {
           ),
         ),
       ),
-    );
+    ).then((_) => controller.dispose());
   }
   
   // Show add item dialog
@@ -753,196 +679,178 @@ class _SplitViewState extends State<SplitView> {
     final nameController = TextEditingController();
     final priceController = TextEditingController();
     int quantity = 1;
-    
+
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setStateDialog) {
-          return Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 0,
-            backgroundColor: Colors.transparent,
-            child: NeumorphicContainer(
-              type: NeumorphicType.raised,
-              radius: 16,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.add_shopping_cart, 
-                        color: NeumorphicStyles.slateBlue,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Add Item', 
-                        style: NeumorphicStyles.primaryText(
-                          size: 18, 
-                          weight: FontWeight.w600
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  // Item Name field
-                  NeumorphicTextField(
-                    controller: nameController,
-                    labelText: 'Item Name',
-                    hintText: 'Enter item name',
-                    textCapitalization: TextCapitalization.sentences,
-                    autofocus: true,
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Price field
-                  NeumorphicTextField(
-                    controller: priceController,
-                    labelText: 'Price',
-                    hintText: 'Enter price',
-                    prefixText: '\$',
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Quantity selector
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Quantity:', 
-                        style: NeumorphicStyles.primaryText(
-                          weight: FontWeight.w500
-                        )
-                      ),
-                      Row(
-                        children: [
-                          NeumorphicIconButton(
-                            icon: Icons.remove,
-                            type: NeumorphicType.inset,
-                            size: 36,
-                            radius: 18,
-                            iconSize: 18,
-                            iconColor: quantity > 1 
-                              ? NeumorphicStyles.slateBlue 
-                              : NeumorphicStyles.mediumGrey.withOpacity(0.5),
-                            onPressed: quantity > 1 
-                              ? () => setStateDialog(() => quantity--) 
-                              : null,
-                          ),
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 12),
-                            child: Text(
-                              quantity.toString(),
-                              style: NeumorphicStyles.primaryText(
-                                weight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          NeumorphicIconButton(
-                            icon: Icons.add,
-                            type: NeumorphicType.inset,
-                            size: 36,
-                            radius: 18,
-                            iconSize: 18,
-                            iconColor: NeumorphicStyles.slateBlue,
-                            onPressed: () => setStateDialog(() => quantity++),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(
-                            color: NeumorphicStyles.mutedRed,
-                            fontWeight: FontWeight.w500,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      NeumorphicButton(
-                        color: NeumorphicStyles.slateBlue,
-                        radius: 8,
-                        onPressed: () {
-                          // Validate and parse inputs
-                          final name = nameController.text.trim();
-                          if (name.isEmpty) return;
-                          
-                          double? price = double.tryParse(priceController.text);
-                          if (price == null || price <= 0) return;
-                          
-                          // Create and add the new item
-                          final newItem = ReceiptItem(
-                            name: name,
-                            price: price,
-                            quantity: quantity,
-                          );
-                          
-                          splitManager.addUnassignedItem(newItem);
-                          Navigator.pop(context);
-                          
-                          // After adding, switch to the Unassigned tab
-                          setState(() {
-                            _selectedIndex = 2; // Index for Unassigned tab
-                          });
-                        },
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.check, 
-                              color: Colors.white, 
-                              size: 18
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Add',
-                              style: NeumorphicStyles.onAccentText(
-                                size: 15, 
-                                weight: FontWeight.w500
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
               ),
-            ),
-          );
-        },
-      ),
-    );
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: NeumorphicContainer(
+                type: NeumorphicType.raised,
+                radius: 16,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.add_shopping_cart, 
+                          color: NeumorphicStyles.slateBlue,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Add Item', 
+                          style: NeumorphicStyles.primaryText(
+                            size: 18, 
+                            weight: FontWeight.w600
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // Name field
+                    NeumorphicTextField(
+                      controller: nameController,
+                      labelText: 'Item Name',
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Price field
+                    NeumorphicTextField(
+                      controller: priceController,
+                      labelText: 'Price',
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      prefixText: '\$',
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Quantity selector
+                    Text(
+                      'Quantity:',
+                      style: NeumorphicStyles.primaryText(size: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        NeumorphicIconButton(
+                          icon: Icons.remove,
+                          backgroundColor: Colors.white,
+                          size: 36,
+                          radius: 18,
+                          iconSize: 18,
+                          iconColor: quantity > 1 
+                            ? NeumorphicStyles.slateBlue 
+                            : NeumorphicStyles.mediumGrey.withOpacity(0.5),
+                          onPressed: quantity > 1 
+                            ? () => setStateDialog(() => quantity--) 
+                            : () {},
+                        ),
+                        Container(
+                          width: 40,
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$quantity',
+                            style: NeumorphicStyles.primaryText(
+                              size: 18,
+                              weight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        NeumorphicIconButton(
+                          icon: Icons.add,
+                          backgroundColor: Colors.white,
+                          size: 36,
+                          radius: 18,
+                          iconSize: 18,
+                          iconColor: NeumorphicStyles.slateBlue,
+                          onPressed: () => setStateDialog(() => quantity++),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: NeumorphicStyles.mutedRed,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        NeumorphicContainer(
+                          type: NeumorphicType.raised,
+                          color: NeumorphicStyles.slateBlue,
+                          radius: 8,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          onTap: () {
+                            // Validate and parse inputs
+                            final itemName = nameController.text.trim();
+                            if (itemName.isEmpty) return;
+                            
+                            double? price = double.tryParse(priceController.text);
+                            if (price == null || price <= 0) return;
+                            
+                            // Create and add the new item
+                            final newItem = ReceiptItem(
+                              name: itemName,
+                              price: price,
+                              quantity: quantity,
+                            );
+                            splitManager.addUnassignedItem(newItem);
+                            Navigator.of(context).pop();
+                          },
+                          child: Text(
+                            'Add',
+                            style: NeumorphicStyles.onAccentText(weight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) {
+      nameController.dispose();
+      priceController.dispose();
+    });
   }
   
-  // Show edit person name dialog
-  void _showEditPersonNameDialog(BuildContext context, SplitManager splitManager, Person person) {
+  // Show edit person dialog
+  void _showEditPersonDialog(BuildContext context, SplitManager splitManager, Person person) {
     final controller = TextEditingController(text: person.name);
     
     showDialog(
       context: context,
-      builder: (dialogContext) => Dialog(
+      builder: (context) => Dialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -960,12 +868,12 @@ class _SplitViewState extends State<SplitView> {
                 children: [
                   Icon(
                     Icons.edit, 
-                    color: AppColors.slateBlue,
-                    size: 22,
+                    color: NeumorphicStyles.slateBlue,
+                    size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Edit Name', 
+                    'Edit Person', 
                     style: NeumorphicStyles.primaryText(
                       size: 18, 
                       weight: FontWeight.w600
@@ -973,46 +881,57 @@ class _SplitViewState extends State<SplitView> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               NeumorphicTextField(
                 controller: controller,
                 labelText: 'Name',
-                hintText: 'Enter name',
+                maxLength: personMaxNameLength,
                 prefixIcon: Icon(
                   Icons.person_outline, 
-                  color: AppColors.slateBlue,
+                  color: NeumorphicStyles.slateBlue,
                   size: 18,
                 ),
-                maxLength: personMaxNameLength,
                 textCapitalization: TextCapitalization.words,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(color: AppColors.slateBlue),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: NeumorphicStyles.mutedRed,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
-                  ElevatedButton(
-                    onPressed: () {
+                  NeumorphicContainer(
+                    type: NeumorphicType.raised,
+                    color: NeumorphicStyles.slateBlue,
+                    radius: 8,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    onTap: () {
                       final newName = controller.text.trim();
-                      if (newName.isNotEmpty) {
+                      if (newName.isNotEmpty && newName != person.name) {
                         splitManager.updatePersonName(person, newName);
+                        Navigator.of(context).pop();
+                      } else if (newName.isEmpty) {
+                        // Show error or handle empty name case
+                      } else {
+                        // Name unchanged, just close dialog
+                        Navigator.of(context).pop();
                       }
-                      Navigator.pop(dialogContext);
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.slateBlue,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                    child: Text(
+                      'Save',
+                      style: NeumorphicStyles.onAccentText(weight: FontWeight.w600),
                     ),
-                    child: const Text('Save'),
                   ),
                 ],
               ),
@@ -1020,16 +939,6 @@ class _SplitViewState extends State<SplitView> {
           ),
         ),
       ),
-    );
-  }
-  
-  // Show edit shared item dialog
-  void _showEditSharedItemDialog(BuildContext context, ReceiptItem item, SplitManager splitManager) {
-    // Implementation omitted for brevity
-  }
-  
-  // Show edit unassigned item dialog
-  void _showEditUnassignedItemDialog(BuildContext context, ReceiptItem item, SplitManager splitManager) {
-    // Implementation omitted for brevity
+    ).then((_) => controller.dispose());
   }
 } 

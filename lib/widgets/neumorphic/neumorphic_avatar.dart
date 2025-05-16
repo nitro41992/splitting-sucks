@@ -4,25 +4,32 @@ import 'neumorphic_container.dart';
 
 /// A neumorphic styled avatar widget that displays initials
 class NeumorphicAvatar extends StatelessWidget {
-  final String text;
-  final double size;
+  final String? text;
   final Color backgroundColor;
   final Color textColor;
+  final double size;
   final VoidCallback? onTap;
+  final IconData? icon;
+  final double iconSize;
+  final Color iconColor;
   
   const NeumorphicAvatar({
     Key? key,
-    required this.text,
-    this.size = NeumorphicTheme.largeAvatarSize,
-    this.backgroundColor = NeumorphicTheme.slateBlue,
+    this.text,
+    this.backgroundColor = const Color(0xFF5D737E),
     this.textColor = Colors.white,
+    this.size = 40,
     this.onTap,
+    this.icon,
+    this.iconSize = 20,
+    this.iconColor = Colors.white,
   }) : super(key: key);
   
   @override
   Widget build(BuildContext context) {
-    // Get the first character for the avatar display
-    final String initial = text.isNotEmpty ? text[0].toUpperCase() : '?';
+    final String displayText = text != null && text!.isNotEmpty
+        ? text![0].toUpperCase()
+        : '?';
     
     return NeumorphicContainer(
       type: NeumorphicType.raised,
@@ -32,14 +39,20 @@ class NeumorphicAvatar extends StatelessWidget {
       height: size,
       onTap: onTap,
       child: Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            color: textColor,
-            fontSize: size * 0.4, // Proportional font size
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: icon != null
+            ? Icon(
+                icon,
+                color: iconColor,
+                size: iconSize,
+              )
+            : Text(
+                displayText,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: size * 0.4, // Proportional font size
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
     );
   }

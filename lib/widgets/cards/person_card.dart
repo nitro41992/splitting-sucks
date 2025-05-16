@@ -7,6 +7,7 @@ import '../../theme/neumorphic_theme.dart';
 import '../neumorphic/neumorphic_container.dart';
 import '../neumorphic/neumorphic_avatar.dart';
 import '../neumorphic/neumorphic_text_field.dart';
+import '../neumorphic/neumorphic_icon_button.dart';
 
 class PersonCard extends StatelessWidget {
   final Person person;

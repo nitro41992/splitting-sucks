@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../../models/receipt_item.dart';
 import '../../models/split_manager.dart';
 import '../shared/quantity_selector.dart';
+import '../../theme/neumorphic_theme.dart';
+import '../neumorphic/neumorphic_container.dart';
+import '../neumorphic/neumorphic_avatar.dart';
 
 class SharedItemCard extends StatelessWidget {
   final ReceiptItem item;
@@ -12,8 +15,6 @@ class SharedItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final splitManager = context.read<SplitManager>();
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final people = context.select((SplitManager sm) => sm.people);
 
     // Function to show toast message for assigned items
@@ -21,167 +22,146 @@ class SharedItemCard extends StatelessWidget {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Changes to price and quanitty can only be made if not assigned to a person'),
+          content: Text('Changes to price and quantity can only be made if not assigned to a person'),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
         )
       );
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12.0),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: NeumorphicContainer(
+        type: NeumorphicType.raised,
+        radius: NeumorphicTheme.cardRadius,
+        child: Stack(
+          children: [
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(right: 60.0),
+                  padding: const EdgeInsets.fromLTRB(20.0, 20.0, 80.0, 16.0),
                   child: Text(
                     item.name,
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    style: NeumorphicTheme.primaryText(
+                      size: NeumorphicTheme.titleLarge,
+                      weight: FontWeight.bold,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 2,
                   ),
                 ),
-                const SizedBox(height: 20),
 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Wrap the text in GestureDetector to show toast when clicked
-                    GestureDetector(
-                      onTap: () => _showAssignedItemToast(context),
-                      child: Text(
-                        '${item.quantity} x \$${item.price.toStringAsFixed(2)} each',
-                        style: textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Wrap the text in GestureDetector to show toast when clicked
+                      GestureDetector(
+                        onTap: () => _showAssignedItemToast(context),
+                        child: Text(
+                          '${item.quantity} x \$${item.price.toStringAsFixed(2)} each',
+                          style: NeumorphicTheme.primaryText(),
                         ),
                       ),
-                    ),
-                    QuantitySelector(
-                      item: item,
-                      onChanged: (newQuantity) =>
-                          splitManager.updateItemQuantity(item, newQuantity),
-                      isAssigned: true, // Shared items are always assigned to people
-                    ),
-                  ],
+                      QuantitySelector(
+                        item: item,
+                        onChanged: (newQuantity) =>
+                            splitManager.updateItemQuantity(item, newQuantity),
+                        isAssigned: true, // Shared items are always assigned to people
+                      ),
+                    ],
+                  ),
                 ),
+                
                 const SizedBox(height: 16),
-                Divider(height: 1, thickness: 1, color: colorScheme.outlineVariant),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Divider(height: 1, thickness: 1, color: NeumorphicTheme.mediumGrey.withOpacity(0.3)),
+                ),
                 const SizedBox(height: 16),
 
-                Text(
-                  'Shared with:',
-                  style: textTheme.titleSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Shared with:',
+                        style: NeumorphicTheme.primaryText(
+                          weight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (people.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            'No people added yet.',
+                            style: NeumorphicTheme.secondaryText(),
+                          ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: people.map((person) {
+                            // ALWAYS use itemId for comparison to ensure consistent selection state
+                            final isSelected = person.sharedItems.any((si) => 
+                              // Try by itemId match first (most reliable)
+                              (si.itemId != null && item.itemId != null && si.itemId == item.itemId) ||
+                              // Fall back to name and price match
+                              (si.name == item.name && si.price == item.price)
+                            );
+                            
+                            return NeumorphicPill(
+                              color: isSelected ? NeumorphicTheme.slateBlue : Colors.white,
+                              onTap: () {
+                                if (isSelected) {
+                                  // Remove person from shared item
+                                  Provider.of<SplitManager>(context, listen: false).removePersonFromSharedItem(item, person);
+                                } else {
+                                  // Add person to shared item
+                                  Provider.of<SplitManager>(context, listen: false).addPersonToSharedItem(item, person);
+                                }
+                              },
+                              child: Text(
+                                person.name,
+                                style: isSelected 
+                                  ? const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    )
+                                  : TextStyle(
+                                      color: NeumorphicTheme.slateBlue,
+                                      fontWeight: FontWeight.normal,
+                                      fontSize: 14,
+                                    ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (people.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4.0),
-                    child: Text(
-                      'No people added yet.',
-                      style: textTheme.bodySmall
-                          ?.copyWith(color: colorScheme.onSurfaceVariant),
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: people.map((person) {
-                      // ALWAYS use itemId for comparison to ensure consistent selection state
-                      final isSelected = person.sharedItems.any((si) => 
-                        // Try by itemId match first (most reliable)
-                        (si.itemId != null && item.itemId != null && si.itemId == item.itemId) ||
-                        // Fall back to name and price match
-                        (si.name == item.name && si.price == item.price)
-                      );
-                      
-                      return SizedBox(
-                        // Limit maximum width to prevent overflow
-                        width: MediaQuery.of(context).size.width * 0.3,
-                        child: FilterChip(
-                          label: Text(
-                            person.name,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected) {
-                              // Add person to shared item
-                              Provider.of<SplitManager>(context, listen: false).addPersonToSharedItem(item, person);
-                            } else {
-                              // Remove person from shared item
-                              Provider.of<SplitManager>(context, listen: false).removePersonFromSharedItem(item, person);
-                            }
-                          },
-                          checkmarkColor: Colors.white,
-                          backgroundColor: Colors.grey[200],
-                          selectedColor: colorScheme.primary,
-                          showCheckmark: true,
-                          shape: StadiumBorder(
-                            side: BorderSide(
-                              color: isSelected 
-                                  ? Colors.transparent
-                                  : colorScheme.outlineVariant,
-                              width: 1.0,
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          labelStyle: TextStyle(
-                            color: isSelected 
-                                ? Colors.white
-                                : colorScheme.primary,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            fontSize: 12, // Make the font a bit smaller to fit better
-                          ),
-                          elevation: 0,
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                const SizedBox(height: 16),
               ],
             ),
-          ),
 
-          Positioned(
-            top: 8,
-            right: 8,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '\$${item.total.toStringAsFixed(2)}',
-                style: textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.bold,
-                ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: NeumorphicPricePill(
+                price: item.total,
+                color: NeumorphicTheme.slateBlue,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
