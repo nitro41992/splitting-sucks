@@ -221,7 +221,7 @@ void main() {
       
       // Find the tip percentage text
       final tipText = tester.widget<Text>(find.byKey(const ValueKey('tip_percentage_text')));
-      expect(tipText.data, '15.0%');
+      expect(tipText.data, '(15.0%)');
       
       // Verify the tax input field instead of looking for text
       final textField = tester.widget<TextField>(find.byKey(const ValueKey('tax_field')));

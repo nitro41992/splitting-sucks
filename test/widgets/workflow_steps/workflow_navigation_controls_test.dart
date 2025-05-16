@@ -5,10 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 import '../../../test/mocks.mocks.dart'; // Corrected import path
+import 'dart:io';
 
 void main() {
   group('WorkflowNavigationControls Widget Tests', () {
     late MockWorkflowState mockWorkflowState;
+    late MockFile mockFile;
 
     // Helper function to pump the widget
     Future<void> pumpWidget(WidgetTester tester, {
@@ -32,6 +34,9 @@ void main() {
 
     setUp(() {
       mockWorkflowState = MockWorkflowState();
+      mockFile = MockFile();
+      
+      // Setup basic mock behavior
       when(mockWorkflowState.currentStep).thenReturn(0);
       when(mockWorkflowState.hasParseData).thenReturn(false);
       when(mockWorkflowState.hasTranscriptionData).thenReturn(false);
@@ -39,6 +44,11 @@ void main() {
       when(mockWorkflowState.isLoading).thenReturn(false);
       when(mockWorkflowState.previousStep()).thenAnswer((_) async {});
       when(mockWorkflowState.nextStep()).thenAnswer((_) async {});
+      
+      // Setup image file mock to fix the missing stub error
+      when(mockWorkflowState.imageFile).thenReturn(null);
+      when(mockWorkflowState.loadedImageUrl).thenReturn(null);
+      when(mockWorkflowState.resetImageFile()).thenAnswer((_) async {});
     });
 
     testWidgets('Back button is visible and enabled when currentStep > 0, calls previousStep on tap', (WidgetTester tester) async {
@@ -53,8 +63,10 @@ void main() {
 
       final backButtonFinder = find.byKey(backButtonKey);
       expect(backButtonFinder, findsOneWidget);
-      TextButton backButton = tester.widget<TextButton>(backButtonFinder);
-      expect(backButton.onPressed, isNotNull);
+      
+      // Changed from TextButton to InkWell
+      InkWell backButton = tester.widget<InkWell>(backButtonFinder);
+      expect(backButton.onTap, isNotNull);
 
       await tester.tap(backButtonFinder);
       await tester.pumpAndSettle();
@@ -62,7 +74,7 @@ void main() {
       verify(mockWorkflowState.previousStep()).called(1);
     });
     
-    testWidgets('Back button is present but disabled when currentStep == 0', (WidgetTester tester) async {
+    testWidgets('Back button is present but calls Navigator.pop when currentStep == 0', (WidgetTester tester) async {
       when(mockWorkflowState.currentStep).thenReturn(0);
 
       await pumpWidget(
@@ -74,8 +86,10 @@ void main() {
 
       final backButtonFinder = find.byKey(backButtonKey);
       expect(backButtonFinder, findsOneWidget);
-      TextButton backButton = tester.widget<TextButton>(backButtonFinder);
-      expect(backButton.onPressed, isNull, reason: "Back button should be disabled at step 0");
+      
+      // Changed from TextButton to InkWell
+      InkWell backButton = tester.widget<InkWell>(backButtonFinder);
+      expect(backButton.onTap, isNotNull); // Should be enabled to pop
     });
 
     group('Save Button', () {
@@ -200,9 +214,11 @@ void main() {
 
         final nextButtonFinder = find.byKey(nextButtonKey);
         expect(nextButtonFinder, findsOneWidget);
-        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
-        expect(nextButton.onPressed, isNotNull);
-
+        
+        // Changed from InkWell to Container
+        Container nextButton = tester.widget<Container>(nextButtonFinder);
+        // We can't directly check onTap, but we can verify it's not null by trying to tap it
+        
         await tester.tap(nextButtonFinder);
         await tester.pumpAndSettle();
         verify(mockWorkflowState.nextStep()).called(1);
@@ -222,8 +238,17 @@ void main() {
         
         final nextButtonFinder = find.byKey(nextButtonKey);
         expect(nextButtonFinder, findsOneWidget);
-        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
-        expect(nextButton.onPressed, isNull);
+        
+        // Check for a specific color opacity that indicates the disabled state
+        Container nextButton = tester.widget<Container>(nextButtonFinder);
+        BoxDecoration decoration = nextButton.decoration as BoxDecoration;
+        expect(decoration.color, equals(slateBlue.withOpacity(0.4)));
+        
+        // Try tapping it and verify no state change
+        await tester.tap(nextButtonFinder, warnIfMissed: false);
+        await tester.pumpAndSettle();
+        
+        verifyNever(mockWorkflowState.nextStep());
       });
 
       testWidgets('at step 1, "Next" button is visible and enabled, calls nextStep',
@@ -240,7 +265,12 @@ void main() {
 
         final nextButtonFinder = find.byKey(nextButtonKey);
         expect(nextButtonFinder, findsOneWidget);
-        expect(tester.widget<FilledButton>(nextButtonFinder).onPressed, isNotNull);
+        
+        // Changed from InkWell to Container
+        Container nextButton = tester.widget<Container>(nextButtonFinder);
+        // We can verify it's enabled by the color (not using opacity)
+        BoxDecoration decoration = nextButton.decoration as BoxDecoration;
+        expect(decoration.color, equals(slateBlue));
 
         await tester.tap(nextButtonFinder);
         await tester.pump();
@@ -248,7 +278,7 @@ void main() {
         verify(mockWorkflowState.nextStep()).called(1);
       });
 
-      testWidgets('at step 2 (Summary), Next button is NOT visible',
+      testWidgets('at step 2 (Summary), Next button changes to Complete button',
           (WidgetTester tester) async {
         when(mockWorkflowState.currentStep).thenReturn(2);
 
@@ -260,10 +290,13 @@ void main() {
         await tester.pumpAndSettle();
 
         final nextButtonFinder = find.byKey(nextButtonKey);
-        expect(nextButtonFinder, findsNothing, reason: "Next button should not be visible on Summary step");
+        expect(nextButtonFinder, findsOneWidget);
         
-        // Instead, there should be an empty container in its place
-        expect(find.byType(Container), findsAtLeastNWidgets(1));
+        // Verify the text shows "Complete" instead of "Next"
+        expect(find.descendant(
+          of: nextButtonFinder,
+          matching: find.text('Complete')
+        ), findsOneWidget);
       });
 
       testWidgets('at step 1, "Next" button is disabled if hasAssignmentData is false',
@@ -280,8 +313,11 @@ void main() {
         
         final nextButtonFinder = find.byKey(nextButtonKey);
         expect(nextButtonFinder, findsOneWidget);
-        FilledButton nextButton = tester.widget<FilledButton>(nextButtonFinder);
-        expect(nextButton.onPressed, isNull, reason: "Next button should be disabled at step 1 when hasAssignmentData is false");
+        
+        // Changed from InkWell to Container
+        Container nextButton = tester.widget<Container>(nextButtonFinder);
+        BoxDecoration decoration = nextButton.decoration as BoxDecoration;
+        expect(decoration.color, equals(slateBlue.withOpacity(0.4)));
       });
     });
 

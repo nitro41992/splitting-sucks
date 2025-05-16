@@ -125,7 +125,14 @@ class WorkflowNavigationControls extends StatelessWidget {
                     _buildZoneButton(
                       icon: Icons.save_outlined,
                       label: 'Save Draft',
-                      onPressed: onSaveAction,
+                      onPressed: () async {
+                        // For Summary step, save triggers completion
+                        if (isSummaryStep) {
+                          await onCompleteAction();
+                        } else {
+                          await onSaveAction();
+                        }
+                      },
                       isSlateBlue: true,
                       key: saveButtonKey,
                     )
@@ -133,7 +140,14 @@ class WorkflowNavigationControls extends StatelessWidget {
                     _buildZoneButton(
                       icon: Icons.save_outlined,
                       label: 'Save Draft',
-                      onPressed: onSaveAction,
+                      onPressed: () async {
+                        // For Summary step, save triggers completion
+                        if (isSummaryStep) {
+                          await onCompleteAction();
+                        } else {
+                          await onSaveAction();
+                        }
+                      },
                       isSlateBlue: true,
                       key: saveButtonKey,
                       opacity: 0.0, // Invisible but maintains layout
@@ -191,17 +205,19 @@ class WorkflowNavigationControls extends StatelessWidget {
               Icon(
                 icon,
                 color: iconColor,
-                size: 20, // Smaller icon size
+                size: 18, // Smaller icon size
               ),
-              const SizedBox(height: 2), // Reduced spacing
+              SizedBox(height: 1), // Reduced spacing
               Text(
                 label,
                 style: TextStyle(
                   color: iconColor,
-                  fontSize: 10, // Smaller font size
+                  fontSize: 9, // Smaller font size to prevent overflow
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -221,6 +237,7 @@ class WorkflowNavigationControls extends StatelessWidget {
     if (onPressed == null) {
       // Disabled state - still a filled pill but desaturated
       return Container(
+        key: key, // Add key to the Container for disabled state
         height: 40, // Match height with the zone buttons
         decoration: BoxDecoration(
           color: slateBlue.withOpacity(0.4), // Desaturated color
@@ -253,6 +270,7 @@ class WorkflowNavigationControls extends StatelessWidget {
     
     // Enabled primary button as a filled button
     return Container(
+      key: key, // Add key to the Container for enabled state
       height: 40, // Match height with the zone buttons
       decoration: BoxDecoration(
         color: slateBlue,
@@ -270,7 +288,6 @@ class WorkflowNavigationControls extends StatelessWidget {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(20), // Match the container
         child: InkWell(
-          key: key,
           onTap: onPressed,
           borderRadius: BorderRadius.circular(20), // Match the container
           child: Padding(
