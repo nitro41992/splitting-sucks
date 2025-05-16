@@ -109,19 +109,19 @@ class _UploadStepWidgetState extends State<UploadStepWidget> {
           ),
         ),
         
-        // Show "Review Items" button after successful parsing
-        if (widget.isSuccessfullyParsed && !widget.isLoading)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: ElevatedButton.icon(
-              onPressed: _showReviewOverlay,
-              icon: const Icon(Icons.edit_note),
-              label: const Text('Review Items'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
-          ),
+        // // Show "Review Items" button after successful parsing
+        // if (widget.isSuccessfullyParsed && !widget.isLoading)
+        //   Padding(
+        //     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        //     child: ElevatedButton.icon(
+        //       onPressed: _showReviewOverlay,
+        //       icon: const Icon(Icons.edit_note),
+        //       label: const Text('Review Items'),
+        //       style: ElevatedButton.styleFrom(
+        //         padding: const EdgeInsets.symmetric(vertical: 12),
+        //       ),
+        //     ),
+        //   ),
       ],
     );
   }

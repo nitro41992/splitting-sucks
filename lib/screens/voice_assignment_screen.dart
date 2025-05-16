@@ -819,39 +819,34 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                   child: Container(
                     color: Colors.white,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                    child: ElevatedButton(
-                      onPressed: !_isLoading ? _processTranscription : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary, // Use dark blue from AppColors
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                    child: Center( // Center the button horizontally
+                      child: ElevatedButton(
+                        onPressed: !_isLoading ? _processTranscription : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.buttonSecondary, // Use dark blue from AppColors
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 32), // Smaller padding for a smaller button
+                          shape: StadiumBorder(), // Pill-shaped button
+                          shadowColor: Colors.black.withOpacity(0.1),
+                          elevation: 4,
                         ),
-                        shadowColor: Colors.black.withOpacity(0.1),
-                        elevation: 4,
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Process Assignments',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
                                 ),
-                              ],
-                            ),
+                              )
+                            : Text(
+                                'Process Assignments',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
                     ),
                   ),
                 ),
