@@ -8,6 +8,8 @@ import '../neumorphic/neumorphic_container.dart';
 import '../neumorphic/neumorphic_avatar.dart';
 import '../neumorphic/neumorphic_text_field.dart';
 import '../neumorphic/neumorphic_icon_button.dart';
+import '../../theme/app_colors.dart';
+
 
 class PersonCard extends StatelessWidget {
   final Person person;
@@ -105,7 +107,7 @@ class PersonCard extends StatelessWidget {
                               ),
                               const Spacer(),
                               NeumorphicPill(
-                                color: NeumorphicTheme.mutedCoral,
+                                color: AppColors.secondary,
                                 child: Text(
                                   '+\$${calculatedSharedAmount.toStringAsFixed(2)}',
                                   style: const TextStyle(
