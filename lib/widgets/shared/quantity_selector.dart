@@ -28,7 +28,7 @@ class QuantitySelector extends StatelessWidget {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Changes to price and quanitty can only be made if not assigned to a person'),
+          content: Text('Changes to price and quanity can only be made if not assigned to a person'),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
         )
