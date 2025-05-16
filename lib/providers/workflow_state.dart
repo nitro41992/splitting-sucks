@@ -219,10 +219,11 @@ class WorkflowState extends ChangeNotifier {
     result.remove('image_uri');
     result.remove('thumbnail_uri');
     _parseReceiptResult = result;
+    _notifyCacheChange('parseReceiptResult', result);
     notifyListeners();
   }
 
-  void setTranscribeAudioResult(Map<String, dynamic>? result) {
+  void setTranscribeAudioResult(Map<String, dynamic> result) {
     if (result == null) {
       if (_transcribeAudioResult.isNotEmpty) {
         _transcribeAudioResult = {};
@@ -234,11 +235,12 @@ class WorkflowState extends ChangeNotifier {
       _transcribeAudioResult = Map<String, dynamic>.from(result);
       debugPrint('[WorkflowState setTranscribeAudioResult] _transcribeAudioResult is now: $_transcribeAudioResult');
       saveTranscriptionToPrefs();
+      _notifyCacheChange('transcribeAudioResult', result);
       notifyListeners();
     }
   }
 
-  void setAssignPeopleToItemsResult(Map<String, dynamic>? result) {
+  void setAssignPeopleToItemsResult(Map<String, dynamic> result) {
     if (result == null || result.isEmpty) {
       // Reset assignment data, but preserve tip/tax
       _assignPeopleToItemsResult = {};
@@ -249,12 +251,14 @@ class WorkflowState extends ChangeNotifier {
       // Extract people
       _people = _extractPeopleFromAssignments();
     }
+    _notifyCacheChange('assignPeopleToItemsResult', result);
     notifyListeners();
   }
 
   void setTip(double? value) {
     // Always update and notify in the current implementation
     _tip = value;
+    _notifyCacheChange('tip', value);
     saveTranscriptionToPrefs();
     notifyListeners();
   }
@@ -262,6 +266,7 @@ class WorkflowState extends ChangeNotifier {
   void setTax(double? value) {
     // Always update and notify in the current implementation
     _tax = value;
+    _notifyCacheChange('tax', value);
     saveTranscriptionToPrefs();
     notifyListeners();
   }
@@ -443,5 +448,40 @@ class WorkflowState extends ChangeNotifier {
     // _tax = null;
     _people = [];
     notifyListeners();
+  }
+
+  // Add a cache change listener
+  void Function(String key, dynamic value)? _cacheChangeListener;
+
+  // Method to set up a cache change listener
+  void addCacheChangeListener(void Function(String key, dynamic value) listener) {
+    _cacheChangeListener = listener;
+  }
+
+  // Method to remove the cache change listener
+  void removeCacheChangeListener() {
+    _cacheChangeListener = null;
+  }
+
+  // Helper to notify cache listener of changes
+  void _notifyCacheChange(String key, dynamic value) {
+    if (_cacheChangeListener != null) {
+      _cacheChangeListener!(key, value);
+    }
+  }
+
+  // Method to collect all session data for caching
+  Map<String, dynamic> getSessionDataForCache() {
+    return {
+      'restaurantName': restaurantName,
+      'currentStep': currentStep,
+      'parseReceiptResult': parseReceiptResult,
+      'transcribeAudioResult': transcribeAudioResult,
+      'assignPeopleToItemsResult': assignPeopleToItemsResult,
+      'tip': tip,
+      'tax': tax,
+      'imageUri': actualImageGsUri,
+      'thumbnailUri': actualThumbnailGsUri,
+    };
   }
 } 

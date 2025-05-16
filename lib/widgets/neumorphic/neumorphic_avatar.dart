@@ -136,9 +136,19 @@ class NeumorphicPricePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final String formattedPrice = isPositive ? '+\$${price.toStringAsFixed(2)}' : '\$${price.toStringAsFixed(2)}';
     
-    return NeumorphicPill(
-      color: color,
-      radius: NeumorphicTheme.pillRadius,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            offset: const Offset(1, 1),
+            blurRadius: 3,
+          ),
+        ],
+      ),
       child: Text(
         formattedPrice,
         style: TextStyle(

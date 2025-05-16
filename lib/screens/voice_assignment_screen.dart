@@ -73,6 +73,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
       _transcription = widget.initialTranscription;
       _transcriptionController.text = widget.initialTranscription!;
     }
+    
     // Listen for focus loss to trigger cache
     _transcriptionFocusNode.addListener(() {
       if (!_transcriptionFocusNode.hasFocus) {
@@ -84,7 +85,20 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
   }
 
   @override
+  void didUpdateWidget(VoiceAssignmentScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // If initialTranscription changed from null to a value, update the controller
+    if (widget.initialTranscription != null && oldWidget.initialTranscription == null) {
+      _transcription = widget.initialTranscription;
+      _transcriptionController.text = widget.initialTranscription!;
+    }
+  }
+
+  @override
   void dispose() {
+    // Ensure transcription is saved before disposal
+    flushTranscriptionToParent();
     _recorder.dispose();
     _transcriptionController.dispose();
     _transcriptionFocusNode.dispose();

@@ -8,6 +8,7 @@ import '../utils/platform_config.dart'; // Import platform config
 import '../utils/toast_helper.dart'; // Import toast helper
 import '../widgets/workflow_modal.dart' show GetCurrentItemsCallback; 
 import '../theme/neumorphic_theme.dart'; // Import theme
+import 'dart:async';
 
 class ReceiptReviewScreen extends StatefulWidget {
   final List<ReceiptItem> initialItems;
@@ -38,8 +39,10 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
 
   bool _isFabVisible = true;
   bool _isContinueButtonVisible = true;
-  double _lastScrollPosition = 0;
+  late double _lastScrollPosition = 0;
   bool _isSubtotalCollapsed = false; // Start expanded
+
+  Timer? _cachingTimer;
 
   @override
   void initState() {
@@ -55,11 +58,40 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
       widget.registerCurrentItemsGetter!(() => _editableItems); 
       debugPrint('[ReceiptReviewScreen] Registered getCurrentItems callback.');
     }
-    // -----------------------------------------------------
+    
+    // Periodic caching of current state
+    _setupAutoCaching();
+  }
+  
+  // Set up automatic periodic caching
+  void _setupAutoCaching() {
+    // Trigger immediate cache update
+    _updateParentWithCurrentItems();
+    
+    // Set up a timer for periodic caching (every 3 seconds)
+    // This ensures data is cached even if the user doesn't interact
+    _cachingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (mounted) {
+        _updateParentWithCurrentItems();
+      }
+    });
+  }
+  
+  // Helper method to update parent with current items
+  void _updateParentWithCurrentItems() {
+    if (widget.onItemsUpdated != null) {
+      widget.onItemsUpdated!(_editableItems);
+    }
   }
 
   @override
   void dispose() {
+    // Ensure final state is captured
+    _updateParentWithCurrentItems();
+    
+    // Cancel the caching timer
+    _cachingTimer?.cancel();
+    
     _itemsScrollController.removeListener(_onScroll);
     _itemsScrollController.dispose();
     super.dispose();

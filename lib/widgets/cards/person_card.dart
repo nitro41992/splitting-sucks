@@ -4,10 +4,12 @@ import '../../models/person.dart';
 import '../../models/split_manager.dart';
 import '../shared/item_row.dart';
 import '../../theme/neumorphic_theme.dart';
-import '../neumorphic/neumorphic_container.dart';
+import '../neumorphic/neumorphic_container.dart' hide NeumorphicPricePill;
 import '../neumorphic/neumorphic_avatar.dart';
 import '../neumorphic/neumorphic_text_field.dart';
 import '../neumorphic/neumorphic_icon_button.dart';
+// Import the NeumorphicPricePill explicitly to avoid conflict
+import '../neumorphic/neumorphic_container.dart' as price_pill show NeumorphicPricePill;
 
 
 class PersonCard extends StatelessWidget {
@@ -34,6 +36,9 @@ class PersonCard extends StatelessWidget {
       }
     }
 
+    // Check if person has any items (either assigned or shared)
+    final bool hasNoItems = person.assignedItems.isEmpty && person.sharedItems.isEmpty;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: NeumorphicContainer(
@@ -44,13 +49,13 @@ class PersonCard extends StatelessWidget {
             Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 40.0, 100.0, 16.0),
+                  padding: const EdgeInsets.fromLTRB(16.0, 32.0, 100.0, 12.0),
                   child: Row(
                     children: [
-                      // Neumorphic Avatar
+                      // Neumorphic Avatar (slightly smaller)
                       NeumorphicAvatar(
                         text: person.name,
-                        size: NeumorphicTheme.largeAvatarSize,
+                        size: 48, // Reduced from NeumorphicTheme.largeAvatarSize
                         backgroundColor: NeumorphicTheme.slateBlue,
                       ),
                       const SizedBox(width: 16),
@@ -62,18 +67,37 @@ class PersonCard extends StatelessWidget {
                               child: Text(
                                 person.name,
                                 style: NeumorphicTheme.primaryText(
-                                  size: NeumorphicTheme.titleLarge,
+                                  size: 16.0, // Reduced from NeumorphicTheme.titleLarge
                                   weight: FontWeight.bold,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            NeumorphicIconButton(
-                              icon: Icons.edit_outlined,
-                              type: NeumorphicType.inset,
-                              size: 32,
-                              iconSize: 16,
-                              onPressed: () => _showEditNameDialog(context, person),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Edit button
+                                NeumorphicIconButton(
+                                  icon: Icons.edit_outlined,
+                                  type: NeumorphicType.inset,
+                                  size: 32,
+                                  iconSize: 16,
+                                  onPressed: () => _showEditNameDialog(context, person),
+                                ),
+                                // Delete button (only visible when no items assigned)
+                                if (hasNoItems)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 8.0),
+                                    child: NeumorphicIconButton(
+                                      icon: Icons.delete_outline,
+                                      type: NeumorphicType.inset,
+                                      size: 32,
+                                      iconSize: 16,
+                                      iconColor: NeumorphicTheme.mutedRed,
+                                      onPressed: () => _showDeleteConfirmation(context, person),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ],
                         ),
@@ -99,7 +123,7 @@ class PersonCard extends StatelessWidget {
                           ),
                           child: Icon(
                             Icons.group,
-                            size: 18,
+                            size: 16, // Reduced from 18
                             color: NeumorphicTheme.slateBlue,
                           ),
                         ),
@@ -110,7 +134,7 @@ class PersonCard extends StatelessWidget {
                               Text(
                                 'Sharing ${person.sharedItems.length} ${person.sharedItems.length == 1 ? 'item' : 'items'}',
                                 style: NeumorphicTheme.primaryText(
-                                  size: 14,
+                                  size: 13, // Reduced from 14
                                   weight: FontWeight.w500,
                                   color: NeumorphicTheme.slateBlue,
                                 ),
@@ -148,18 +172,50 @@ class PersonCard extends StatelessWidget {
                       children: person.assignedItems.map((item) => ItemRow(item: item)).toList(),
                     ),
                   ),
+                // Show empty state indicator when person has no items
+                if (hasNoItems)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
+                    child: _buildEmptyPersonState(),
+                  ),
               ],
             ),
             Positioned(
               top: 8,
               right: 8,
-              child: NeumorphicPricePill(
+              child: price_pill.NeumorphicPricePill(
                 price: person.totalAssignedAmount,
                 color: NeumorphicTheme.slateBlue,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Helper method to build the empty state UI
+  Widget _buildEmptyPersonState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.shopping_bag_outlined,
+            size: 18,
+            color: NeumorphicTheme.mediumGrey,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'No items assigned yet',
+            style: TextStyle(
+              fontSize: 14,
+              color: NeumorphicTheme.mediumGrey,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -254,6 +310,99 @@ class PersonCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           'Update',
+                          style: NeumorphicTheme.onAccentText(
+                            size: 15, 
+                            weight: FontWeight.w500
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Method to show delete confirmation dialog
+  void _showDeleteConfirmation(BuildContext context, Person person) {
+    final splitManager = Provider.of<SplitManager>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: NeumorphicContainer(
+          type: NeumorphicType.raised,
+          radius: 16,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.delete_outline, 
+                    color: NeumorphicTheme.mutedRed,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Remove Person', 
+                    style: NeumorphicTheme.primaryText(
+                      size: 18, 
+                      weight: FontWeight.w600
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Are you sure you want to remove ${person.name}?',
+                style: NeumorphicTheme.primaryText(size: 15),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: NeumorphicTheme.slateBlue,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  NeumorphicButton(
+                    color: NeumorphicTheme.mutedRed,
+                    radius: 8,
+                    onPressed: () {
+                      splitManager.removePerson(person);
+                      Navigator.pop(dialogContext);
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.delete, 
+                          color: Colors.white, 
+                          size: 18
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Remove',
                           style: NeumorphicTheme.onAccentText(
                             size: 15, 
                             weight: FontWeight.w500

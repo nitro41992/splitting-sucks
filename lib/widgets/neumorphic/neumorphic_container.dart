@@ -260,8 +260,8 @@ class NeumorphicButton extends StatelessWidget {
     required this.child,
     this.onPressed,
     this.color = Colors.white,
-    this.radius = 8.0,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    this.radius = 12.0,
+    this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
   }) : super(key: key);
 
   @override
@@ -277,30 +277,70 @@ class NeumorphicButton extends StatelessWidget {
   }
 }
 
+class NeumorphicPricePill extends StatelessWidget {
+  final double price;
+  final Color color;
+
+  const NeumorphicPricePill({
+    Key? key,
+    required this.price,
+    required this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            offset: const Offset(1, 1),
+            blurRadius: 3,
+          ),
+        ],
+      ),
+      child: Text(
+        '\$${price.toStringAsFixed(2)}',
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+}
+
 class NeumorphicPill extends StatelessWidget {
   final Widget child;
   final Color color;
-  final VoidCallback? onTap;
-  final double radius;
   final EdgeInsetsGeometry padding;
 
   const NeumorphicPill({
     Key? key,
     required this.child,
     required this.color,
-    this.onTap,
-    this.radius = 20.0,
     this.padding = const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return NeumorphicContainer(
-      type: NeumorphicType.raised,
-      color: color,
-      radius: radius,
+    return Container(
       padding: padding,
-      onTap: onTap,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            offset: const Offset(1, 1),
+            blurRadius: 2,
+          ),
+        ],
+      ),
       child: child,
     );
   }

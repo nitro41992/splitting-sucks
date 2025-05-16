@@ -8,8 +8,8 @@ import '../shared/editable_price.dart';
 import 'package:flutter/services.dart';
 import '../shared/quantity_selector.dart';
 import '../../theme/neumorphic_theme.dart';
-import '../neumorphic/neumorphic_container.dart';
-import '../neumorphic/neumorphic_avatar.dart';
+import '../neumorphic/neumorphic_container.dart' hide NeumorphicPricePill;
+import '../neumorphic/neumorphic_avatar.dart' hide NeumorphicPricePill;
 import '../neumorphic/neumorphic_text_field.dart';
 
 class UnassignedItemCard extends StatelessWidget {
@@ -117,9 +117,27 @@ class UnassignedItemCard extends StatelessWidget {
             Positioned(
               top: 8,
               right: 8,
-              child: NeumorphicPricePill(
-                price: item.total,
-                color: NeumorphicTheme.slateBlue,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: NeumorphicTheme.slateBlue,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      offset: const Offset(1, 1),
+                      blurRadius: 3,
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '\$${item.total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
               ),
             ),
           ],

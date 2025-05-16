@@ -4,7 +4,7 @@ import '../../models/receipt_item.dart';
 import '../../models/split_manager.dart';
 import '../shared/quantity_selector.dart';
 import '../../theme/neumorphic_theme.dart';
-import '../neumorphic/neumorphic_container.dart';
+import '../neumorphic/neumorphic_container.dart' hide NeumorphicPricePill;
 import '../neumorphic/neumorphic_avatar.dart';
 
 class SharedItemCard extends StatelessWidget {
@@ -108,7 +108,7 @@ class SharedItemCard extends StatelessWidget {
                         Wrap(
                           spacing: 8,
                           runSpacing: 4,
-                          children: people.map((person) {
+                          children: people.map<Widget>((person) {
                             // ALWAYS use itemId for comparison to ensure consistent selection state
                             final isSelected = person.sharedItems.any((si) => 
                               // Try by itemId match first (most reliable)
@@ -117,8 +117,7 @@ class SharedItemCard extends StatelessWidget {
                               (si.name == item.name && si.price == item.price)
                             );
                             
-                            return NeumorphicPill(
-                              color: isSelected ? NeumorphicTheme.slateBlue : Colors.white,
+                            return GestureDetector(
                               onTap: () {
                                 if (isSelected) {
                                   // Remove person from shared item
@@ -128,19 +127,33 @@ class SharedItemCard extends StatelessWidget {
                                   Provider.of<SplitManager>(context, listen: false).addPersonToSharedItem(item, person);
                                 }
                               },
-                              child: Text(
-                                person.name,
-                                style: isSelected 
-                                  ? const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    )
-                                  : TextStyle(
-                                      color: NeumorphicTheme.slateBlue,
-                                      fontWeight: FontWeight.normal,
-                                      fontSize: 14,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? NeumorphicTheme.slateBlue : Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.1),
+                                      offset: const Offset(1, 1),
+                                      blurRadius: 2,
                                     ),
+                                  ],
+                                ),
+                                child: Text(
+                                  person.name,
+                                  style: isSelected 
+                                    ? const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      )
+                                    : TextStyle(
+                                        color: NeumorphicTheme.slateBlue,
+                                        fontWeight: FontWeight.normal,
+                                        fontSize: 14,
+                                      ),
+                                ),
                               ),
                             );
                           }).toList(),
@@ -155,9 +168,27 @@ class SharedItemCard extends StatelessWidget {
             Positioned(
               top: 8,
               right: 8,
-              child: NeumorphicPricePill(
-                price: item.total,
-                color: NeumorphicTheme.slateBlue,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: NeumorphicTheme.slateBlue,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      offset: const Offset(1, 1),
+                      blurRadius: 3,
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '\$${item.total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
               ),
             ),
           ],

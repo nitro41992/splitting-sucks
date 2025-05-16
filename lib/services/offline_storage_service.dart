@@ -4,6 +4,7 @@ import 'connectivity_service.dart';
 
 class OfflineStorageService {
   static const String _pendingReceiptsKey = 'pendingReceipts';
+  static const String _editCachePrefix = 'editCache_';
   final SharedPreferences _prefs;
   final ConnectivityService _connectivityService;
   
@@ -101,4 +102,41 @@ class OfflineStorageService {
   
   // Count of pending receipts
   int get pendingReceiptCount => getPendingReceipts().length;
+  
+  // ----- EDIT CACHE METHODS -----
+  
+  // Save edit cache for a receipt
+  Future<bool> saveEditCache(String receiptId, Map<String, dynamic> data) async {
+    final String key = _editCachePrefix + receiptId;
+    return await _prefs.setString(key, jsonEncode(data));
+  }
+  
+  // Get edit cache for a receipt
+  Map<String, dynamic>? getEditCache(String receiptId) {
+    final String key = _editCachePrefix + receiptId;
+    final String? jsonData = _prefs.getString(key);
+    
+    if (jsonData == null || jsonData.isEmpty) {
+      return null;
+    }
+    
+    try {
+      return jsonDecode(jsonData) as Map<String, dynamic>;
+    } catch (e) {
+      // Handle JSON decode errors
+      return null;
+    }
+  }
+  
+  // Remove edit cache for a receipt
+  Future<bool> removeEditCache(String receiptId) async {
+    final String key = _editCachePrefix + receiptId;
+    return await _prefs.remove(key);
+  }
+  
+  // Check if edit cache exists for a receipt
+  bool hasEditCache(String receiptId) {
+    final String key = _editCachePrefix + receiptId;
+    return _prefs.containsKey(key);
+  }
 } 

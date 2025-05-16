@@ -6,6 +6,7 @@ import '../../models/split_manager.dart';
 import '../../widgets/split_view.dart'; // Canonical source for NavigateToPageNotification
 import '../../theme/app_colors.dart';
 import 'package:flutter/services.dart';
+import '../split_view.dart';
 
 class SplitStepWidget extends StatefulWidget {
   // Data from WorkflowState needed to initialize SplitManager
@@ -14,6 +15,7 @@ class SplitStepWidget extends StatefulWidget {
   final double? currentTip; // Tip from WorkflowState (might have been set by user)
   final double? currentTax; // Tax from WorkflowState (might have been set by user)
   final int initialSplitViewTabIndex; // To restore tab index if needed
+  final String? receiptId; // Add receipt ID parameter
 
   // Callbacks to interact with WorkflowState in _WorkflowModalBodyState
   final Function(double? newTip) onTipChanged;
@@ -29,6 +31,7 @@ class SplitStepWidget extends StatefulWidget {
     this.currentTip,
     this.currentTax,
     this.initialSplitViewTabIndex = 0,
+    this.receiptId, // Pass through to SplitView
     required this.onTipChanged,
     required this.onTaxChanged,
     required this.onAssignmentsUpdatedBySplit,
@@ -563,7 +566,10 @@ class _SplitStepWidgetState extends State<SplitStepWidget> {
                 }
                 return false;
               },
-              child: SplitView(onClose: widget.onClose),
+              child: SplitView(
+                onClose: widget.onClose,
+                receiptId: widget.receiptId, // Pass receipt ID to SplitView
+              ),
             ),
           ],
         ),

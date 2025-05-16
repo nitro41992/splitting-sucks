@@ -6,6 +6,7 @@ import '../models/split_manager.dart';
 import '../models/person.dart';
 import '../models/receipt_item.dart';
 import 'dart:developer' as developer;
+import '../services/receipt_persistence_service.dart';
 
 // Import the extracted widgets
 import 'cards/person_card.dart';
@@ -148,10 +149,12 @@ class NavigateToPageNotification extends Notification {
 
 class SplitView extends StatefulWidget {
   final VoidCallback? onClose;
+  final String? receiptId; // Add receipt ID for persistence
 
   const SplitView({
     super.key,
     this.onClose,
+    this.receiptId,
   });
 
   @override
@@ -165,6 +168,8 @@ class _SplitViewState extends State<SplitView> {
   final ScrollController _peopleScrollController = ScrollController();
   final ScrollController _sharedScrollController = ScrollController();
   final ScrollController _unassignedScrollController = ScrollController();
+  ReceiptPersistenceService? _persistenceService;
+  bool _isInitialized = false;
 
   // Keep PersonCard constants accessible if needed here, or move fully
   static const int personMaxNameLength = PersonCard.maxNameLength;
@@ -172,6 +177,9 @@ class _SplitViewState extends State<SplitView> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize persistence service
+    _initPersistenceService();
 
     // Read initial tab index from SplitManager
     // Use WidgetsBinding.instance.addPostFrameCallback to safely interact with context
@@ -195,6 +203,61 @@ class _SplitViewState extends State<SplitView> {
     _peopleScrollController.addListener(_onScroll);
     _sharedScrollController.addListener(_onScroll);
     _unassignedScrollController.addListener(_onScroll);
+  }
+  
+  // Initialize the persistence service asynchronously
+  Future<void> _initPersistenceService() async {
+    if (widget.receiptId != null) {
+      try {
+        final service = await ReceiptPersistenceService.create();
+        
+        if (mounted) {
+          setState(() {
+            _persistenceService = service;
+            _isInitialized = true;
+          });
+        }
+        
+        // Cache data initially and periodically
+        _setupAutoCaching();
+      } catch (e) {
+        developer.log('Error initializing persistence service: $e', name: 'SplitView');
+      }
+    }
+  }
+  
+  // Set up periodic caching
+  void _setupAutoCaching() {
+    if (widget.receiptId == null || _persistenceService == null) return;
+    
+    // Immediately cache the current state
+    _cacheCurrentState();
+    
+    // Set up a periodic timer if needed for longer edit sessions
+    // This could be implemented for very long editing sessions
+  }
+  
+  // Cache the current state
+  void _cacheCurrentState() {
+    if (widget.receiptId == null || _persistenceService == null) return;
+    
+    final splitManager = context.read<SplitManager>();
+    _persistenceService!.cacheReceiptData(widget.receiptId!, splitManager);
+    developer.log('Cached current split state', name: 'SplitView');
+  }
+  
+  // Persist to database when navigating away
+  Future<void> _persistToDatabase() async {
+    if (widget.receiptId == null || _persistenceService == null) return;
+    
+    try {
+      final splitManager = context.read<SplitManager>();
+      await _persistenceService!.persistToDatabase(widget.receiptId!, splitManager);
+      developer.log('Persisted split data to database', name: 'SplitView');
+    } catch (e) {
+      developer.log('Error persisting data: $e', name: 'SplitView');
+      // Show error message or handle gracefully
+    }
   }
 
   @override
@@ -317,7 +380,12 @@ class _SplitViewState extends State<SplitView> {
             size: 48,
             radius: 24,
             type: NeumorphicType.inset,
-            onPressed: () {
+            onPressed: () async {
+              // Persist data before closing
+              if (widget.receiptId != null && _persistenceService != null) {
+                await _persistToDatabase();
+              }
+              
               widget.onClose?.call();
               if (Navigator.of(context).canPop()) {
                 Navigator.of(context).pop();
@@ -331,6 +399,13 @@ class _SplitViewState extends State<SplitView> {
 
   @override
   Widget build(BuildContext context) {
+    // Cache current state when switching tabs
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_isInitialized && widget.receiptId != null) {
+        _cacheCurrentState();
+      }
+    });
+    
     return Consumer<SplitManager>(
       builder: (context, splitManager, child) {
         // Calculate total values for the header

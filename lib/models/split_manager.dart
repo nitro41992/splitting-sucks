@@ -80,8 +80,11 @@ class SplitManager extends ChangeNotifier {
   }
 
   void removePerson(Person person) {
-    _people.remove(person);
-    notifyListeners();
+    // Only allow removal if the person has no items
+    if (person.assignedItems.isEmpty && person.sharedItems.isEmpty) {
+      _people.remove(person);
+      notifyListeners();
+    }
   }
 
   void updatePersonName(Person person, String newName) {

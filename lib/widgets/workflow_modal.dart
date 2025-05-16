@@ -164,6 +164,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // Track the previous step to detect changes
   int? _previousStep;
   
+  // Cache for session data
+  Map<String, dynamic> _sessionCache = {};
+  bool _needsPersistence = false;
+  
   @override
   void initState() {
     super.initState();
@@ -172,6 +176,10 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
     // Load the receipt data if we have a receipt ID
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final workflowState = Provider.of<WorkflowState>(context, listen: false);
+      
+      // Set up cache change listener
+      workflowState.addCacheChangeListener(_handleCacheChange);
+      
       if (workflowState.receiptId != null) {
         if (mounted) { // Check mounted before initial setState
           setState(() { 
@@ -191,8 +199,6 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                 });
              }
              debugPrint("Error in _loadReceiptData during initState: $error");
-             // Optionally, show a persistent error message if draft loading fails critically
-             // workflowState.setErrorMessage("Failed to load draft. Please try again.");
         });
       }
     });
@@ -215,19 +221,56 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   
   @override
   void dispose() {
+    final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    workflowState.removeCacheChangeListener();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  // Handle cache changes from WorkflowState
+  void _handleCacheChange(String key, dynamic value) {
+    _sessionCache[key] = value;
+    _needsPersistence = true;
+    debugPrint("[WorkflowModal] Cache updated for key: $key");
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.paused) {
-      // Only attempt to save if there's potentially something to save.
-      // This mirrors part of the logic in _onWillPop.
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // Ensure all data is flushed from voice assignment screen if active
+      if (_voiceAssignKey.currentState != null) {
+        _voiceAssignKey.currentState!.flushTranscriptionToParent();
+      }
+      
+      // Also ensure any review screen data is captured
+      if (_getCurrentReviewItemsCallback != null) {
+        try {
+          final currentItems = _getCurrentReviewItemsCallback!();
+          final workflowState = Provider.of<WorkflowState>(context, listen: false);
+          final currentParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
+          
+          currentParseResult['items'] = currentItems.map((item) => {
+            'name': item.name, 'price': item.price, 'quantity': item.quantity,
+          }).toList();
+          
+          workflowState.setParseReceiptResult(currentParseResult);
+          debugPrint('[WorkflowModal] Lifecycle change: flushed review items to parse result');
+        } catch (e) {
+          debugPrint('[WorkflowModal] Error updating items during lifecycle change: $e');
+        }
+      }
+      
+      // Collect latest state
       final workflowState = Provider.of<WorkflowState>(context, listen: false);
-      if (workflowState.imageFile != null || workflowState.receiptId != null || workflowState.hasParseData) {
-        debugPrint("[WorkflowModal] App paused, attempting to save draft...");
+      _sessionCache = workflowState.getSessionDataForCache();
+      
+      // Save draft if we have any data to save
+      if (_needsPersistence && (workflowState.imageFile != null || 
+                              workflowState.receiptId != null || 
+                              workflowState.hasParseData ||
+                              workflowState.hasTranscriptionData)) {
+        debugPrint("[WorkflowModal] App paused/inactive, saving draft...");
         _saveDraft(isBackgroundSave: true).catchError((e) {
           // Log error from background save, as no SnackBar will be shown by _saveDraft.
           debugPrint("[WorkflowModal] Error during background save draft: $e");
@@ -269,11 +312,13 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
       workflowState.setParseReceiptResult(parseResultFromDraft);
       
       debugPrint('[_loadReceiptData] Data from Firestore for receipt.transcribeAudio: ${receipt.transcribeAudio}');
-      workflowState.setTranscribeAudioResult(receipt.transcribeAudio); 
-      workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems); // This will call _extractPeopleFromAssignments and update _people
+      workflowState.setTranscribeAudioResult(receipt.transcribeAudio ?? {});
+      workflowState.setAssignPeopleToItemsResult(receipt.assignPeopleToItems ?? {});
       workflowState.setTip(receipt.tip);
       workflowState.setTax(receipt.tax);
-      // workflowState.setPeople(receipt.people ?? []); // REMOVED: _people is now derived from assignPeopleToItemsResult
+      
+      // Populate the session cache with initial data
+      _sessionCache = workflowState.getSessionDataForCache();
       
       // --- Concurrently get Download URLs for Main Image and Thumbnail ---
       String? loadedImageUrl;
@@ -393,6 +438,9 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   Future<bool> _onWillPop({BuildContext? dialogContext}) async {
     _flushTranscriptionToWorkflowState();
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
+    
+    // Collect latest state for persistence
+    _sessionCache = workflowState.getSessionDataForCache();
     
     // If we're on the first step and nothing has been uploaded or parsed, just exit
     if (workflowState.currentStep == 0 && 
@@ -617,25 +665,14 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
           }).toList();
           currentParseResult['items'] = currentItemsList;
           
-          // --- Update the state just before creating the Receipt object for saving --- 
-          // Directly modify the _parseReceiptResult in the state object. 
-          // Avoid calling setParseReceiptResult if it unnecessarily notifies listeners.
-          // We need to access the internal state or add a silent update method.
-          // FOR NOW: Let's assume setParseReceiptResult is okay, but this might need refinement
-          // if it causes unwanted rebuilds during the save process.
           workflowState.setParseReceiptResult(currentParseResult); 
           debugPrint('[_saveDraft] Updated parseReceiptResult via callback from ReviewScreen state just before saving. Item count: ${currentItemsList.length}');
         } catch (e) {
             debugPrint('[_saveDraft] Error getting current items from ReviewScreen via callback: $e');
-            // Decide if we should proceed with potentially stale data or throw?
-            // For now, we proceed, but log the error.
         }
       }
-      // ---------------------------------------------------------------------
 
       // --- Conditional Upload --- 
-      // Upload only if a local file exists AND the GS URI hasn't been set yet 
-      // (e.g., background upload didn't finish or wasn't triggered).
       if (workflowState.imageFile != null && workflowState.actualImageGsUri == null) 
       {
         debugPrint('_saveDraft: Local image present without actual GS URI. Uploading synchronously before saving...');
@@ -650,15 +687,12 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
            rethrow; // Prevent saving draft if upload fails
         }
       }
-      // If imageFile is null but loadedImageUrl/actualImageGsUri is present, we don't need to upload again.
 
       final receipt = workflowState.toReceipt(); // Gets URIs from actualImageGsUri/ThumbnailGsUri
       debugPrint('[_saveDraft] Preparing to save. Receipt object created with ImageURI: ${receipt.imageUri}, ThumbnailURI: ${receipt.thumbnailUri}');
       
-      // **** ADD DEBUG PRINT HERE ****
       debugPrint('[_saveDraft] Saving draft. workflowState.parseReceiptResult: ${workflowState.parseReceiptResult}');
       debugPrint('[_saveDraft] Receipt ID before saving: ${receipt.id}');
-      // ***************************
 
       // If the receipt ID is empty or a temporary ID, pass null to allow Firestore to generate a new ID
       String? receiptIdToSave = workflowState.receiptId;
@@ -674,6 +708,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
 
       workflowState.setReceiptId(definitiveReceiptId);
       workflowState.setLoading(false);
+      _needsPersistence = false;
 
       // Remove successfully saved URIs from the pending deletion list
       workflowState.removeUriFromPendingDeletions(workflowState.actualImageGsUri);
@@ -1448,10 +1483,12 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
           currentTip: workflowState.tip,
           currentTax: workflowState.tax,
           initialSplitViewTabIndex: _initialSplitViewTabIndex,
+          receiptId: workflowState.receiptId,
           onTipChanged: _handleTipChangedForSplitStep,
           onTaxChanged: _handleTaxChangedForSplitStep,
           onAssignmentsUpdatedBySplit: _handleAssignmentsUpdatedBySplitStep,
           onNavigateToPage: _handleNavigateToPageForSplitStep,
+          onClose: () => Navigator.of(context).maybePop(),
         ),
       ),
     );
