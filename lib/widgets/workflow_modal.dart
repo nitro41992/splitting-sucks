@@ -1322,12 +1322,45 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
   // Signature: void Function(List<ReceiptItem> updatedItems)
   void _handleItemsUpdatedForReviewStep(List<ReceiptItem> updatedItems) {
     final workflowState = Provider.of<WorkflowState>(context, listen: false);
-    final newParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
-    newParseResult['items'] = updatedItems.map((item) => 
-      {'name': item.name, 'price': item.price, 'quantity': item.quantity}
-    ).toList();
-    workflowState.setParseReceiptResult(newParseResult);
-    debugPrint('[_WorkflowModalBodyState._handleItemsUpdatedForReviewStep] Items updated. Count: ${updatedItems.length}');
+    
+    // Check if the items have actually changed before updating state
+    final currentItems = _convertToReceiptItems(workflowState.parseReceiptResult);
+    
+    // Check if lists are identical in content
+    bool itemsChanged = false;
+    
+    if (currentItems.length != updatedItems.length) {
+      itemsChanged = true;
+    } else {
+      // Compare each item's properties
+      for (int i = 0; i < currentItems.length; i++) {
+        final current = currentItems[i];
+        final updated = updatedItems[i];
+        
+        if (current.name != updated.name || 
+            current.price != updated.price || 
+            current.quantity != updated.quantity) {
+          itemsChanged = true;
+          break;
+        }
+      }
+    }
+    
+    // Only update state if items actually changed
+    if (itemsChanged) {
+      final newParseResult = Map<String, dynamic>.from(workflowState.parseReceiptResult);
+      newParseResult['items'] = updatedItems.map((item) => 
+        {'name': item.name, 'price': item.price, 'quantity': item.quantity}
+      ).toList();
+      
+      // Use Future.microtask to avoid setState during build
+      Future.microtask(() {
+        if (mounted) {
+          workflowState.setParseReceiptResult(newParseResult);
+          debugPrint('[_WorkflowModalBodyState._handleItemsUpdatedForReviewStep] Items updated. Count: ${updatedItems.length}');
+        }
+      });
+    }
   }
 
   // Signature: void Function(GetCurrentItemsCallback getter)

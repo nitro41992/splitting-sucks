@@ -3,9 +3,11 @@
 ## Overview
 This document tracks test issues encountered during the UI redesign and their solutions.
 
-## IMPORTANT NOTE
+## IMPORTANT NOTES
 
-DO NOTE CHANGE ANY PART OF THE DESIGN UNLESS I SPECIFICALLY ASK YOU TO.
+- DO NOTE CHANGE ANY PART OF THE DESIGN UNLESS I SPECIFICALLY ASK YOU TO.
+- Don't just update the test to make it pass, make sure to fix the root issue unless the issue is that the test is stale.
+- If the test is stale, update the test to match the new implementation but only once you have confirmed with me that the new implementation is correct.
 
 ## Workflow Navigation Controls Test Issues
 
@@ -57,6 +59,19 @@ DO NOTE CHANGE ANY PART OF THE DESIGN UNLESS I SPECIFICALLY ASK YOU TO.
 2. **Button Key Issues**:
    - **Issue**: Some tests couldn't find buttons by key in the modal
    - **Solution**: Keys need to be applied consistently in the modal implementation
+
+3. **Infinite Rebuild Loop**:
+   - **Issue**: Modal repeatedly updates cache and calls setState during build phase
+   - **Error**: `setState() or markNeedsBuild() called during build`
+   - **Symptoms**: Log shows repetitive pattern of:
+     ```
+     [WorkflowModal] Cache updated for key: parseReceiptResult
+     [_WorkflowModalBodyState._handleItemsUpdatedForReviewStep] Items updated. Count: 5
+     ```
+   - **Solution**: Need to restructure event handling to avoid state updates during build:
+     - Move state updates to post-frame callbacks
+     - Implement debouncing on frequent updates
+     - Check if data has actually changed before triggering setState
 
 ## Modal Navigation Issues
 
