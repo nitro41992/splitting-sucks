@@ -479,10 +479,17 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                               color: Colors.grey[700],
                             ),
                           ),
-                          // Optional: Add edit icon for people if needed
+                          Text(
+                            "(${receipt.people.length})",
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       if (receipt.people.isEmpty)
                         Text(
                           "None assigned",
@@ -492,9 +499,52 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                           ),
                         )
                       else
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: receipt.people.map((person) => _buildParticipantRowInModal(person, context)).toList(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Show first 5 participants as chips
+                              Wrap(
+                                spacing: 6, // Reduced gap between adjacent chips
+                                runSpacing: 8, // Reduced gap between lines
+                                children: receipt.people
+                                    .take(5)
+                                    .map((person) => _buildParticipantChip(person))
+                                    .toList(),
+                              ),
+                              
+                              // Show "View All" button if there are more than 5 participants
+                              if (receipt.people.length > 5)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8), // Less padding
+                                  child: GestureDetector(
+                                    onTap: () => _showAllParticipantsModal(context, receipt.people),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), // Match chip padding
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(16), // Match chip radius
+                                        border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+                                      ),
+                                      child: Text(
+                                        "View all ${receipt.people.length} participants",
+                                        style: TextStyle(
+                                          fontSize: 13, // Match chip font size
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                     ],
                   ),
@@ -509,7 +559,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                       icon: const Icon(Icons.edit),
                       label: const Text('Edit Receipt'),
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary, // Use AppColors.primary for Slate Blue
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -533,7 +583,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     ),
                   ),
                   
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   
                   // Delete button - text style in red
                   SizedBox(
@@ -554,6 +604,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     ),
                   ),
                   
+                  // Add bottom padding for better spacing
                   const SizedBox(height: 24),
                 ],
               ),
@@ -789,9 +840,33 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                         ),
                                       ),
                                       const SizedBox(height: 16),
-                                      // Use the new _buildParticipantRowInModal here
-                                      ...receipt.people.map((person) => _buildParticipantRowInModal(person, modalContext)).toList(),
-                                      // Optional: Add "Add Person" button here if needed later
+                                      // Use the new _buildParticipantListWithDividers here, with dividers
+                                      ..._buildParticipantListWithDividers(receipt.people, modalContext),
+                                      
+                                      // Add button at bottom for visual balance
+                                      const SizedBox(height: 16),
+                                      GestureDetector(
+                                        onTap: () => Navigator.pop(modalContext), // Close the modal when tapped
+                                        child: Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(vertical: 12.0),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              "Done",
+                                              style: TextStyle(
+                                                color: AppColors.primary,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 );
@@ -802,7 +877,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                             padding: const EdgeInsets.symmetric(vertical: 4.0),
                             child: Text(
                               _buildParticipantListString(receipt.people),
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _primaryTextColor),
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal, color: _primaryTextColor), // Changed to FontWeight.normal
                               maxLines: 2, // Allow wrapping for long names if necessary before +N
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1161,38 +1236,12 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
 
   // Helper method for participant row in details modal
   Widget _buildParticipantRowInModal(String personName, BuildContext context) { // Added context for Theme
-    final double avatarSize = 32.0;
+    final double avatarSize = 32.0; // This is no longer used for a circle but might be for spacing if needed
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 12.0), // Increased vertical padding for better spacing
       child: Row(
         children: [
-          Container(
-            width: avatarSize,
-            height: avatarSize,
-            decoration: BoxDecoration(
-              color: Colors.white, // White background for the circle
-              shape: BoxShape.circle,
-              boxShadow: [ // Subtle Neumorphic raised effect
-                BoxShadow(
-                  color: Colors.grey.shade300, // Lighter shadow
-                  offset: const Offset(1.5, 1.5),
-                  blurRadius: 2,
-                ),
-                BoxShadow(
-                  color: Colors.white.withOpacity(0.9), // Highlight
-                  offset: const Offset(-1.5, -1.5),
-                  blurRadius: 2,
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                personName.isNotEmpty ? personName[0].toUpperCase() : '?',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.primary), // Slate Blue initial
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
+          // REMOVED the circular initial Container
           Expanded(
             child: Text(
               personName,
@@ -1202,6 +1251,74 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         ],
       ),
     );
+  }
+
+  // New helper method for participant chip in details modal
+  Widget _buildParticipantChip(String personName) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 1,
+            offset: const Offset(0, 1),
+          ),
+        ],
+        border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            personName,
+            style: TextStyle(
+              fontSize: 13,
+              color: _primaryTextColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to build a list of participant widgets with dividers for modals
+  List<Widget> _buildParticipantListWithDividers(List<String> people, BuildContext modalContext) {
+    List<Widget> participantWidgets = [];
+    
+    // Add header with count - removed redundant "All participants" pill
+    participantWidgets.add(
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12.0, left: 4.0),
+        child: Text(
+          'People (${people.length})',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.battleshipGray,
+          ),
+        ),
+      )
+    );
+    
+    // Add participant rows (no dividers needed with card-style design)
+    for (var i = 0; i < people.length; i++) {
+      participantWidgets.add(_buildParticipantRowInModal(people[i], modalContext));
+    }
+    
+    return participantWidgets;
   }
 
   // Helper method to build comma-separated participant string for card
@@ -1219,6 +1336,97 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
       final int remainingCount = people.length - maxExplicitNamesOnCard;
       return '${namesToShow.join(', ')} +$remainingCount more';
     }
+  }
+
+  // View all participants modal
+  void _showAllParticipantsModal(BuildContext context, List<String> people) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (modalContext) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'All Participants (${people.length})',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: _primaryTextColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(modalContext),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Grid display for many participants
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    physics: const ScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 2.5,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemCount: people.length,
+                    itemBuilder: (context, index) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Center(
+                          child: Text(
+                            people[index],
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 20),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.pop(modalContext),
+                  child: const Text('Done'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
