@@ -17,6 +17,7 @@ import './workflow_steps/summary_step_widget.dart'; // Import SummaryStepWidget
 import '../utils/dialog_helpers.dart'; // Added import
 import './workflow_steps/workflow_step_indicator.dart'; // Import new widget
 import '../utils/toast_utils.dart'; // Import the new toast utility
+import '../theme/app_colors.dart'; // Import AppColors from correct path
 
 // --- Moved Typedef to top level --- 
 // Callback type for ReceiptReviewScreen to provide its current items
@@ -979,14 +980,17 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                       ? TextButton(
                           onPressed: _handleNavigationCompleteAction,
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                            minimumSize: const Size(44, 44), // Ensure good tap target
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0), // Reduced vertical padding to make the pill flatter
+                            minimumSize: const Size(44, 32), // Adjusted size to make the pill flatter
+                            backgroundColor: AppColors.secondary, // Change to puce color
+                            foregroundColor: Colors.white, // Change text color to white
+                            shape: StadiumBorder(), // Pill-shaped border
                           ),
                           child: const Text(
                             'Save Bill',
                             style: TextStyle(
-                              color: Color(0xFF5D737E), // Slate Blue
-                              fontSize: 16,
+                              color: Colors.white, // White text for better contrast
+                              fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
