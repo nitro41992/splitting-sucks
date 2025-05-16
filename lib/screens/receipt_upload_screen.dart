@@ -5,12 +5,12 @@ import '../widgets/receipt_upload/full_image_viewer.dart'; // Import the full im
 import '../services/file_helper.dart'; // Import FileHelper
 import '../utils/toast_helper.dart'; // Import the toast helper
 import 'package:cached_network_image/cached_network_image.dart';
-import '../theme/app_colors.dart'; // Import AppColors
+import '../theme/neumorphic_theme.dart'; // Use NeumorphicTheme instead of AppColors
 
-// Define color constants
-const Color lightGrey = Color(0xFFF5F5F7);
-const Color primaryTextColor = Color(0xFF1D1D1F);
-const Color secondaryTextColor = Color(0xFF8A8A8E);
+// These are now imported from NeumorphicTheme
+// const Color lightGrey = Color(0xFFF5F5F7);
+// const Color primaryTextColor = Color(0xFF1D1D1F);
+// const Color secondaryTextColor = Color(0xFF8A8A8E);
 
 class ReceiptUploadScreen extends StatefulWidget {
   final File? imageFile;
@@ -250,7 +250,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
 
     // This container directly holds the content
     return Container(
-      color: lightGrey,
+      color: NeumorphicTheme.pageBackground,
       child: shouldShowImagePreview 
           ? _buildImagePreviewScreen(imagePreviewWidget, heroTag)
           : _buildInitialUploadScreen(textTheme),
@@ -293,7 +293,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
               child: const Icon(
                 Icons.receipt_long_outlined,
                 size: 48,
-                color: AppColors.primary,
+                color: NeumorphicTheme.slateBlue,
               ),
             ),
             
@@ -305,7 +305,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
               key: const ValueKey('upload_placeholder_text'),
               textAlign: TextAlign.center,
               style: textTheme.headlineSmall?.copyWith(
-                color: primaryTextColor,
+                color: NeumorphicTheme.darkGrey,
                 fontWeight: FontWeight.w600,
                 fontSize: 20,
               ),
@@ -318,7 +318,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
               'Choose from your gallery or use the camera to capture your bill.',
               textAlign: TextAlign.center,
               style: textTheme.bodyMedium?.copyWith(
-                color: secondaryTextColor,
+                color: NeumorphicTheme.mediumGrey,
                 fontSize: 14,
               ),
             ),
@@ -488,8 +488,8 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
     required bool isPrimary,
   }) {
     // Colors based on primary/secondary and enabled/disabled state
-    final Color backgroundColor = isPrimary ? AppColors.primary : Colors.white;
-    final Color textColor = isPrimary ? Colors.white : AppColors.primary;
+    final Color backgroundColor = isPrimary ? NeumorphicTheme.slateBlue : Colors.white;
+    final Color textColor = isPrimary ? Colors.white : NeumorphicTheme.slateBlue;
     final bool isEnabled = onPressed != null;
     
     // Apply opacity for disabled state
@@ -538,10 +538,10 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
           borderRadius: BorderRadius.circular(12),
           splashColor: isPrimary 
               ? Colors.white.withOpacity(0.1) 
-              : AppColors.primary.withOpacity(0.05),
+              : NeumorphicTheme.slateBlue.withOpacity(0.05),
           highlightColor: isPrimary 
               ? Colors.white.withOpacity(0.05) 
-              : AppColors.primary.withOpacity(0.01),
+              : NeumorphicTheme.slateBlue.withOpacity(0.01),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
             child: Row(
@@ -578,7 +578,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
     required bool isPrimary,
   }) {
     // Colors based on primary/secondary and enabled/disabled state
-    final Color backgroundColor = isPrimary ? AppColors.primary : AppColors.secondary;
+    final Color backgroundColor = isPrimary ? NeumorphicTheme.slateBlue : NeumorphicTheme.mutedCoral;
     final Color textColor = Colors.white;
     final bool isEnabled = onPressed != null;
     
@@ -652,7 +652,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
           children: [
             Icon(
               Icons.broken_image_outlined,
-              color: secondaryTextColor,
+              color: NeumorphicTheme.mediumGrey,
               size: 48,
             ),
             const SizedBox(height: 16),
@@ -661,7 +661,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
               child: Text(
                 message,
                 style: const TextStyle(
-                  color: secondaryTextColor,
+                  color: NeumorphicTheme.mediumGrey,
                 ),
                 textAlign: TextAlign.center,
               ),

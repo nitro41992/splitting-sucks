@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
-import '../theme/app_colors.dart';
+import '../theme/neumorphic_theme.dart';
 import '../utils/toast_helper.dart';
 import 'dart:io';
 
@@ -252,14 +252,14 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
         title: Text(
           'Phone Authentication',
           style: textTheme.titleLarge?.copyWith(
-            color: AppColors.text,
+            color: NeumorphicTheme.text,
             fontWeight: FontWeight.bold,
           ),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: AppColors.text),
+        iconTheme: IconThemeData(color: NeumorphicTheme.text),
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.dark,
@@ -278,12 +278,12 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                     padding: const EdgeInsets.all(8),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withOpacity(0.1),
+                      color: NeumorphicTheme.error.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(color: AppColors.error),
+                      style: TextStyle(color: NeumorphicTheme.error),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -302,7 +302,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                       Text(
                         'Sign in with your phone',
                         style: textTheme.titleLarge?.copyWith(
-                          color: AppColors.text,
+                          color: NeumorphicTheme.text,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
@@ -311,7 +311,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                       Text(
                         'We\'ll send you a code to verify your phone number',
                         style: textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textMuted,
+                          color: NeumorphicTheme.textMuted,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -337,8 +337,8 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                           hintText: '+1 234 567 8900',
                           counterText: '', // Hide the counter
                           helperText: 'Format: +1 XXX XXX XXXX',
-                          helperStyle: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                          prefixIcon: Icon(Icons.phone, color: AppColors.primary),
+                          helperStyle: TextStyle(color: NeumorphicTheme.textMuted, fontSize: 12),
+                          prefixIcon: Icon(Icons.phone, color: NeumorphicTheme.primary),
                           filled: true,
                           fillColor: Colors.grey.shade50,
                           border: OutlineInputBorder(
@@ -351,7 +351,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: AppColors.primary),
+                            borderSide: BorderSide(color: NeumorphicTheme.primary),
                           ),
                         ),
                       ),
@@ -359,7 +359,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                       FilledButton(
                         onPressed: _isLoading ? null : _sendVerificationCode,
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: NeumorphicTheme.primary,
                           minimumSize: const Size(double.infinity, 56),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -392,7 +392,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                       Text(
                         'Enter verification code',
                         style: textTheme.titleLarge?.copyWith(
-                          color: AppColors.text,
+                          color: NeumorphicTheme.text,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
@@ -401,7 +401,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                       Text(
                         'We sent a code to ${_phoneController.text}',
                         style: textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textMuted,
+                          color: NeumorphicTheme.textMuted,
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -427,7 +427,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: AppColors.primary),
+                            borderSide: BorderSide(color: NeumorphicTheme.primary),
                           ),
                         ),
                       ),
@@ -435,7 +435,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                       FilledButton(
                         onPressed: _isLoading ? null : _verifyCode,
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: NeumorphicTheme.primary,
                           minimumSize: const Size(double.infinity, 56),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -465,7 +465,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                             },
                             child: Text(
                               'Change Number',
-                              style: TextStyle(color: AppColors.primary),
+                              style: TextStyle(color: NeumorphicTheme.primary),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -473,7 +473,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
                             onPressed: _isLoading ? null : _sendVerificationCode,
                             child: Text(
                               'Resend Code', 
-                              style: TextStyle(color: AppColors.primary),
+                              style: TextStyle(color: NeumorphicTheme.primary),
                             ),
                           ),
                         ],

@@ -8,7 +8,6 @@ import '../neumorphic/neumorphic_container.dart';
 import '../neumorphic/neumorphic_avatar.dart';
 import '../neumorphic/neumorphic_text_field.dart';
 import '../neumorphic/neumorphic_icon_button.dart';
-import '../../theme/app_colors.dart';
 
 
 class PersonCard extends StatelessWidget {
@@ -55,14 +54,18 @@ class PersonCard extends StatelessWidget {
                         backgroundColor: NeumorphicTheme.slateBlue,
                       ),
                       const SizedBox(width: 16),
-                      IntrinsicWidth(
+                      Expanded(
                         child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              person.name,
-                              style: NeumorphicTheme.primaryText(
-                                size: NeumorphicTheme.titleLarge,
-                                weight: FontWeight.bold,
+                            Flexible(
+                              child: Text(
+                                person.name,
+                                style: NeumorphicTheme.primaryText(
+                                  size: NeumorphicTheme.titleLarge,
+                                  weight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             NeumorphicIconButton(
@@ -88,10 +91,17 @@ class PersonCard extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.group,
-                          size: 18,
-                          color: NeumorphicTheme.slateBlue,
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: NeumorphicTheme.slateBlue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.group,
+                            size: 18,
+                            color: NeumorphicTheme.slateBlue,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -107,7 +117,7 @@ class PersonCard extends StatelessWidget {
                               ),
                               const Spacer(),
                               NeumorphicPill(
-                                color: AppColors.secondary,
+                                color: NeumorphicTheme.mutedCoral,
                                 child: Text(
                                   '+\$${calculatedSharedAmount.toStringAsFixed(2)}',
                                   style: const TextStyle(

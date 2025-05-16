@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/neumorphic_theme.dart';
 
 /// A helper class to show standardized toast notifications throughout the app
 class ToastHelper {
@@ -18,9 +18,9 @@ class ToastHelper {
     // Get appropriate color from theme - always use success or warning (never puce)
     Color backgroundColor;
     if (isSuccess) {
-      backgroundColor = AppColors.success; // Green
+      backgroundColor = NeumorphicTheme.success; // Green
     } else {
-      backgroundColor = AppColors.warning; // Gold/orange for both warnings and errors
+      backgroundColor = NeumorphicTheme.warning; // Gold/orange for both warnings and errors
     }
     
     // Use appropriate icon based on type, but consistent colors
@@ -72,7 +72,7 @@ class ToastHelper {
   /// Should be used sparingly in cases where access to Overlay isn't possible
   static void showSnackBar(BuildContext context, String message, {bool isError = false, bool isSuccess = false}) {
     // Use only success or warning colors (never puce)
-    Color backgroundColor = isSuccess ? AppColors.success : AppColors.warning;
+    Color backgroundColor = isSuccess ? NeumorphicTheme.success : NeumorphicTheme.warning;
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

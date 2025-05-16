@@ -43,6 +43,7 @@ dependencies:
   json_annotation: ^4.8.1
   shared_preferences: ^2.5.3
   uuid: ^4.3.3
+  flutter_speed_dial: ^7.0.0
   
   # Firebase dependencies with more specific versions to ensure compatibility
   firebase_core: ^2.31.1

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
+import '../theme/neumorphic_theme.dart';
 
 enum AppToastType { success, error, warning, info }
 
@@ -12,21 +12,21 @@ void showAppToast(BuildContext context, String message, AppToastType toastType, 
 
   switch (toastType) {
     case AppToastType.success:
-      backgroundColor = AppColors.success;
+      backgroundColor = NeumorphicTheme.success;
       iconData = Icons.check_circle_outline;
       break;
     case AppToastType.error:
-      backgroundColor = AppColors.error; // This is AppColors.puce
+      backgroundColor = NeumorphicTheme.error;
       iconData = Icons.error_outline;
       break;
     case AppToastType.warning:
-      backgroundColor = AppColors.warning; // This is an orange color
+      backgroundColor = NeumorphicTheme.warning;
       iconData = Icons.warning_amber_outlined;
-      textColor = AppColors.prussianBlue; // Better contrast for orange
+      textColor = NeumorphicTheme.prussianBlue; // Better contrast for orange
       break;
     case AppToastType.info:
     default:
-      backgroundColor = AppColors.prussianBlue; 
+      backgroundColor = NeumorphicTheme.prussianBlue; 
       iconData = Icons.info_outline;
       break;
   }

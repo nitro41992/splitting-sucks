@@ -10,58 +10,12 @@ import '../models/receipt_item.dart';
 import 'cards/person_card.dart';
 import 'cards/shared_item_card.dart';
 import 'cards/unassigned_item_card.dart';
-import '../theme/app_colors.dart';
+import '../theme/neumorphic_theme.dart';
 
 // Import neumorphic widgets
 import 'neumorphic/neumorphic_container.dart';
 import 'neumorphic/neumorphic_text_field.dart';
 import 'neumorphic/neumorphic_tabs.dart';
-
-/// Utility class for Neumorphic styling
-class NeumorphicStyles {
-  // Colors
-  static const Color pageBackground = Color(0xFFF5F5F7);
-  static const Color cardBackground = Colors.white;
-  static const Color slateBlue = Color(0xFF5D737E);
-  static const Color mutedCoral = Color(0xFFFFB59E);
-  static const Color darkGrey = Color(0xFF1D1D1F);
-  static const Color mediumGrey = Color(0xFF8A8A8E);
-  static const Color mutedRed = Color(0xFFE57373);
-  
-  // Text styles
-  static TextStyle primaryText({
-    double size = 16.0,
-    FontWeight weight = FontWeight.normal,
-  }) {
-    return TextStyle(
-      fontSize: size,
-      fontWeight: weight,
-      color: darkGrey,
-    );
-  }
-  
-  static TextStyle secondaryText({
-    double size = 14.0,
-    FontWeight weight = FontWeight.normal,
-  }) {
-    return TextStyle(
-      fontSize: size,
-      fontWeight: weight,
-      color: mediumGrey,
-    );
-  }
-  
-  static TextStyle onAccentText({
-    double size = 14.0,
-    FontWeight weight = FontWeight.normal,
-  }) {
-    return TextStyle(
-      fontSize: size,
-      fontWeight: weight,
-      color: Colors.white,
-    );
-  }
-}
 
 // Define a notification class to request navigation
 class NavigateToPageNotification extends Notification {
@@ -219,7 +173,7 @@ class _SplitViewState extends State<SplitView> {
           NeumorphicIconButton(
             icon: Icons.person_add,
             backgroundColor: Colors.white,
-            iconColor: NeumorphicStyles.slateBlue,
+            iconColor: NeumorphicTheme.slateBlue,
             size: 48,
             radius: 24,
             type: NeumorphicType.inset,
@@ -228,7 +182,7 @@ class _SplitViewState extends State<SplitView> {
           NeumorphicIconButton(
             icon: Icons.add_shopping_cart,
             backgroundColor: Colors.white,
-            iconColor: NeumorphicStyles.slateBlue,
+            iconColor: NeumorphicTheme.slateBlue,
             size: 48,
             radius: 24,
             type: NeumorphicType.inset,
@@ -237,7 +191,7 @@ class _SplitViewState extends State<SplitView> {
           NeumorphicIconButton(
             icon: Icons.check,
             backgroundColor: Colors.white,
-            iconColor: NeumorphicStyles.slateBlue,
+            iconColor: NeumorphicTheme.slateBlue,
             size: 48,
             radius: 24,
             type: NeumorphicType.inset,
@@ -276,7 +230,7 @@ class _SplitViewState extends State<SplitView> {
 
         // Show warning if totals mismatch
         if (!totalsMatch) { 
-          final Color warningColor = AppColors.error.withOpacity(0.85);
+          final Color warningColor = NeumorphicTheme.error.withOpacity(0.85);
           
           // Format values to match exactly what's shown in the UI
           final String currentTotalFormatted = currentTotal.toStringAsFixed(2);
@@ -305,7 +259,7 @@ class _SplitViewState extends State<SplitView> {
                   Expanded(
                     child: Text(
                       'Current sum (\$$currentTotalFormatted) ≠ subtotal (\$$originalTotalFormatted)',
-                      style: NeumorphicStyles.secondaryText(
+                      style: NeumorphicTheme.secondaryText(
                         size: 13,
                         weight: FontWeight.w500,
                       ),
@@ -318,7 +272,7 @@ class _SplitViewState extends State<SplitView> {
         }
         
         return Scaffold(
-          backgroundColor: NeumorphicStyles.pageBackground,
+          backgroundColor: NeumorphicTheme.pageBackground,
           body: Stack(
             children: [
               Column(
@@ -333,14 +287,14 @@ class _SplitViewState extends State<SplitView> {
                         children: [
                           Text(
                             'Subtotal: ',
-                            style: NeumorphicStyles.primaryText(
+                            style: NeumorphicTheme.primaryText(
                               size: 18.0,
                               weight: FontWeight.w500,
                             ),
                           ),
                           Text(
                             '\$${subtotal.toStringAsFixed(2)}',
-                            style: NeumorphicStyles.primaryText(
+                            style: NeumorphicTheme.primaryText(
                               size: 18.0, 
                               weight: FontWeight.w600,
                             ),
@@ -350,7 +304,7 @@ class _SplitViewState extends State<SplitView> {
                             onTap: () => setState(() => _isSubtotalCollapsed = !_isSubtotalCollapsed),
                             child: Icon(
                               _isSubtotalCollapsed ? Icons.expand_more : Icons.expand_less,
-                              color: NeumorphicStyles.slateBlue,
+                              color: NeumorphicTheme.slateBlue,
                               size: 24,
                             ),
                           ),
@@ -375,11 +329,11 @@ class _SplitViewState extends State<SplitView> {
                               children: [
                                 Text(
                                   'Individual Items: ',
-                                  style: NeumorphicStyles.primaryText(size: 14),
+                                  style: NeumorphicTheme.primaryText(size: 14),
                                 ),
                                 Text(
                                   '\$${individualTotal.toStringAsFixed(2)}',
-                                  style: NeumorphicStyles.primaryText(
+                                  style: NeumorphicTheme.primaryText(
                                     size: 14,
                                     weight: FontWeight.w500,
                                   ),
@@ -394,11 +348,11 @@ class _SplitViewState extends State<SplitView> {
                               children: [
                                 Text(
                                   'Shared Items: ',
-                                  style: NeumorphicStyles.primaryText(size: 14),
+                                  style: NeumorphicTheme.primaryText(size: 14),
                                 ),
                                 Text(
                                   '\$${sharedTotal.toStringAsFixed(2)}',
-                                  style: NeumorphicStyles.primaryText(
+                                  style: NeumorphicTheme.primaryText(
                                     size: 14,
                                     weight: FontWeight.w500,
                                   ),
@@ -413,11 +367,11 @@ class _SplitViewState extends State<SplitView> {
                               children: [
                                 Text(
                                   'Unassigned Items: ',
-                                  style: NeumorphicStyles.primaryText(size: 14),
+                                  style: NeumorphicTheme.primaryText(size: 14),
                                 ),
                                 Text(
                                   '\$${unassignedTotal.toStringAsFixed(2)}',
-                                  style: NeumorphicStyles.primaryText(
+                                  style: NeumorphicTheme.primaryText(
                                     size: 14,
                                     weight: FontWeight.w500,
                                   ),
@@ -427,7 +381,7 @@ class _SplitViewState extends State<SplitView> {
                             const SizedBox(height: 12),
                             
                             // Subtotal row - with divider
-                            Divider(height: 1, thickness: 1, color: NeumorphicStyles.mediumGrey.withOpacity(0.2)),
+                            Divider(height: 1, thickness: 1, color: NeumorphicTheme.mediumGrey.withOpacity(0.2)),
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8.0),
                               child: Row(
@@ -435,14 +389,14 @@ class _SplitViewState extends State<SplitView> {
                                 children: [
                                   Text(
                                     'Assigned Total: ',
-                                    style: NeumorphicStyles.primaryText(
+                                    style: NeumorphicTheme.primaryText(
                                       size: 14,
                                       weight: FontWeight.w600,
                                     ),
                                   ),
                                   Text(
                                     '\$${subtotal.toStringAsFixed(2)}',
-                                    style: NeumorphicStyles.primaryText(
+                                    style: NeumorphicTheme.primaryText(
                                       size: 14,
                                       weight: FontWeight.w600,
                                     ),
@@ -475,9 +429,9 @@ class _SplitViewState extends State<SplitView> {
                         _checkScrollability();
                       },
                       trackColor: const Color(0xFFE9ECEF),
-                      selectedColor: NeumorphicStyles.slateBlue,
+                      selectedColor: NeumorphicTheme.slateBlue,
                       selectedTextColor: Colors.white,
-                      unselectedTextColor: NeumorphicStyles.slateBlue,
+                      unselectedTextColor: NeumorphicTheme.slateBlue,
                     ),
                   ),
                   
@@ -568,12 +522,12 @@ class _SplitViewState extends State<SplitView> {
               const Icon(
                 Icons.info_outline,
                 size: 48,
-                color: NeumorphicStyles.mediumGrey,
+                color: NeumorphicTheme.mediumGrey,
               ),
               const SizedBox(height: 16),
               Text(
                 emptyText,
-                style: NeumorphicStyles.secondaryText(size: 16),
+                style: NeumorphicTheme.secondaryText(size: 16),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -605,13 +559,13 @@ class _SplitViewState extends State<SplitView> {
                 children: [
                   Icon(
                     Icons.person_add, 
-                    color: NeumorphicStyles.slateBlue,
+                    color: NeumorphicTheme.slateBlue,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
                     'Add Person', 
-                    style: NeumorphicStyles.primaryText(
+                    style: NeumorphicTheme.primaryText(
                       size: 18, 
                       weight: FontWeight.w600
                     ),
@@ -625,7 +579,7 @@ class _SplitViewState extends State<SplitView> {
                 maxLength: personMaxNameLength,
                 prefixIcon: Icon(
                   Icons.person_outline, 
-                  color: NeumorphicStyles.slateBlue,
+                  color: NeumorphicTheme.slateBlue,
                   size: 18,
                 ),
                 textCapitalization: TextCapitalization.words,
@@ -641,7 +595,7 @@ class _SplitViewState extends State<SplitView> {
                       child: Text(
                         'Cancel',
                         style: TextStyle(
-                          color: NeumorphicStyles.mutedRed,
+                          color: NeumorphicTheme.mutedRed,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -650,7 +604,7 @@ class _SplitViewState extends State<SplitView> {
                   const SizedBox(width: 16),
                   NeumorphicContainer(
                     type: NeumorphicType.raised,
-                    color: NeumorphicStyles.slateBlue,
+                    color: NeumorphicTheme.slateBlue,
                     radius: 8,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     onTap: () {
@@ -662,7 +616,7 @@ class _SplitViewState extends State<SplitView> {
                     },
                     child: Text(
                       'Add',
-                      style: NeumorphicStyles.onAccentText(weight: FontWeight.w600),
+                      style: NeumorphicTheme.onAccentText(weight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -703,13 +657,13 @@ class _SplitViewState extends State<SplitView> {
                       children: [
                         Icon(
                           Icons.add_shopping_cart, 
-                          color: NeumorphicStyles.slateBlue,
+                          color: NeumorphicTheme.slateBlue,
                           size: 20,
                         ),
                         const SizedBox(width: 12),
                         Text(
                           'Add Item', 
-                          style: NeumorphicStyles.primaryText(
+                          style: NeumorphicTheme.primaryText(
                             size: 18, 
                             weight: FontWeight.w600
                           ),
@@ -741,7 +695,7 @@ class _SplitViewState extends State<SplitView> {
                     // Quantity selector
                     Text(
                       'Quantity:',
-                      style: NeumorphicStyles.primaryText(size: 14),
+                      style: NeumorphicTheme.primaryText(size: 14),
                     ),
                     const SizedBox(height: 8),
                     Row(
@@ -754,8 +708,8 @@ class _SplitViewState extends State<SplitView> {
                           radius: 18,
                           iconSize: 18,
                           iconColor: quantity > 1 
-                            ? NeumorphicStyles.slateBlue 
-                            : NeumorphicStyles.mediumGrey.withOpacity(0.5),
+                            ? NeumorphicTheme.slateBlue 
+                            : NeumorphicTheme.mediumGrey.withOpacity(0.5),
                           onPressed: quantity > 1 
                             ? () => setStateDialog(() => quantity--) 
                             : () {},
@@ -765,7 +719,7 @@ class _SplitViewState extends State<SplitView> {
                           alignment: Alignment.center,
                           child: Text(
                             '$quantity',
-                            style: NeumorphicStyles.primaryText(
+                            style: NeumorphicTheme.primaryText(
                               size: 18,
                               weight: FontWeight.bold,
                             ),
@@ -777,7 +731,7 @@ class _SplitViewState extends State<SplitView> {
                           size: 36,
                           radius: 18,
                           iconSize: 18,
-                          iconColor: NeumorphicStyles.slateBlue,
+                          iconColor: NeumorphicTheme.slateBlue,
                           onPressed: () => setStateDialog(() => quantity++),
                         ),
                       ],
@@ -795,7 +749,7 @@ class _SplitViewState extends State<SplitView> {
                             child: Text(
                               'Cancel',
                               style: TextStyle(
-                                color: NeumorphicStyles.mutedRed,
+                                color: NeumorphicTheme.mutedRed,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -804,7 +758,7 @@ class _SplitViewState extends State<SplitView> {
                         const SizedBox(width: 16),
                         NeumorphicContainer(
                           type: NeumorphicType.raised,
-                          color: NeumorphicStyles.slateBlue,
+                          color: NeumorphicTheme.slateBlue,
                           radius: 8,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           onTap: () {
@@ -826,7 +780,7 @@ class _SplitViewState extends State<SplitView> {
                           },
                           child: Text(
                             'Add',
-                            style: NeumorphicStyles.onAccentText(weight: FontWeight.w600),
+                            style: NeumorphicTheme.onAccentText(weight: FontWeight.w600),
                           ),
                         ),
                       ],
@@ -868,13 +822,13 @@ class _SplitViewState extends State<SplitView> {
                 children: [
                   Icon(
                     Icons.edit, 
-                    color: NeumorphicStyles.slateBlue,
+                    color: NeumorphicTheme.slateBlue,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
                     'Edit Person', 
-                    style: NeumorphicStyles.primaryText(
+                    style: NeumorphicTheme.primaryText(
                       size: 18, 
                       weight: FontWeight.w600
                     ),
@@ -888,7 +842,7 @@ class _SplitViewState extends State<SplitView> {
                 maxLength: personMaxNameLength,
                 prefixIcon: Icon(
                   Icons.person_outline, 
-                  color: NeumorphicStyles.slateBlue,
+                  color: NeumorphicTheme.slateBlue,
                   size: 18,
                 ),
                 textCapitalization: TextCapitalization.words,
@@ -904,7 +858,7 @@ class _SplitViewState extends State<SplitView> {
                       child: Text(
                         'Cancel',
                         style: TextStyle(
-                          color: NeumorphicStyles.mutedRed,
+                          color: NeumorphicTheme.mutedRed,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -913,7 +867,7 @@ class _SplitViewState extends State<SplitView> {
                   const SizedBox(width: 16),
                   NeumorphicContainer(
                     type: NeumorphicType.raised,
-                    color: NeumorphicStyles.slateBlue,
+                    color: NeumorphicTheme.slateBlue,
                     radius: 8,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     onTap: () {
@@ -930,7 +884,7 @@ class _SplitViewState extends State<SplitView> {
                     },
                     child: Text(
                       'Save',
-                      style: NeumorphicStyles.onAccentText(weight: FontWeight.w600),
+                      style: NeumorphicTheme.onAccentText(weight: FontWeight.w600),
                     ),
                   ),
                 ],

@@ -7,6 +7,7 @@ import '../widgets/dialogs/edit_item_dialog.dart'; // Import Edit dialog
 import '../utils/platform_config.dart'; // Import platform config
 import '../utils/toast_helper.dart'; // Import toast helper
 import '../widgets/workflow_modal.dart' show GetCurrentItemsCallback; 
+import '../theme/neumorphic_theme.dart'; // Import theme
 
 class ReceiptReviewScreen extends StatefulWidget {
   final List<ReceiptItem> initialItems;
@@ -248,9 +249,9 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
     final ColorScheme colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F7), // Light grey background
+      backgroundColor: NeumorphicTheme.pageBackground, // Light grey background
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F5F7), // Match page background
+        backgroundColor: NeumorphicTheme.pageBackground, // Match page background
         elevation: 0,
         automaticallyImplyLeading: false,
         leading: Container(
@@ -274,14 +275,14 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
             ],
           ),
           child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF5D737E)),
+            icon: Icon(Icons.arrow_back, color: NeumorphicTheme.slateBlue),
             onPressed: widget.onClose,
           ),
         ),
         title: Text(
           'Edit Receipt Items',
-          style: const TextStyle(
-            color: Color(0xFF1D1D1F),
+          style: TextStyle(
+            color: NeumorphicTheme.darkGrey,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -305,8 +306,8 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                   // Pass the neumorphic design details
                   useNeumorphicStyle: true,
                   backgroundColor: Colors.white,
-                  textColor: const Color(0xFF1D1D1F),
-                  accentColor: const Color(0xFF5D737E),
+                  textColor: NeumorphicTheme.darkGrey,
+                  accentColor: NeumorphicTheme.slateBlue,
                 ),
               ),
 
@@ -318,7 +319,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                       Icon(
                         Icons.list, 
                         size: 20, 
-                        color: const Color(0xFF5D737E),
+                        color: NeumorphicTheme.slateBlue,
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -326,7 +327,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF5D737E),
+                          color: NeumorphicTheme.slateBlue,
                         ),
                       ),
                     ],
@@ -371,14 +372,14 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                                             style: const TextStyle(
                                               fontSize: 16, 
                                               fontWeight: FontWeight.w600,
-                                              color: Color(0xFF1D1D1F),
+                                              color: NeumorphicTheme.darkGrey,
                                             ),
                                           ),
                                           const SizedBox(width: 6),
                                           const Icon(
                                             Icons.edit,
                                             size: 16,
-                                            color: Color(0xFF5D737E),
+                                            color: NeumorphicTheme.mediumGrey,
                                           ),
                                         ],
                                       ),
@@ -407,7 +408,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                                     '\$${item.price.toStringAsFixed(2)} each',
                                     style: const TextStyle(
                                       fontSize: 14,
-                                      color: Color(0xFF8A8A8E),
+                                      color: NeumorphicTheme.mediumGrey,
                                     ),
                                   ),
                                   const Spacer(),
@@ -443,8 +444,8 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                                               Icons.remove,
                                               size: 16,
                                               color: item.quantity > 1
-                                                ? const Color(0xFF5D737E)
-                                                : const Color(0xFF8A8A8E).withOpacity(0.5),
+                                                ? NeumorphicTheme.slateBlue
+                                                : NeumorphicTheme.mediumGrey.withOpacity(0.5),
                                             ),
                                           ),
                                         ),
@@ -458,7 +459,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w500,
-                                              color: Color(0xFF1D1D1F),
+                                              color: NeumorphicTheme.darkGrey,
                                             ),
                                           ),
                                         ),
@@ -475,7 +476,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                                             child: const Icon(
                                               Icons.add,
                                               size: 16,
-                                              color: Color(0xFF5D737E),
+                                              color: NeumorphicTheme.slateBlue,
                                             ),
                                           ),
                                         ),
@@ -489,7 +490,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF5D737E),
+                                      color: NeumorphicTheme.slateBlue,
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
@@ -551,7 +552,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                               item.name,
                               style: const TextStyle(
                                 fontSize: 15,
-                                color: Color(0xFF8A8A8E),
+                                color: NeumorphicTheme.mediumGrey,
                                 decoration: TextDecoration.lineThrough,
                               ),
                             ),
@@ -559,7 +560,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                               '${item.quantity}x \$${item.price.toStringAsFixed(2)} each',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: const Color(0xFF8A8A8E).withOpacity(0.7),
+                                color: NeumorphicTheme.mediumGrey.withOpacity(0.7),
                                 decoration: TextDecoration.lineThrough,
                               ),
                             ),
@@ -581,7 +582,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                                 label: const Text('Restore'),
                                 onPressed: () => _restoreItem(index),
                                 style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xFF5D737E),
+                                  foregroundColor: NeumorphicTheme.slateBlue,
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   minimumSize: Size.zero,
                                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -657,7 +658,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                               children: [
                                 const Icon(
                                   Icons.add_circle_outline,
-                                  color: Color(0xFF5D737E),
+                                  color: NeumorphicTheme.slateBlue,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
@@ -666,7 +667,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w500,
-                                    color: const Color(0xFF5D737E),
+                                    color: NeumorphicTheme.slateBlue,
                                   ),
                                 ),
                               ],
@@ -684,7 +685,7 @@ class _ReceiptReviewScreenState extends State<ReceiptReviewScreen> {
                     flex: 1,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFF5D737E),
+                        color: NeumorphicTheme.slateBlue,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(

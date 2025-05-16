@@ -10,6 +10,7 @@ import '../services/audio_transcription_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/platform_config.dart'; // Import platform config
 import '../utils/toast_helper.dart'; // Import toast helper
+import '../theme/neumorphic_theme.dart'; // Import NeumorphicTheme
 
 class VoiceAssignmentScreen extends StatefulWidget {
   final List<ReceiptItem> itemsToAssign;
@@ -327,7 +328,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
 
     // Background color changed to light grey as per design
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F7), // Light grey background
+      backgroundColor: NeumorphicTheme.pageBackground, // Light grey background
       body: LayoutBuilder(
         builder: (context, constraints) {
           return Stack(
@@ -369,7 +370,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                               'Assign by Voice',
                               style: textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w500,
-                                color: const Color(0xFF1D1D1F), // Primary Text Color
+                                color: NeumorphicTheme.darkGrey, // Primary Text Color
                               ),
                             ),
                             const SizedBox(height: 24),
@@ -462,7 +463,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                                 'Tips for a better split',
                                                 style: textTheme.titleMedium?.copyWith(
                                                   fontWeight: FontWeight.w500,
-                                                  color: const Color(0xFF1D1D1F),
+                                                  color: NeumorphicTheme.darkGrey,
                                                 ),
                                               ),
                                             ),
@@ -482,14 +483,14 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                               Icon(
                                                 Icons.people,
                                                 size: 18,
-                                                color: const Color(0xFF8A8A8E), // Secondary Text Color
+                                                color: NeumorphicTheme.mediumGrey, // Secondary Text Color
                                               ),
                                               const SizedBox(width: 8),
                                               Expanded(
                                                 child: Text(
                                                   'Start by saying everyone\'s name (including yours).',
                                                   style: textTheme.bodyMedium?.copyWith(
-                                                    color: const Color(0xFF8A8A8E), // Secondary Text Color
+                                                    color: NeumorphicTheme.mediumGrey, // Secondary Text Color
                                                   ),
                                                 ),
                                               ),
@@ -502,14 +503,14 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                               Icon(
                                                 Icons.restaurant_menu,
                                                 size: 18,
-                                                color: const Color(0xFF8A8A8E),
+                                                color: NeumorphicTheme.mediumGrey,
                                               ),
                                               const SizedBox(width: 8),
                                               Expanded(
                                                 child: Text(
                                                   'Describe what each person ordered using item names from the list below.',
                                                   style: textTheme.bodyMedium?.copyWith(
-                                                    color: const Color(0xFF8A8A8E),
+                                                    color: NeumorphicTheme.mediumGrey,
                                                   ),
                                                 ),
                                               ),
@@ -522,14 +523,14 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                               Icon(
                                                 Icons.share,
                                                 size: 18,
-                                                color: const Color(0xFF8A8A8E),
+                                                color: NeumorphicTheme.mediumGrey,
                                               ),
                                               const SizedBox(width: 8),
                                               Expanded(
                                                 child: Text(
                                                   'Mention shared items like: "Alex and Jamie shared the fries and we all had the salad."',
                                                   style: textTheme.bodyMedium?.copyWith(
-                                                    color: const Color(0xFF8A8A8E),
+                                                    color: NeumorphicTheme.mediumGrey,
                                                   ),
                                                 ),
                                               ),
@@ -542,14 +543,14 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                               Icon(
                                                 Icons.format_list_numbered,
                                                 size: 18,
-                                                color: const Color(0xFF8A8A8E),
+                                                color: NeumorphicTheme.mediumGrey,
                                               ),
                                               const SizedBox(width: 8),
                                               Expanded(
                                                 child: Text(
                                                   'Use the item numbers! Say things like "Emma got #2 and we all shared #5" — super handy when dishes have complex names!',
                                                   style: textTheme.bodyMedium?.copyWith(
-                                                    color: const Color(0xFF8A8A8E),
+                                                    color: NeumorphicTheme.mediumGrey,
                                                   ),
                                                 ),
                                               ),
@@ -634,7 +635,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                       'Receipt Summary',
                                       style: textTheme.titleLarge?.copyWith(
                                         fontWeight: FontWeight.w500,
-                                        color: const Color(0xFF1D1D1F),
+                                        color: NeumorphicTheme.darkGrey,
                                       ),
                                     ),
                                   ],
@@ -642,9 +643,9 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                 GestureDetector(
                                   onTap: widget.onEditItems,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: AppColors.secondary,
+                                      color: AppColors.mutedCoral,
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
                                         BoxShadow(
@@ -713,7 +714,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                         '${item.quantity}x',
                                         style: TextStyle(
                                           fontWeight: FontWeight.w500,
-                                          color: const Color(0xFF8A8A8E),
+                                          color: NeumorphicTheme.mediumGrey,
                                         ),
                                       ),
                                     ),
@@ -739,7 +740,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                                   child: Text(
                                                     item.name,
                                                     style: TextStyle(
-                                                      color: const Color(0xFF1D1D1F),
+                                                      color: NeumorphicTheme.darkGrey,
                                                     ),
                                                     overflow: TextOverflow.ellipsis,
                                                     maxLines: 1,
@@ -753,7 +754,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                             '\$${(item.price * item.quantity).toStringAsFixed(2)}',
                                             style: TextStyle(
                                               fontWeight: FontWeight.w500,
-                                              color: const Color(0xFF1D1D1F),
+                                              color: NeumorphicTheme.darkGrey,
                                             ),
                                           ),
                                         ],
@@ -774,7 +775,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 16,
-                                    color: const Color(0xFF1D1D1F),
+                                    color: NeumorphicTheme.darkGrey,
                                   ),
                                 ),
                                 Text(
@@ -782,7 +783,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 16,
-                                    color: const Color(0xFF1D1D1F),
+                                    color: NeumorphicTheme.darkGrey,
                                   ),
                                 ),
                               ],

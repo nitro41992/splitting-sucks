@@ -8,7 +8,7 @@ import 'dart:async';
 import '../models/split_manager.dart';
 // import '../models/receipt_item.dart'; // Not directly used in this snippet but keep if PersonSummaryCard needs it
 import '../models/person.dart';
-import '../theme/app_colors.dart';
+import '../theme/neumorphic_theme.dart';
 import '../widgets/split_view.dart';
 import '../widgets/final_summary/person_summary_card.dart';
 import '../utils/platform_config.dart';
@@ -283,7 +283,14 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           icon: Icon(Icons.celebration_rounded,
               color: colorScheme.primary, size: 36),
-          title: const Text('Receipt Copied! 🎉'),
+          title: const Text(
+            'Receipt Copied! 🎉',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: NeumorphicTheme.slateBlue,
+            ),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -357,7 +364,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
                   child: Icon(
                     Icons.summarize_outlined,
                     size: 60,
-                    color: AppColors.primary,
+                    color: NeumorphicTheme.slateBlue,
                   ),
                 ),
               ),
@@ -365,7 +372,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
               Text(
                 'No Split Summary Available',
                 style: textTheme.headlineSmall?.copyWith(
-                  color: AppColors.primary,
+                  color: NeumorphicTheme.slateBlue,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -427,13 +434,13 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
                 child: Row(
                   children: [
                     Icon(Icons.receipt_long_outlined,
-                        color: AppColors.primary, size: 24),
+                        color: NeumorphicTheme.slateBlue, size: 24),
                     const SizedBox(width: 8),
                     Text(
                       'Bill Overview',
                       style: textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                        color: NeumorphicTheme.slateBlue,
                       ),
                     ),
                   ],
@@ -557,12 +564,12 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
                           Expanded(
                             child: SliderTheme(
                               data: SliderThemeData(
-                                activeTrackColor: AppColors.primary,
+                                activeTrackColor: NeumorphicTheme.slateBlue,
                                 inactiveTrackColor:
-                                    AppColors.primary.withOpacity(0.2),
-                                thumbColor: AppColors.primary,
+                                    NeumorphicTheme.slateBlue.withOpacity(0.2),
+                                thumbColor: NeumorphicTheme.slateBlue,
                                 overlayColor:
-                                    AppColors.primary.withOpacity(0.2),
+                                    NeumorphicTheme.slateBlue.withOpacity(0.2),
                                 trackHeight: 4.0,
                               ),
                               child: Slider(
@@ -602,20 +609,20 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
                     Row(
                       children: [
                         Icon(Icons.people_alt_outlined,
-                            color: AppColors.primary, size: 24),
+                            color: NeumorphicTheme.slateBlue, size: 24),
                         const SizedBox(width: 8),
                         Text(
                           'Split Breakdown',
                           style: textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
+                            color: NeumorphicTheme.slateBlue,
                           ),
                         ),
                       ],
                     ),
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.secondary,
+                        color: NeumorphicTheme.mutedCoral,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
@@ -736,11 +743,11 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
                                 CircleAvatar(
                                   radius: 16,
                                   backgroundColor:
-                                      AppColors.secondary.withOpacity(0.2),
+                                      NeumorphicTheme.mutedCoral.withOpacity(0.2),
                                   child: Icon(
                                     Icons.help_outline,
                                     size: 20,
-                                    color: AppColors.secondary,
+                                    color: NeumorphicTheme.mutedCoral,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -748,7 +755,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
                                   '${splitManager.unassignedItems.length} Unassigned ${splitManager.unassignedItems.length == 1 ? 'Item' : 'Items'}',
                                   style: textTheme.bodyMedium?.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.secondary,
+                                    color: NeumorphicTheme.mutedCoral,
                                   ),
                                 ),
                               ],
@@ -875,7 +882,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
           child: Text(
             label,
             style: style?.copyWith(
-              color: isGrandTotal ? AppColors.primary : colorScheme.onSurface,
+              color: isGrandTotal ? NeumorphicTheme.slateBlue : colorScheme.onSurface,
             ),
             overflow: TextOverflow.ellipsis,
           ),
@@ -884,7 +891,7 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
         Text(
           '\$${value.toStringAsFixed(2)}',
           style: style?.copyWith(
-            color: isGrandTotal ? AppColors.primary : colorScheme.onSurface,
+            color: isGrandTotal ? NeumorphicTheme.slateBlue : colorScheme.onSurface,
           ),
         ),
       ],
@@ -914,12 +921,12 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
     required bool isSecondary,
   }) {
     final Color backgroundColor = isPrimary
-        ? AppColors.primary
+        ? NeumorphicTheme.slateBlue
         : isSecondary
-            ? AppColors.secondary
+            ? NeumorphicTheme.mutedCoral
             : Colors.white;
     final Color textColor =
-        (isPrimary || isSecondary) ? Colors.white : AppColors.primary;
+        (isPrimary || isSecondary) ? Colors.white : NeumorphicTheme.slateBlue;
 
     return Container(
       decoration: BoxDecoration(
@@ -981,8 +988,8 @@ class _FinalSummaryScreenState extends State<FinalSummaryScreen>
     required bool isSelected,
     required VoidCallback onPressed,
   }) {
-    final Color backgroundColor = isSelected ? AppColors.primary : Colors.white;
-    final Color textColor = isSelected ? Colors.white : AppColors.primary;
+    final Color backgroundColor = isSelected ? NeumorphicTheme.slateBlue : Colors.white;
+    final Color textColor = isSelected ? Colors.white : NeumorphicTheme.slateBlue;
 
     return Container(
       width: 64,

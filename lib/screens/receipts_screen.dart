@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/receipt.dart';
-import '../services/firestore_service.dart';
-import '../widgets/workflow_modal.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../utils/dialog_helpers.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:async';
+import '../services/firestore_service.dart';
+import 'dart:math';
+import '../models/receipt.dart';
+import '../widgets/workflow_modal.dart';
 import '../utils/toast_utils.dart';
-import 'dart:math'; // Add import for min function
-import '../theme/app_colors.dart'; // Import AppColors
+import '../utils/dialog_helpers.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../theme/neumorphic_theme.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import '../providers/workflow_state.dart';
 
 class ReceiptsScreen extends StatefulWidget {
   const ReceiptsScreen({Key? key}) : super(key: key);
@@ -21,30 +25,19 @@ class ReceiptsScreen extends StatefulWidget {
 class _ReceiptsScreenState extends State<ReceiptsScreen> 
     with AutomaticKeepAliveClientMixin {
   final FirestoreService _firestoreService = FirestoreService();
-  // String? _errorMessage; // StreamBuilder will handle error display
-  Stream<List<Receipt>>? _processedReceiptsStream; // ADDED: New stream for processed receipts
-  
-  // Search functionality
+  Stream<List<Receipt>>? _processedReceiptsStream;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-
+  
   // --- State Variables for holding receipts from stream --- 
   List<Receipt> _receipts = []; // Will be populated by StreamBuilder data
   bool _isProcessingStream = false; // To manage async processing of stream data
   // --- End Stream Data Variables ---
 
-  // REMOVE Pagination state variables:
-  // DocumentSnapshot? _lastDocument;
-  // bool _isLoadingInitial = true;
-  // bool _isLoadingMore = false;
-  // bool _hasMoreData = true;
-  // final ScrollController _scrollController = ScrollController();
-  // final int _pageSize = 15;
-
-  // Define reusable colors from prompt
-  static const Color _lightSlateBlue = Color(0xFFA0AEC0);
-  static const Color _primaryTextColor = Color(0xFF1D1D1F);
-  static const Color _secondaryTextColor = Color(0xFF8A8A8E);
+  // Define reusable colors from NeumorphicTheme instead of hardcoded colors
+  static final Color _lightSlateBlue = NeumorphicTheme.slateBlue;
+  static final Color _primaryTextColor = NeumorphicTheme.darkGrey;
+  static final Color _secondaryTextColor = NeumorphicTheme.mediumGrey;
 
   @override
   bool get wantKeepAlive => true;
@@ -340,8 +333,8 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
                                       color: receipt.isDraft 
-                                          ? AppColors.battleshipGray // Pastel yellow for draft
-                                          : AppColors.primary, // Pastel green for completed
+                                          ? NeumorphicTheme.mutedCoral // Pastel yellow for draft
+                                          : NeumorphicTheme.primary, // Pastel green for completed
                                       borderRadius: BorderRadius.circular(16),
                                     ),
                                     child: Row(
@@ -372,14 +365,14 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                       width: 36,
                                       height: 36,
                                       decoration: BoxDecoration(
-                                        color: AppColors.secondary.withOpacity(0.1),
+                                        color: NeumorphicTheme.secondary.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: IconButton(
-                                        icon: const Icon(
+                                        icon: Icon(
                                           Icons.edit,
                                           size: 22,
-                                          color: AppColors.secondary,
+                                          color: NeumorphicTheme.secondary,
                                         ),
                                         onPressed: () {
                                           setState(() {
@@ -504,7 +497,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                           decoration: BoxDecoration(
                             color: Colors.grey[50],
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade200),
+                            border: Border.all(color: NeumorphicTheme.lightGrey),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -528,16 +521,16 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), // Match chip padding
                                       decoration: BoxDecoration(
-                                        color: AppColors.primary.withOpacity(0.1),
+                                        color: NeumorphicTheme.primary.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(16), // Match chip radius
-                                        border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+                                        border: Border.all(color: NeumorphicTheme.primary.withOpacity(0.15)),
                                       ),
                                       child: Text(
                                         "View all ${receipt.people.length} participants",
                                         style: TextStyle(
                                           fontSize: 13, // Match chip font size
                                           fontWeight: FontWeight.w600,
-                                          color: AppColors.primary,
+                                          color: NeumorphicTheme.primary,
                                         ),
                                       ),
                                     ),
@@ -559,7 +552,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                       icon: const Icon(Icons.edit),
                       label: const Text('Edit Receipt'),
                       style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: NeumorphicTheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -751,7 +744,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: const Color(0xFFE0E0E0), // Light grey border
+                      color: NeumorphicTheme.lightGrey, // Light grey border
                       width: 1,
                     ),
                     boxShadow: [
@@ -795,7 +788,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF1D1D1F), // Primary Text - Dark Grey
+                          color: NeumorphicTheme.darkGrey, // Primary Text - Dark Grey
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -808,7 +801,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.normal,
-                          color: Color(0xFF8A8A8E), // Secondary Text - Medium Grey
+                          color: NeumorphicTheme.mediumGrey, // Secondary Text - Medium Grey
                         ),
                       ),
                       
@@ -836,7 +829,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                         style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w600,
-                                          color: _primaryTextColor,
+                                          color: NeumorphicTheme.primary,
                                         ),
                                       ),
                                       const SizedBox(height: 16),
@@ -853,13 +846,13 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                                           decoration: BoxDecoration(
                                             color: Colors.white,
                                             borderRadius: BorderRadius.circular(12),
-                                            border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                                            border: Border.all(color: NeumorphicTheme.primary.withOpacity(0.3)),
                                           ),
                                           child: Center(
                                             child: Text(
                                               "Done",
                                               style: TextStyle(
-                                                color: AppColors.primary,
+                                                color: NeumorphicTheme.primary,
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 15,
                                               ),
@@ -877,7 +870,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                             padding: const EdgeInsets.symmetric(vertical: 4.0),
                             child: Text(
                               _buildParticipantListString(receipt.people),
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal, color: _primaryTextColor), // Changed to FontWeight.normal
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.normal, color: NeumorphicTheme.primary), // Changed to FontWeight.normal
                               maxLines: 2, // Allow wrapping for long names if necessary before +N
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -891,7 +884,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                             style: const TextStyle(
                               fontSize: 13,
                               fontStyle: FontStyle.italic,
-                              color: _secondaryTextColor, // Use defined secondary text color
+                              color: NeumorphicTheme.secondary, // Use defined secondary text color
                             ),
                           ),
                         ),
@@ -903,8 +896,8 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: receipt.isDraft 
-                              ? AppColors.battleshipGray // Pastel yellow for draft
-                              : AppColors.primary, // Pastel green for completed
+                              ? NeumorphicTheme.mutedCoral // Pastel yellow for draft
+                              : NeumorphicTheme.primary, // Pastel green for completed
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Row(
@@ -943,7 +936,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
     super.build(context);
     debugPrint('[_ReceiptsScreenState] build() called.');
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F7), // Very light grey background
+      backgroundColor: NeumorphicTheme.pageBackground, // Light grey background
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
@@ -962,14 +955,14 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
             const Text(
               'Billfie',
               style: TextStyle(
-                color: Color(0xFF1D1D1F), // Primary text color
+                color: NeumorphicTheme.darkGrey, // Primary text color
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               'Smarter bill splitting',
               style: const TextStyle(
-                color: Color(0xFF8A8A8E), // Secondary text color
+                color: NeumorphicTheme.mediumGrey, // Secondary text color
                 fontSize: 14,
                 fontWeight: FontWeight.normal,
               ),
@@ -978,7 +971,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: AppColors.secondary),
+            icon: const Icon(Icons.search, color: NeumorphicTheme.secondary),
             onPressed: () {
               showSearch(
                 context: context,
@@ -1114,7 +1107,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
       floatingActionButton: FloatingActionButton(
         onPressed: _addNewReceipt,
         tooltip: 'Add Receipt',
-        backgroundColor: AppColors.secondary, // Change to secondary color (puce)
+        backgroundColor: NeumorphicTheme.secondary, // Change to secondary color (puce)
         elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -1245,7 +1238,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
           Expanded(
             child: Text(
               personName,
-              style: const TextStyle(fontSize: 16, color: _primaryTextColor, fontWeight: FontWeight.w500), // 16pt Medium
+              style: const TextStyle(fontSize: 16, color: NeumorphicTheme.primary, fontWeight: FontWeight.w500), // 16pt Medium
             ),
           ),
         ],
@@ -1267,7 +1260,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
             offset: const Offset(0, 1),
           ),
         ],
-        border: Border.all(color: AppColors.primary.withOpacity(0.15)),
+        border: Border.all(color: NeumorphicTheme.primary.withOpacity(0.15)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1276,7 +1269,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: AppColors.primary,
+              color: NeumorphicTheme.primary,
               shape: BoxShape.circle,
             ),
           ),
@@ -1285,7 +1278,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
             personName,
             style: TextStyle(
               fontSize: 13,
-              color: _primaryTextColor,
+              color: NeumorphicTheme.primary,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -1307,7 +1300,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: AppColors.battleshipGray,
+            color: NeumorphicTheme.secondary,
           ),
         ),
       )
@@ -1359,7 +1352,7 @@ class _ReceiptsScreenState extends State<ReceiptsScreen>
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
-                      color: _primaryTextColor,
+                      color: NeumorphicTheme.primary,
                     ),
                   ),
                   const Spacer(),
