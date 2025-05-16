@@ -5,9 +5,9 @@ import '../widgets/receipt_upload/full_image_viewer.dart'; // Import the full im
 import '../services/file_helper.dart'; // Import FileHelper
 import '../utils/toast_helper.dart'; // Import the toast helper
 import 'package:cached_network_image/cached_network_image.dart';
+import '../theme/app_colors.dart'; // Import AppColors
 
-// Define Slate Blue color constant
-const Color slateBlue = Color(0xFF5D737E);
+// Define color constants
 const Color lightGrey = Color(0xFFF5F5F7);
 const Color primaryTextColor = Color(0xFF1D1D1F);
 const Color secondaryTextColor = Color(0xFF8A8A8E);
@@ -293,7 +293,7 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
               child: const Icon(
                 Icons.receipt_long_outlined,
                 size: 48,
-                color: slateBlue,
+                color: AppColors.primary,
               ),
             ),
             
@@ -488,8 +488,8 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
     required bool isPrimary,
   }) {
     // Colors based on primary/secondary and enabled/disabled state
-    final Color backgroundColor = isPrimary ? slateBlue : Colors.white;
-    final Color textColor = isPrimary ? Colors.white : slateBlue;
+    final Color backgroundColor = isPrimary ? AppColors.primary : Colors.white;
+    final Color textColor = isPrimary ? Colors.white : AppColors.primary;
     final bool isEnabled = onPressed != null;
     
     // Apply opacity for disabled state
@@ -538,10 +538,10 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
           borderRadius: BorderRadius.circular(12),
           splashColor: isPrimary 
               ? Colors.white.withOpacity(0.1) 
-              : slateBlue.withOpacity(0.05),
+              : AppColors.primary.withOpacity(0.05),
           highlightColor: isPrimary 
               ? Colors.white.withOpacity(0.05) 
-              : slateBlue.withOpacity(0.01),
+              : AppColors.primary.withOpacity(0.01),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20.0),
             child: Row(
@@ -578,8 +578,8 @@ class _ReceiptUploadScreenState extends State<ReceiptUploadScreen> with SingleTi
     required bool isPrimary,
   }) {
     // Colors based on primary/secondary and enabled/disabled state
-    final Color backgroundColor = isPrimary ? slateBlue : Colors.white;
-    final Color textColor = isPrimary ? Colors.white : slateBlue;
+    final Color backgroundColor = isPrimary ? AppColors.primary : AppColors.secondary;
+    final Color textColor = Colors.white;
     final bool isEnabled = onPressed != null;
     
     // Apply opacity for disabled state

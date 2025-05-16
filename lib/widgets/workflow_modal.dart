@@ -987,7 +987,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                             shape: StadiumBorder(), // Pill-shaped border
                           ),
                           child: const Text(
-                            'Save Bill',
+                            'Done',
                             style: TextStyle(
                               color: Colors.white, // White text for better contrast
                               fontSize: 14,
@@ -995,7 +995,7 @@ class _WorkflowModalBodyState extends State<_WorkflowModalBody> with WidgetsBind
                             ),
                           ),
                         )
-                      : const SizedBox(width: 44), // Empty space to balance layout
+                      : const SizedBox(width: 60), // Empty space to balance layout
                   ],
                 ),
               ),

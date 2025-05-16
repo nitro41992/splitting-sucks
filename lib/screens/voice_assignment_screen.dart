@@ -383,7 +383,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                   height: 80,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: Colors.white,
+                                    color: _isRecording ? AppColors.secondary.withOpacity(0.9) : AppColors.secondary,
                                     boxShadow: _isRecording 
                                       ? [
                                           // Inset shadow for pressed state
@@ -414,7 +414,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                     ? const Center(child: CircularProgressIndicator())
                                     : Icon(
                                         _isRecording ? Icons.stop_circle : Icons.mic,
-                                        color: const Color(0xFF5D737E), // Slate Blue
+                                        color: Colors.white, // White icon
                                         size: 40,
                                       ),
                                 ),
@@ -453,7 +453,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                           children: [
                                             Icon(
                                               Icons.tips_and_updates_outlined,
-                                              color: const Color(0xFF5D737E), // Slate Blue
+                                              color: AppColors.primary, // Updated from slate blue
                                               size: 20,
                                             ),
                                             const SizedBox(width: 12),
@@ -468,7 +468,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                             ),
                                             Icon(
                                               _tipsExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                              color: const Color(0xFF5D737E), // Slate Blue
+                                              color: AppColors.primary, // Updated from slate blue
                                               size: 24,
                                             ),
                                           ],
@@ -628,7 +628,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.receipt_long, color: const Color(0xFF5D737E), size: 20),
+                                    Icon(Icons.receipt_long, color: AppColors.primary, size: 20),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Receipt Summary',
@@ -644,7 +644,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: AppColors.secondary,
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
                                         BoxShadow(
@@ -665,14 +665,14 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                       children: [
                                         Icon(
                                           Icons.edit,
-                                          color: const Color(0xFF5D737E),
+                                          color: Colors.white,
                                           size: 16,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
                                           'Edit',
                                           style: TextStyle(
-                                            color: const Color(0xFF5D737E),
+                                            color: Colors.white,
                                             fontWeight: FontWeight.w500,
                                             fontSize: 14,
                                           ),
@@ -731,7 +731,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                                                   '#${index + 1}',
                                                   style: TextStyle(
                                                     fontWeight: FontWeight.w500,
-                                                    color: const Color(0xFF5D737E),
+                                                    color: AppColors.primary,
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
@@ -807,7 +807,7 @@ class VoiceAssignmentScreenState extends State<VoiceAssignmentScreen> {
                     child: ElevatedButton(
                       onPressed: !_isLoading ? _processTranscription : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF5D737E), // Slate Blue
+                        backgroundColor: AppColors.primary, // Use dark blue from AppColors
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
